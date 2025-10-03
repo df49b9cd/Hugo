@@ -1,0 +1,43 @@
+name: Build and Pack Hugo
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Necessary for GitVersion to work correctly
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Install GitVersion
+      uses: GitTools/actions/gitversion/setup@v6.4.0
+      with:
+        versionSpec: '5.x'
+
+    - name: Determine Version
+      id: gitversion
+      uses: GitTools/actions/gitversion/execute@v6.4.0
+
+    - name: Build
+      run: dotnet build src/Hugo/Hugo.csproj --configuration Release /p:Version=${{ steps.gitversion.outputs.semVer }}
+
+    - name: Pack
+      run: dotnet pack src/Hugo/Hugo.csproj --configuration Release /p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts
+
+    - name: Upload NuGet Package
+      uses: actions/upload-artifact@v4
+      with:
+        name: nugetPackage
+        path: ./artifacts/*.nupkg
