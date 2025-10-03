@@ -11,8 +11,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hugo.Tests", "tests\Hugo.Tests\Hugo.Tests.csproj", "{8F09FD8E-9484-4619-9F08-F211353760F3}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{CABB2671-348A-40FB-A8BA-D22C0C34CFB0}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{A047BF41-47D4-499F-B4D7-7697F14B848A}"
 	ProjectSection(SolutionItems) = preProject
-		.github\ci.yml = .github\ci.yml
+		.github\workflows\ci.yml = .github\workflows\ci.yml
 	EndProjectSection
 EndProject
 Global
@@ -23,6 +25,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{1FFE1C36-B1D3-471D-B713-2125EFD1B069} = {14C10EFC-8E59-4329-BDB0-15DF62975E85}
 		{8F09FD8E-9484-4619-9F08-F211353760F3} = {99D529BA-647A-4176-AC94-D4127C3B3D9B}
+		{A047BF41-47D4-499F-B4D7-7697F14B848A} = {CABB2671-348A-40FB-A8BA-D22C0C34CFB0}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{1FFE1C36-B1D3-471D-B713-2125EFD1B069}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
