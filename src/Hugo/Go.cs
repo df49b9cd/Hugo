@@ -240,6 +240,37 @@ public static class Go
         return Channel.CreateUnbounded<T>(options);
     }
 
+    public static PrioritizedChannel<T> MakeChannel<T>(PrioritizedChannelOptions options)
+    {
+        if (options is null)
+            throw new ArgumentNullException(nameof(options));
+
+        return new PrioritizedChannel<T>(options);
+    }
+
+    public static PrioritizedChannel<T> MakePrioritizedChannel<T>(
+        int priorityLevels,
+        int? capacityPerLevel = null,
+        BoundedChannelFullMode fullMode = BoundedChannelFullMode.Wait,
+        bool singleReader = false,
+        bool singleWriter = false,
+        int? defaultPriority = null)
+    {
+        var options = new PrioritizedChannelOptions
+        {
+            PriorityLevels = priorityLevels,
+            CapacityPerLevel = capacityPerLevel,
+            FullMode = fullMode,
+            SingleReader = singleReader,
+            SingleWriter = singleWriter
+        };
+
+        if (defaultPriority.HasValue)
+            options.DefaultPriority = defaultPriority.Value;
+
+        return MakeChannel<T>(options);
+    }
+
     public static Result<T> Ok<T>(T value) => Result.Ok(value);
 
     public static Result<T> Err<T>(Error? error) => Result.Fail<T>(error ?? Error.Unspecified());

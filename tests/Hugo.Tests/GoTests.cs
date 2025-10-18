@@ -1,4 +1,5 @@
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
+using System.Collections.Generic;
 using Hugo;
 using static Hugo.Go;
 
@@ -551,6 +552,55 @@ public class GoTests
 
         Assert.True(channel.Writer.TryWrite(1));
         Assert.True(channel.Writer.TryWrite(2));
+    }
+
+    [Fact]
+    public async Task MakeChannel_WithPrioritizedOptions_ShouldYieldHigherPriorityFirst()
+    {
+        var channel = MakeChannel<int>(new PrioritizedChannelOptions { PriorityLevels = 3 });
+        var writer = channel.PrioritizedWriter;
+        var reader = channel.Reader;
+
+        await writer.WriteAsync(1, priority: 2, TestContext.Current.CancellationToken);
+        await writer.WriteAsync(2, priority: 0, TestContext.Current.CancellationToken);
+        await writer.WriteAsync(3, priority: 1, TestContext.Current.CancellationToken);
+        writer.TryComplete();
+
+        var results = new List<int>
+        {
+            await reader.ReadAsync(TestContext.Current.CancellationToken),
+            await reader.ReadAsync(TestContext.Current.CancellationToken),
+            await reader.ReadAsync(TestContext.Current.CancellationToken)
+        };
+
+        Assert.Equal(new[] { 2, 3, 1 }, results);
+    }
+
+    [Fact]
+    public async Task MakePrioritizedChannel_ShouldApplyDefaultPriority()
+    {
+        var channel = MakePrioritizedChannel<int>(priorityLevels: 2, defaultPriority: 0);
+        var writer = channel.PrioritizedWriter;
+        var reader = channel.Reader;
+
+        await writer.WriteAsync(1, TestContext.Current.CancellationToken);
+        await writer.WriteAsync(2, priority: 1, TestContext.Current.CancellationToken);
+        writer.TryComplete();
+
+        var first = await reader.ReadAsync(TestContext.Current.CancellationToken);
+        var second = await reader.ReadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, first);
+        Assert.Equal(2, second);
+    }
+
+    [Fact]
+    public async Task PrioritizedChannelWriter_ShouldRejectInvalidPriority()
+    {
+        var channel = MakeChannel<int>(new PrioritizedChannelOptions { PriorityLevels = 2 });
+        var writer = channel.PrioritizedWriter;
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await writer.WriteAsync(42, priority: 5, TestContext.Current.CancellationToken));
     }
 
     [Fact]
