@@ -1,421 +1,312 @@
-// Import both the core and functional helpers
+using System.Globalization;
+using Hugo;
 using static Hugo.Go;
 
 namespace Hugo.Tests;
 
 public class FunctionalTests
 {
-    // --- Core Helper and Error Tests ---
     [Fact]
     public void Err_ShouldReturnDefaultError_WhenGivenNull()
     {
-        var (_, e) = Err<string>((Error?)null);
-        Assert.NotNull(e);
-        Assert.Equal("An unspecified error occurred.", e.Message);
+        var (_, err) = Err<string>((Error?)null);
+        Assert.NotNull(err);
+        Assert.Equal("An unspecified error occurred.", err.Message);
     }
 
     [Fact]
-    public void Error_Constructor_ShouldThrow_OnNullMessage() =>
-        Assert.Throws<ArgumentNullException>(() => new Error(null!));
+    public void Error_From_ShouldThrow_WhenMessageIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => Error.From(null!));
+    }
 
     [Fact]
     public void Error_ShouldImplicitlyConvert_FromString()
     {
-        Error? e = "msg";
-        Assert.NotNull(e);
-        Assert.Equal("msg", e.Message);
-    }
-
-    [Fact]
-    public void Error_ImplicitConversion_ShouldBeNull_ForNullString()
-    {
-        Error? e = (string?)null;
-        Assert.Null(e);
+        Error? err = "message";
+        Assert.NotNull(err);
+        Assert.Equal("message", err.Message);
     }
 
     [Fact]
     public void Error_ShouldImplicitlyConvert_FromException()
     {
-        Error? e = new InvalidOperationException("msg");
-        Assert.NotNull(e);
-        Assert.Equal("msg", e.Message);
+        Error? err = new InvalidOperationException("boom");
+        Assert.NotNull(err);
+        Assert.Equal("boom", err.Message);
+        Assert.Equal(ErrorCodes.Exception, err.Code);
     }
 
     [Fact]
-    public void Error_ImplicitConversion_ShouldBeNull_ForNullException()
+    public void Then_ShouldExecuteNext_OnSuccess()
     {
-        Error? e = (Exception?)null;
-        Assert.Null(e);
-    }
+        var result = Ok(2)
+            .Then(v => Ok(v * 5))
+            .Then(v => Ok(v.ToString()));
 
-    // --- Then Tests ---
-    [Fact]
-    public async Task Functional_ThenAsync_ShouldChain_SyncFunc_After_AsyncTask()
-    {
-        var (v, e) = await Task.FromResult(Ok("s"))
-            .ThenAsync(s => Ok($"{s}c"), cancellationToken: TestContext.Current.CancellationToken);
-        Assert.Null(e);
-        Assert.Equal("sc", v);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("10", result.Value);
     }
 
     [Fact]
-    public async Task Functional_ThenAsync_ShouldChain_AsyncFunc_After_AsyncTask()
+    public void Then_ShouldBypassNext_OnFailure()
     {
-        var (v, e) = await Task.FromResult(Ok("s"))
+        var error = Error.From("oops");
+        var result = Err<int>(error).Then(v => Ok(v * 2));
+
+        Assert.True(result.IsFailure);
+        Assert.Same(error, result.Error);
+    }
+
+    [Fact]
+    public async Task ThenAsync_ShouldComposeSyncBinder_WithAsyncResult()
+    {
+        var result = await Task.FromResult(Ok("start"))
+            .ThenAsync(value => Ok(value + "-next"), TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("start-next", result.Value);
+    }
+
+    [Fact]
+    public async Task ThenAsync_ShouldComposeAsyncBinder()
+    {
+        var result = await Ok("start")
             .ThenAsync(
-                (s, _) => Task.FromResult(Ok($"{s}ac")),
-                cancellationToken: TestContext.Current.CancellationToken
+                (value, _) => Task.FromResult(Ok(value + "-async")),
+                TestContext.Current.CancellationToken
             );
-        Assert.Null(e);
-        Assert.Equal("sac", v);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("start-async", result.Value);
     }
 
     [Fact]
-    public async Task Functional_ThenAsync_ShouldPassThroughError_FromAsyncTask()
+    public void Map_ShouldTransformValue()
     {
-        var i = new Error("e");
-        var t = Task.FromResult(Err<string>(i));
-        var (_, e) = await t.ThenAsync(
-            Ok,
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        Assert.Same(i, e);
-        (_, e) = await t.ThenAsync(
-            (s, _) => Task.FromResult(Ok(s)),
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        Assert.Same(i, e);
-    }
+        var result = Ok(5).Map(v => v * 2);
 
-    // --- Map Tests ---
-    [Fact]
-    public void Functional_Map_ShouldTransformValue_OnSuccess()
-    {
-        var (v, e) = Ok(5).Map(x => x * 2);
-        Assert.Null(e);
-        Assert.Equal(10, v);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(10, result.Value);
     }
 
     [Fact]
-    public async Task Functional_MapAsync_ShouldTransformValue_OnSuccess()
+    public async Task MapAsync_ShouldTransformAsync()
     {
-        var (v, e) = await Task.FromResult(Ok(5))
-            .MapAsync(x => x * 2, cancellationToken: TestContext.Current.CancellationToken);
-        Assert.Null(e);
-        Assert.Equal(10, v);
+        var result = await Ok(5)
+            .MapAsync((value, _) => Task.FromResult(value * 3), TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(15, result.Value);
     }
 
     [Fact]
-    public void Functional_MapShouldNotExecute_OnFailure()
+    public void Tap_ShouldRunSideEffect_WhenSuccessful()
     {
-        var x = false;
-        var i = Err<int>("e");
-        var (_, e) = i.Map(n =>
-        {
-            x = true;
-            return n;
-        });
-        Assert.False(x);
-        Assert.Same(i.Err, e);
+        var tapped = false;
+        var result = Ok("value").Tap(_ => tapped = true);
+
+        Assert.True(tapped);
+        Assert.True(result.IsSuccess);
     }
 
     [Fact]
-    public async Task Functional_MapAsyncShouldNotExecute_OnFailure()
+    public void Tap_ShouldSkipSideEffect_WhenFailure()
     {
-        var x = false;
-        var i = Task.FromResult(Err<int>("e"));
-        var (_, e) = await i.MapAsync(
-            n =>
-            {
-                x = true;
-                return n;
-            },
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        Assert.False(x);
-        Assert.Same((await i).Err, e);
-    }
+        var tapped = false;
+        var result = Err<string>("error").Tap(_ => tapped = true);
 
-    // --- Tee Tests ---
-    [Fact]
-    public void Functional_Tee_ShouldExecuteAction_OnSuccess()
-    {
-        var x = false;
-        var (_, e) = Ok("s").Tee(_ => x = true);
-        Assert.True(x);
-        Assert.Null(e);
+        Assert.False(tapped);
+        Assert.True(result.IsFailure);
     }
 
     [Fact]
-    public async Task Functional_TeeAsync_ShouldExecuteAction_OnSuccess()
+    public async Task TapAsync_ShouldSupportAsyncSideEffects()
     {
-        var x = false;
-        var (_, e) = await Task.FromResult(Ok("s"))
-            .TeeAsync(_ => x = true, cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(x);
-        Assert.Null(e);
-    }
-
-    [Fact]
-    public void Functional_TeeShouldNotExecute_OnFailure()
-    {
-        var x = false;
-        var i = Err<string>("e");
-        var (_, e) = i.Tee(_ => x = true);
-        Assert.False(x);
-        Assert.Same(i.Err, e);
-    }
-
-    [Fact]
-    public async Task Functional_TeeAsyncShouldNotExecute_OnFailure()
-    {
-        var x = false;
-        var i = Task.FromResult(Err<string>("e"));
-        var (_, e) = await i.TeeAsync(
-            _ => x = true,
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        Assert.False(x);
-        Assert.Same((await i).Err, e);
-    }
-
-    // --- Chaining Tests ---
-    [Fact]
-    public void Functional_ShouldCorrectly_ChainMultipleSyncOperations()
-    {
-        var f = false;
-        var r = Ok(5)
-            .Then(i => Ok(i + 5))
-            .Map(i => i * 2)
-            .Tee(_ => f = true)
-            .Then(i => Ok(i.ToString()))
-            .Finally(s => $"S:{s}", _ => "E");
-        Assert.True(f);
-        Assert.Equal("S:20", r);
-    }
-
-    [Fact]
-    public void Functional_ShouldCorrectly_ChainAndRecover_FromSyncFailure()
-    {
-        var f = false;
-        var r = Ok("s")
-            .Then(_ => Err<string>("F"))
-            .Map(s =>
-            {
-                f = true;
-                return s;
-            })
-            .Recover(e => e.Message == "F" ? Ok("R") : Err<string>(e))
-            .Map(s => $"{s}F")
-            .Finally(s => $"S:{s}", _ => "E");
-        Assert.False(f);
-        Assert.Equal("S:RF", r);
-    }
-
-    [Fact]
-    public async Task Functional_ShouldCorrectly_ChainMultipleAsyncOperations()
-    {
-        var f = false;
-        var r = await Task.FromResult(Ok(10))
-            .ThenAsync(
-                (i, _) => Task.FromResult(Ok(i + 10)),
-                cancellationToken: TestContext.Current.CancellationToken
-            )
-            .MapAsync(i => i * 2, cancellationToken: TestContext.Current.CancellationToken)
-            .TeeAsync(_ => f = true, cancellationToken: TestContext.Current.CancellationToken)
-            .ThenAsync(
-                (i, _) => Task.FromResult(Ok(i.ToString())),
-                cancellationToken: TestContext.Current.CancellationToken
-            )
-            .FinallyAsync(
-                s => $"S:{s}",
-                _ => "E",
-                cancellationToken: TestContext.Current.CancellationToken
-            );
-        Assert.True(f);
-        Assert.Equal("S:40", r);
-    }
-
-    [Fact]
-    public async Task Functional_ShouldCorrectly_ChainAndRecover_FromAsyncFailure()
-    {
-        var f = false;
-        var r = await Task.FromResult(Ok("s"))
-            .ThenAsync(
-                (_, _) => Task.FromResult(Err<string>("AF")),
-                cancellationToken: TestContext.Current.CancellationToken
-            )
-            .MapAsync(
-                s =>
+        var tapped = false;
+        var result = await Ok(1)
+            .TapAsync(
+                async (_, _) =>
                 {
-                    f = true;
-                    return s;
+                    await Task.Delay(10, TestContext.Current.CancellationToken);
+                    tapped = true;
                 },
-                cancellationToken: TestContext.Current.CancellationToken
+                TestContext.Current.CancellationToken
+            );
+
+        Assert.True(tapped);
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Recover_ShouldConvertFailure()
+    {
+        var recovered = Err<int>("whoops").Recover(err => Ok(err.Message.Length));
+
+        Assert.True(recovered.IsSuccess);
+        Assert.Equal(6, recovered.Value);
+    }
+
+    [Fact]
+    public async Task RecoverAsync_ShouldConvertFailure()
+    {
+        var recovered = await Task.FromResult(Err<int>("fail"))
+            .RecoverAsync(
+                (err, _) => Task.FromResult(Ok(err.Message.Length)),
+                TestContext.Current.CancellationToken
+            );
+
+        Assert.True(recovered.IsSuccess);
+        Assert.Equal(4, recovered.Value);
+    }
+
+    [Fact]
+    public void Ensure_ShouldFail_WhenPredicateIsFalse()
+    {
+        var result = Ok(5).Ensure(v => v > 10);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task EnsureAsync_ShouldFail_WhenPredicateIsFalse()
+    {
+        var result = await Ok(5).EnsureAsync(
+            (v, _) => Task.FromResult(v > 10),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+    }
+
+    [Fact]
+    public void TapError_ShouldRunSideEffect_WhenFailure()
+    {
+        Error? tappedError = null;
+        var result = Err<int>("fault").TapError(err => tappedError = err);
+
+        Assert.True(result.IsFailure);
+        Assert.NotNull(tappedError);
+        Assert.Equal("fault", tappedError!.Message);
+    }
+
+    [Fact]
+    public void Finally_ShouldSelectBranch()
+    {
+        var success = Ok("value").Finally(v => v.ToUpperInvariant(), err => err.Message);
+        var failure = Err<string>("fail").Finally(v => v, err => err.Message);
+
+        Assert.Equal("VALUE", success);
+        Assert.Equal("fail", failure);
+    }
+
+    [Fact]
+    public async Task FinallyAsync_ShouldSelectBranch_ForTask()
+    {
+        var success = await Task.FromResult(Ok(1))
+            .FinallyAsync(
+                v => $"{v}-success",
+                err => err.Message,
+                TestContext.Current.CancellationToken
+            );
+
+        var failure = await Task.FromResult(Err<int>("fail"))
+            .FinallyAsync(
+                v => v.ToString(CultureInfo.InvariantCulture),
+                err => err.Message,
+                TestContext.Current.CancellationToken
+            );
+
+        Assert.Equal("1-success", success);
+        Assert.Equal("fail", failure);
+    }
+
+    [Fact]
+    public void Linq_Query_Comprehension_ShouldWork()
+    {
+        var query =
+            from a in Ok(2)
+            from b in Ok(3)
+            select a * b;
+
+        Assert.True(query.IsSuccess);
+        Assert.Equal(6, query.Value);
+    }
+
+    [Fact]
+    public async Task Pipeline_ShouldHandleMixedOperations()
+    {
+        var result = await Ok(1)
+            .ThenAsync(
+                (v, _) => Task.FromResult(Ok(v + 1)),
+                TestContext.Current.CancellationToken
+            )
+            .MapAsync(v => v * 5, TestContext.Current.CancellationToken)
+            .TapAsync(
+                (value, _) =>
+                {
+                    Assert.Equal(10, value);
+                    return Task.CompletedTask;
+                },
+                TestContext.Current.CancellationToken
+            )
+            .EnsureAsync(
+                (value, _) => Task.FromResult(value == 10),
+                TestContext.Current.CancellationToken
             )
             .RecoverAsync(
-                e => e.Message == "AF" ? Ok("AR") : Err<string>(e),
-                cancellationToken: TestContext.Current.CancellationToken
-            )
-            .MapAsync(s => $"{s}F", cancellationToken: TestContext.Current.CancellationToken)
-            .FinallyAsync(
-                s => $"S:{s}",
-                _ => "E",
-                cancellationToken: TestContext.Current.CancellationToken
+                _ => Ok(42),
+                TestContext.Current.CancellationToken
             );
-        Assert.False(f);
-        Assert.Equal("S:ARF", r);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(10, result.Value);
     }
 
     [Fact]
-    public async Task Functional_ShouldCorrectly_ChainMixedSyncAndAsyncOperations()
+    public async Task Cancellation_ShouldPropagateThroughChain()
     {
-        var f = false;
-        var r = await Ok(5)
-            .ThenAsync(
-                (i, _) => Task.FromResult(Ok(i + 5)),
-                cancellationToken: TestContext.Current.CancellationToken
-            )
-            .MapAsync(i => i * 2, cancellationToken: TestContext.Current.CancellationToken)
-            .TeeAsync(_ => f = true, cancellationToken: TestContext.Current.CancellationToken)
-            .ThenAsync(
-                i => Ok(i.ToString()),
-                cancellationToken: TestContext.Current.CancellationToken
-            )
-            .FinallyAsync(
-                s => $"S:{s}",
-                _ => "E",
-                cancellationToken: TestContext.Current.CancellationToken
-            );
-        Assert.True(f);
-        Assert.Equal("S:20", r);
-    }
+        using var cts = new CancellationTokenSource(50);
 
-    // --- Cancellation, Recovery, and Finally Tests ---
-    [Fact]
-    public async Task Functional_ShouldReturnCancellationError_WhenThenAsyncIsCancelled()
-    {
-        var c = new CancellationTokenSource();
-        var t = Ok("s")
+        var result = await Ok("start")
             .ThenAsync(
                 async (_, ct) =>
                 {
-                    await Task.Delay(5000, ct);
-                    return Ok("f");
+                    await Task.Delay(TimeSpan.FromSeconds(5), ct);
+                    return Ok("never");
                 },
-                c.Token
+                cts.Token
             );
-        c.CancelAfter(100);
-        var (_, e) = await t;
-        Assert.Same(CancellationError, e);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
     [Fact]
-    public async Task Functional_MapAsync_ShouldReturnCancellationError_WhenTaskIsCancelled()
+    public async Task MapAsync_ShouldReturnCancellationError_WhenTaskCanceled()
     {
-        var c = new CancellationTokenSource();
-        await c.CancelAsync();
-        var t = Task.FromCanceled<(string, Error?)>(c.Token);
-        var (_, e) = await t.MapAsync(
-            s => s,
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        Assert.Same(CancellationError, e);
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var task = Task.FromCanceled<Result<int>>(cts.Token);
+        var result = await task.MapAsync(v => v, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
     [Fact]
-    public async Task Functional_TeeAsync_ShouldReturnCancellationError_WhenTaskIsCancelled()
+    public async Task RecoverAsync_ShouldSkip_WhenCancellationOccurs()
     {
-        var c = new CancellationTokenSource();
-        await c.CancelAsync();
-        var t = Task.FromCanceled<(string, Error?)>(c.Token);
-        var (_, e) = await t.TeeAsync(
-            _ => { },
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        Assert.Same(CancellationError, e);
-    }
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
 
-    [Fact]
-    public async Task Functional_RecoverAsync_ShouldReturnCancellationError_WhenTaskIsCancelled()
-    {
-        var c = new CancellationTokenSource();
-        await c.CancelAsync();
-        var t = Task.FromCanceled<(string, Error?)>(c.Token);
-        var (_, e) = await t.RecoverAsync(
-            _ => Ok("r"),
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        Assert.Same(CancellationError, e);
-    }
+        var task = Task.FromCanceled<Result<int>>(cts.Token);
+        var result = await task.RecoverAsync(_ => Ok(5), TestContext.Current.CancellationToken);
 
-    [Fact]
-    public async Task Functional_FinallyAsync_ShouldHandleCancellation_WhenTaskIsCancelled()
-    {
-        var c = new CancellationTokenSource();
-        await c.CancelAsync();
-        var t = Task.FromCanceled<(string, Error?)>(c.Token);
-        var r = await t.FinallyAsync(
-            _ => "S",
-            e => e.Message,
-            cancellationToken: TestContext.Current.CancellationToken
-        );
-        Assert.Equal(CancellationError.Message, r);
-    }
-
-    [Fact]
-    public async Task Functional_ShouldCorrectly_Cancel_ChainedAsyncOperations()
-    {
-        var c = new CancellationTokenSource();
-        var step2Flag = false;
-        var t = Ok("start")
-            .ThenAsync(
-                async (s, ct) =>
-                {
-                    await Task.Delay(5000, ct);
-                    return Ok($"{s}-step1");
-                },
-                c.Token
-            )
-            .ThenAsync(
-                (s, _) =>
-                {
-                    step2Flag = true;
-                    return Task.FromResult(Ok($"{s}-step2"));
-                },
-                c.Token
-            );
-        c.CancelAfter(100);
-        var (_, e) = await t;
-        Assert.False(step2Flag);
-        Assert.Same(CancellationError, e);
-    }
-
-    [Fact]
-    public async Task Functional_ShouldCorrectly_Cancel_AndBypassRecovery()
-    {
-        var c = new CancellationTokenSource();
-        var recoverFlag = false;
-        var t = Ok("start")
-            .ThenAsync(
-                async (s, ct) =>
-                {
-                    await Task.Delay(5000, ct);
-                    return Ok($"{s}-step1");
-                },
-                c.Token
-            )
-            .RecoverAsync(
-                _ =>
-                {
-                    recoverFlag = true;
-                    return Ok("recovered");
-                },
-                c.Token
-            );
-        c.CancelAfter(100);
-        var (_, e) = await t;
-        Assert.False(recoverFlag);
-        Assert.Same(CancellationError, e);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 }

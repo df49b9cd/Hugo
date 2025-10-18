@@ -1,0 +1,245 @@
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Hugo;
+
+/// <summary>
+/// Provides static helpers for creating and composing <see cref="Result{T}"/> instances.
+/// </summary>
+public static class Result
+{
+    /// <summary>
+    /// Wraps the provided value in a successful result.
+    /// </summary>
+    public static Result<T> Ok<T>(T value) => Result<T>.Success(value);
+
+    /// <summary>
+    /// Wraps the provided error in a failed result.
+    /// </summary>
+    public static Result<T> Fail<T>(Error error) => Result<T>.Failure(error ?? Error.Unspecified());
+
+    /// <summary>
+    /// Executes a synchronous operation and captures any thrown exceptions as <see cref="Error"/> values.
+    /// </summary>
+    public static Result<T> Try<T>(Func<T> operation, Func<Exception, Error?>? errorFactory = null)
+    {
+        if (operation is null)
+            throw new ArgumentNullException(nameof(operation));
+
+        try
+        {
+            return Ok(operation());
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            var error = errorFactory?.Invoke(ex) ?? Error.FromException(ex);
+            return Fail<T>(error);
+        }
+    }
+
+    /// <summary>
+    /// Executes an asynchronous operation and captures any thrown exceptions as <see cref="Error"/> values.
+    /// </summary>
+    public static async Task<Result<T>> TryAsync<T>(Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken = default, Func<Exception, Error?>? errorFactory = null)
+    {
+        if (operation is null)
+            throw new ArgumentNullException(nameof(operation));
+
+        try
+        {
+            var value = await operation(cancellationToken).ConfigureAwait(false);
+            return Ok(value);
+        }
+        catch (OperationCanceledException)
+        {
+            return Fail<T>(Error.Canceled());
+        }
+        catch (Exception ex)
+        {
+            var error = errorFactory?.Invoke(ex) ?? Error.FromException(ex);
+            return Fail<T>(error);
+        }
+    }
+
+    /// <summary>
+    /// Aggregates a sequence of results into a single result containing all successful values.
+    /// </summary>
+    public static Result<IReadOnlyList<T>> Sequence<T>(IEnumerable<Result<T>> results)
+    {
+        if (results is null)
+            throw new ArgumentNullException(nameof(results));
+
+        var values = new List<T>();
+        foreach (var result in results)
+        {
+            if (result.IsFailure)
+            {
+                return Fail<IReadOnlyList<T>>(result.Error!);
+            }
+
+            values.Add(result.Value);
+        }
+
+        return Ok<IReadOnlyList<T>>(values);
+    }
+
+    /// <summary>
+    /// Applies a selector to each value in the source and aggregates the successful results.
+    /// </summary>
+    public static Result<IReadOnlyList<TOut>> Traverse<TIn, TOut>(IEnumerable<TIn> source, Func<TIn, Result<TOut>> selector)
+    {
+        if (source is null)
+            throw new ArgumentNullException(nameof(source));
+        if (selector is null)
+            throw new ArgumentNullException(nameof(selector));
+
+        var values = new List<TOut>();
+        foreach (var item in source)
+        {
+            var result = selector(item);
+            if (result.IsFailure)
+            {
+                return Fail<IReadOnlyList<TOut>>(result.Error!);
+            }
+
+            values.Add(result.Value);
+        }
+
+        return Ok<IReadOnlyList<TOut>>(values);
+    }
+
+    /// <summary>
+    /// Applies an asynchronous selector to each value in the source and aggregates the successful results.
+    /// </summary>
+    public static async Task<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(IEnumerable<TIn> source, Func<TIn, Task<Result<TOut>>> selector, CancellationToken cancellationToken = default)
+    {
+        if (source is null)
+            throw new ArgumentNullException(nameof(source));
+        if (selector is null)
+            throw new ArgumentNullException(nameof(selector));
+
+        var values = new List<TOut>();
+        foreach (var item in source)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await selector(item).ConfigureAwait(false);
+            if (result.IsFailure)
+            {
+                return Fail<IReadOnlyList<TOut>>(result.Error!);
+            }
+
+            values.Add(result.Value);
+        }
+
+        return Ok<IReadOnlyList<TOut>>(values);
+    }
+}
+
+/// <summary>
+/// Represents the outcome of an operation that may succeed with <typeparamref name="T"/> or fail with an <see cref="Error"/>.
+/// </summary>
+public readonly record struct Result<T>
+{
+    private readonly T _value;
+
+    private Result(T value, Error? error, bool isSuccess)
+    {
+        _value = value;
+        Error = error;
+        IsSuccess = isSuccess;
+    }
+
+    internal static Result<T> Success(T value) => new(value, null, true);
+
+    internal static Result<T> Failure(Error error) => new(default!, error ?? Error.Unspecified(), false);
+
+    /// <summary>
+    /// Gets the value. When the result represents a failure this will be the default value of <typeparamref name="T"/>.
+    /// Prefer using <see cref="ValueOr(T)"/> or <see cref="ValueOrThrow()"/> to handle failure cases explicitly.
+    /// </summary>
+    public T Value => _value;
+
+    /// <summary>
+    /// Gets the error associated with a failed result, or <c>null</c> when the result represents success.
+    /// </summary>
+    public Error? Error { get; }
+
+    /// <summary>
+    /// Indicates whether the result represents success.
+    /// </summary>
+    public bool IsSuccess { get; }
+
+    /// <summary>
+    /// Indicates whether the result represents failure.
+    /// </summary>
+    public bool IsFailure => !IsSuccess;
+
+    /// <summary>
+    /// Returns the contained value when successful, otherwise returns the provided fallback.
+    /// </summary>
+    public T ValueOr(T fallback) => IsSuccess ? _value : fallback;
+
+    /// <summary>
+    /// Returns the contained value when successful, otherwise evaluates the fallback factory.
+    /// </summary>
+    public T ValueOr(Func<Error, T> fallbackFactory)
+    {
+        if (fallbackFactory is null)
+            throw new ArgumentNullException(nameof(fallbackFactory));
+
+        return IsSuccess ? _value : fallbackFactory(Error!);
+    }
+
+    /// <summary>
+    /// Returns the contained value when successful. Throws a <see cref="ResultException"/> if the result represents failure.
+    /// </summary>
+    public T ValueOrThrow() => IsSuccess ? _value : throw new ResultException(Error!);
+
+    /// <summary>
+    /// Supports tuple deconstruction syntax.
+    /// </summary>
+    public void Deconstruct(out T value, out Error? error)
+    {
+        value = _value;
+        error = Error;
+    }
+
+    /// <inheritdoc />
+    public override string ToString() => IsSuccess ? $"Ok({Value})" : $"Err({Error})";
+
+    /// <summary>
+    /// Implicit conversion from tuple for backwards compatibility with existing tuple-based APIs.
+    /// </summary>
+    public static implicit operator Result<T>((T Value, Error? Error) tuple) =>
+        tuple.Error is null ? Success(tuple.Value) : Failure(tuple.Error);
+
+    /// <summary>
+    /// Implicit conversion to tuple for interop with tuple-based code.
+    /// </summary>
+    public static implicit operator (T Value, Error? Error)(Result<T> result) => (result.Value, result.Error);
+}
+
+/// <summary>
+/// Exception type thrown when converting a failed <see cref="Result{T}"/> into a value.
+/// </summary>
+public sealed class ResultException : Exception
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ResultException"/> class.
+    /// </summary>
+    public ResultException(Error error)
+        : base(error?.Message ?? Error.Unspecified().Message, error?.Cause)
+    {
+        Error = error ?? Error.Unspecified();
+        if (error?.Cause is not null)
+        {
+            HResult = error.Cause.HResult;
+        }
+    }
+
+    /// <summary>
+    /// The <see cref="Error"/> that caused the exception to be thrown.
+    /// </summary>
+    public Error Error { get; }
+}

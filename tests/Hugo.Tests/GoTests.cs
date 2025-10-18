@@ -1,4 +1,5 @@
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
+using Hugo;
 using static Hugo.Go;
 
 namespace Hugo.Tests;
@@ -6,7 +7,7 @@ namespace Hugo.Tests;
 public class GoTests
 {
     // This helper is used by tests but is not a test itself.
-    private static (string Content, Error? Err) ReadFileContent(string path)
+    private static Result<string> ReadFileContent(string path)
     {
         using (Defer(() => Console.WriteLine("[ReadFileContent] Cleanup finished.")))
         {
@@ -198,19 +199,19 @@ public class GoTests
     {
         var tempFile = Path.GetTempFileName();
         File.WriteAllText(tempFile, "Hello from GoSharp!");
-        var (content, err) = ReadFileContent(tempFile);
-        Assert.Null(err);
-        Assert.Equal("Hello from GoSharp!", content);
+        var result = ReadFileContent(tempFile);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Hello from GoSharp!", result.Value);
         File.Delete(tempFile);
     }
 
     [Fact]
     public void ReadFileContent_ShouldFail_WithInvalidFile()
     {
-        var (content, err) = ReadFileContent("non_existent_file.txt");
-        Assert.NotNull(err);
-        Assert.Null(content);
-        Assert.Contains("Could not find file", err.Message);
+        var result = ReadFileContent("non_existent_file.txt");
+        Assert.True(result.IsFailure);
+        Assert.NotNull(result.Error);
+        Assert.Contains("Could not find file", result.Error!.Message);
     }
 
     [Fact]

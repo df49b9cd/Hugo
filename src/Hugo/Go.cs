@@ -1,4 +1,6 @@
+using System.Threading;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 
 namespace Hugo;
 
@@ -8,7 +10,7 @@ namespace Hugo;
 /// </summary>
 public static class Go
 {
-    public static readonly Error CancellationError = new("Operation was canceled.");
+    public static readonly Error CancellationError = Error.Canceled();
 
     public static Defer Defer(Action action) => new(action);
 
@@ -16,21 +18,78 @@ public static class Go
     /// Runs a function on a background thread. For tasks that should be tracked by a WaitGroup,
     /// prefer using the `wg.Go(...)` extension method for a cleaner syntax.
     /// </summary>
-    public static void Run(Func<Task> func) => Task.Run(func);
+    public static Task Run(Func<Task> func)
+    {
+        if (func is null)
+            throw new ArgumentNullException(nameof(func));
 
-    public static Channel<T> MakeChannel<T>(int? capacity = null) =>
-        capacity > 0
-            ? Channel.CreateBounded<T>(
-                new BoundedChannelOptions(capacity.Value) { FullMode = BoundedChannelFullMode.Wait }
-            )
-            : Channel.CreateUnbounded<T>();
+        return Task.Run(func);
+    }
 
-    public static (T Value, Error? Err) Ok<T>(T value) => (value, null);
+    /// <summary>
+    /// Runs a cancelable function on a background thread.
+    /// </summary>
+    public static Task Run(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
+    {
+        if (func is null)
+            throw new ArgumentNullException(nameof(func));
 
-    public static (T Value, Error? Err) Err<T>(Error? error) =>
-        (default!, error ?? new Error("An unspecified error occurred."));
+        return Task.Run(() => func(cancellationToken), cancellationToken);
+    }
 
-    public static (T Value, Error? Err) Err<T>(string message) => (default!, new Error(message));
+    public static Channel<T> MakeChannel<T>(
+        int? capacity = null,
+        BoundedChannelFullMode fullMode = BoundedChannelFullMode.Wait,
+        bool singleReader = false,
+        bool singleWriter = false
+    )
+    {
+        if (capacity is > 0)
+        {
+            var options = new BoundedChannelOptions(capacity.Value)
+            {
+                FullMode = fullMode,
+                SingleReader = singleReader,
+                SingleWriter = singleWriter
+            };
+
+            return Channel.CreateBounded<T>(options);
+        }
+
+        var unboundedOptions = new UnboundedChannelOptions
+        {
+            SingleReader = singleReader,
+            SingleWriter = singleWriter
+        };
+
+        return Channel.CreateUnbounded<T>(unboundedOptions);
+    }
+
+    public static Channel<T> MakeChannel<T>(BoundedChannelOptions options)
+    {
+        if (options is null)
+            throw new ArgumentNullException(nameof(options));
+
+        return Channel.CreateBounded<T>(options);
+    }
+
+    public static Channel<T> MakeChannel<T>(UnboundedChannelOptions options)
+    {
+        if (options is null)
+            throw new ArgumentNullException(nameof(options));
+
+        return Channel.CreateUnbounded<T>(options);
+    }
+
+    public static Result<T> Ok<T>(T value) => Result.Ok(value);
+
+    public static Result<T> Err<T>(Error? error) => Result.Fail<T>(error ?? Error.Unspecified());
+
+    public static Result<T> Err<T>(string message, string? code = null) =>
+        Result.Fail<T>(Error.From(message, code));
+
+    public static Result<T> Err<T>(Exception exception, string? code = null) =>
+        Result.Fail<T>(Error.FromException(exception, code));
 }
 
 /// <summary>
@@ -47,6 +106,26 @@ public static class GoWaitGroupExtensions
     /// <example>wg.Go(async () => { ... });</example>
     public static void Go(this WaitGroup wg, Func<Task> func)
     {
+        if (wg is null)
+            throw new ArgumentNullException(nameof(wg));
+
+        if (func is null)
+            throw new ArgumentNullException(nameof(func));
+
         wg.Add(Task.Run(func));
+    }
+
+    /// <summary>
+    /// Runs a cancellation-aware function on a background thread and adds it to the WaitGroup.
+    /// </summary>
+    public static void Go(this WaitGroup wg, Func<CancellationToken, Task> func, CancellationToken cancellationToken)
+    {
+        if (wg is null)
+            throw new ArgumentNullException(nameof(wg));
+
+        if (func is null)
+            throw new ArgumentNullException(nameof(func));
+
+        wg.Go(() => func(cancellationToken), cancellationToken);
     }
 }

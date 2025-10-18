@@ -1,212 +1,637 @@
 namespace Hugo;
 
 /// <summary>
-/// Provides functional-style extension methods for the Hugo-like result tuple `(T Value, Error? Err)`.
-/// This enables a "Railway Oriented Programming" approach to error handling.
+/// Provides functional-style extension methods for composing <see cref="Result{T}"/> values using
+/// "railway oriented" patterns.
 /// </summary>
 public static class Functional
 {
-    // --- Synchronous Extensions ---
+    // -----------------
+    // Synchronous APIs
+    // -----------------
 
     /// <summary>
-    /// Chains an operation that executes only if the previous result was successful.
+    /// Chains an operation that executes only when the source result is successful.
     /// </summary>
-    public static (TOut Value, Error? Err) Then<TIn, TOut>(
-        this (TIn Value, Error? Err) result,
-        Func<TIn, (TOut, Error?)> next
-    ) => result.Err != null ? Go.Err<TOut>(result.Err) : next(result.Value);
-
-    /// <summary>
-    /// Transforms a successful result's value. If the result was a failure, the mapping function is skipped.
-    /// </summary>
-    public static (TOut Value, Error? Err) Map<TIn, TOut>(
-        this (TIn Value, Error? Err) result,
-        Func<TIn, TOut> mapper
-    ) => result.Err != null ? Go.Err<TOut>(result.Err) : Go.Ok(mapper(result.Value));
-
-    /// <summary>
-    /// Performs a side effect action on a successful result without changing it. The action is skipped on failure.
-    /// </summary>
-    public static (T Value, Error? Err) Tee<T>(this (T Value, Error? Err) result, Action<T> action)
+    public static Result<TOut> Then<TIn, TOut>(this Result<TIn> result, Func<TIn, Result<TOut>> next)
     {
-        if (result.Err == null)
+        if (next is null)
+            throw new ArgumentNullException(nameof(next));
+
+        return result.IsFailure ? Result.Fail<TOut>(result.Error!) : next(result.Value);
+    }
+
+    /// <summary>
+    /// Transforms the successful value of the result while preserving failures.
+    /// </summary>
+    public static Result<TOut> Map<TIn, TOut>(this Result<TIn> result, Func<TIn, TOut> mapper)
+    {
+        if (mapper is null)
+            throw new ArgumentNullException(nameof(mapper));
+
+        return result.IsFailure ? Result.Fail<TOut>(result.Error!) : Result.Ok(mapper(result.Value));
+    }
+
+    /// <summary>
+    /// Executes a side-effect for successful results without altering the pipeline.
+    /// </summary>
+    public static Result<T> Tap<T>(this Result<T> result, Action<T> tap)
+    {
+        if (tap is null)
+            throw new ArgumentNullException(nameof(tap));
+
+        if (result.IsSuccess)
         {
-            action(result.Value);
+            tap(result.Value);
         }
+
         return result;
     }
 
     /// <summary>
-    /// Extracts a final value from the result by providing functions to handle both success and failure cases.
+    /// Alias for <see cref="Tap{T}(Result{T}, Action{T})"/> maintained for backwards compatibility.
     /// </summary>
-    public static TOut Finally<TIn, TOut>(
-        this (TIn Value, Error? Err) result,
-        Func<TIn, TOut> onSuccess,
-        Func<Error, TOut> onError
-    ) => result.Err != null ? onError(result.Err) : onSuccess(result.Value);
+    public static Result<T> Tee<T>(this Result<T> result, Action<T> tap) => result.Tap(tap);
 
     /// <summary>
-    /// Recovers from a failure by executing a function that can optionally return a new success value.
+    /// Runs the appropriate function depending on whether the result succeeded.
     /// </summary>
-    public static (T Value, Error? Err) Recover<T>(
-        this (T Value, Error? Err) result,
-        Func<Error, (T, Error?)> recoverFunc
-    ) => result.Err != null ? recoverFunc(result.Err) : result;
+    public static TOut Finally<TIn, TOut>(this Result<TIn> result, Func<TIn, TOut> onSuccess, Func<Error, TOut> onError)
+    {
+        if (onSuccess is null)
+            throw new ArgumentNullException(nameof(onSuccess));
+        if (onError is null)
+            throw new ArgumentNullException(nameof(onError));
 
-    // --- Asynchronous Extensions ---
+        return result.IsSuccess ? onSuccess(result.Value) : onError(result.Error!);
+    }
 
     /// <summary>
-    /// Asynchronously chains an operation that executes only if the previous result was successful.
+    /// Recovers from failure by executing the provided recovery function.
     /// </summary>
-    public static async Task<(TOut Value, Error? Err)> ThenAsync<TIn, TOut>(
-        this Task<(TIn Value, Error? Err)> resultTask,
-        Func<TIn, (TOut, Error?)> next,
+    public static Result<T> Recover<T>(this Result<T> result, Func<Error, Result<T>> recover)
+    {
+        if (recover is null)
+            throw new ArgumentNullException(nameof(recover));
+
+        return result.IsFailure ? recover(result.Error!) : result;
+    }
+
+    /// <summary>
+    /// Ensures that a successful result satisfies the provided predicate.
+    /// </summary>
+    public static Result<T> Ensure<T>(this Result<T> result, Func<T, bool> predicate, Func<T, Error>? errorFactory = null)
+    {
+        if (predicate is null)
+            throw new ArgumentNullException(nameof(predicate));
+
+        if (result.IsFailure || predicate(result.Value))
+            return result;
+
+        var error = errorFactory?.Invoke(result.Value) ?? Error.From("The result did not satisfy the required condition.", ErrorCodes.Validation);
+        return Result.Fail<T>(error);
+    }
+
+    /// <summary>
+    /// Executes an action if the result represents success.
+    /// </summary>
+    public static Result<T> OnSuccess<T>(this Result<T> result, Action<T> action)
+    {
+        if (action is null)
+            throw new ArgumentNullException(nameof(action));
+
+        if (result.IsSuccess)
+        {
+            action(result.Value);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Executes an action if the result represents failure.
+    /// </summary>
+    public static Result<T> OnFailure<T>(this Result<T> result, Action<Error> action)
+    {
+        if (action is null)
+            throw new ArgumentNullException(nameof(action));
+
+        if (result.IsFailure)
+        {
+            action(result.Error!);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Executes a side-effect when the result represents failure.
+    /// </summary>
+    public static Result<T> TapError<T>(this Result<T> result, Action<Error> tap)
+    {
+        if (tap is null)
+            throw new ArgumentNullException(nameof(tap));
+
+        if (result.IsFailure)
+        {
+            tap(result.Error!);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Filters results in LINQ queries. Equivalent to <see cref="Ensure{T}(Result{T}, Func{T, bool}, Func{T, Error}?)"/>.
+    /// </summary>
+    public static Result<T> Where<T>(this Result<T> result, Func<T, bool> predicate) =>
+        result.Ensure(predicate);
+
+    /// <summary>
+    /// Maps a result inside a LINQ query.
+    /// </summary>
+    public static Result<TOut> Select<TIn, TOut>(this Result<TIn> result, Func<TIn, TOut> selector) =>
+        result.Map(selector);
+
+    /// <summary>
+    /// Supports LINQ query comprehension with <c>from</c>/<c>select</c>.
+    /// </summary>
+    public static Result<TOut> SelectMany<TIn, TMiddle, TOut>(
+        this Result<TIn> result,
+        Func<TIn, Result<TMiddle>> binder,
+        Func<TIn, TMiddle, TOut> projector
+    )
+    {
+        if (binder is null)
+            throw new ArgumentNullException(nameof(binder));
+        if (projector is null)
+            throw new ArgumentNullException(nameof(projector));
+
+        if (result.IsFailure)
+            return Result.Fail<TOut>(result.Error!);
+
+        var intermediate = binder(result.Value);
+        if (intermediate.IsFailure)
+            return Result.Fail<TOut>(intermediate.Error!);
+
+        return Result.Ok(projector(result.Value, intermediate.Value));
+    }
+
+    // -----------------
+    // Asynchronous APIs
+    // -----------------
+
+    /// <summary>
+    /// Chains an asynchronous operation onto a synchronous result.
+    /// </summary>
+    public static async Task<Result<TOut>> ThenAsync<TIn, TOut>(
+        this Result<TIn> result,
+        Func<TIn, CancellationToken, Task<Result<TOut>>> next,
         CancellationToken cancellationToken = default
     )
     {
+        if (next is null)
+            throw new ArgumentNullException(nameof(next));
+
+        if (result.IsFailure)
+            return Result.Fail<TOut>(result.Error!);
+
         try
         {
-            var result = await resultTask;
             cancellationToken.ThrowIfCancellationRequested();
-            return result.Err != null ? Go.Err<TOut>(result.Err) : next(result.Value);
+            return await next(result.Value, cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
-            return Go.Err<TOut>(Go.CancellationError);
+            return Result.Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
         }
     }
 
     /// <summary>
-    /// Asynchronously chains an operation that executes only if the previous result was successful.
+    /// Chains a synchronous operation onto an asynchronous result.
     /// </summary>
-    public static async Task<(TOut Value, Error? Err)> ThenAsync<TIn, TOut>(
-        this (TIn Value, Error? Err) result,
-        Func<TIn, CancellationToken, Task<(TOut, Error?)>> nextAsync,
+    public static async Task<Result<TOut>> ThenAsync<TIn, TOut>(
+        this Task<Result<TIn>> resultTask,
+        Func<TIn, Result<TOut>> next,
         CancellationToken cancellationToken = default
     )
     {
-        if (result.Err != null)
-            return Go.Err<TOut>(result.Err);
+        if (resultTask is null)
+            throw new ArgumentNullException(nameof(resultTask));
+        if (next is null)
+            throw new ArgumentNullException(nameof(next));
+
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return await nextAsync(result.Value, cancellationToken);
+            var result = await resultTask.ConfigureAwait(false);
+            if (result.IsFailure)
+                return Result.Fail<TOut>(result.Error!);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return next(result.Value);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
-            return Go.Err<TOut>(Go.CancellationError);
+            return Result.Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
         }
     }
 
     /// <summary>
-    /// Asynchronously chains an operation that executes only if the previous result was successful.
+    /// Chains an asynchronous operation onto an asynchronous result.
     /// </summary>
-    public static async Task<(TOut Value, Error? Err)> ThenAsync<TIn, TOut>(
-        this Task<(TIn Value, Error? Err)> resultTask,
-        Func<TIn, CancellationToken, Task<(TOut, Error?)>> nextAsync,
+    public static async Task<Result<TOut>> ThenAsync<TIn, TOut>(
+        this Task<Result<TIn>> resultTask,
+        Func<TIn, CancellationToken, Task<Result<TOut>>> next,
         CancellationToken cancellationToken = default
     )
     {
+        if (resultTask is null)
+            throw new ArgumentNullException(nameof(resultTask));
+        if (next is null)
+            throw new ArgumentNullException(nameof(next));
+
         try
         {
-            var result = await resultTask;
-            if (result.Err != null)
-                return Go.Err<TOut>(result.Err);
             cancellationToken.ThrowIfCancellationRequested();
-            return await nextAsync(result.Value, cancellationToken);
+            var result = await resultTask.ConfigureAwait(false);
+            if (result.IsFailure)
+                return Result.Fail<TOut>(result.Error!);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return await next(result.Value, cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
-            return Go.Err<TOut>(Go.CancellationError);
+            return Result.Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
         }
     }
 
     /// <summary>
-    /// Asynchronously transforms a successful result's value. The mapping function is skipped on failure.
+    /// Maps the value of an asynchronous result using a synchronous mapping function.
     /// </summary>
-    public static async Task<(TOut Value, Error? Err)> MapAsync<TIn, TOut>(
-        this Task<(TIn Value, Error? Err)> resultTask,
+    public static async Task<Result<TOut>> MapAsync<TIn, TOut>(
+        this Task<Result<TIn>> resultTask,
         Func<TIn, TOut> mapper,
         CancellationToken cancellationToken = default
     )
     {
+        if (resultTask is null)
+            throw new ArgumentNullException(nameof(resultTask));
+        if (mapper is null)
+            throw new ArgumentNullException(nameof(mapper));
+
         try
         {
-            var result = await resultTask;
             cancellationToken.ThrowIfCancellationRequested();
-            return result.Err != null ? Go.Err<TOut>(result.Err) : Go.Ok(mapper(result.Value));
+            var result = await resultTask.ConfigureAwait(false);
+            if (result.IsFailure)
+                return Result.Fail<TOut>(result.Error!);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return Result.Ok(mapper(result.Value));
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
-            return Go.Err<TOut>(Go.CancellationError);
+            return Result.Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
         }
     }
 
     /// <summary>
-    /// Asynchronously performs a side-effect action on a successful result. The action is skipped on failure.
+    /// Maps the value of a result using an asynchronous mapping function.
     /// </summary>
-    public static async Task<(T Value, Error? Err)> TeeAsync<T>(
-        this Task<(T Value, Error? Err)> resultTask,
-        Action<T> action,
+    public static async Task<Result<TOut>> MapAsync<TIn, TOut>(
+        this Result<TIn> result,
+        Func<TIn, CancellationToken, Task<TOut>> mapper,
         CancellationToken cancellationToken = default
     )
     {
+        if (mapper is null)
+            throw new ArgumentNullException(nameof(mapper));
+
+        if (result.IsFailure)
+            return Result.Fail<TOut>(result.Error!);
+
         try
         {
-            var result = await resultTask;
             cancellationToken.ThrowIfCancellationRequested();
-            if (result.Err == null)
-            {
-                action(result.Value);
-            }
-            return result;
+            var value = await mapper(result.Value, cancellationToken).ConfigureAwait(false);
+            return Result.Ok(value);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
-            return Go.Err<T>(Go.CancellationError);
+            return Result.Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
         }
     }
 
     /// <summary>
-    /// Asynchronously extracts a final value from the result by providing functions to handle both success and failure cases.
+    /// Executes an asynchronous side-effect when the result succeeds.
+    /// </summary>
+    public static async Task<Result<T>> TapAsync<T>(
+        this Result<T> result,
+        Func<T, CancellationToken, Task> tapAsync,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (tapAsync is null)
+            throw new ArgumentNullException(nameof(tapAsync));
+
+        if (result.IsFailure)
+            return result;
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await tapAsync(result.Value, cancellationToken).ConfigureAwait(false);
+            return result;
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+        }
+    }
+
+    /// <summary>
+    /// Executes an asynchronous side-effect when the result succeeds.
+    /// </summary>
+    public static async Task<Result<T>> TapAsync<T>(
+        this Task<Result<T>> resultTask,
+        Action<T> tap,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (resultTask is null)
+            throw new ArgumentNullException(nameof(resultTask));
+        if (tap is null)
+            throw new ArgumentNullException(nameof(tap));
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await resultTask.ConfigureAwait(false);
+            if (result.IsSuccess)
+            {
+                tap(result.Value);
+            }
+
+            return result;
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+        }
+    }
+
+    /// <summary>
+    /// Executes an asynchronous side-effect when the result succeeds.
+    /// </summary>
+    public static async Task<Result<T>> TapAsync<T>(
+        this Task<Result<T>> resultTask,
+        Func<T, CancellationToken, Task> tapAsync,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (resultTask is null)
+            throw new ArgumentNullException(nameof(resultTask));
+        if (tapAsync is null)
+            throw new ArgumentNullException(nameof(tapAsync));
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await resultTask.ConfigureAwait(false);
+            if (result.IsSuccess)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await tapAsync(result.Value, cancellationToken).ConfigureAwait(false);
+            }
+
+            return result;
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+        }
+    }
+
+    /// <summary>
+    /// Alias for <see cref="TapAsync(Result{T}, Func{T, CancellationToken, Task}, CancellationToken)"/>.
+    /// </summary>
+    public static Task<Result<T>> TeeAsync<T>(this Result<T> result, Func<T, CancellationToken, Task> tapAsync, CancellationToken cancellationToken = default) =>
+        result.TapAsync(tapAsync, cancellationToken);
+
+    /// <summary>
+    /// Alias for <see cref="TapAsync(Task{Result{T}}, Func{T, CancellationToken, Task}, CancellationToken)"/>.
+    /// </summary>
+    public static Task<Result<T>> TeeAsync<T>(this Task<Result<T>> resultTask, Func<T, CancellationToken, Task> tapAsync, CancellationToken cancellationToken = default) =>
+        resultTask.TapAsync(tapAsync, cancellationToken);
+
+    /// <summary>
+    /// Alias for <see cref="TapAsync(Task{Result{T}}, Action{T}, CancellationToken)"/>.
+    /// </summary>
+    public static Task<Result<T>> TeeAsync<T>(this Task<Result<T>> resultTask, Action<T> tap, CancellationToken cancellationToken = default) =>
+        resultTask.TapAsync(tap, cancellationToken);
+
+    /// <summary>
+    /// Recovers from a failed asynchronous result with a synchronous recovery function.
+    /// </summary>
+    public static async Task<Result<T>> RecoverAsync<T>(
+        this Task<Result<T>> resultTask,
+        Func<Error, Result<T>> recover,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (resultTask is null)
+            throw new ArgumentNullException(nameof(resultTask));
+        if (recover is null)
+            throw new ArgumentNullException(nameof(recover));
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await resultTask.ConfigureAwait(false);
+            return result.IsFailure ? recover(result.Error!) : result;
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+        }
+    }
+
+    /// <summary>
+    /// Recovers from a failed asynchronous result with an asynchronous recovery function.
+    /// </summary>
+    public static async Task<Result<T>> RecoverAsync<T>(
+        this Task<Result<T>> resultTask,
+        Func<Error, CancellationToken, Task<Result<T>>> recoverAsync,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (resultTask is null)
+            throw new ArgumentNullException(nameof(resultTask));
+        if (recoverAsync is null)
+            throw new ArgumentNullException(nameof(recoverAsync));
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await resultTask.ConfigureAwait(false);
+            if (result.IsSuccess)
+                return result;
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return await recoverAsync(result.Error!, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+        }
+    }
+
+    /// <summary>
+    /// Ensures that a successful asynchronous result satisfies the provided predicate.
+    /// </summary>
+    public static async Task<Result<T>> EnsureAsync<T>(
+        this Result<T> result,
+        Func<T, CancellationToken, Task<bool>> predicate,
+        CancellationToken cancellationToken = default,
+        Func<T, Error>? errorFactory = null
+    )
+    {
+        if (predicate is null)
+            throw new ArgumentNullException(nameof(predicate));
+
+        if (result.IsFailure)
+            return result;
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var satisfied = await predicate(result.Value, cancellationToken).ConfigureAwait(false);
+            return satisfied ? result : Result.Fail<T>(errorFactory?.Invoke(result.Value) ?? Error.From("The result did not satisfy the required condition.", ErrorCodes.Validation));
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+        }
+    }
+
+    /// <summary>
+    /// Ensures that a successful asynchronous result satisfies the provided predicate.
+    /// </summary>
+    public static async Task<Result<T>> EnsureAsync<T>(
+        this Task<Result<T>> resultTask,
+        Func<T, CancellationToken, Task<bool>> predicate,
+        CancellationToken cancellationToken = default,
+        Func<T, Error>? errorFactory = null
+    )
+    {
+        if (resultTask is null)
+            throw new ArgumentNullException(nameof(resultTask));
+        if (predicate is null)
+            throw new ArgumentNullException(nameof(predicate));
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await resultTask.ConfigureAwait(false);
+            return await result.EnsureAsync(predicate, cancellationToken, errorFactory).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+        }
+    }
+
+    /// <summary>
+    /// Matches a result to one of two asynchronous continuations.
     /// </summary>
     public static async Task<TOut> FinallyAsync<TIn, TOut>(
-        this Task<(TIn Value, Error? Err)> resultTask,
+        this Task<Result<TIn>> resultTask,
         Func<TIn, TOut> onSuccess,
         Func<Error, TOut> onError,
         CancellationToken cancellationToken = default
     )
     {
+        if (resultTask is null)
+            throw new ArgumentNullException(nameof(resultTask));
+        if (onSuccess is null)
+            throw new ArgumentNullException(nameof(onSuccess));
+        if (onError is null)
+            throw new ArgumentNullException(nameof(onError));
+
         try
         {
-            var result = await resultTask;
             cancellationToken.ThrowIfCancellationRequested();
-            return result.Err != null ? onError(result.Err) : onSuccess(result.Value);
+            var result = await resultTask.ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return result.IsSuccess ? onSuccess(result.Value) : onError(result.Error!);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
-            return onError(Go.CancellationError);
+            return onError(Error.Canceled(token: oce.CancellationToken));
         }
     }
 
     /// <summary>
-    /// Asynchronously recovers from a failure by executing a function that can optionally return a new success value.
+    /// Matches a result to asynchronous continuations.
     /// </summary>
-    public static async Task<(T Value, Error? Err)> RecoverAsync<T>(
-        this Task<(T Value, Error? Err)> resultTask,
-        Func<Error, (T, Error?)> recoverFunc,
+    public static async Task<TOut> FinallyAsync<TIn, TOut>(
+        this Result<TIn> result,
+        Func<TIn, CancellationToken, Task<TOut>> onSuccess,
+        Func<Error, CancellationToken, Task<TOut>> onError,
         CancellationToken cancellationToken = default
     )
     {
+        if (onSuccess is null)
+            throw new ArgumentNullException(nameof(onSuccess));
+        if (onError is null)
+            throw new ArgumentNullException(nameof(onError));
+
         try
         {
-            var result = await resultTask;
             cancellationToken.ThrowIfCancellationRequested();
-            return result.Err != null ? recoverFunc(result.Err) : result;
+            if (result.IsSuccess)
+            {
+                return await onSuccess(result.Value, cancellationToken).ConfigureAwait(false);
+            }
+
+            return await onError(result.Error!, cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
-            return Go.Err<T>(Go.CancellationError);
+            return await onError(Error.Canceled(token: oce.CancellationToken), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Executes asynchronous continuations on a task result.
+    /// </summary>
+    public static async Task<TOut> FinallyAsync<TIn, TOut>(
+        this Task<Result<TIn>> resultTask,
+        Func<TIn, CancellationToken, Task<TOut>> onSuccess,
+        Func<Error, CancellationToken, Task<TOut>> onError,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (resultTask is null)
+            throw new ArgumentNullException(nameof(resultTask));
+        if (onSuccess is null)
+            throw new ArgumentNullException(nameof(onSuccess));
+        if (onError is null)
+            throw new ArgumentNullException(nameof(onError));
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await resultTask.ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return result.IsSuccess
+                ? await onSuccess(result.Value, cancellationToken).ConfigureAwait(false)
+                : await onError(result.Error!, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException oce)
+        {
+            return await onError(Error.Canceled(token: oce.CancellationToken), cancellationToken).ConfigureAwait(false);
         }
     }
 }
