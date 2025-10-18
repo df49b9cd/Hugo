@@ -48,7 +48,7 @@ public class GoTests
             var waitingTask = mutex.LockAsync(cts.Token);
             await Task.Delay(50, cts.Token);
             cts.Cancel();
-            await Assert.ThrowsAsync<OperationCanceledException>(() => waitingTask);
+            await Assert.ThrowsAsync<OperationCanceledException>(async () => await waitingTask);
         }
     }
 
@@ -58,7 +58,7 @@ public class GoTests
         var mutex = new Mutex();
         using (await mutex.LockAsync(TestContext.Current.CancellationToken))
         {
-            var reentrantLockTask = mutex.LockAsync(TestContext.Current.CancellationToken);
+            var reentrantLockTask = mutex.LockAsync(TestContext.Current.CancellationToken).AsTask();
             var completedTask = await Task.WhenAny(
                 reentrantLockTask,
                 Task.Delay(100, cancellationToken: TestContext.Current.CancellationToken)
@@ -84,7 +84,7 @@ public class GoTests
             );
             wg.Add(task);
         }
-        await wg.WaitAsync();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
         Assert.Equal(1, counter);
     }
 
@@ -137,7 +137,7 @@ public class GoTests
         }
 
         startSignal.Set();
-        await wg.WaitAsync();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(5, maxConcurrentReaders);
     }
@@ -189,7 +189,7 @@ public class GoTests
         );
         wg.Add(writerAttemptTask);
 
-        await wg.WaitAsync();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.False(writeLockHeld);
     }
@@ -218,7 +218,7 @@ public class GoTests
     public async Task Concurrency_ShouldCommunicate_ViaChannel()
     {
         var channel = MakeChannel<string>();
-        Run(async () =>
+        _ = Run(async () =>
         {
             await Task.Delay(100);
             await channel.Writer.WriteAsync("Work complete!");
@@ -268,7 +268,7 @@ public class GoTests
             );
             wg.Add(task);
         }
-        await wg.WaitAsync();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
         Assert.Equal(5, counter);
     }
 
@@ -276,7 +276,7 @@ public class GoTests
     public async Task WaitGroup_ShouldCompleteImmediately_WhenNoTasksAreAdded()
     {
         var wg = new WaitGroup();
-        await wg.WaitAsync();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
         Assert.True(true);
     }
 
@@ -307,7 +307,7 @@ public class GoTests
             );
             wg.Add(task);
         }
-        await wg.WaitAsync();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
         Assert.Equal(numTasks * incrementsPerTask, counter);
     }
 }

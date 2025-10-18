@@ -28,7 +28,7 @@ public class GoSharpTests
     public async ValueTask Defer_ShouldExecute_OnException()
     {
         var deferredActionExecuted = false;
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        _ = await Assert.ThrowsAsync<InvalidOperationException>(() =>
         {
             using (Defer(() => deferredActionExecuted = true))
             {
@@ -48,7 +48,7 @@ public class GoSharpTests
             var waitingTask = mutex.LockAsync(cts.Token);
             await Task.Delay(50, TestContext.Current.CancellationToken);
             cts.Cancel();
-            await Assert.ThrowsAsync<OperationCanceledException>(() => waitingTask);
+            _ = await Assert.ThrowsAsync<OperationCanceledException>(async () => await waitingTask);
         }
     }
 
@@ -58,7 +58,7 @@ public class GoSharpTests
         var mutex = new Mutex();
         using (await mutex.LockAsync(TestContext.Current.CancellationToken))
         {
-            var reentrantLockTask = mutex.LockAsync(TestContext.Current.CancellationToken);
+            var reentrantLockTask = mutex.LockAsync(TestContext.Current.CancellationToken).AsTask();
             var completedTask = await Task.WhenAny(
                 reentrantLockTask,
                 Task.Delay(100, TestContext.Current.CancellationToken)
@@ -79,9 +79,9 @@ public class GoSharpTests
             {
                 once.Do(() => Interlocked.Increment(ref counter));
                 return Task.CompletedTask;
-            });
+            }, TestContext.Current.CancellationToken);
         }
-        await wg.WaitAsync();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
         Assert.Equal(1, counter);
     }
 
@@ -99,7 +99,7 @@ public class GoSharpTests
     public void Pool_Get_ShouldThrow_WhenEmptyAndNoFactory()
     {
         var pool = new Pool<object>();
-        Assert.Throws<InvalidOperationException>(() => pool.Get());
+        _ = Assert.Throws<InvalidOperationException>(() => pool.Get());
     }
 
     [Fact]
@@ -118,11 +118,11 @@ public class GoSharpTests
                     var currentReaders = Interlocked.Increment(ref readersInside);
                     maxReaders = Math.Max(maxReaders, currentReaders);
                     await Task.Delay(50);
-                    Interlocked.Decrement(ref readersInside);
+                    _ = Interlocked.Decrement(ref readersInside);
                 }
-            });
+            }, TestContext.Current.CancellationToken);
         }
-        await wg.WaitAsync();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
         Assert.Equal(5, maxReaders);
     }
 
@@ -190,7 +190,7 @@ public class GoSharpTests
     public async Task Concurrency_ShouldCommunicate_ViaChannel()
     {
         var channel = MakeChannel<string>();
-        Run(async () =>
+        _ = Run(async () =>
         {
             await Task.Delay(100);
             await channel.Writer.WriteAsync("Work complete!");
@@ -233,10 +233,10 @@ public class GoSharpTests
             wg.Go(async () =>
             {
                 await Task.Delay(20);
-                Interlocked.Increment(ref counter);
-            });
+                _ = Interlocked.Increment(ref counter);
+            }, TestContext.Current.CancellationToken);
         }
-        await wg.WaitAsync();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
         Assert.Equal(5, counter);
     }
 
@@ -244,7 +244,7 @@ public class GoSharpTests
     public async Task WaitGroup_ShouldCompleteImmediately_WhenNoTasksAreAdded()
     {
         var wg = new WaitGroup();
-        await wg.WaitAsync();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
         Assert.True(true);
     }
 
@@ -269,9 +269,9 @@ public class GoSharpTests
                         counter = currentValue + 1;
                     }
                 }
-            });
+            }, TestContext.Current.CancellationToken);
         }
-        await wg.WaitAsync();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
         Assert.Equal(numTasks * incrementsPerTask, counter);
     }
 }
