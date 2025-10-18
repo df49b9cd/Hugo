@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -393,14 +393,18 @@ public sealed class Pool<T>
 /// </summary>
 public sealed class Error
 {
-    private static readonly IReadOnlyDictionary<string, object?> EmptyMetadata = new ReadOnlyDictionary<string, object?>(new Dictionary<string, object?>());
+    private static readonly StringComparer MetadataComparer = StringComparer.OrdinalIgnoreCase;
+    private static readonly FrozenDictionary<string, object?> EmptyMetadata =
+        FrozenDictionary.ToFrozenDictionary(Array.Empty<KeyValuePair<string, object?>>(), MetadataComparer);
 
-    private Error(string message, string? code, Exception? cause, IReadOnlyDictionary<string, object?> metadata)
+    private readonly FrozenDictionary<string, object?> _metadata;
+
+    private Error(string message, string? code, Exception? cause, FrozenDictionary<string, object?> metadata)
     {
         Message = message ?? throw new ArgumentNullException(nameof(message));
         Code = code;
         Cause = cause;
-        Metadata = metadata ?? EmptyMetadata;
+        _metadata = metadata ?? EmptyMetadata;
     }
 
     public string Message { get; }
@@ -409,19 +413,17 @@ public sealed class Error
 
     public Exception? Cause { get; }
 
-    public IReadOnlyDictionary<string, object?> Metadata { get; }
+    public IReadOnlyDictionary<string, object?> Metadata => _metadata;
 
     public Error WithMetadata(string key, object? value)
     {
         if (string.IsNullOrWhiteSpace(key))
             throw new ArgumentException("Metadata key must be provided.", nameof(key));
 
-        var metadata = new Dictionary<string, object?>(Metadata, StringComparer.OrdinalIgnoreCase)
-        {
-            [key] = value
-        };
+        var builder = CloneMetadata(_metadata, 1);
+        builder[key] = value;
 
-        return new Error(Message, Code, Cause, new ReadOnlyDictionary<string, object?>(metadata));
+        return new Error(Message, Code, Cause, FreezeMetadata(builder));
     }
 
     public Error WithMetadata(IEnumerable<KeyValuePair<string, object?>> metadata)
@@ -429,22 +431,22 @@ public sealed class Error
         if (metadata is null)
             throw new ArgumentNullException(nameof(metadata));
 
-        var merged = new Dictionary<string, object?>(Metadata, StringComparer.OrdinalIgnoreCase);
+        var builder = CloneMetadata(_metadata);
         foreach (var kvp in metadata)
         {
-            merged[kvp.Key] = kvp.Value;
+            builder[kvp.Key] = kvp.Value;
         }
 
-        return new Error(Message, Code, Cause, new ReadOnlyDictionary<string, object?>(merged));
+        return new Error(Message, Code, Cause, FreezeMetadata(builder));
     }
 
-    public Error WithCode(string? code) => new(Message, code, Cause, Metadata);
+    public Error WithCode(string? code) => new(Message, code, Cause, _metadata);
 
-    public Error WithCause(Exception? cause) => new(Message, Code, cause, Metadata);
+    public Error WithCause(Exception? cause) => new(Message, Code, cause, _metadata);
 
     public bool TryGetMetadata<T>(string key, out T? value)
     {
-        if (Metadata.TryGetValue(key, out var obj) && obj is T typed)
+        if (_metadata.TryGetValue(key, out var obj) && obj is T typed)
         {
             value = typed;
             return true;
@@ -457,38 +459,42 @@ public sealed class Error
     public override string ToString() => Code is null ? Message : $"{Code}: {Message}";
 
     public static Error From(string message, string? code = null, Exception? cause = null, IReadOnlyDictionary<string, object?>? metadata = null) =>
-        new(message, code, cause, metadata ?? EmptyMetadata);
+        new(message, code, cause, FreezeMetadata(metadata));
 
     public static Error FromException(Exception exception, string? code = null)
     {
         if (exception is null)
             throw new ArgumentNullException(nameof(exception));
 
-        var metadata = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        var builder = new Dictionary<string, object?>(2, MetadataComparer)
         {
             ["exceptionType"] = exception.GetType().FullName,
             ["stackTrace"] = exception.StackTrace
         };
 
-        return new Error(exception.Message, code ?? ErrorCodes.Exception, exception, new ReadOnlyDictionary<string, object?>(metadata));
+        return new Error(exception.Message, code ?? ErrorCodes.Exception, exception, FreezeMetadata(builder));
     }
 
     public static Error Canceled(string? message = null, CancellationToken? token = null)
     {
-        var metadata = token is { } t
-            ? new ReadOnlyDictionary<string, object?>(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) { ["cancellationToken"] = t })
-            : EmptyMetadata;
+        var builder = token is { } t
+            ? new Dictionary<string, object?>(1, MetadataComparer) { ["cancellationToken"] = t }
+            : null;
 
-        return new Error(message ?? "Operation was canceled.", ErrorCodes.Canceled, token is { } tk ? new OperationCanceledException(tk) : null, metadata);
+        return new Error(
+            message ?? "Operation was canceled.",
+            ErrorCodes.Canceled,
+            token is { } tk ? new OperationCanceledException(tk) : null,
+            FreezeMetadata(builder));
     }
 
     public static Error Timeout(TimeSpan? duration = null, string? message = null)
     {
-        var metadata = duration.HasValue
-            ? new ReadOnlyDictionary<string, object?>(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) { ["duration"] = duration.Value })
-            : EmptyMetadata;
+        var builder = duration.HasValue
+            ? new Dictionary<string, object?>(1, MetadataComparer) { ["duration"] = duration.Value }
+            : null;
 
-        return new Error(message ?? "The operation timed out.", ErrorCodes.Timeout, null, metadata);
+        return new Error(message ?? "The operation timed out.", ErrorCodes.Timeout, null, FreezeMetadata(builder));
     }
 
     public static Error Unspecified(string? message = null) => new(message ?? "An unspecified error occurred.", ErrorCodes.Unspecified, null, EmptyMetadata);
@@ -498,17 +504,47 @@ public sealed class Error
         if (errors is null)
             throw new ArgumentNullException(nameof(errors));
 
-        var metadata = new ReadOnlyDictionary<string, object?>(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        var builder = new Dictionary<string, object?>(1, MetadataComparer)
         {
             ["errors"] = errors
-        });
+        };
 
-        return new Error(message, ErrorCodes.Aggregate, null, metadata);
+        return new Error(message, ErrorCodes.Aggregate, null, FreezeMetadata(builder));
     }
 
     public static implicit operator Error?(string? message) => message is null ? null : From(message);
 
     public static implicit operator Error?(Exception? exception) => exception is null ? null : FromException(exception);
+
+    private static Dictionary<string, object?> CloneMetadata(IReadOnlyDictionary<string, object?> source, int additionalCapacity = 0)
+    {
+        var builder = new Dictionary<string, object?>(source.Count + additionalCapacity, MetadataComparer);
+        foreach (var kvp in source)
+        {
+            builder[kvp.Key] = kvp.Value;
+        }
+
+        return builder;
+    }
+
+    private static FrozenDictionary<string, object?> FreezeMetadata(IReadOnlyDictionary<string, object?>? metadata)
+    {
+        if (metadata is null || metadata.Count == 0)
+            return EmptyMetadata;
+
+        if (metadata is FrozenDictionary<string, object?> frozen && MetadataComparer.Equals(frozen.Comparer))
+            return frozen;
+
+        return FreezeMetadata(CloneMetadata(metadata));
+    }
+
+    private static FrozenDictionary<string, object?> FreezeMetadata(Dictionary<string, object?>? builder)
+    {
+        if (builder is null || builder.Count == 0)
+            return EmptyMetadata;
+
+        return builder.ToFrozenDictionary(MetadataComparer);
+    }
 }
 
 /// <summary>
