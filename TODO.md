@@ -18,5 +18,5 @@
   - [x] Step 9b: Add FakeTimeProvider integration scenario to GoFunctionalTests
   - [x] Step 9c: Exercise Result streaming cancellation using FakeTimeProvider
   - [x] Step 9d: Run dotnet test to validate
-- [ ] Step 10: Add necessary package references and update project files
-- [ ] Step 11: Run test suite and iterate on any failures
+- [x] Step 10: Add necessary package references and update project files
+- [x] Step 11: Run test suite and iterate on any failures
