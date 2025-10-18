@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Channels;
 
 namespace Hugo;
@@ -35,6 +36,18 @@ public static class Go
     /// </summary>
     public static Task<Result<Unit>> SelectAsync(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default, params ChannelCase[] cases) =>
         SelectInternalAsync(cases, timeout, provider, cancellationToken);
+
+    /// <summary>
+    /// Creates a fluent builder that materializes a typed channel select workflow.
+    /// </summary>
+    public static SelectBuilder<TResult> Select<TResult>(TimeProvider? provider = null, CancellationToken cancellationToken = default) =>
+        new SelectBuilder<TResult>(Timeout.InfiniteTimeSpan, provider, cancellationToken);
+
+    /// <summary>
+    /// Creates a fluent builder that materializes a typed channel select workflow with a timeout.
+    /// </summary>
+    public static SelectBuilder<TResult> Select<TResult>(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default) =>
+        new SelectBuilder<TResult>(timeout, provider, cancellationToken);
 
     private static async Task<Result<Unit>> SelectInternalAsync(ChannelCase[] cases, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
     {
@@ -161,6 +174,132 @@ public static class Go
             {
                 map[tasks[i]] = i;
             }
+        }
+    }
+
+
+    public sealed class SelectBuilder<TResult>
+    {
+        private readonly List<Func<TaskCompletionSource<Result<TResult>>, ChannelCase>> _caseFactories = [];
+        private readonly TimeSpan _timeout;
+        private readonly TimeProvider? _provider;
+        private readonly CancellationToken _cancellationToken;
+
+        internal SelectBuilder(TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
+        {
+            if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+                throw new ArgumentOutOfRangeException(nameof(timeout));
+
+            _timeout = timeout;
+            _provider = provider;
+            _cancellationToken = cancellationToken;
+        }
+
+        public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue)
+        {
+            if (reader is null)
+                throw new ArgumentNullException(nameof(reader));
+            if (onValue is null)
+                throw new ArgumentNullException(nameof(onValue));
+
+            _caseFactories.Add(completion => CreateCase(reader, onValue, completion));
+            return this;
+        }
+
+        public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, Task<Result<TResult>>> onValue)
+        {
+            if (onValue is null)
+                throw new ArgumentNullException(nameof(onValue));
+
+            return Case(reader, (value, _) => onValue(value));
+        }
+
+        public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<TResult>> onValue)
+        {
+            if (onValue is null)
+                throw new ArgumentNullException(nameof(onValue));
+
+            return Case(reader, async (value, ct) => Result.Ok(await onValue(value, ct).ConfigureAwait(false)));
+        }
+
+        public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, Task<TResult>> onValue)
+        {
+            if (onValue is null)
+                throw new ArgumentNullException(nameof(onValue));
+
+            return Case(reader, async (value, _) => Result.Ok(await onValue(value).ConfigureAwait(false)));
+        }
+
+        public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, TResult> onValue)
+        {
+            if (onValue is null)
+                throw new ArgumentNullException(nameof(onValue));
+
+            return Case(reader, (value, _) => Task.FromResult(Result.Ok(onValue(value))));
+        }
+
+        public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, Func<T, CancellationToken, Task<Result<TResult>>> onValue) =>
+            Case(template.Reader, onValue);
+
+        public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, Func<T, Task<Result<TResult>>> onValue) =>
+            Case(template.Reader, onValue);
+
+        public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, Func<T, CancellationToken, Task<TResult>> onValue) =>
+            Case(template.Reader, onValue);
+
+        public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, Func<T, Task<TResult>> onValue) =>
+            Case(template.Reader, onValue);
+
+        public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, Func<T, TResult> onValue) =>
+            Case(template.Reader, onValue);
+
+        public async Task<Result<TResult>> ExecuteAsync()
+        {
+            if (_caseFactories.Count == 0)
+                throw new InvalidOperationException("At least one channel case must be configured before executing the select.");
+
+            var completion = new TaskCompletionSource<Result<TResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var cases = new ChannelCase[_caseFactories.Count];
+            for (var i = 0; i < _caseFactories.Count; i++)
+            {
+                cases[i] = _caseFactories[i](completion);
+            }
+
+            var selectResult = await Go.SelectAsync(_timeout, _provider, _cancellationToken, cases).ConfigureAwait(false);
+
+            if (completion.Task.IsCompleted)
+                return await completion.Task.ConfigureAwait(false);
+
+            if (selectResult.IsFailure)
+                return Result.Fail<TResult>(selectResult.Error ?? Error.Unspecified());
+
+            return await completion.Task.ConfigureAwait(false);
+        }
+
+        private ChannelCase CreateCase<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue, TaskCompletionSource<Result<TResult>> completion)
+        {
+            return ChannelCase.Create(reader, async (value, ct) =>
+            {
+                Result<TResult> caseResult;
+                try
+                {
+                    caseResult = await onValue(value, ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    caseResult = Result.Fail<TResult>(Error.FromException(ex));
+                }
+
+                completion.TrySetResult(caseResult);
+
+                return caseResult.IsSuccess
+                    ? Result.Ok(Unit.Value)
+                    : Result.Fail<Unit>(caseResult.Error ?? Error.Unspecified());
+            });
         }
     }
 

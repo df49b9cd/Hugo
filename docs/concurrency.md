@@ -107,3 +107,43 @@ var result = await Go.SelectAsync(
 - Built on `ChannelCase` continuations that produce `Result<Unit>`.
 - Records attempts, completions, timeouts, and cancellations through `GoDiagnostics`.
 - Supports deadlines via `TimeProvider` for deterministic testing.
+
+### Channel Case Templates
+
+Use `ChannelCaseTemplate<T>` to capture readers up-front and materialize consistent case logic later.
+
+```csharp
+var templates = new[]
+{
+    ChannelCaseTemplates.From(textChannel.Reader),
+    ChannelCaseTemplates.From(signal.Reader)
+};
+
+var cases = templates.With((value, ct) =>
+{
+    Console.WriteLine($"handled {value}");
+    return Task.FromResult(Result.Ok(Go.Unit.Value));
+});
+
+var result = await Go.SelectAsync(cancellationToken: ct, cases: cases);
+```
+
+### Fluent Select Builder
+
+`Go.Select<TResult>()` exposes a fluent builder that projects the executed case into a typed `Result<TResult>`.
+
+```csharp
+var outcome = await Go.Select<string>(cancellationToken: ct)
+    .Case(textChannel.Reader, (text, token) => Result.Ok($"text:{text}"))
+    .Case(signal.Reader, _ => Result.Ok("signal"))
+    .ExecuteAsync();
+
+if (outcome.IsSuccess)
+{
+    Console.WriteLine(outcome.Value);
+}
+```
+
+- `SelectBuilder<TResult>` mirrors `SelectAsync` timeout and provider options.
+- Case overloads accept `ChannelCaseTemplate<T>` or raw `ChannelReader<T>` sources.
+- Exceptions are wrapped with `Error.FromException` just like `SelectAsync` continuations.

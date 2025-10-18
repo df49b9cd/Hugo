@@ -1,4 +1,5 @@
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
+using System.Collections.Generic;
 using System.Threading.Channels;
 using Microsoft.Extensions.Time.Testing;
 using static Hugo.Go;
@@ -646,6 +647,101 @@ public class GoTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => selectTask);
         channel.Writer.TryComplete();
+    }
+
+    [Fact]
+    public async Task ChannelCaseTemplates_With_ShouldMaterializeCases()
+    {
+        var channel1 = MakeChannel<int>();
+        var channel2 = MakeChannel<int>();
+        var observed = new List<int>();
+
+        var templates = new[]
+        {
+            ChannelCaseTemplates.From(channel1.Reader),
+            ChannelCaseTemplates.From(channel2.Reader)
+        };
+
+        var cases = templates.With((value, _) =>
+        {
+            observed.Add(value);
+            return Task.FromResult(Result.Ok(Unit.Value));
+        });
+
+        var selectTask = SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: cases);
+
+        await channel2.Writer.WriteAsync(99, TestContext.Current.CancellationToken);
+        channel1.Writer.TryComplete();
+        channel2.Writer.TryComplete();
+
+        var result = await selectTask;
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(new[] { 99 }, observed);
+    }
+
+    [Fact]
+    public async Task SelectBuilder_ShouldReturnProjectedResult_WhenTemplateUsed()
+    {
+        var channel = MakeChannel<int>();
+        var template = ChannelCaseTemplates.From(channel.Reader);
+
+        var selectTask = Select<string>(cancellationToken: TestContext.Current.CancellationToken)
+            .Case(template, value => $"value:{value}")
+            .ExecuteAsync();
+
+        await channel.Writer.WriteAsync(7, TestContext.Current.CancellationToken);
+        channel.Writer.TryComplete();
+
+        var result = await selectTask;
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("value:7", result.Value);
+    }
+
+    [Fact]
+    public async Task SelectBuilder_ShouldPropagateCaseFailure()
+    {
+        var channel = MakeChannel<int>();
+
+        var selectTask = Select<int>(cancellationToken: TestContext.Current.CancellationToken)
+            .Case(channel.Reader, (_, _) => Task.FromResult(Result.Fail<int>(Error.From("boom", ErrorCodes.Validation))))
+            .ExecuteAsync();
+
+        await channel.Writer.WriteAsync(5, TestContext.Current.CancellationToken);
+        channel.Writer.TryComplete();
+
+        var result = await selectTask;
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("boom", result.Error?.Message);
+        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task SelectBuilder_ShouldPropagateTimeout()
+    {
+        var provider = new FakeTimeProvider();
+        var channel = MakeChannel<int>();
+
+        var selectTask = Select<string>(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken)
+            .Case(channel.Reader, value => value.ToString())
+            .ExecuteAsync();
+
+        provider.Advance(TimeSpan.FromSeconds(1));
+
+        var result = await selectTask;
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task SelectBuilder_ShouldThrow_WhenNoCasesConfigured()
+    {
+        var builder = Select<int>(cancellationToken: TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => builder.ExecuteAsync());
     }
 
     [Fact]

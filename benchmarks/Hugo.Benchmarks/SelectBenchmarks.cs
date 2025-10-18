@@ -126,7 +126,7 @@ public class SelectBenchmarks
             catch (ChannelClosedException)
             {
                 tasks.RemoveAt(index);
-                readers = readers.Where((_, i) => i != index).ToArray();
+                readers = [.. readers.Where((_, i) => i != index)];
             }
         }
 
