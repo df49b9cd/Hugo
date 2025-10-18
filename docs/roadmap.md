@@ -2,10 +2,12 @@
 
 ## Near-Term Focus
 
-- **Channel select enhancements**: add helper utilities for composing multiple `ChannelCase` templates and expose a fluent builder for `Go.SelectAsync` scenarios.
-- **Timer primitives**: provide Go-like ticker/after functionality that integrates with `TimeProvider` for deterministic testing.
 - **Cancellation audit**: review every async overload to ensure cancellation tokens flow from top-level API entry points through internal helpers and error metadata.
 - **Result enrichments**: explore pattern-matching helpers, JSON-friendly error serialization, and optional value support.
+
+## Recently Delivered
+
+- **Timer primitives**: `Go.After`, `Go.AfterAsync`, `Go.NewTicker`, and `Go.Tick` provide Go-like timers driven by `TimeProvider` for deterministic tests.
 
 ## Stretch Goals
 

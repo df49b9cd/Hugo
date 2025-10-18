@@ -147,3 +147,20 @@ if (outcome.IsSuccess)
 - `SelectBuilder<TResult>` mirrors `SelectAsync` timeout and provider options.
 - Case overloads accept `ChannelCaseTemplate<T>` or raw `ChannelReader<T>` sources.
 - Exceptions are wrapped with `Error.FromException` just like `SelectAsync` continuations.
+
+## Timers
+
+`Go.After`, `Go.AfterAsync`, `Go.NewTicker`, and `Go.Tick` mirror Go's timer primitives while honouring `TimeProvider` for deterministic testing.
+
+```csharp
+var provider = new FakeTimeProvider();
+
+var once = await Go.AfterAsync(TimeSpan.FromSeconds(5), provider, ct);
+
+await using var ticker = Go.NewTicker(TimeSpan.FromSeconds(1), provider, ct);
+var tick = await ticker.ReadAsync(ct);
+```
+
+- Backed by `TimerChannel`, which uses `TimeProvider.CreateTimer` so fakes can drive time forward.
+- `GoTicker.Stop()`/`StopAsync()` dispose underlying timers and complete the channel.
+- `Go.Tick` returns a channel only; cancel the linked token or dispose the ticker to release resources.
