@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Hugo.Benchmarks.MutexBenchmarks-20251018-182504</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, macOS 26.0.1 (25A362) [Darwin 25.0.0]
+Apple M1 Max 2.40GHz, 1 CPU, 10 logical and 10 physical cores
+.NET SDK 10.0.100-rc.2.25502.107
+  [Host]     : .NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2
+  DefaultJob : .NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method            </th><th>TaskCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>HugoMutexAsync</td><td>16</td><td>2.862 ms</td><td>0.0112 ms</td><td>0.0105 ms</td><td>1.00</td><td>31.2500</td><td>192.97 KB</td><td>1.000</td>
+</tr><tr><td>SemaphoreSlimAsync</td><td>16</td><td>2.676 ms</td><td>0.0069 ms</td><td>0.0058 ms</td><td>0.93</td><td>19.5313</td><td>121 KB</td><td>0.627</td>
+</tr><tr><td>HugoMutexEnterScopeAsync</td><td>16</td><td>2.665 ms</td><td>0.0153 ms</td><td>0.0143 ms</td><td>0.93</td><td>-</td><td>1.83 KB</td><td>0.009</td>
+</tr><tr><td>MonitorLockScopeAsync</td><td>16</td><td>2.726 ms</td><td>0.0215 ms</td><td>0.0201 ms</td><td>0.95</td><td>-</td><td>1.63 KB</td><td>0.008</td>
+</tr><tr><td>HugoMutexAsync</td><td>64</td><td>11.616 ms</td><td>0.1124 ms</td><td>0.0939 ms</td><td>1.00</td><td>90.9091</td><td>771.23 KB</td><td>1.000</td>
+</tr><tr><td>SemaphoreSlimAsync</td><td>64</td><td>11.034 ms</td><td>0.0223 ms</td><td>0.0186 ms</td><td>0.95</td><td>62.5000</td><td>483.23 KB</td><td>0.627</td>
+</tr><tr><td>HugoMutexEnterScopeAsync</td><td>64</td><td>10.292 ms</td><td>0.0240 ms</td><td>0.0201 ms</td><td>0.89</td><td>-</td><td>5.2 KB</td><td>0.007</td>
+</tr><tr><td>MonitorLockScopeAsync</td><td>64</td><td>11.032 ms</td><td>0.0102 ms</td><td>0.0080 ms</td><td>0.95</td><td>-</td><td>5 KB</td><td>0.006</td>
+</tr></tbody></table>
+</body>
+</html>

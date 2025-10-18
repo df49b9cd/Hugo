@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Hugo.Benchmarks.OnceBenchmarks-20251018-182714</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, macOS 26.0.1 (25A362) [Darwin 25.0.0]
+Apple M1 Max 2.40GHz, 1 CPU, 10 logical and 10 physical cores
+.NET SDK 10.0.100-rc.2.25502.107
+  [Host]     : .NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2
+  Job-CNUJVU : .NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2
+</code></pre>
+<pre><code>InvocationCount=1  UnrollFactor=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method          </th><th>TaskCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Allocated</th>
+</tr>
+</thead><tbody><tr><td>HugoOnceAsync</td><td>16</td><td>107.53 &mu;s</td><td>15.486 &mu;s</td><td>42.65 &mu;s</td><td>1.64 KB</td>
+</tr><tr><td>LazyValueAsync</td><td>16</td><td>94.86 &mu;s</td><td>8.581 &mu;s</td><td>23.92 &mu;s</td><td>1.59 KB</td>
+</tr><tr><td>LazyInitializerAsync</td><td>16</td><td>93.29 &mu;s</td><td>9.817 &mu;s</td><td>27.69 &mu;s</td><td>2.55 KB</td>
+</tr><tr><td>DoubleCheckedLockAsync</td><td>16</td><td>93.47 &mu;s</td><td>9.872 &mu;s</td><td>26.86 &mu;s</td><td>1.53 KB</td>
+</tr><tr><td>HugoOnceAsync</td><td>64</td><td>113.68 &mu;s</td><td>11.259 &mu;s</td><td>31.57 &mu;s</td><td>5.02 KB</td>
+</tr><tr><td>LazyValueAsync</td><td>64</td><td>107.83 &mu;s</td><td>10.799 &mu;s</td><td>30.28 &mu;s</td><td>5.03 KB</td>
+</tr><tr><td>LazyInitializerAsync</td><td>64</td><td>113.22 &mu;s</td><td>11.323 &mu;s</td><td>32.30 &mu;s</td><td>8.93 KB</td>
+</tr><tr><td>DoubleCheckedLockAsync</td><td>64</td><td>116.60 &mu;s</td><td>10.376 &mu;s</td><td>30.43 &mu;s</td><td>4.87 KB</td>
+</tr></tbody></table>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Hugo.Benchmarks.ChannelFactoryBenchmarks-20251018-181712</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, macOS 26.0.1 (25A362) [Darwin 25.0.0]
+Apple M1 Max 2.40GHz, 1 CPU, 10 logical and 10 physical cores
+.NET SDK 10.0.100-rc.2.25502.107
+  [Host]     : .NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2
+  DefaultJob : .NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method          </th><th>SingleReader</th><th>SingleWriter</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Gen0</th><th>Allocated</th>
+</tr>
+</thead><tbody><tr><td>GoMakeUnboundedAsync</td><td>False</td><td>False</td><td>107.18 &mu;s</td><td>2.102 &mu;s</td><td>2.733 &mu;s</td><td>1.2207</td><td>7.66 KB</td>
+</tr><tr><td>GoMakeBoundedAsync</td><td>False</td><td>False</td><td>116.23 &mu;s</td><td>2.295 &mu;s</td><td>2.643 &mu;s</td><td>0.6104</td><td>4.04 KB</td>
+</tr><tr><td>NativeBoundedAsync</td><td>False</td><td>False</td><td>114.83 &mu;s</td><td>2.177 &mu;s</td><td>2.235 &mu;s</td><td>0.6104</td><td>4.04 KB</td>
+</tr><tr><td>NativeUnboundedAsync</td><td>False</td><td>False</td><td>104.05 &mu;s</td><td>1.964 &mu;s</td><td>3.830 &mu;s</td><td>0.9766</td><td>8 KB</td>
+</tr><tr><td>GoMakePrioritizedAsync</td><td>False</td><td>False</td><td>364.10 &mu;s</td><td>7.224 &mu;s</td><td>6.032 &mu;s</td><td>0.9766</td><td>7.29 KB</td>
+</tr><tr><td>GoMakeUnboundedAsync</td><td>False</td><td>True</td><td>108.37 &mu;s</td><td>2.158 &mu;s</td><td>2.806 &mu;s</td><td>1.2207</td><td>7.23 KB</td>
+</tr><tr><td>GoMakeBoundedAsync</td><td>False</td><td>True</td><td>113.95 &mu;s</td><td>1.941 &mu;s</td><td>1.721 &mu;s</td><td>0.4883</td><td>4.04 KB</td>
+</tr><tr><td>NativeBoundedAsync</td><td>False</td><td>True</td><td>117.51 &mu;s</td><td>2.282 &mu;s</td><td>2.886 &mu;s</td><td>-</td><td>4.04 KB</td>
+</tr><tr><td>NativeUnboundedAsync</td><td>False</td><td>True</td><td>107.80 &mu;s</td><td>2.151 &mu;s</td><td>4.144 &mu;s</td><td>1.2207</td><td>7.18 KB</td>
+</tr><tr><td>GoMakePrioritizedAsync</td><td>False</td><td>True</td><td>392.15 &mu;s</td><td>7.511 &mu;s</td><td>7.377 &mu;s</td><td>0.9766</td><td>7.35 KB</td>
+</tr><tr><td>GoMakeUnboundedAsync</td><td>True</td><td>False</td><td>69.78 &mu;s</td><td>1.241 &mu;s</td><td>1.100 &mu;s</td><td>1.4648</td><td>9.14 KB</td>
+</tr><tr><td>GoMakeBoundedAsync</td><td>True</td><td>False</td><td>113.88 &mu;s</td><td>1.477 &mu;s</td><td>1.309 &mu;s</td><td>0.6104</td><td>4.04 KB</td>
+</tr><tr><td>NativeBoundedAsync</td><td>True</td><td>False</td><td>114.36 &mu;s</td><td>1.795 &mu;s</td><td>1.679 &mu;s</td><td>0.6104</td><td>4.04 KB</td>
+</tr><tr><td>NativeUnboundedAsync</td><td>True</td><td>False</td><td>70.27 &mu;s</td><td>1.381 &mu;s</td><td>2.821 &mu;s</td><td>1.5869</td><td>9.44 KB</td>
+</tr><tr><td>GoMakePrioritizedAsync</td><td>True</td><td>False</td><td>390.79 &mu;s</td><td>7.792 &mu;s</td><td>11.663 &mu;s</td><td>0.9766</td><td>7.2 KB</td>
+</tr><tr><td>GoMakeUnboundedAsync</td><td>True</td><td>True</td><td>67.40 &mu;s</td><td>1.305 &mu;s</td><td>1.743 &mu;s</td><td>1.4648</td><td>9.37 KB</td>
+</tr><tr><td>GoMakeBoundedAsync</td><td>True</td><td>True</td><td>115.01 &mu;s</td><td>1.852 &mu;s</td><td>1.733 &mu;s</td><td>0.6104</td><td>4.04 KB</td>
+</tr><tr><td>NativeBoundedAsync</td><td>True</td><td>True</td><td>112.93 &mu;s</td><td>1.654 &mu;s</td><td>1.466 &mu;s</td><td>0.6104</td><td>4.04 KB</td>
+</tr><tr><td>NativeUnboundedAsync</td><td>True</td><td>True</td><td>74.27 &mu;s</td><td>1.461 &mu;s</td><td>2.401 &mu;s</td><td>1.4648</td><td>8.87 KB</td>
+</tr><tr><td>GoMakePrioritizedAsync</td><td>True</td><td>True</td><td>373.62 &mu;s</td><td>7.266 &mu;s</td><td>10.421 &mu;s</td><td>0.9766</td><td>7.2 KB</td>
+</tr></tbody></table>
+</body>
+</html>
