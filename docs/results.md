@@ -42,7 +42,7 @@ var outcome = await Ok(input)
         cancellationToken: ct);
 ```
 
-- Every async combinator honours `CancellationToken` and converts cancellations to `Error.Canceled`.
+- Every async combinator honours `CancellationToken` and converts cancellations to `Error.Canceled`, including the originating token in the error metadata for downstream inspection.
 - `FinallyAsync` picks the branch to project, enabling deterministic control flow around result pipelines.
 
 ## Error Metadata

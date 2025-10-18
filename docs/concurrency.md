@@ -107,6 +107,7 @@ var result = await Go.SelectAsync(
 - Built on `ChannelCase` continuations that produce `Result<Unit>`.
 - Records attempts, completions, timeouts, and cancellations through `GoDiagnostics`.
 - Supports deadlines via `TimeProvider` for deterministic testing.
+- Returns `Error.Canceled` (with the triggering token captured in metadata) when any linked token is canceled, enabling callers to handle cancellation without exceptions.
 
 ### Channel Case Templates
 
