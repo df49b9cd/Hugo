@@ -99,20 +99,11 @@ public static class GoDiagnostics
         _waitGroupOutstanding?.Add(-1);
     }
 
-    internal static void RecordResultSuccess()
-    {
-        _resultSuccesses?.Add(1);
-    }
+    internal static void RecordResultSuccess() => _resultSuccesses?.Add(1);
 
-    internal static void RecordResultFailure()
-    {
-        _resultFailures?.Add(1);
-    }
+    internal static void RecordResultFailure() => _resultFailures?.Add(1);
 
-    internal static void RecordChannelSelectAttempt()
-    {
-        _channelSelectAttempts?.Add(1);
-    }
+    internal static void RecordChannelSelectAttempt() => _channelSelectAttempts?.Add(1);
 
     internal static void RecordChannelSelectCompleted(TimeSpan duration)
     {

@@ -172,13 +172,9 @@ public static class Result
     public static Task<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(
         IAsyncEnumerable<TIn> source,
         Func<TIn, CancellationToken, Task<Result<TOut>>> selector,
-        CancellationToken cancellationToken = default)
-    {
-        if (selector is null)
-            throw new ArgumentNullException(nameof(selector));
-
-        return TraverseAsync(source, (value, token) => new ValueTask<Result<TOut>>(selector(value, token)), cancellationToken);
-    }
+        CancellationToken cancellationToken = default) => selector is null
+            ? throw new ArgumentNullException(nameof(selector))
+            : TraverseAsync(source, (value, token) => new ValueTask<Result<TOut>>(selector(value, token)), cancellationToken);
 
     /// <summary>
     /// Applies an asynchronous selector to each value in the source and aggregates the successful results.
@@ -226,13 +222,9 @@ public static class Result
     public static IAsyncEnumerable<Result<TOut>> MapStreamAsync<TIn, TOut>(
         IAsyncEnumerable<TIn> source,
         Func<TIn, CancellationToken, Task<Result<TOut>>> selector,
-        CancellationToken cancellationToken = default)
-    {
-        if (selector is null)
-            throw new ArgumentNullException(nameof(selector));
-
-        return MapStreamAsync(source, (value, token) => new ValueTask<Result<TOut>>(selector(value, token)), cancellationToken);
-    }
+        CancellationToken cancellationToken = default) => selector is null
+            ? throw new ArgumentNullException(nameof(selector))
+            : MapStreamAsync(source, (value, token) => new ValueTask<Result<TOut>>(selector(value, token)), cancellationToken);
 
     /// <summary>
     /// Projects an asynchronous sequence into a new asynchronous sequence of results, stopping on first failure.
@@ -374,13 +366,9 @@ public readonly record struct Result<T>
     /// <summary>
     /// Returns the contained value when successful, otherwise evaluates the fallback factory.
     /// </summary>
-    public T ValueOr(Func<Error, T> fallbackFactory)
-    {
-        if (fallbackFactory is null)
-            throw new ArgumentNullException(nameof(fallbackFactory));
-
-        return IsSuccess ? _value : fallbackFactory(Error!);
-    }
+    public T ValueOr(Func<Error, T> fallbackFactory) => fallbackFactory is null
+            ? throw new ArgumentNullException(nameof(fallbackFactory))
+            : IsSuccess ? _value : fallbackFactory(Error!);
 
     /// <summary>
     /// Returns the contained value when successful. Throws a <see cref="ResultException"/> if the result represents failure.

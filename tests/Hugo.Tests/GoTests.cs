@@ -490,11 +490,8 @@ public class GoTests
     }
 
     [Fact]
-    public async Task DelayAsync_ShouldThrow_WhenDelayIsNegative()
-    {
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            Go.DelayAsync(TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
-    }
+    public async Task DelayAsync_ShouldThrow_WhenDelayIsNegative() => await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+                                                                               Go.DelayAsync(TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact]
     public async Task DelayAsync_ShouldRespectCancellation()
@@ -509,10 +506,7 @@ public class GoTests
     }
 
     [Fact]
-    public void ChannelCase_Create_ShouldThrow_WhenReaderIsNull()
-    {
-        Assert.Throws<ArgumentNullException>(() => ChannelCase.Create<int>(null!, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value))));
-    }
+    public void ChannelCase_Create_ShouldThrow_WhenReaderIsNull() => Assert.Throws<ArgumentNullException>(() => ChannelCase.Create<int>(null!, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value))));
 
     [Fact]
     public void ChannelCase_Create_ShouldThrow_WhenContinuationIsNull()
@@ -531,16 +525,10 @@ public class GoTests
     }
 
     [Fact]
-    public async Task SelectAsync_ShouldThrow_WhenCasesNull()
-    {
-    await Assert.ThrowsAsync<ArgumentNullException>(() => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: null!));
-    }
+    public async Task SelectAsync_ShouldThrow_WhenCasesNull() => await Assert.ThrowsAsync<ArgumentNullException>(() => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: null!));
 
     [Fact]
-    public async Task SelectAsync_ShouldThrow_WhenCasesEmpty()
-    {
-    await Assert.ThrowsAsync<ArgumentException>(() => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: Array.Empty<ChannelCase>()));
-    }
+    public async Task SelectAsync_ShouldThrow_WhenCasesEmpty() => await Assert.ThrowsAsync<ArgumentException>(() => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: Array.Empty<ChannelCase>()));
 
     [Fact]
     public async Task SelectAsync_ShouldThrow_WhenTimeoutIsNegative()
@@ -712,34 +700,19 @@ public class GoTests
     }
 
     [Fact]
-    public void MakeChannel_WithNullBoundedOptions_ShouldThrow()
-    {
-        Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((BoundedChannelOptions)null!));
-    }
+    public void MakeChannel_WithNullBoundedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((BoundedChannelOptions)null!));
 
     [Fact]
-    public void MakeChannel_WithNullUnboundedOptions_ShouldThrow()
-    {
-        Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((UnboundedChannelOptions)null!));
-    }
+    public void MakeChannel_WithNullUnboundedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((UnboundedChannelOptions)null!));
 
     [Fact]
-    public void MakeChannel_WithNullPrioritizedOptions_ShouldThrow()
-    {
-        Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((PrioritizedChannelOptions)null!));
-    }
+    public void MakeChannel_WithNullPrioritizedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((PrioritizedChannelOptions)null!));
 
     [Fact]
-    public void MakePrioritizedChannel_ShouldThrow_WhenPriorityLevelsInvalid()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => MakePrioritizedChannel<int>(0));
-    }
+    public void MakePrioritizedChannel_ShouldThrow_WhenPriorityLevelsInvalid() => Assert.Throws<ArgumentOutOfRangeException>(() => MakePrioritizedChannel<int>(0));
 
     [Fact]
-    public void MakePrioritizedChannel_ShouldThrow_WhenDefaultPriorityTooHigh()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => MakePrioritizedChannel<int>(priorityLevels: 2, defaultPriority: 2));
-    }
+    public void MakePrioritizedChannel_ShouldThrow_WhenDefaultPriorityTooHigh() => Assert.Throws<ArgumentOutOfRangeException>(() => MakePrioritizedChannel<int>(priorityLevels: 2, defaultPriority: 2));
 
     [Fact]
     public async Task MakeChannel_WithPrioritizedOptions_ShouldYieldHigherPriorityFirst()

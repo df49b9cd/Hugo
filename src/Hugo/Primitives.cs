@@ -368,13 +368,9 @@ public sealed class Pool<T>
 
     public Func<T>? New { get; init; }
 
-    public T Get()
-    {
-        if (_items.TryTake(out var item))
-            return item;
-
-        return New?.Invoke() ?? throw new InvalidOperationException("The 'New' factory function must be set before Get can be called on an empty pool.");
-    }
+    public T Get() => _items.TryTake(out var item)
+            ? item
+            : New?.Invoke() ?? throw new InvalidOperationException("The 'New' factory function must be set before Get can be called on an empty pool.");
 
     public void Put(T item)
     {
@@ -529,19 +525,12 @@ public sealed class Error
         if (metadata is null || metadata.Count == 0)
             return EmptyMetadata;
 
-        if (metadata is FrozenDictionary<string, object?> frozen && MetadataComparer.Equals(frozen.Comparer))
-            return frozen;
-
-        return FreezeMetadata(CloneMetadata(metadata));
+        return metadata is FrozenDictionary<string, object?> frozen && MetadataComparer.Equals(frozen.Comparer)
+            ? frozen
+            : FreezeMetadata(CloneMetadata(metadata));
     }
 
-    private static FrozenDictionary<string, object?> FreezeMetadata(Dictionary<string, object?>? builder)
-    {
-        if (builder is null || builder.Count == 0)
-            return EmptyMetadata;
-
-        return builder.ToFrozenDictionary(MetadataComparer);
-    }
+    private static FrozenDictionary<string, object?> FreezeMetadata(Dictionary<string, object?>? builder) => builder is null || builder.Count == 0 ? EmptyMetadata : builder.ToFrozenDictionary(MetadataComparer);
 }
 
 /// <summary>

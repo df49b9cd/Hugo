@@ -43,13 +43,9 @@ public class RwMutexBenchmarks
     [Benchmark]
     public Task AsyncReaderWriterLockAsync() => ExecuteAsync(new AsyncReaderWriterLockStrategy());
 
-    private Task ExecuteAsync(ILockStrategy strategy)
-    {
-        if (_operationPlan is null)
-            throw new InvalidOperationException("Operation plan was not initialized.");
-
-        return strategy.ExecuteAsync(_operationPlan, CancellationToken.None);
-    }
+    private Task ExecuteAsync(ILockStrategy strategy) => _operationPlan is null
+            ? throw new InvalidOperationException("Operation plan was not initialized.")
+            : strategy.ExecuteAsync(_operationPlan, CancellationToken.None);
 
     private interface ILockStrategy
     {

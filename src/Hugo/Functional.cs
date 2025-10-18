@@ -13,24 +13,16 @@ public static class Functional
     /// <summary>
     /// Chains an operation that executes only when the source result is successful.
     /// </summary>
-    public static Result<TOut> Then<TIn, TOut>(this Result<TIn> result, Func<TIn, Result<TOut>> next)
-    {
-        if (next is null)
-            throw new ArgumentNullException(nameof(next));
-
-        return result.IsFailure ? Result.Fail<TOut>(result.Error!) : next(result.Value);
-    }
+    public static Result<TOut> Then<TIn, TOut>(this Result<TIn> result, Func<TIn, Result<TOut>> next) => next is null
+            ? throw new ArgumentNullException(nameof(next))
+            : result.IsFailure ? Result.Fail<TOut>(result.Error!) : next(result.Value);
 
     /// <summary>
     /// Transforms the successful value of the result while preserving failures.
     /// </summary>
-    public static Result<TOut> Map<TIn, TOut>(this Result<TIn> result, Func<TIn, TOut> mapper)
-    {
-        if (mapper is null)
-            throw new ArgumentNullException(nameof(mapper));
-
-        return result.IsFailure ? Result.Fail<TOut>(result.Error!) : Result.Ok(mapper(result.Value));
-    }
+    public static Result<TOut> Map<TIn, TOut>(this Result<TIn> result, Func<TIn, TOut> mapper) => mapper is null
+            ? throw new ArgumentNullException(nameof(mapper))
+            : result.IsFailure ? Result.Fail<TOut>(result.Error!) : Result.Ok(mapper(result.Value));
 
     /// <summary>
     /// Executes a side-effect for successful results without altering the pipeline.
@@ -60,22 +52,15 @@ public static class Functional
     {
         if (onSuccess is null)
             throw new ArgumentNullException(nameof(onSuccess));
-        if (onError is null)
-            throw new ArgumentNullException(nameof(onError));
-
-        return result.IsSuccess ? onSuccess(result.Value) : onError(result.Error!);
+        return onError is null
+            ? throw new ArgumentNullException(nameof(onError))
+            : result.IsSuccess ? onSuccess(result.Value) : onError(result.Error!);
     }
 
     /// <summary>
     /// Recovers from failure by executing the provided recovery function.
     /// </summary>
-    public static Result<T> Recover<T>(this Result<T> result, Func<Error, Result<T>> recover)
-    {
-        if (recover is null)
-            throw new ArgumentNullException(nameof(recover));
-
-        return result.IsFailure ? recover(result.Error!) : result;
-    }
+    public static Result<T> Recover<T>(this Result<T> result, Func<Error, Result<T>> recover) => recover is null ? throw new ArgumentNullException(nameof(recover)) : result.IsFailure ? recover(result.Error!) : result;
 
     /// <summary>
     /// Ensures that a successful result satisfies the provided predicate.
@@ -170,10 +155,7 @@ public static class Functional
             return Result.Fail<TOut>(result.Error!);
 
         var intermediate = binder(result.Value);
-        if (intermediate.IsFailure)
-            return Result.Fail<TOut>(intermediate.Error!);
-
-        return Result.Ok(projector(result.Value, intermediate.Value));
+        return intermediate.IsFailure ? Result.Fail<TOut>(intermediate.Error!) : Result.Ok(projector(result.Value, intermediate.Value));
     }
 
     // -----------------
@@ -590,12 +572,9 @@ public static class Functional
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (result.IsSuccess)
-            {
-                return await onSuccess(result.Value, cancellationToken).ConfigureAwait(false);
-            }
-
-            return await onError(result.Error!, cancellationToken).ConfigureAwait(false);
+            return result.IsSuccess
+                ? await onSuccess(result.Value, cancellationToken).ConfigureAwait(false)
+                : await onError(result.Error!, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException oce)
         {

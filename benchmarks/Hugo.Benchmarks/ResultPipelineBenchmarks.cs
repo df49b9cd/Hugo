@@ -84,12 +84,7 @@ public class ResultPipelineBenchmarks
     private static int ExceptionStep(int value)
     {
         BenchmarkWorkloads.SimulateLightCpuWork();
-        if (value % 4 == 0)
-        {
-            throw new InvalidOperationException($"Value {value} rejected");
-        }
-
-        return value + 1;
+        return value % 4 == 0 ? throw new InvalidOperationException($"Value {value} rejected") : value + 1;
     }
 
     private static PipelineState StepSuccess(PipelineState state)

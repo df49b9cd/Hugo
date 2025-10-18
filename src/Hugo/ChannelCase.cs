@@ -29,10 +29,9 @@ public readonly struct ChannelCase
     {
         if (reader is null)
             throw new ArgumentNullException(nameof(reader));
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
-
-        return new ChannelCase(
+        return onValue is null
+            ? throw new ArgumentNullException(nameof(onValue))
+            : new ChannelCase(
             async ct =>
             {
                 try
@@ -48,35 +47,21 @@ public readonly struct ChannelCase
             (value, ct) => onValue((T)value!, ct));
     }
 
-    public static ChannelCase Create<T>(ChannelReader<T> reader, Func<T, Task<Result<Go.Unit>>> onValue)
-    {
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
+    public static ChannelCase Create<T>(ChannelReader<T> reader, Func<T, Task<Result<Go.Unit>>> onValue) => onValue is null ? throw new ArgumentNullException(nameof(onValue)) : Create(reader, (item, _) => onValue(item));
 
-        return Create(reader, (item, _) => onValue(item));
-    }
-
-    public static ChannelCase Create<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task> onValue)
-    {
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
-
-        return Create(reader, async (item, ct) =>
+    public static ChannelCase Create<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task> onValue) => onValue is null
+            ? throw new ArgumentNullException(nameof(onValue))
+            : Create(reader, async (item, ct) =>
         {
             await onValue(item, ct).ConfigureAwait(false);
             return Result.Ok(Go.Unit.Value);
         });
-    }
 
-    public static ChannelCase Create<T>(ChannelReader<T> reader, Action<T> onValue)
-    {
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
-
-        return Create(reader, (item, _) =>
+    public static ChannelCase Create<T>(ChannelReader<T> reader, Action<T> onValue) => onValue is null
+            ? throw new ArgumentNullException(nameof(onValue))
+            : Create(reader, (item, _) =>
         {
             onValue(item);
             return Task.FromResult(Result.Ok(Go.Unit.Value));
         });
-    }
 }

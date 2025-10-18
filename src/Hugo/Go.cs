@@ -173,24 +173,12 @@ public static class Go
     /// Runs a function on a background thread. For tasks that should be tracked by a WaitGroup,
     /// prefer using the `wg.Go(...)` extension method for a cleaner syntax.
     /// </summary>
-    public static Task Run(Func<Task> func)
-    {
-        if (func is null)
-            throw new ArgumentNullException(nameof(func));
-
-        return Task.Run(func);
-    }
+    public static Task Run(Func<Task> func) => func is null ? throw new ArgumentNullException(nameof(func)) : Task.Run(func);
 
     /// <summary>
     /// Runs a cancelable function on a background thread.
     /// </summary>
-    public static Task Run(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default)
-    {
-        if (func is null)
-            throw new ArgumentNullException(nameof(func));
-
-        return Task.Run(() => func(cancellationToken), cancellationToken);
-    }
+    public static Task Run(Func<CancellationToken, Task> func, CancellationToken cancellationToken = default) => func is null ? throw new ArgumentNullException(nameof(func)) : Task.Run(() => func(cancellationToken), cancellationToken);
 
     public static Channel<T> MakeChannel<T>(
         int? capacity = null,
@@ -220,29 +208,11 @@ public static class Go
         return Channel.CreateUnbounded<T>(unboundedOptions);
     }
 
-    public static Channel<T> MakeChannel<T>(BoundedChannelOptions options)
-    {
-        if (options is null)
-            throw new ArgumentNullException(nameof(options));
+    public static Channel<T> MakeChannel<T>(BoundedChannelOptions options) => options is null ? throw new ArgumentNullException(nameof(options)) : Channel.CreateBounded<T>(options);
 
-        return Channel.CreateBounded<T>(options);
-    }
+    public static Channel<T> MakeChannel<T>(UnboundedChannelOptions options) => options is null ? throw new ArgumentNullException(nameof(options)) : Channel.CreateUnbounded<T>(options);
 
-    public static Channel<T> MakeChannel<T>(UnboundedChannelOptions options)
-    {
-        if (options is null)
-            throw new ArgumentNullException(nameof(options));
-
-        return Channel.CreateUnbounded<T>(options);
-    }
-
-    public static PrioritizedChannel<T> MakeChannel<T>(PrioritizedChannelOptions options)
-    {
-        if (options is null)
-            throw new ArgumentNullException(nameof(options));
-
-        return new PrioritizedChannel<T>(options);
-    }
+    public static PrioritizedChannel<T> MakeChannel<T>(PrioritizedChannelOptions options) => options is null ? throw new ArgumentNullException(nameof(options)) : new PrioritizedChannel<T>(options);
 
     public static PrioritizedChannel<T> MakePrioritizedChannel<T>(
         int priorityLevels,

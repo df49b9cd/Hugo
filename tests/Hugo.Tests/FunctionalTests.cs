@@ -14,28 +14,16 @@ public class FunctionalTests
     }
 
     [Fact]
-    public void Then_ShouldThrow_WhenNextIsNull()
-    {
-        Assert.Throws<ArgumentNullException>(() => Ok(1).Then((Func<int, Result<int>>)null!));
-    }
+    public void Then_ShouldThrow_WhenNextIsNull() => Assert.Throws<ArgumentNullException>(() => Ok(1).Then((Func<int, Result<int>>)null!));
 
     [Fact]
-    public void Map_ShouldThrow_WhenMapperIsNull()
-    {
-        Assert.Throws<ArgumentNullException>(() => Ok(1).Map((Func<int, int>)null!));
-    }
+    public void Map_ShouldThrow_WhenMapperIsNull() => Assert.Throws<ArgumentNullException>(() => Ok(1).Map((Func<int, int>)null!));
 
     [Fact]
-    public void Tap_ShouldThrow_WhenActionIsNull()
-    {
-        Assert.Throws<ArgumentNullException>(() => Ok(1).Tap(null!));
-    }
+    public void Tap_ShouldThrow_WhenActionIsNull() => Assert.Throws<ArgumentNullException>(() => Ok(1).Tap(null!));
 
     [Fact]
-    public void Error_From_ShouldThrow_WhenMessageIsNull()
-    {
-        Assert.Throws<ArgumentNullException>(() => Error.From(null!));
-    }
+    public void Error_From_ShouldThrow_WhenMessageIsNull() => Assert.Throws<ArgumentNullException>(() => Error.From(null!));
 
     [Fact]
     public void Error_ShouldImplicitlyConvert_FromString()

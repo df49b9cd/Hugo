@@ -222,13 +222,7 @@ public sealed class PrioritizedChannel<T>
         }
 
         /// <inheritdoc />
-        public override ValueTask<T> ReadAsync(CancellationToken cancellationToken = default)
-        {
-            if (TryRead(out var item))
-                return new ValueTask<T>(item);
-
-            return ReadSlowAsync(cancellationToken);
-        }
+        public override ValueTask<T> ReadAsync(CancellationToken cancellationToken = default) => TryRead(out var item) ? new ValueTask<T>(item) : ReadSlowAsync(cancellationToken);
 
         private async ValueTask<T> ReadSlowAsync(CancellationToken cancellationToken)
         {
@@ -377,12 +371,6 @@ public sealed class PrioritizedChannel<T>
             return success;
         }
 
-        private ChannelWriter<T> GetWriter(int priority)
-        {
-            if ((uint)priority >= (uint)_writers.Length)
-                throw new ArgumentOutOfRangeException(nameof(priority));
-
-            return _writers[priority];
-        }
+        private ChannelWriter<T> GetWriter(int priority) => (uint)priority >= (uint)_writers.Length ? throw new ArgumentOutOfRangeException(nameof(priority)) : _writers[priority];
     }
 }
