@@ -1,0 +1,23 @@
+# Roadmap & Contribution Guidelines
+
+## Near-Term Focus
+
+- **Channel select enhancements**: add helper utilities for composing multiple `ChannelCase` templates and expose a fluent builder for `Go.SelectAsync` scenarios.
+- **Timer primitives**: provide Go-like ticker/after functionality that integrates with `TimeProvider` for deterministic testing.
+- **Cancellation audit**: review every async overload to ensure cancellation tokens flow from top-level API entry points through internal helpers and error metadata.
+- **Result enrichments**: explore pattern-matching helpers, JSON-friendly error serialization, and optional value support.
+
+## Stretch Goals
+
+- **Cross-runtime samples**: add Azure Functions, ASP.NET Minimal APIs, and Orleans grains showcasing Hugo primitives.
+- **Distributed coordination**: investigate distributed wait groups backed by Redis or Event Hubs for multi-node workloads.
+- **Observability packages**: publish `Hugo.Diagnostics.OpenTelemetry` with ready-made meters and views.
+
+## Contribution Guidelines
+
+1. **Discuss first**: open an issue describing the problem, proposed solution, and API sketch.
+2. **Design for determinism**: favour `TimeProvider` and dependency injection to keep tests deterministic.
+3. **Guard null inputs**: mirror the existing guard-first style and convert exceptions to `Result<T>` failures.
+4. **Cancellation-first**: every async API must accept a `CancellationToken` and propagate `Error.Canceled` consistently.
+5. **Tests & coverage**: add integration and edge-case tests; run `dotnet test --collect:"XPlat Code Coverage"` before submitting a PR.
+6. **Documentation**: update the relevant markdown files when you add or change primitives.

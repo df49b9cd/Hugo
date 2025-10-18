@@ -5,8 +5,22 @@
   <Folder Name="/.github/workflows/">
     <File Path=".github/workflows/ci.yml" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Hugo.Benchmarks/Hugo.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/docs/">
+    <File Path="docs/concurrency.md" />
+    <File Path="docs/diagnostics.md" />
+    <File Path="docs/results.md" />
+    <File Path="docs/roadmap.md" />
+    <File Path="docs/samples.md" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj" />
+  </Folder>
   <Folder Name="/solution/">
     <File Path="Directory.Packages.props" />
+    <File Path="README.md" />
     <File Path="TODO.md" />
   </Folder>
   <Folder Name="/src/">
