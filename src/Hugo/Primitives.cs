@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Frozen;
+using System.Text.Json.Serialization;
 
 namespace Hugo;
 
@@ -384,6 +385,7 @@ public sealed class Pool<T>
 /// <summary>
 /// Represents a structured error with optional metadata, code, and cause.
 /// </summary>
+[JsonConverter(typeof(ErrorJsonConverter))]
 public sealed class Error
 {
     private static readonly StringComparer MetadataComparer = StringComparer.OrdinalIgnoreCase;

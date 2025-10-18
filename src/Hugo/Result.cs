@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace Hugo;
@@ -16,6 +17,19 @@ public static class Result
     /// Wraps the provided error in a failed result.
     /// </summary>
     public static Result<T> Fail<T>(Error error) => Result<T>.Failure(error ?? Error.Unspecified());
+
+    /// <summary>
+    /// Converts an optional value into a <see cref="Result{T}"/> using the provided error factory when no value is present.
+    /// </summary>
+    public static Result<T> FromOptional<T>(Optional<T> optional, Func<Error> errorFactory)
+    {
+        if (errorFactory is null)
+            throw new ArgumentNullException(nameof(errorFactory));
+
+        return optional.TryGetValue(out var value)
+            ? Ok(value)
+            : Fail<T>(errorFactory() ?? Error.Unspecified());
+    }
 
     /// <summary>
     /// Executes a synchronous operation and captures any thrown exceptions as <see cref="Error"/> values.
@@ -381,6 +395,101 @@ public readonly record struct Result<T>
     public bool IsFailure => !IsSuccess;
 
     /// <summary>
+    /// Attempts to extract the successful value.
+    /// </summary>
+    public bool TryGetValue([MaybeNullWhen(false)] out T value)
+    {
+        if (IsSuccess)
+        {
+            value = _value;
+            return true;
+        }
+
+        value = default!;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to extract the error information.
+    /// </summary>
+    public bool TryGetError([NotNullWhen(true)] out Error? error)
+    {
+        if (IsFailure)
+        {
+            error = Error ?? Error.Unspecified();
+            return true;
+        }
+
+        error = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Executes the appropriate callback depending on success or failure.
+    /// </summary>
+    public void Switch(Action<T> onSuccess, Action<Error> onFailure)
+    {
+        if (onSuccess is null)
+            throw new ArgumentNullException(nameof(onSuccess));
+        if (onFailure is null)
+            throw new ArgumentNullException(nameof(onFailure));
+
+        if (IsSuccess)
+        {
+            onSuccess(_value);
+        }
+        else
+        {
+            onFailure(Error!);
+        }
+    }
+
+    /// <summary>
+    /// Projects the result onto a new value using the provided callbacks.
+    /// </summary>
+    public TResult Match<TResult>(Func<T, TResult> onSuccess, Func<Error, TResult> onFailure)
+    {
+        if (onSuccess is null)
+            throw new ArgumentNullException(nameof(onSuccess));
+        if (onFailure is null)
+            throw new ArgumentNullException(nameof(onFailure));
+
+        return IsSuccess ? onSuccess(_value) : onFailure(Error!);
+    }
+
+    /// <summary>
+    /// Executes asynchronous callbacks depending on success or failure.
+    /// </summary>
+    public ValueTask SwitchAsync(Func<T, CancellationToken, ValueTask> onSuccess, Func<Error, CancellationToken, ValueTask> onFailure, CancellationToken cancellationToken = default)
+    {
+        if (onSuccess is null)
+            throw new ArgumentNullException(nameof(onSuccess));
+        if (onFailure is null)
+            throw new ArgumentNullException(nameof(onFailure));
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return IsSuccess
+            ? onSuccess(_value, cancellationToken)
+            : onFailure(Error!, cancellationToken);
+    }
+
+    /// <summary>
+    /// Projects the result asynchronously onto a new value.
+    /// </summary>
+    public ValueTask<TResult> MatchAsync<TResult>(Func<T, CancellationToken, ValueTask<TResult>> onSuccess, Func<Error, CancellationToken, ValueTask<TResult>> onFailure, CancellationToken cancellationToken = default)
+    {
+        if (onSuccess is null)
+            throw new ArgumentNullException(nameof(onSuccess));
+        if (onFailure is null)
+            throw new ArgumentNullException(nameof(onFailure));
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return IsSuccess
+            ? onSuccess(_value, cancellationToken)
+            : onFailure(Error!, cancellationToken);
+    }
+
+    /// <summary>
     /// Returns the contained value when successful, otherwise returns the provided fallback.
     /// </summary>
     public T ValueOr(T fallback) => IsSuccess ? _value : fallback;
@@ -396,6 +505,11 @@ public readonly record struct Result<T>
     /// Returns the contained value when successful. Throws a <see cref="ResultException"/> if the result represents failure.
     /// </summary>
     public T ValueOrThrow() => IsSuccess ? _value : throw new ResultException(Error!);
+
+    /// <summary>
+    /// Converts the result into an <see cref="Optional{T}"/>.
+    /// </summary>
+    public Optional<T> ToOptional() => IsSuccess ? Optional<T>.SomeUnsafe(_value) : Optional<T>.None();
 
     /// <summary>
     /// Supports tuple deconstruction syntax.

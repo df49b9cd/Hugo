@@ -2,11 +2,11 @@
 
 ## Near-Term Focus
 
-- **Result enrichments**: explore pattern-matching helpers, JSON-friendly error serialization, and optional value support.
 - **Select ergonomics**: evaluate additional helpers for modeling fan-in patterns on top of `Go.SelectAsync`.
 
 ## Recently Delivered
 
+- **Result enrichments**: shipped pattern-matching helpers on `Result<T>`, JSON-friendly error serialization, and first-class optional value support.
 - **Timer primitives**: `Go.After`, `Go.AfterAsync`, `Go.NewTicker`, and `Go.Tick` provide Go-like timers driven by `TimeProvider` for deterministic tests.
 - **Cancellation audit**: every async combinator now propagates `Error.Canceled` with the originating token, and `Go.SelectAsync` surfaces cancellations as structured failures instead of exceptions.
 

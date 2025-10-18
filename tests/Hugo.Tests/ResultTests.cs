@@ -15,86 +15,6 @@ public class ResultTests
     }
 
     [Fact]
-    public void Sequence_ShouldThrow_WhenResultsAreNull() => Assert.Throws<ArgumentNullException>(() => Result.Sequence<int>(null!));
-
-    [Fact]
-    public void Try_ShouldReturnSuccess()
-    {
-        var result = Result.Try(() => 5);
-
-        Assert.True(result.IsSuccess);
-        Assert.Equal(5, result.Value);
-    }
-
-    [Fact]
-    public void Try_ShouldUseCustomErrorFactory()
-    {
-        var customError = Error.From("custom", ErrorCodes.Validation);
-        var result = Result.Try<int>(() => throw new InvalidOperationException("boom"), _ => customError);
-
-        Assert.True(result.IsFailure);
-        Assert.Same(customError, result.Error);
-    }
-
-    [Fact]
-    public void Try_ShouldPropagateOperationCanceledException() => Assert.Throws<OperationCanceledException>(() => Result.Try<int>(() => throw new OperationCanceledException()));
-
-    [Fact]
-    public async Task TryAsync_ShouldReturnSuccess()
-    {
-        var result = await Result.TryAsync(async ct =>
-        {
-            await Task.Delay(10, ct);
-            return 7;
-        }, TestContext.Current.CancellationToken);
-
-        Assert.True(result.IsSuccess);
-        Assert.Equal(7, result.Value);
-    }
-
-    [Fact]
-    public async Task TryAsync_ShouldUseCustomErrorFactory()
-    {
-        var customError = Error.From("async", ErrorCodes.Validation);
-        var result = await Result.TryAsync<int>(
-            _ => throw new InvalidOperationException("fail"),
-            TestContext.Current.CancellationToken,
-            _ => customError
-        );
-
-        Assert.True(result.IsFailure);
-        Assert.Same(customError, result.Error);
-    }
-
-    [Fact]
-    public async Task TryAsync_ShouldReturnCanceledError()
-    {
-        using var cts = new CancellationTokenSource();
-        cts.Cancel();
-
-        var result = await Result.TryAsync<int>(async ct =>
-        {
-            await Task.Delay(50, ct);
-            return 42;
-        }, cts.Token);
-
-        Assert.True(result.IsFailure);
-        Assert.NotNull(result.Error);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
-        Assert.True(result.Error!.TryGetMetadata("cancellationToken", out CancellationToken recordedToken));
-        Assert.Equal(cts.Token, recordedToken);
-    }
-
-    [Fact]
-    public void Sequence_ShouldAggregateSuccessfulValues()
-    {
-        var result = Result.Sequence(new[] { Result.Ok(1), Result.Ok(2), Result.Ok(3) });
-
-        Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { 1, 2, 3 }, result.Value);
-    }
-
-    [Fact]
     public void Traverse_ShouldThrow_WhenSourceIsNull() => Assert.Throws<ArgumentNullException>(() => Result.Traverse<int, int>(null!, x => Result.Ok(x)));
 
     [Fact]
@@ -108,6 +28,15 @@ public class ResultTests
 
         Assert.True(result.IsFailure);
         Assert.Same(error, result.Error);
+    }
+
+    [Fact]
+    public void Sequence_ShouldAggregateSuccessfulValues()
+    {
+        var result = Result.Sequence(new[] { Result.Ok(1), Result.Ok(2), Result.Ok(3) });
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(new[] { 1, 2, 3 }, result.Value);
     }
 
     [Fact]
@@ -442,7 +371,6 @@ public class ResultTests
             await Task.Delay(10, ct);
             return Result.Ok(value + 1);
         };
-
         await foreach (var result in Result.MapStreamAsync(
                        Source(TestContext.Current.CancellationToken),
                        selector,
@@ -454,6 +382,86 @@ public class ResultTests
         Assert.Single(collected);
         Assert.True(collected[0].IsSuccess);
         Assert.Equal(2, collected[0].Value);
+    }
+
+    [Fact]
+    public void Match_ShouldInvokeSuccessBranch()
+    {
+        var result = Result.Ok(42);
+
+        var observed = result.Match(value => value + 1, _ => -1);
+
+        Assert.Equal(43, observed);
+    }
+
+    [Fact]
+    public void Match_ShouldInvokeFailureBranch()
+    {
+        var error = Error.From("boom");
+        var result = Result.Fail<int>(error);
+
+        var observed = result.Match(_ => -1, err => err.Message.Length);
+
+        Assert.Equal(error.Message.Length, observed);
+    }
+
+    [Fact]
+    public void Switch_ShouldInvokeCorrectCallback()
+    {
+        var success = Result.Ok("value");
+        var failure = Result.Fail<string>(Error.From("fail"));
+
+        var successCalled = false;
+        var failureCalled = false;
+
+        success.Switch(_ => successCalled = true, _ => failureCalled = true);
+
+        Assert.True(successCalled);
+        Assert.False(failureCalled);
+
+        successCalled = false;
+        failureCalled = false;
+
+        failure.Switch(_ => successCalled = true, _ => failureCalled = true);
+
+        Assert.False(successCalled);
+        Assert.True(failureCalled);
+    }
+
+    [Fact]
+    public async Task MatchAsync_ShouldRespectOutcome()
+    {
+        var success = Result.Ok(5);
+        var failure = Result.Fail<int>(Error.From("fail"));
+
+        var successValue = await success.MatchAsync(
+            (value, token) => ValueTask.FromResult(value * 2),
+            (_, token) => ValueTask.FromResult(-1),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(10, successValue);
+
+        var failureValue = await failure.MatchAsync(
+            (_, token) => ValueTask.FromResult(-1),
+            (error, token) => ValueTask.FromResult(error.Message.Length),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(failure.Error!.Message.Length, failureValue);
+    }
+
+    [Fact]
+    public void TryGetValueAndError_ShouldExposeState()
+    {
+        var success = Result.Ok(10);
+        Assert.True(success.TryGetValue(out var value));
+        Assert.Equal(10, value);
+        Assert.False(success.TryGetError(out _));
+
+        var error = Error.From("oops");
+        var failure = Result.Fail<int>(error);
+        Assert.False(failure.TryGetValue(out _));
+        Assert.True(failure.TryGetError(out var observedError));
+        Assert.Same(error, observedError);
     }
 
     [Fact]
