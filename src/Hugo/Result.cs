@@ -150,9 +150,17 @@ public readonly record struct Result<T>
         IsSuccess = isSuccess;
     }
 
-    internal static Result<T> Success(T value) => new(value, null, true);
+    internal static Result<T> Success(T value)
+    {
+        GoDiagnostics.RecordResultSuccess();
+        return new(value, null, true);
+    }
 
-    internal static Result<T> Failure(Error error) => new(default!, error ?? Error.Unspecified(), false);
+    internal static Result<T> Failure(Error error)
+    {
+        GoDiagnostics.RecordResultFailure();
+        return new(default!, error ?? Error.Unspecified(), false);
+    }
 
     /// <summary>
     /// Gets the value. When the result represents a failure this will be the default value of <typeparamref name="T"/>.

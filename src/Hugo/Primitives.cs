@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Hugo;
@@ -42,6 +43,8 @@ public sealed class WaitGroup
             Interlocked.Exchange(ref _count, 0);
             throw new InvalidOperationException("WaitGroup counter cannot become negative.");
         }
+
+        GoDiagnostics.RecordWaitGroupAdd(delta);
 
         if (newValue == delta)
         {
@@ -101,6 +104,8 @@ public sealed class WaitGroup
             throw new InvalidOperationException("WaitGroup counter cannot become negative.");
         }
 
+        GoDiagnostics.RecordWaitGroupDone();
+
         if (newValue == 0)
         {
             _tcs.TrySetResult(true);
@@ -118,6 +123,49 @@ public sealed class WaitGroup
         var awaitable = _tcs.Task;
         return cancellationToken.CanBeCanceled ? awaitable.WaitAsync(cancellationToken) : awaitable;
     }
+
+    /// <summary>
+    /// Asynchronously waits for all registered operations to complete or for the timeout to elapse.
+    /// Returns <c>true</c> when the wait group completed before the timeout expired, otherwise <c>false</c>.
+    /// </summary>
+    public async Task<bool> WaitAsync(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    {
+        if (timeout == Timeout.InfiniteTimeSpan)
+        {
+            await WaitAsync(cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+
+        if (timeout < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+
+        provider ??= TimeProvider.System;
+
+        if (Count == 0)
+            return true;
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var waitTask = WaitAsync(linkedCts.Token);
+        if (waitTask.IsCompleted)
+        {
+            linkedCts.Cancel();
+            await waitTask.ConfigureAwait(false);
+            return true;
+        }
+
+        var delayTask = provider.DelayAsync(timeout, linkedCts.Token);
+        var completed = await Task.WhenAny(waitTask, delayTask).ConfigureAwait(false);
+        if (completed == waitTask)
+        {
+            linkedCts.Cancel();
+            await waitTask.ConfigureAwait(false);
+            return true;
+        }
+
+        linkedCts.Cancel();
+        return false;
+    }
+
 }
 
 /// <summary>
@@ -186,22 +234,23 @@ public sealed class RwMutex
     public async ValueTask<AsyncReadReleaser> RLockAsync(CancellationToken cancellationToken = default)
     {
         await _readerGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        var incremented = false;
+        var readerRegistered = false;
+        var writerGateAcquired = false;
+
         try
         {
-            if (Interlocked.Increment(ref _readerCount) == 1)
+            var readers = Interlocked.Increment(ref _readerCount);
+            readerRegistered = true;
+
+            if (readers == 1)
             {
-                incremented = true;
                 await _writerGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                incremented = true;
+                writerGateAcquired = true;
             }
         }
         catch
         {
-            if (incremented && Interlocked.Decrement(ref _readerCount) == 0)
+            if (readerRegistered && Interlocked.Decrement(ref _readerCount) == 0 && writerGateAcquired)
             {
                 _writerGate.Release();
             }

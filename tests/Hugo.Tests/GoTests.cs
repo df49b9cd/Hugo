@@ -439,6 +439,112 @@ public class GoTests
     }
 
     [Fact]
+    public async Task SelectAsync_ShouldReturnFirstCompletedCase()
+    {
+        var channel1 = MakeChannel<int>();
+        var channel2 = MakeChannel<int>();
+        var firstExecuted = false;
+        var secondExecuted = false;
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var selectTask = SelectAsync(
+            cancellationToken: cts.Token,
+            cases: new[]
+            {
+                ChannelCase.Create(channel1.Reader, (value, _) =>
+                {
+                    firstExecuted = true;
+                    Assert.Equal(42, value);
+                    return Task.FromResult(Result.Ok(Go.Unit.Value));
+                }),
+                ChannelCase.Create(channel2.Reader, (value, _) =>
+                {
+                    secondExecuted = true;
+                    return Task.FromResult(Result.Ok(Go.Unit.Value));
+                })
+            });
+
+        await channel1.Writer.WriteAsync(42, cts.Token);
+        channel1.Writer.TryComplete();
+        channel2.Writer.TryComplete();
+
+        var result = await selectTask;
+
+        Assert.True(result.IsSuccess);
+        Assert.True(firstExecuted);
+        Assert.False(secondExecuted);
+    }
+
+    [Fact]
+    public async Task SelectAsync_ShouldReturnTimeoutError_WhenDeadlineExpires()
+    {
+        var channel = MakeChannel<int>();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var result = await SelectAsync(
+            timeout: TimeSpan.FromMilliseconds(75),
+            cancellationToken: cts.Token,
+            cases: new[]
+            {
+                ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))
+            });
+
+        channel.Writer.TryComplete();
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task SelectAsync_ShouldRespectCancellation()
+    {
+        var channel = MakeChannel<int>();
+        using var cts = new CancellationTokenSource();
+
+        var selectTask = SelectAsync(
+            cancellationToken: cts.Token,
+            cases: new[] { ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value))) });
+
+        cts.CancelAfter(20);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => selectTask);
+        channel.Writer.TryComplete();
+    }
+
+    [Fact]
+    public async Task WaitGroup_WaitAsync_WithTimeout_ShouldReturnFalseWhenIncomplete()
+    {
+        var wg = new WaitGroup();
+        var tcs = new TaskCompletionSource();
+        wg.Add(tcs.Task);
+
+        var result = await wg.WaitAsync(TimeSpan.FromMilliseconds(20), cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.False(result);
+
+        tcs.SetResult();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task WaitGroup_WaitAsync_WithTimeout_ShouldReturnTrueWhenAllComplete()
+    {
+        var wg = new WaitGroup();
+        var tcs = new TaskCompletionSource();
+        wg.Add(tcs.Task);
+
+        var waitTask = wg.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken: TestContext.Current.CancellationToken);
+
+        tcs.SetResult();
+
+        var completed = await waitTask;
+
+        Assert.True(completed);
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public void MakeChannel_WithZeroCapacity_ShouldCreateUnboundedChannel()
     {
         var channel = MakeChannel<int>(0);
