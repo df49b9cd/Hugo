@@ -10,6 +10,8 @@
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="Microsoft.Extensions.ObjectPool" />
+    <PackageReference Include="Microsoft.VisualStudio.Threading" />
     <ProjectReference Include="../../src/Hugo/Hugo.csproj" />
   </ItemGroup>
 

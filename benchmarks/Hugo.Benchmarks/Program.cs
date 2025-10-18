@@ -1,22 +1,40 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
-using Hugo;
 
-BenchmarkRunner.Run<MutexBenchmarks>();
+namespace Hugo.Benchmarks;
+
+public static class Program
+{
+    public static void Main(string[] args)
+    {
+        BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+    }
+}
 
 [MemoryDiagnoser]
 public class MutexBenchmarks
 {
-    private const int TaskCount = 16;
     private const int IterationsPerTask = 32;
 
-    [Benchmark]
-    public Task HugoMutexAsync() => RunAsync(new MutexScope());
+    [Params(16, 64)]
+    public int TaskCount { get; set; }
 
     [Benchmark(Baseline = true)]
-    public Task SemaphoreSlimAsync() => RunAsync(new SemaphoreSlimScope());
+    public Task HugoMutexAsync() => RunAsync(new HugoMutexAsyncStrategy());
 
-    private static async Task RunAsync(ILockScope scope)
+    [Benchmark]
+    public Task SemaphoreSlimAsync() => RunAsync(new SemaphoreSlimAsyncStrategy());
+
+    [Benchmark]
+    public Task HugoMutexEnterScopeAsync() => RunSyncAsync(new HugoMutexSyncStrategy());
+
+    [Benchmark]
+    public Task MonitorLockScopeAsync() => RunSyncAsync(new MonitorLockStrategy());
+
+    private async Task RunAsync(IAsyncLockStrategy strategy)
     {
         var shared = 0;
         var tasks = new Task[TaskCount];
@@ -25,29 +43,58 @@ public class MutexBenchmarks
         {
             tasks[i] = Task.Run(async () =>
             {
-                for (var j = 0; j < IterationsPerTask; j++)
+                for (var iteration = 0; iteration < IterationsPerTask; iteration++)
                 {
-                    await using var releaser = await scope.EnterAsync().ConfigureAwait(false);
-                    shared++;
+                    await using var releaser = await strategy.EnterAsync().ConfigureAwait(false);
+                    BenchmarkWorkloads.SimulateLightCpuWork();
+                    Interlocked.Increment(ref shared);
                 }
             });
         }
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
-
-        scope.Cleanup();
-
-        // ensure shared is consumed to avoid dead-code elimination
+        strategy.Cleanup();
         GC.KeepAlive(shared);
     }
 
-    private interface ILockScope
+    private async Task RunSyncAsync(ISyncLockStrategy strategy)
+    {
+        var shared = 0;
+        var tasks = new Task[TaskCount];
+
+        for (var i = 0; i < TaskCount; i++)
+        {
+            tasks[i] = Task.Run(() =>
+            {
+                for (var iteration = 0; iteration < IterationsPerTask; iteration++)
+                {
+                    strategy.Execute(() =>
+                    {
+                        BenchmarkWorkloads.SimulateLightCpuWork();
+                        Interlocked.Increment(ref shared);
+                    });
+                }
+            });
+        }
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+        strategy.Cleanup();
+        GC.KeepAlive(shared);
+    }
+
+    private interface IAsyncLockStrategy
     {
         ValueTask<IAsyncDisposable> EnterAsync();
         void Cleanup();
     }
 
-    private sealed class MutexScope : ILockScope
+    private interface ISyncLockStrategy
+    {
+        void Execute(Action criticalSection);
+        void Cleanup();
+    }
+
+    private sealed class HugoMutexAsyncStrategy : IAsyncLockStrategy
     {
         private readonly Hugo.Mutex _mutex = new();
 
@@ -59,20 +106,27 @@ public class MutexBenchmarks
 
         public void Cleanup()
         {
-            // mutex has no resources to dispose
         }
 
         private sealed class AsyncReleaser : IAsyncDisposable
         {
             private Hugo.Mutex.AsyncLockReleaser _releaser;
+            private bool _disposed;
 
             public AsyncReleaser(Hugo.Mutex.AsyncLockReleaser releaser) => _releaser = releaser;
 
-            public ValueTask DisposeAsync() => _releaser.DisposeAsync();
+            public ValueTask DisposeAsync()
+            {
+                if (_disposed)
+                    return ValueTask.CompletedTask;
+
+                _disposed = true;
+                return _releaser.DisposeAsync();
+            }
         }
     }
 
-    private sealed class SemaphoreSlimScope : ILockScope
+    private sealed class SemaphoreSlimAsyncStrategy : IAsyncLockStrategy
     {
         private readonly SemaphoreSlim _semaphore = new(1, 1);
 
@@ -86,15 +140,48 @@ public class MutexBenchmarks
 
         private sealed class Releaser : IAsyncDisposable
         {
-            private readonly SemaphoreSlim _semaphore;
+            private SemaphoreSlim? _semaphore;
 
             public Releaser(SemaphoreSlim semaphore) => _semaphore = semaphore;
 
             public ValueTask DisposeAsync()
             {
-                _semaphore.Release();
+                _semaphore?.Release();
+                _semaphore = null;
                 return ValueTask.CompletedTask;
             }
+        }
+    }
+
+    private sealed class HugoMutexSyncStrategy : ISyncLockStrategy
+    {
+        private readonly Hugo.Mutex _mutex = new();
+
+        public void Execute(Action criticalSection)
+        {
+            using var scope = _mutex.EnterScope();
+            criticalSection();
+        }
+
+        public void Cleanup()
+        {
+        }
+    }
+
+    private sealed class MonitorLockStrategy : ISyncLockStrategy
+    {
+        private readonly object _gate = new();
+
+        public void Execute(Action criticalSection)
+        {
+            lock (_gate)
+            {
+                criticalSection();
+            }
+        }
+
+        public void Cleanup()
+        {
         }
     }
 }

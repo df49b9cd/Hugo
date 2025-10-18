@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>MutexBenchmarks-20251018-173412</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, macOS 26.0.1 (25A362) [Darwin 25.0.0]
+Apple M1 Max 2.40GHz, 1 CPU, 10 logical and 10 physical cores
+.NET SDK 10.0.100-rc.2.25502.107
+  [Host]     : .NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2
+  DefaultJob : .NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method      </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>HugoMutexAsync</td><td>593.4 &mu;s</td><td>10.90 &mu;s</td><td>10.20 &mu;s</td><td>1.20</td><td>0.02</td><td>27.3438</td><td>185.73 KB</td><td>1.57</td>
+</tr><tr><td>SemaphoreSlimAsync</td><td>493.9 &mu;s</td><td>4.80 &mu;s</td><td>4.49 &mu;s</td><td>1.00</td><td>0.01</td><td>19.5313</td><td>118.31 KB</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>

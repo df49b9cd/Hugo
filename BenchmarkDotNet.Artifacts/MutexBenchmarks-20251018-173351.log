@@ -1,0 +1,270 @@
+// Validating benchmarks:
+// ***** BenchmarkRunner: Start   *****
+// ***** Found 2 benchmark(s) in total *****
+// ***** Building 1 exe(s) in Parallel: Start   *****
+// start dotnet  restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/Users/smolesen/RiderProjects/Hugo/benchmarks/Hugo.Benchmarks/bin/Release/net10.0/Hugo.Benchmarks-DefaultJob-1/" /p:OutDir="/Users/smolesen/RiderProjects/Hugo/benchmarks/Hugo.Benchmarks/bin/Release/net10.0/Hugo.Benchmarks-DefaultJob-1/bin/Release/net10.0/" /p:OutputPath="/Users/smolesen/RiderProjects/Hugo/benchmarks/Hugo.Benchmarks/bin/Release/net10.0/Hugo.Benchmarks-DefaultJob-1/bin/Release/net10.0/" /p:PublishDir="/Users/smolesen/RiderProjects/Hugo/benchmarks/Hugo.Benchmarks/bin/Release/net10.0/Hugo.Benchmarks-DefaultJob-1/publish/" in /Users/smolesen/RiderProjects/Hugo/benchmarks/Hugo.Benchmarks/bin/Release/net10.0/Hugo.Benchmarks-DefaultJob-1
+// command took 2.99 sec and exited with 0
+// start dotnet  build -c Release --no-restore --nodeReuse:false /p:UseSharedCompilation=false /p:Deterministic=true /p:Optimize=true /p:ArtifactsPath="/Users/smolesen/RiderProjects/Hugo/benchmarks/Hugo.Benchmarks/bin/Release/net10.0/Hugo.Benchmarks-DefaultJob-1/" /p:OutDir="/Users/smolesen/RiderProjects/Hugo/benchmarks/Hugo.Benchmarks/bin/Release/net10.0/Hugo.Benchmarks-DefaultJob-1/bin/Release/net10.0/" /p:OutputPath="/Users/smolesen/RiderProjects/Hugo/benchmarks/Hugo.Benchmarks/bin/Release/net10.0/Hugo.Benchmarks-DefaultJob-1/bin/Release/net10.0/" /p:PublishDir="/Users/smolesen/RiderProjects/Hugo/benchmarks/Hugo.Benchmarks/bin/Release/net10.0/Hugo.Benchmarks-DefaultJob-1/publish/" --output "/Users/smolesen/RiderProjects/Hugo/benchmarks/Hugo.Benchmarks/bin/Release/net10.0/Hugo.Benchmarks-DefaultJob-1/bin/Release/net10.0/" in /Users/smolesen/RiderProjects/Hugo/benchmarks/Hugo.Benchmarks/bin/Release/net10.0/Hugo.Benchmarks-DefaultJob-1
+// command took 16.99 sec and exited with 0
+// ***** Done, took 00:00:20 (20.14 sec)   *****
+// Found 2 benchmarks:
+//   MutexBenchmarks.HugoMutexAsync: DefaultJob
+//   MutexBenchmarks.SemaphoreSlimAsync: DefaultJob
+
+// **************************
+// Benchmark: MutexBenchmarks.HugoMutexAsync: DefaultJob
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Hugo.Benchmarks-DefaultJob-1.dll --anonymousPipes 111 112 --benchmarkName MutexBenchmarks.HugoMutexAsync --job Default --benchmarkId 0 in /Users/smolesen/RiderProjects/Hugo/benchmarks/Hugo.Benchmarks/bin/Release/net10.0/Hugo.Benchmarks-DefaultJob-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.4
+// Runtime=.NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2
+// GC=Concurrent Workstation
+// HardwareIntrinsics=SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=128
+// Job: DefaultJob
+
+OverheadJitting  1: 1 op, 369750.00 ns, 369.7500 us/op
+WorkloadJitting  1: 1 op, 45240750.00 ns, 45.2408 ms/op
+
+WorkloadPilot    1: 2 op, 4545917.00 ns, 2.2730 ms/op
+WorkloadPilot    2: 3 op, 2611666.00 ns, 870.5553 us/op
+WorkloadPilot    3: 4 op, 3765125.00 ns, 941.2813 us/op
+WorkloadPilot    4: 5 op, 4556708.00 ns, 911.3416 us/op
+WorkloadPilot    5: 6 op, 5220708.00 ns, 870.1180 us/op
+WorkloadPilot    6: 7 op, 6125667.00 ns, 875.0953 us/op
+WorkloadPilot    7: 8 op, 6797083.00 ns, 849.6354 us/op
+WorkloadPilot    8: 9 op, 8132917.00 ns, 903.6574 us/op
+WorkloadPilot    9: 10 op, 7714375.00 ns, 771.4375 us/op
+WorkloadPilot   10: 11 op, 9019209.00 ns, 819.9281 us/op
+WorkloadPilot   11: 12 op, 9131500.00 ns, 760.9583 us/op
+WorkloadPilot   12: 13 op, 10947916.00 ns, 842.1474 us/op
+WorkloadPilot   13: 14 op, 11907500.00 ns, 850.5357 us/op
+WorkloadPilot   14: 15 op, 12505375.00 ns, 833.6917 us/op
+WorkloadPilot   15: 16 op, 13014584.00 ns, 813.4115 us/op
+WorkloadPilot   16: 32 op, 27185458.00 ns, 849.5456 us/op
+WorkloadPilot   17: 64 op, 54494667.00 ns, 851.4792 us/op
+WorkloadPilot   18: 128 op, 355640875.00 ns, 2.7784 ms/op
+WorkloadPilot   19: 256 op, 739056459.00 ns, 2.8869 ms/op
+
+WorkloadWarmup   1: 256 op, 661251042.00 ns, 2.5830 ms/op
+WorkloadWarmup   2: 256 op, 406835333.00 ns, 1.5892 ms/op
+WorkloadWarmup   3: 256 op, 233006750.00 ns, 910.1826 us/op
+WorkloadWarmup   4: 256 op, 332013083.00 ns, 1.2969 ms/op
+WorkloadWarmup   5: 256 op, 200583417.00 ns, 783.5290 us/op
+WorkloadWarmup   6: 256 op, 203136750.00 ns, 793.5029 us/op
+WorkloadWarmup   7: 256 op, 160317000.00 ns, 626.2383 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 256 op, 154608709.00 ns, 603.9403 us/op
+WorkloadActual   2: 256 op, 149830667.00 ns, 585.2760 us/op
+WorkloadActual   3: 256 op, 150709875.00 ns, 588.7104 us/op
+WorkloadActual   4: 256 op, 156860667.00 ns, 612.7370 us/op
+WorkloadActual   5: 256 op, 150787958.00 ns, 589.0155 us/op
+WorkloadActual   6: 256 op, 150963167.00 ns, 589.6999 us/op
+WorkloadActual   7: 256 op, 154620958.00 ns, 603.9881 us/op
+WorkloadActual   8: 256 op, 153801666.00 ns, 600.7878 us/op
+WorkloadActual   9: 256 op, 150189958.00 ns, 586.6795 us/op
+WorkloadActual  10: 256 op, 148237375.00 ns, 579.0522 us/op
+WorkloadActual  11: 256 op, 150710167.00 ns, 588.7116 us/op
+WorkloadActual  12: 256 op, 148985250.00 ns, 581.9736 us/op
+WorkloadActual  13: 256 op, 150012292.00 ns, 585.9855 us/op
+WorkloadActual  14: 256 op, 155660459.00 ns, 608.0487 us/op
+WorkloadActual  15: 256 op, 152721667.00 ns, 596.5690 us/op
+
+// AfterActualRun
+WorkloadResult   1: 256 op, 154608709.00 ns, 603.9403 us/op
+WorkloadResult   2: 256 op, 149830667.00 ns, 585.2760 us/op
+WorkloadResult   3: 256 op, 150709875.00 ns, 588.7104 us/op
+WorkloadResult   4: 256 op, 156860667.00 ns, 612.7370 us/op
+WorkloadResult   5: 256 op, 150787958.00 ns, 589.0155 us/op
+WorkloadResult   6: 256 op, 150963167.00 ns, 589.6999 us/op
+WorkloadResult   7: 256 op, 154620958.00 ns, 603.9881 us/op
+WorkloadResult   8: 256 op, 153801666.00 ns, 600.7878 us/op
+WorkloadResult   9: 256 op, 150189958.00 ns, 586.6795 us/op
+WorkloadResult  10: 256 op, 148237375.00 ns, 579.0522 us/op
+WorkloadResult  11: 256 op, 150710167.00 ns, 588.7116 us/op
+WorkloadResult  12: 256 op, 148985250.00 ns, 581.9736 us/op
+WorkloadResult  13: 256 op, 150012292.00 ns, 585.9855 us/op
+WorkloadResult  14: 256 op, 155660459.00 ns, 608.0487 us/op
+WorkloadResult  15: 256 op, 152721667.00 ns, 596.5690 us/op
+// GC:  7 0 0 48686792 256
+// Threading:  132442 6 256
+
+// AfterAll
+// Benchmark Process 15138 has exited with code 0.
+
+Mean = 593.412 μs, StdErr = 2.633 μs (0.44%), N = 15, StdDev = 10.197 μs
+Min = 579.052 μs, Q1 = 586.333 μs, Median = 589.015 μs, Q3 = 602.364 μs, Max = 612.737 μs
+IQR = 16.031 μs, LowerFence = 562.285 μs, UpperFence = 626.411 μs
+ConfidenceInterval = [582.510 μs; 604.313 μs] (CI 99.9%), Margin = 10.901 μs (1.84% of Mean)
+Skewness = 0.45, Kurtosis = 1.75, MValue = 2
+
+// ** Remained 1 (50.0%) benchmark(s) to run. Estimated finish 2025-10-18 17:34 (0h 0m from now) **
+// **************************
+// Benchmark: MutexBenchmarks.SemaphoreSlimAsync: DefaultJob
+// *** Execute ***
+// Launch: 1 / 1
+// Execute: dotnet Hugo.Benchmarks-DefaultJob-1.dll --anonymousPipes 111 112 --benchmarkName MutexBenchmarks.SemaphoreSlimAsync --job Default --benchmarkId 1 in /Users/smolesen/RiderProjects/Hugo/benchmarks/Hugo.Benchmarks/bin/Release/net10.0/Hugo.Benchmarks-DefaultJob-1/bin/Release/net10.0
+// Failed to set up high priority (Permission denied). In order to run benchmarks with high priority, make sure you have the right permissions.
+// BeforeAnythingElse
+
+// Benchmark Process Environment Information:
+// BenchmarkDotNet v0.15.4
+// Runtime=.NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2
+// GC=Concurrent Workstation
+// HardwareIntrinsics=SSE3+SSSE3+SSE4.1+SSE4.2+POPCNT,X86Base+SSE+SSE2,AES+PCLMUL VectorSize=128
+// Job: DefaultJob
+
+OverheadJitting  1: 1 op, 369583.00 ns, 369.5830 us/op
+WorkloadJitting  1: 1 op, 34391167.00 ns, 34.3912 ms/op
+
+WorkloadPilot    1: 2 op, 3352166.00 ns, 1.6761 ms/op
+WorkloadPilot    2: 3 op, 2818250.00 ns, 939.4167 us/op
+WorkloadPilot    3: 4 op, 3682250.00 ns, 920.5625 us/op
+WorkloadPilot    4: 5 op, 3407375.00 ns, 681.4750 us/op
+WorkloadPilot    5: 6 op, 5015958.00 ns, 835.9930 us/op
+WorkloadPilot    6: 7 op, 5627958.00 ns, 803.9940 us/op
+WorkloadPilot    7: 8 op, 5580083.00 ns, 697.5104 us/op
+WorkloadPilot    8: 9 op, 7286416.00 ns, 809.6018 us/op
+WorkloadPilot    9: 10 op, 7417000.00 ns, 741.7000 us/op
+WorkloadPilot   10: 11 op, 10546458.00 ns, 958.7689 us/op
+WorkloadPilot   11: 12 op, 8882250.00 ns, 740.1875 us/op
+WorkloadPilot   12: 13 op, 9482125.00 ns, 729.3942 us/op
+WorkloadPilot   13: 14 op, 10251166.00 ns, 732.2261 us/op
+WorkloadPilot   14: 15 op, 12530708.00 ns, 835.3805 us/op
+WorkloadPilot   15: 16 op, 12792708.00 ns, 799.5443 us/op
+WorkloadPilot   16: 32 op, 24291333.00 ns, 759.1042 us/op
+WorkloadPilot   17: 64 op, 51177875.00 ns, 799.6543 us/op
+WorkloadPilot   18: 128 op, 262754333.00 ns, 2.0528 ms/op
+WorkloadPilot   19: 256 op, 491797958.00 ns, 1.9211 ms/op
+WorkloadPilot   20: 512 op, 773664042.00 ns, 1.5111 ms/op
+
+WorkloadWarmup   1: 512 op, 464728750.00 ns, 907.6733 us/op
+WorkloadWarmup   2: 512 op, 383162208.00 ns, 748.3637 us/op
+WorkloadWarmup   3: 512 op, 339909541.00 ns, 663.8858 us/op
+WorkloadWarmup   4: 512 op, 268096083.00 ns, 523.6252 us/op
+WorkloadWarmup   5: 512 op, 249725000.00 ns, 487.7441 us/op
+WorkloadWarmup   6: 512 op, 252519292.00 ns, 493.2017 us/op
+WorkloadWarmup   7: 512 op, 273825792.00 ns, 534.8160 us/op
+WorkloadWarmup   8: 512 op, 259104833.00 ns, 506.0641 us/op
+WorkloadWarmup   9: 512 op, 255103125.00 ns, 498.2483 us/op
+WorkloadWarmup  10: 512 op, 251416625.00 ns, 491.0481 us/op
+WorkloadWarmup  11: 512 op, 251195500.00 ns, 490.6162 us/op
+WorkloadWarmup  12: 512 op, 252922208.00 ns, 493.9887 us/op
+WorkloadWarmup  13: 512 op, 256154541.00 ns, 500.3018 us/op
+WorkloadWarmup  14: 512 op, 255228750.00 ns, 498.4937 us/op
+
+// BeforeActualRun
+WorkloadActual   1: 512 op, 255078875.00 ns, 498.2009 us/op
+WorkloadActual   2: 512 op, 251006584.00 ns, 490.2472 us/op
+WorkloadActual   3: 512 op, 255515917.00 ns, 499.0545 us/op
+WorkloadActual   4: 512 op, 249239458.00 ns, 486.7958 us/op
+WorkloadActual   5: 512 op, 252719917.00 ns, 493.5936 us/op
+WorkloadActual   6: 512 op, 252977458.00 ns, 494.0966 us/op
+WorkloadActual   7: 512 op, 255595166.00 ns, 499.2093 us/op
+WorkloadActual   8: 512 op, 251303292.00 ns, 490.8267 us/op
+WorkloadActual   9: 512 op, 251263000.00 ns, 490.7480 us/op
+WorkloadActual  10: 512 op, 250968125.00 ns, 490.1721 us/op
+WorkloadActual  11: 512 op, 253510958.00 ns, 495.1386 us/op
+WorkloadActual  12: 512 op, 254655917.00 ns, 497.3748 us/op
+WorkloadActual  13: 512 op, 251977708.00 ns, 492.1440 us/op
+WorkloadActual  14: 512 op, 256956542.00 ns, 501.8682 us/op
+WorkloadActual  15: 512 op, 250004417.00 ns, 488.2899 us/op
+
+// AfterActualRun
+WorkloadResult   1: 512 op, 255078875.00 ns, 498.2009 us/op
+WorkloadResult   2: 512 op, 251006584.00 ns, 490.2472 us/op
+WorkloadResult   3: 512 op, 255515917.00 ns, 499.0545 us/op
+WorkloadResult   4: 512 op, 249239458.00 ns, 486.7958 us/op
+WorkloadResult   5: 512 op, 252719917.00 ns, 493.5936 us/op
+WorkloadResult   6: 512 op, 252977458.00 ns, 494.0966 us/op
+WorkloadResult   7: 512 op, 255595166.00 ns, 499.2093 us/op
+WorkloadResult   8: 512 op, 251303292.00 ns, 490.8267 us/op
+WorkloadResult   9: 512 op, 251263000.00 ns, 490.7480 us/op
+WorkloadResult  10: 512 op, 250968125.00 ns, 490.1721 us/op
+WorkloadResult  11: 512 op, 253510958.00 ns, 495.1386 us/op
+WorkloadResult  12: 512 op, 254655917.00 ns, 497.3748 us/op
+WorkloadResult  13: 512 op, 251977708.00 ns, 492.1440 us/op
+WorkloadResult  14: 512 op, 256956542.00 ns, 501.8682 us/op
+WorkloadResult  15: 512 op, 250004417.00 ns, 488.2899 us/op
+// GC:  10 0 0 62026216 512
+// Threading:  262997 45 512
+
+// AfterAll
+// Benchmark Process 15178 has exited with code 0.
+
+Mean = 493.851 μs, StdErr = 1.159 μs (0.23%), N = 15, StdDev = 4.489 μs
+Min = 486.796 μs, Q1 = 490.498 μs, Median = 493.594 μs, Q3 = 497.788 μs, Max = 501.868 μs
+IQR = 7.290 μs, LowerFence = 479.562 μs, UpperFence = 508.723 μs
+ConfidenceInterval = [489.052 μs; 498.650 μs] (CI 99.9%), Margin = 4.799 μs (0.97% of Mean)
+Skewness = 0.19, Kurtosis = 1.67, MValue = 2
+
+// ** Remained 0 (0.0%) benchmark(s) to run. Estimated finish 2025-10-18 17:34 (0h 0m from now) **
+// ***** BenchmarkRunner: Finish  *****
+
+// * Export *
+  BenchmarkDotNet.Artifacts/results/MutexBenchmarks-report.csv
+  BenchmarkDotNet.Artifacts/results/MutexBenchmarks-report-github.md
+  BenchmarkDotNet.Artifacts/results/MutexBenchmarks-report.html
+
+// * Detailed results *
+MutexBenchmarks.HugoMutexAsync: DefaultJob
+Runtime = .NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2; GC = Concurrent Workstation
+Mean = 593.412 μs, StdErr = 2.633 μs (0.44%), N = 15, StdDev = 10.197 μs
+Min = 579.052 μs, Q1 = 586.333 μs, Median = 589.015 μs, Q3 = 602.364 μs, Max = 612.737 μs
+IQR = 16.031 μs, LowerFence = 562.285 μs, UpperFence = 626.411 μs
+ConfidenceInterval = [582.510 μs; 604.313 μs] (CI 99.9%), Margin = 10.901 μs (1.84% of Mean)
+Skewness = 0.45, Kurtosis = 1.75, MValue = 2
+-------------------- Histogram --------------------
+[578.532 μs ; 598.374 μs) | @@@@@@@@@@
+[598.374 μs ; 618.164 μs) | @@@@@
+---------------------------------------------------
+
+MutexBenchmarks.SemaphoreSlimAsync: DefaultJob
+Runtime = .NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2; GC = Concurrent Workstation
+Mean = 493.851 μs, StdErr = 1.159 μs (0.23%), N = 15, StdDev = 4.489 μs
+Min = 486.796 μs, Q1 = 490.498 μs, Median = 493.594 μs, Q3 = 497.788 μs, Max = 501.868 μs
+IQR = 7.290 μs, LowerFence = 479.562 μs, UpperFence = 508.723 μs
+ConfidenceInterval = [489.052 μs; 498.650 μs] (CI 99.9%), Margin = 4.799 μs (0.97% of Mean)
+Skewness = 0.19, Kurtosis = 1.67, MValue = 2
+-------------------- Histogram --------------------
+[484.407 μs ; 504.257 μs) | @@@@@@@@@@@@@@@
+---------------------------------------------------
+
+// * Summary *
+
+BenchmarkDotNet v0.15.4, macOS 26.0.1 (25A362) [Darwin 25.0.0]
+Apple M1 Max 2.40GHz, 1 CPU, 10 logical and 10 physical cores
+.NET SDK 10.0.100-rc.2.25502.107
+  [Host]     : .NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2
+  DefaultJob : .NET 10.0.0 (10.0.0-rc.2.25502.107, 10.0.25.50307), X64 RyuJIT x86-64-v2
+
+
+| Method             | Mean     | Error    | StdDev   | Ratio | RatioSD | Gen0    | Allocated | Alloc Ratio |
+|------------------- |---------:|---------:|---------:|------:|--------:|--------:|----------:|------------:|
+| HugoMutexAsync     | 593.4 μs | 10.90 μs | 10.20 μs |  1.20 |    0.02 | 27.3438 | 185.73 KB |        1.57 |
+| SemaphoreSlimAsync | 493.9 μs |  4.80 μs |  4.49 μs |  1.00 |    0.01 | 19.5313 | 118.31 KB |        1.00 |
+
+// * Legends *
+  Mean        : Arithmetic mean of all measurements
+  Error       : Half of 99.9% confidence interval
+  StdDev      : Standard deviation of all measurements
+  Ratio       : Mean of the ratio distribution ([Current]/[Baseline])
+  RatioSD     : Standard deviation of the ratio distribution ([Current]/[Baseline])
+  Gen0        : GC Generation 0 collects per 1000 operations
+  Allocated   : Allocated memory per single operation (managed only, inclusive, 1KB = 1024B)
+  Alloc Ratio : Allocated memory ratio distribution ([Current]/[Baseline])
+  1 μs        : 1 Microsecond (0.000001 sec)
+
+// * Diagnostic Output - MemoryDiagnoser *
+
+
+// ***** BenchmarkRunner: End *****
+Run time: 00:00:17 (17.11 sec), executed benchmarks: 2
+
+Global total time: 00:00:38 (38.54 sec), executed benchmarks: 2
+// * Artifacts cleanup *
+Artifacts cleanup is finished
