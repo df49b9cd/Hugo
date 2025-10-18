@@ -79,7 +79,10 @@ public class ResultTests
         }, cts.Token);
 
         Assert.True(result.IsFailure);
+        Assert.NotNull(result.Error);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        Assert.True(result.Error!.TryGetMetadata("cancellationToken", out CancellationToken recordedToken));
+        Assert.Equal(cts.Token, recordedToken);
     }
 
     [Fact]
@@ -157,7 +160,55 @@ public class ResultTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() => Result.TraverseAsync(new[] { 1 }, _ => Task.FromResult(Result.Ok(1)), cts.Token));
+        var result = await Result.TraverseAsync(new[] { 1 }, _ => Task.FromResult(Result.Ok(1)), cts.Token);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        Assert.True(result.Error!.TryGetMetadata("cancellationToken", out CancellationToken recordedToken));
+        Assert.Equal(cts.Token, recordedToken);
+    }
+
+    [Fact]
+    public async Task TraverseAsync_WithTokenAwareSelector_ShouldPassCancellationToken()
+    {
+        using var cts = new CancellationTokenSource();
+        var observedToken = CancellationToken.None;
+        var observed = false;
+
+        var result = await Result.TraverseAsync(
+            new[] { 1, 2 },
+            (value, token) =>
+            {
+                observedToken = token;
+                observed = true;
+                return Task.FromResult(Result.Ok(value));
+            },
+            cts.Token);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(observed);
+        Assert.Equal(cts.Token, observedToken);
+    }
+
+    [Fact]
+    public async Task TraverseAsync_WithTokenAwareSelector_ShouldRespectCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var result = await Result.TraverseAsync(
+            new[] { 1 },
+            (value, token) =>
+            {
+                token.ThrowIfCancellationRequested();
+                return Task.FromResult(Result.Ok(value));
+            },
+            cts.Token);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        Assert.True(result.Error!.TryGetMetadata("cancellationToken", out CancellationToken recordedToken));
+        Assert.Equal(cts.Token, recordedToken);
     }
 
     [Fact]

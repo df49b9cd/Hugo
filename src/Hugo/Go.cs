@@ -194,10 +194,11 @@ public static class Go
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
             GoDiagnostics.RecordChannelSelectCanceled(provider.GetElapsedTime(startTimestamp));
-            throw;
+            var token = cancellationToken.CanBeCanceled ? cancellationToken : oce.CancellationToken;
+            return Result.Fail<Unit>(Error.Canceled(token: token.CanBeCanceled ? token : null));
         }
 
         static Task[] ToTaskArray(List<Task<(bool HasValue, object? Value)>> source)

@@ -49,9 +49,9 @@ public static class Result
             var value = await operation(cancellationToken).ConfigureAwait(false);
             return Ok(value);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException oce)
         {
-            return Fail<T>(Error.Canceled());
+            return Fail<T>(Error.Canceled(token: oce.CancellationToken));
         }
         catch (Exception ex)
         {
@@ -110,7 +110,21 @@ public static class Result
     /// <summary>
     /// Applies an asynchronous selector to each value in the source and aggregates the successful results.
     /// </summary>
-    public static async Task<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(IEnumerable<TIn> source, Func<TIn, Task<Result<TOut>>> selector, CancellationToken cancellationToken = default)
+    public static Task<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(IEnumerable<TIn> source, Func<TIn, Task<Result<TOut>>> selector, CancellationToken cancellationToken = default)
+    {
+        if (selector is null)
+            throw new ArgumentNullException(nameof(selector));
+
+        return TraverseAsync(source, (item, _) => selector(item), cancellationToken);
+    }
+
+    /// <summary>
+    /// Applies an asynchronous selector to each value in the source and aggregates the successful results.
+    /// </summary>
+    public static async Task<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(
+        IEnumerable<TIn> source,
+        Func<TIn, CancellationToken, Task<Result<TOut>>> selector,
+        CancellationToken cancellationToken = default)
     {
         if (source is null)
             throw new ArgumentNullException(nameof(source));
@@ -118,19 +132,27 @@ public static class Result
             throw new ArgumentNullException(nameof(selector));
 
         var values = new List<TOut>();
-        foreach (var item in source)
+
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var result = await selector(item).ConfigureAwait(false);
-            if (result.IsFailure)
+            foreach (var item in source)
             {
-                return Fail<IReadOnlyList<TOut>>(result.Error!);
+                cancellationToken.ThrowIfCancellationRequested();
+                var result = await selector(item, cancellationToken).ConfigureAwait(false);
+                if (result.IsFailure)
+                {
+                    return Fail<IReadOnlyList<TOut>>(result.Error!);
+                }
+
+                values.Add(result.Value);
             }
 
-            values.Add(result.Value);
+            return Ok<IReadOnlyList<TOut>>(values);
         }
-
-        return Ok<IReadOnlyList<TOut>>(values);
+        catch (OperationCanceledException oce)
+        {
+            return Fail<IReadOnlyList<TOut>>(Error.Canceled(token: oce.CancellationToken));
+        }
     }
 
     /// <summary>

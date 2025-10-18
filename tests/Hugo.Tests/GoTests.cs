@@ -645,7 +645,12 @@ public class GoTests
 
         cts.CancelAfter(20);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => selectTask);
+        var result = await selectTask;
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        Assert.True(result.Error!.TryGetMetadata("cancellationToken", out CancellationToken recordedToken));
+        Assert.Equal(cts.Token, recordedToken);
         channel.Writer.TryComplete();
     }
 
