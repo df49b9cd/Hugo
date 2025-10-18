@@ -554,4 +554,5 @@ public static class ErrorCodes
     public const string Exception = "error.exception";
     public const string Aggregate = "error.aggregate";
     public const string Validation = "error.validation";
+    public const string SelectDrained = "error.select.drained";
 }

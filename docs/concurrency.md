@@ -149,6 +149,28 @@ if (outcome.IsSuccess)
 - Case overloads accept `ChannelCaseTemplate<T>` or raw `ChannelReader<T>` sources.
 - Exceptions are wrapped with `Error.FromException` just like `SelectAsync` continuations.
 
+### Fan-In Helpers
+
+`Go.SelectFanInAsync` keeps reissuing `Go.SelectAsync` until every case is drained, so you can express "keep consuming until the inputs close" without writing the loop yourself. When you want to multiplex raw readers, `Go.FanInAsync` writes each observed value into a destination writer, and `Go.FanIn` wraps that into a brand-new channel reader.
+
+```csharp
+var merged = Go.MakeChannel<int>();
+var fanIn = Go.FanInAsync(
+    new[] { jobs.Reader, metrics.Reader },
+    merged.Writer,
+    cancellationToken: ct);
+
+await foreach (var value in merged.Reader.ReadAllAsync(ct))
+{
+    Console.WriteLine(value);
+}
+
+var status = await fanIn;
+```
+
+- `SelectFanInAsync` treats drained sources as success and still propagates failures, timeouts, and cancellations as structured `Result<Unit>` errors.
+- `FanInAsync` optionally completes the destination writer for you; `FanIn` manages a new channel and relays any failure (or cancellation) through `TryComplete` so downstream consumers see the same outcome.
+
 ## Timers
 
 `Go.After`, `Go.AfterAsync`, `Go.NewTicker`, and `Go.Tick` mirror Go's timer primitives while honouring `TimeProvider` for deterministic testing.

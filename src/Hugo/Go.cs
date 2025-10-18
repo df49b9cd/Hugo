@@ -132,7 +132,7 @@ public static class Go
                 {
                     linkedCts.Cancel();
                     GoDiagnostics.RecordChannelSelectCompleted(provider.GetElapsedTime(startTimestamp));
-                    return Result.Fail<Unit>(Error.From("All channel cases completed without yielding a value.", ErrorCodes.Unspecified));
+                    return Result.Fail<Unit>(Error.From("All channel cases completed without yielding a value.", ErrorCodes.SelectDrained));
                 }
 
                 Task completedTask;
@@ -220,6 +220,139 @@ public static class Go
                 map[tasks[i]] = i;
             }
         }
+    }
+
+
+    /// <summary>
+    /// Drains the provided channel readers until each one completes, invoking <paramref name="onValue"/> for every observed value.
+    /// </summary>
+    public static Task<Result<Unit>> SelectFanInAsync<T>(IEnumerable<ChannelReader<T>> readers, Func<T, CancellationToken, Task<Result<Unit>>> onValue, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    {
+        if (readers is null)
+            throw new ArgumentNullException(nameof(readers));
+        if (onValue is null)
+            throw new ArgumentNullException(nameof(onValue));
+
+        var collected = CollectSources(readers);
+        if (collected.Length == 0)
+            return Task.FromResult(Result.Ok(Unit.Value));
+
+        for (var i = 0; i < collected.Length; i++)
+        {
+            if (collected[i] is null)
+                throw new ArgumentException("Reader collection cannot contain null entries.", nameof(readers));
+        }
+
+        var effectiveTimeout = timeout ?? Timeout.InfiniteTimeSpan;
+        return SelectFanInAsyncCore(collected, onValue, effectiveTimeout, provider, cancellationToken);
+    }
+
+    public static Task<Result<Unit>> SelectFanInAsync<T>(IEnumerable<ChannelReader<T>> readers, Func<T, Task<Result<Unit>>> onValue, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    {
+        if (onValue is null)
+            throw new ArgumentNullException(nameof(onValue));
+
+        return SelectFanInAsync(readers, (value, _) => onValue(value), timeout, provider, cancellationToken);
+    }
+
+    public static Task<Result<Unit>> SelectFanInAsync<T>(IEnumerable<ChannelReader<T>> readers, Func<T, CancellationToken, Task> onValue, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    {
+        if (onValue is null)
+            throw new ArgumentNullException(nameof(onValue));
+
+        return SelectFanInAsync(readers, async (value, ct) =>
+        {
+            await onValue(value, ct).ConfigureAwait(false);
+            return Result.Ok(Unit.Value);
+        }, timeout, provider, cancellationToken);
+    }
+
+    public static Task<Result<Unit>> SelectFanInAsync<T>(IEnumerable<ChannelReader<T>> readers, Func<T, Task> onValue, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    {
+        if (onValue is null)
+            throw new ArgumentNullException(nameof(onValue));
+
+        return SelectFanInAsync(readers, async (value, _) =>
+        {
+            await onValue(value).ConfigureAwait(false);
+            return Result.Ok(Unit.Value);
+        }, timeout, provider, cancellationToken);
+    }
+
+    public static Task<Result<Unit>> SelectFanInAsync<T>(IEnumerable<ChannelReader<T>> readers, Action<T> onValue, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    {
+        if (onValue is null)
+            throw new ArgumentNullException(nameof(onValue));
+
+        return SelectFanInAsync(readers, (value, _) =>
+        {
+            onValue(value);
+            return Task.FromResult(Result.Ok(Unit.Value));
+        }, timeout, provider, cancellationToken);
+    }
+
+    /// <summary>
+    /// Fans multiple source channels into a destination writer, optionally completing the writer when the sources finish.
+    /// </summary>
+    public static Task<Result<Unit>> FanInAsync<T>(IEnumerable<ChannelReader<T>> sources, ChannelWriter<T> destination, bool completeDestination = true, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    {
+        if (sources is null)
+            throw new ArgumentNullException(nameof(sources));
+        if (destination is null)
+            throw new ArgumentNullException(nameof(destination));
+
+        var readers = CollectSources(sources);
+        if (readers.Length == 0)
+        {
+            if (completeDestination)
+            {
+                destination.TryComplete();
+            }
+
+            return Task.FromResult(Result.Ok(Unit.Value));
+        }
+
+        for (var i = 0; i < readers.Length; i++)
+        {
+            if (readers[i] is null)
+                throw new ArgumentException("Source readers cannot contain null entries.", nameof(sources));
+        }
+
+        return FanInAsyncCore(readers, destination, completeDestination, timeout ?? Timeout.InfiniteTimeSpan, provider, cancellationToken);
+    }
+
+    /// <summary>
+    /// Fans multiple source channels into a newly created channel.
+    /// </summary>
+    public static ChannelReader<T> FanIn<T>(IEnumerable<ChannelReader<T>> sources, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    {
+        if (sources is null)
+            throw new ArgumentNullException(nameof(sources));
+
+        var readers = CollectSources(sources);
+        var output = Channel.CreateUnbounded<T>();
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var result = await FanInAsync(readers, output.Writer, completeDestination: false, timeout: timeout, provider: provider, cancellationToken: cancellationToken).ConfigureAwait(false);
+                if (result.IsSuccess)
+                {
+                    output.Writer.TryComplete();
+                }
+                else
+                {
+                    output.Writer.TryComplete(CreateFanInException(result.Error ?? Error.Unspecified()));
+                }
+            }
+            catch (Exception ex)
+            {
+                output.Writer.TryComplete(ex);
+            }
+        }, CancellationToken.None);
+
+        return output.Reader;
     }
 
 
@@ -352,6 +485,130 @@ public static class Go
     {
         public static readonly Unit Value = new();
     }
+
+    private static ChannelReader<T>[] CollectSources<T>(IEnumerable<ChannelReader<T>> sources)
+    {
+        if (sources is ChannelReader<T>[] array)
+            return array.Length == 0 ? Array.Empty<ChannelReader<T>>() : array;
+
+        if (sources is List<ChannelReader<T>> list)
+            return list.Count == 0 ? Array.Empty<ChannelReader<T>>() : list.ToArray();
+
+        var collected = new List<ChannelReader<T>>();
+        foreach (var reader in sources)
+        {
+            collected.Add(reader);
+        }
+
+        return collected.Count == 0 ? Array.Empty<ChannelReader<T>>() : collected.ToArray();
+    }
+
+    private static async Task<Result<Unit>> SelectFanInAsyncCore<T>(ChannelReader<T>[] readers, Func<T, CancellationToken, Task<Result<Unit>>> onValue, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
+    {
+        if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+
+        var active = new List<ChannelReader<T>>(readers);
+        if (active.Count == 0)
+            return Result.Ok(Unit.Value);
+
+        while (active.Count > 0)
+        {
+            var cases = new ChannelCase[active.Count];
+            for (var i = 0; i < active.Count; i++)
+            {
+                var reader = active[i];
+                cases[i] = ChannelCase.Create(reader, onValue);
+            }
+
+            var iteration = timeout == Timeout.InfiniteTimeSpan
+                ? await SelectAsync(provider, cancellationToken, cases).ConfigureAwait(false)
+                : await SelectAsync(timeout, provider, cancellationToken, cases).ConfigureAwait(false);
+
+            if (iteration.IsSuccess)
+            {
+                RemoveCompletedReaders(active);
+                continue;
+            }
+
+            if (IsSelectDrained(iteration.Error))
+            {
+                await WaitForCompletionsAsync(active).ConfigureAwait(false);
+                RemoveCompletedReaders(active);
+                if (active.Count == 0)
+                    return Result.Ok(Unit.Value);
+
+                continue;
+            }
+
+            return iteration;
+        }
+
+        return Result.Ok(Unit.Value);
+
+        static void RemoveCompletedReaders(List<ChannelReader<T>> list)
+        {
+            for (var index = list.Count - 1; index >= 0; index--)
+            {
+                if (list[index].Completion.IsCompleted)
+                {
+                    list.RemoveAt(index);
+                }
+            }
+        }
+
+        static Task WaitForCompletionsAsync(List<ChannelReader<T>> list)
+        {
+            if (list.Count == 0)
+                return Task.CompletedTask;
+
+            var tasks = new Task[list.Count];
+            for (var i = 0; i < list.Count; i++)
+            {
+                tasks[i] = list[i].Completion;
+            }
+
+            return Task.WhenAll(tasks);
+        }
+    }
+
+    private static async Task<Result<Unit>> FanInAsyncCore<T>(ChannelReader<T>[] readers, ChannelWriter<T> destination, bool completeDestination, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await SelectFanInAsyncCore(readers, async (value, ct) =>
+            {
+                await destination.WriteAsync(value, ct).ConfigureAwait(false);
+                return Result.Ok(Unit.Value);
+            }, timeout, provider, cancellationToken).ConfigureAwait(false);
+            if (completeDestination)
+            {
+                if (result.IsSuccess)
+                {
+                    destination.TryComplete();
+                }
+                else
+                {
+                    destination.TryComplete(CreateFanInException(result.Error ?? Error.Unspecified()));
+                }
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            if (completeDestination)
+            {
+                destination.TryComplete(ex);
+            }
+
+            throw;
+        }
+    }
+
+    private static bool IsSelectDrained(Error? error) => error is { Code: ErrorCodes.SelectDrained };
+
+    private static Exception CreateFanInException(Error error) => error.Cause ?? new InvalidOperationException(error.ToString());
 
     public readonly struct GoTicker : IAsyncDisposable, IDisposable
     {

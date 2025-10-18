@@ -1,4 +1,5 @@
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Channels;
 using Microsoft.Extensions.Time.Testing;
@@ -548,8 +549,8 @@ public class GoTests
 
     var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: new[] { ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value))) });
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Unspecified, result.Error?.Code);
+    Assert.True(result.IsFailure);
+    Assert.Equal(ErrorCodes.SelectDrained, result.Error?.Code);
     }
 
     [Fact]
@@ -655,6 +656,107 @@ public class GoTests
     }
 
     [Fact]
+    public async Task SelectFanInAsync_ShouldDrainAllCases()
+    {
+        var channel1 = MakeChannel<int>();
+        var channel2 = MakeChannel<int>();
+        var observed = new ConcurrentBag<int>();
+
+        var fanInTask = SelectFanInAsync(
+            new[] { channel1.Reader, channel2.Reader },
+            (int value, CancellationToken _) =>
+            {
+                observed.Add(value);
+                return Task.FromResult(Result.Ok(Unit.Value));
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        var ct = TestContext.Current.CancellationToken;
+        var producers = Task.WhenAll(
+            Task.Run(async () =>
+            {
+                await channel1.Writer.WriteAsync(11, ct);
+                channel1.Writer.TryComplete();
+            }, ct),
+            Task.Run(async () =>
+            {
+                await channel2.Writer.WriteAsync(22, ct);
+                channel2.Writer.TryComplete();
+            }, ct));
+
+        await producers;
+        var result = await fanInTask;
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(11, observed);
+        Assert.Contains(22, observed);
+        Assert.Equal(2, observed.Count);
+    }
+
+    [Fact]
+    public async Task SelectFanInAsync_ShouldPropagateCaseFailure()
+    {
+        var channel = MakeChannel<int>();
+        var fanInTask = SelectFanInAsync(
+            new[] { channel.Reader },
+            (int _, CancellationToken _) => Task.FromResult(Result.Fail<Unit>(Error.From("boom", ErrorCodes.Validation))),
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        await channel.Writer.WriteAsync(5, TestContext.Current.CancellationToken);
+        channel.Writer.TryComplete();
+
+        var result = await fanInTask;
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        Assert.Equal("boom", result.Error?.Message);
+    }
+
+    [Fact]
+    public async Task SelectFanInAsync_ShouldRespectCancellation()
+    {
+        var channel = MakeChannel<int>();
+        using var cts = new CancellationTokenSource(25);
+
+        var result = await SelectFanInAsync(
+            new[] { channel.Reader },
+            (int _, CancellationToken _) => Task.FromResult(Result.Ok(Unit.Value)),
+            cancellationToken: cts.Token);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        channel.Writer.TryComplete();
+    }
+
+    [Fact]
+    public async Task SelectAsync_ShouldSupportRepeatedInvocations()
+    {
+        var channel = MakeChannel<int>();
+        var observed = new List<int>();
+
+        var cases = new[]
+        {
+            ChannelCase.Create(channel.Reader, (value, _) =>
+            {
+                observed.Add(value);
+                return Task.FromResult(Result.Ok(Unit.Value));
+            })
+        };
+
+        await channel.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
+        var first = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: cases);
+        Assert.True(first.IsSuccess);
+
+        await channel.Writer.WriteAsync(2, TestContext.Current.CancellationToken);
+        channel.Writer.TryComplete();
+
+        var second = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: cases);
+
+        Assert.True(second.IsSuccess);
+        Assert.Equal(new[] { 1, 2 }, observed);
+    }
+
+    [Fact]
     public async Task ChannelCaseTemplates_With_ShouldMaterializeCases()
     {
         var channel1 = MakeChannel<int>();
@@ -747,6 +849,108 @@ public class GoTests
         var builder = Select<int>(cancellationToken: TestContext.Current.CancellationToken);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => builder.ExecuteAsync());
+    }
+
+    [Fact]
+    public async Task FanInAsync_ShouldMergeIntoDestination()
+    {
+        var source1 = MakeChannel<int>();
+        var source2 = MakeChannel<int>();
+        var destination = MakeChannel<int>();
+
+        var ct = TestContext.Current.CancellationToken;
+        var fanInTask = FanInAsync(new[] { source1.Reader, source2.Reader }, destination.Writer, cancellationToken: ct);
+
+        var producers = Task.WhenAll(
+            Task.Run(async () =>
+            {
+                await source1.Writer.WriteAsync(1, ct);
+                source1.Writer.TryComplete();
+            }, ct),
+            Task.Run(async () =>
+            {
+                await source2.Writer.WriteAsync(2, ct);
+                source2.Writer.TryComplete();
+            }, ct));
+
+        await producers;
+        var result = await fanInTask;
+
+        Assert.True(result.IsSuccess);
+
+    var observed = new List<int>();
+    await foreach (var value in destination.Reader.ReadAllAsync(ct))
+        {
+            observed.Add(value);
+        }
+
+        observed.Sort();
+        Assert.Equal(new[] { 1, 2 }, observed);
+    }
+
+    [Fact]
+    public async Task FanInAsync_ShouldReturnFailure_WhenDestinationClosed()
+    {
+        var source = MakeChannel<int>();
+        var destination = MakeChannel<int>();
+        destination.Writer.TryComplete(new InvalidOperationException("closed"));
+
+        var fanInTask = FanInAsync(new[] { source.Reader }, destination.Writer, cancellationToken: TestContext.Current.CancellationToken);
+
+        await source.Writer.WriteAsync(42, TestContext.Current.CancellationToken);
+        source.Writer.TryComplete();
+
+        var result = await fanInTask;
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await destination.Reader.Completion);
+    }
+
+    [Fact]
+    public async Task FanIn_ShouldMergeSources()
+    {
+        var source1 = MakeChannel<int>();
+        var source2 = MakeChannel<int>();
+
+        var ct = TestContext.Current.CancellationToken;
+        var merged = FanIn(new[] { source1.Reader, source2.Reader }, cancellationToken: ct);
+
+        var producers = Task.WhenAll(
+            Task.Run(async () =>
+            {
+                await source1.Writer.WriteAsync(7, ct);
+                source1.Writer.TryComplete();
+            }, ct),
+            Task.Run(async () =>
+            {
+                await source2.Writer.WriteAsync(9, ct);
+                source2.Writer.TryComplete();
+            }, ct));
+
+        await producers;
+
+    var values = new List<int>();
+    await foreach (var value in merged.ReadAllAsync(ct))
+        {
+            values.Add(value);
+        }
+
+        values.Sort();
+        Assert.Equal(new[] { 7, 9 }, values);
+    }
+
+    [Fact]
+    public async Task FanIn_ShouldPropagateCancellation()
+    {
+        var source = MakeChannel<int>();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var merged = FanIn(new[] { source.Reader }, cancellationToken: cts.Token);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await merged.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+        source.Writer.TryComplete();
     }
 
     [Fact]
