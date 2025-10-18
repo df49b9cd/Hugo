@@ -494,7 +494,8 @@ public class GoTests
     [Fact]
     public async Task DelayAsync_ShouldThrow_WhenDelayIsNegative()
     {
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => Go.DelayAsync(TimeSpan.FromMilliseconds(-1), cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            Go.DelayAsync(TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
