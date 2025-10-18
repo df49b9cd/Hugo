@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Channels;
 using Hugo;
+using Microsoft.Extensions.Time.Testing;
 using static Hugo.Go;
 
 namespace Hugo.Tests;
@@ -117,5 +118,45 @@ public class GoFunctionalTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(3, result.Value);
+    }
+
+    [Fact]
+    public async Task Integration_WithFakeTimeProvider_ShouldDriveChannelWorkflow()
+    {
+        var provider = new FakeTimeProvider();
+        var channel = MakeChannel<int>(capacity: 1);
+        var wg = new WaitGroup();
+        var collected = new List<int>();
+
+        wg.Go(async token =>
+        {
+            await DelayAsync(TimeSpan.FromSeconds(3), provider, token);
+            await channel.Writer.WriteAsync(42, token);
+            channel.Writer.TryComplete();
+        }, TestContext.Current.CancellationToken);
+
+        var selectTask = SelectAsync(
+            timeout: TimeSpan.FromSeconds(5),
+            provider: provider,
+            cancellationToken: TestContext.Current.CancellationToken,
+            cases: new[]
+            {
+                ChannelCase.Create(channel.Reader, (value, _) =>
+                {
+                    collected.Add(value);
+                    return Task.FromResult(Result.Ok(Unit.Value));
+                })
+            });
+
+        Assert.False(selectTask.IsCompleted);
+
+        provider.Advance(TimeSpan.FromSeconds(3));
+
+        var result = await selectTask;
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(new[] { 42 }, collected);
+
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
     }
 }

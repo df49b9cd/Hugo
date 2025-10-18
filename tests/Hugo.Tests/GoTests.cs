@@ -1,6 +1,7 @@
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
 using System.Collections.Generic;
 using Hugo;
+using Microsoft.Extensions.Time.Testing;
 using static Hugo.Go;
 
 namespace Hugo.Tests;
@@ -440,6 +441,20 @@ public class GoTests
     }
 
     [Fact]
+    public async Task DelayAsync_WithFakeTimeProvider_ShouldCompleteWhenAdvanced()
+    {
+        var provider = new FakeTimeProvider();
+
+        var delayTask = Go.DelayAsync(TimeSpan.FromSeconds(5), provider, TestContext.Current.CancellationToken);
+
+        Assert.False(delayTask.IsCompleted);
+
+        provider.Advance(TimeSpan.FromSeconds(5));
+
+        await delayTask.WaitAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task SelectAsync_ShouldReturnFirstCompletedCase()
     {
         var channel1 = MakeChannel<int>();
@@ -483,13 +498,22 @@ public class GoTests
         var channel = MakeChannel<int>();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-        var result = await SelectAsync(
-            timeout: TimeSpan.FromMilliseconds(75),
+        var provider = new FakeTimeProvider();
+
+        var selectTask = SelectAsync(
+            timeout: TimeSpan.FromSeconds(1),
+            provider: provider,
             cancellationToken: cts.Token,
             cases: new[]
             {
                 ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))
             });
+
+        Assert.False(selectTask.IsCompleted);
+
+        provider.Advance(TimeSpan.FromSeconds(1));
+
+        var result = await selectTask;
 
         channel.Writer.TryComplete();
 
@@ -514,28 +538,38 @@ public class GoTests
     }
 
     [Fact]
-    public async Task WaitGroup_WaitAsync_WithTimeout_ShouldReturnFalseWhenIncomplete()
+    public async Task WaitGroup_WaitAsync_WithFakeTimeProvider_ShouldReturnFalseWhenIncomplete()
     {
+        var provider = new FakeTimeProvider();
         var wg = new WaitGroup();
         var tcs = new TaskCompletionSource();
         wg.Add(tcs.Task);
 
-        var result = await wg.WaitAsync(TimeSpan.FromMilliseconds(20), cancellationToken: TestContext.Current.CancellationToken);
+        var waitTask = wg.WaitAsync(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken);
 
-        Assert.False(result);
+        Assert.False(waitTask.IsCompleted);
+
+        provider.Advance(TimeSpan.FromSeconds(1));
+
+        var timedOut = await waitTask;
+
+        Assert.False(timedOut);
 
         tcs.SetResult();
         await wg.WaitAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
-    public async Task WaitGroup_WaitAsync_WithTimeout_ShouldReturnTrueWhenAllComplete()
+    public async Task WaitGroup_WaitAsync_WithFakeTimeProvider_ShouldReturnTrueWhenAllComplete()
     {
+        var provider = new FakeTimeProvider();
         var wg = new WaitGroup();
         var tcs = new TaskCompletionSource();
         wg.Add(tcs.Task);
 
-        var waitTask = wg.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken: TestContext.Current.CancellationToken);
+        var waitTask = wg.WaitAsync(TimeSpan.FromSeconds(5), provider, TestContext.Current.CancellationToken);
+
+        Assert.False(waitTask.IsCompleted);
 
         tcs.SetResult();
 

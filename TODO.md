@@ -7,7 +7,16 @@
 - [x] Step 5: Optimize Error metadata storage using FrozenDictionary and adjust related helpers
 - [x] Step 6: Introduce Go.PrioritizedChannel with priority-aware reader/writer
 - [x] Step 7: Add tests for Go.PrioritizedChannel
-- [ ] Step 8: Extend Result to handle IAsyncEnumerable pipelines (SequenceAsync/TraverseAsync/MapStreamAsync)
-- [ ] Step 9: Augment unit tests (GoFunctionalTests, ResultTests, new streaming/select/time tests) leveraging FakeTimeProvider
+- [x] Step 8: Extend Result to handle IAsyncEnumerable pipelines (SequenceAsync/TraverseAsync/MapStreamAsync)
+  - [x] Step 8a: Finalize API surface for SequenceAsync, TraverseAsync, and MapStreamAsync
+  - [x] Step 8b: Implement async-stream helpers in src/Hugo/Result.cs
+  - [x] Step 8c: Add ResultTests coverage for success, failure, and cancellation scenarios
+  - [x] Step 8d: Update TODO.md with Step 8 progress markers
+  - [x] Step 8e: Run dotnet test tests/Hugo.Tests/Hugo.Tests.csproj
+- [x] Step 9: Augment unit tests (GoFunctionalTests, ResultTests, new streaming/select/time tests) leveraging FakeTimeProvider
+  - [x] Step 9a: Introduce FakeTimeProvider-based Delay/Select coverage in GoTests
+  - [x] Step 9b: Add FakeTimeProvider integration scenario to GoFunctionalTests
+  - [x] Step 9c: Exercise Result streaming cancellation using FakeTimeProvider
+  - [x] Step 9d: Run dotnet test to validate
 - [ ] Step 10: Add necessary package references and update project files
 - [ ] Step 11: Run test suite and iterate on any failures

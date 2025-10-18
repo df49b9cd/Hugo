@@ -1,6 +1,9 @@
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Hugo;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests;
 
@@ -147,6 +150,280 @@ public class ResultTests
         cts.Cancel();
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => Result.TraverseAsync(new[] { 1 }, _ => Task.FromResult(Result.Ok(1)), cts.Token));
+    }
+
+    [Fact]
+    public async Task SequenceAsync_Stream_ShouldAggregateValues()
+    {
+        async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Yield();
+            yield return Result.Ok(1);
+            await Task.Yield();
+            yield return Result.Ok(2);
+        }
+
+    var result = await Result.SequenceAsync(Source(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(new[] { 1, 2 }, result.Value);
+    }
+
+    [Fact]
+    public async Task SequenceAsync_Stream_ShouldStopAtFailure()
+    {
+        var error = Error.From("fail");
+        var enumeratedAfterFailure = false;
+
+        async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return Result.Ok(1);
+            yield return Result.Fail<int>(error);
+            enumeratedAfterFailure = true;
+            yield return Result.Ok(3);
+        }
+
+    var result = await Result.SequenceAsync(Source(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Same(error, result.Error);
+        Assert.False(enumeratedAfterFailure);
+    }
+
+    [Fact]
+    public async Task SequenceAsync_Stream_ShouldReturnCanceledError()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Delay(50, ct);
+            yield return Result.Ok(1);
+        }
+
+    var result = await Result.SequenceAsync(Source(cts.Token), cts.Token);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task SequenceAsync_Stream_WithFakeTimeProvider_ShouldReturnCanceledError()
+    {
+        var provider = new FakeTimeProvider();
+        using var cts = new CancellationTokenSource();
+            using var timer = provider.CreateTimer(_ => cts.Cancel(), state: null, dueTime: TimeSpan.FromSeconds(1), period: Timeout.InfiniteTimeSpan);
+
+        async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            yield return Result.Ok(1);
+        }
+
+        var resultTask = Result.SequenceAsync(Source(cts.Token), cts.Token);
+
+        provider.Advance(TimeSpan.FromSeconds(1));
+
+    var result = await resultTask;
+
+    Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task TraverseAsync_Stream_ShouldAggregateValues()
+    {
+        async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return 1;
+            await Task.Yield();
+            yield return 2;
+        }
+
+        var result = await Result.TraverseAsync(
+            Source(TestContext.Current.CancellationToken),
+            (value, _) => new ValueTask<Result<int>>(Result.Ok(value * 2)),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(new[] { 2, 4 }, result.Value);
+    }
+
+    [Fact]
+    public async Task TraverseAsync_Stream_ShouldStopOnFailure()
+    {
+        var error = Error.From("fail");
+        var enumeratedAfterFailure = false;
+
+        async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return 1;
+            yield return 2;
+            enumeratedAfterFailure = true;
+            yield return 3;
+        }
+
+        var result = await Result.TraverseAsync(
+            Source(TestContext.Current.CancellationToken),
+            (value, _) => value == 2
+                ? new ValueTask<Result<int>>(Result.Fail<int>(error))
+                : new ValueTask<Result<int>>(Result.Ok(value)),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Same(error, result.Error);
+        Assert.False(enumeratedAfterFailure);
+    }
+
+    [Fact]
+    public async Task TraverseAsync_Stream_ShouldReturnCanceledError()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Delay(50, ct);
+            yield return 1;
+        }
+
+        var result = await Result.TraverseAsync(
+            Source(cts.Token),
+            (value, _) => new ValueTask<Result<int>>(Result.Ok(value)),
+            cts.Token);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task MapStreamAsync_ShouldMapValues()
+    {
+        async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return 1;
+            await Task.Yield();
+            yield return 2;
+        }
+
+        var collected = new List<Result<int>>();
+
+    Func<int, CancellationToken, ValueTask<Result<int>>> selector = (value, _) => new ValueTask<Result<int>>(Result.Ok(value * 3));
+
+    await foreach (var result in Result.MapStreamAsync(
+               Source(TestContext.Current.CancellationToken),
+               selector,
+               TestContext.Current.CancellationToken))
+        {
+            collected.Add(result);
+        }
+
+        Assert.Collection(
+            collected,
+            r =>
+            {
+                Assert.True(r.IsSuccess);
+                Assert.Equal(3, r.Value);
+            },
+            r =>
+            {
+                Assert.True(r.IsSuccess);
+                Assert.Equal(6, r.Value);
+            });
+    }
+
+    [Fact]
+    public async Task MapStreamAsync_ShouldStopOnFailure()
+    {
+        var error = Error.From("fail");
+        var enumeratedAfterFailure = false;
+
+        async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return 1;
+            yield return 2;
+            enumeratedAfterFailure = true;
+            yield return 3;
+        }
+
+        var collected = new List<Result<int>>();
+
+        Func<int, CancellationToken, ValueTask<Result<int>>> selector = (value, _) => value == 2
+            ? new ValueTask<Result<int>>(Result.Fail<int>(error))
+            : new ValueTask<Result<int>>(Result.Ok(value));
+
+        await foreach (var result in Result.MapStreamAsync(
+                       Source(TestContext.Current.CancellationToken),
+                       selector,
+                       TestContext.Current.CancellationToken))
+        {
+            collected.Add(result);
+        }
+
+        Assert.Equal(2, collected.Count);
+        Assert.True(collected[0].IsSuccess);
+        Assert.True(collected[1].IsFailure);
+        Assert.Same(error, collected[1].Error);
+        Assert.False(enumeratedAfterFailure);
+    }
+
+    [Fact]
+    public async Task MapStreamAsync_TaskSelector_ShouldMapValues()
+    {
+        async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return 1;
+        }
+
+        var collected = new List<Result<int>>();
+
+        Func<int, CancellationToken, Task<Result<int>>> selector = async (value, ct) =>
+        {
+            await Task.Delay(10, ct);
+            return Result.Ok(value + 1);
+        };
+
+        await foreach (var result in Result.MapStreamAsync(
+                       Source(TestContext.Current.CancellationToken),
+                       selector,
+                       TestContext.Current.CancellationToken))
+        {
+            collected.Add(result);
+        }
+
+        Assert.Single(collected);
+        Assert.True(collected[0].IsSuccess);
+        Assert.Equal(2, collected[0].Value);
+    }
+
+    [Fact]
+    public async Task MapStreamAsync_ShouldReturnCanceledResult()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Delay(50, ct);
+            yield return 1;
+        }
+
+        var collected = new List<Result<int>>();
+
+    Func<int, CancellationToken, ValueTask<Result<int>>> selector = (value, _) => new ValueTask<Result<int>>(Result.Ok(value));
+
+    await foreach (var result in Result.MapStreamAsync(
+               Source(cts.Token),
+               selector,
+               cts.Token))
+        {
+            collected.Add(result);
+        }
+
+        Assert.Single(collected);
+        Assert.True(collected[0].IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, collected[0].Error?.Code);
     }
 
     [Fact]

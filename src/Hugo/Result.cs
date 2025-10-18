@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -133,6 +134,191 @@ public static class Result
         }
 
         return Ok<IReadOnlyList<TOut>>(values);
+    }
+
+    /// <summary>
+    /// Aggregates an asynchronous sequence of results into a single result containing all successful values.
+    /// </summary>
+    public static async Task<Result<IReadOnlyList<T>>> SequenceAsync<T>(IAsyncEnumerable<Result<T>> results, CancellationToken cancellationToken = default)
+    {
+        if (results is null)
+            throw new ArgumentNullException(nameof(results));
+
+        var values = new List<T>();
+        try
+        {
+            await foreach (var result in results.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                if (result.IsFailure)
+                {
+                    return Fail<IReadOnlyList<T>>(result.Error!);
+                }
+
+                values.Add(result.Value);
+            }
+
+            return Ok<IReadOnlyList<T>>(values);
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Fail<IReadOnlyList<T>>(Error.Canceled(token: oce.CancellationToken));
+        }
+        catch (Exception ex)
+        {
+            return Fail<IReadOnlyList<T>>(Error.FromException(ex));
+        }
+    }
+
+    /// <summary>
+    /// Applies an asynchronous selector to each value in the source and aggregates the successful results.
+    /// </summary>
+    public static Task<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(
+        IAsyncEnumerable<TIn> source,
+        Func<TIn, CancellationToken, Task<Result<TOut>>> selector,
+        CancellationToken cancellationToken = default)
+    {
+        if (selector is null)
+            throw new ArgumentNullException(nameof(selector));
+
+        return TraverseAsync(source, (value, token) => new ValueTask<Result<TOut>>(selector(value, token)), cancellationToken);
+    }
+
+    /// <summary>
+    /// Applies an asynchronous selector to each value in the source and aggregates the successful results.
+    /// </summary>
+    public static async Task<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(
+        IAsyncEnumerable<TIn> source,
+        Func<TIn, CancellationToken, ValueTask<Result<TOut>>> selector,
+        CancellationToken cancellationToken = default)
+    {
+        if (source is null)
+            throw new ArgumentNullException(nameof(source));
+        if (selector is null)
+            throw new ArgumentNullException(nameof(selector));
+
+        var values = new List<TOut>();
+
+        try
+        {
+            await foreach (var item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                var result = await selector(item, cancellationToken).ConfigureAwait(false);
+                if (result.IsFailure)
+                {
+                    return Fail<IReadOnlyList<TOut>>(result.Error!);
+                }
+
+                values.Add(result.Value);
+            }
+
+            return Ok<IReadOnlyList<TOut>>(values);
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Fail<IReadOnlyList<TOut>>(Error.Canceled(token: oce.CancellationToken));
+        }
+        catch (Exception ex)
+        {
+            return Fail<IReadOnlyList<TOut>>(Error.FromException(ex));
+        }
+    }
+
+    /// <summary>
+    /// Projects an asynchronous sequence into a new asynchronous sequence of results, stopping on first failure.
+    /// </summary>
+    public static IAsyncEnumerable<Result<TOut>> MapStreamAsync<TIn, TOut>(
+        IAsyncEnumerable<TIn> source,
+        Func<TIn, CancellationToken, Task<Result<TOut>>> selector,
+        CancellationToken cancellationToken = default)
+    {
+        if (selector is null)
+            throw new ArgumentNullException(nameof(selector));
+
+        return MapStreamAsync(source, (value, token) => new ValueTask<Result<TOut>>(selector(value, token)), cancellationToken);
+    }
+
+    /// <summary>
+    /// Projects an asynchronous sequence into a new asynchronous sequence of results, stopping on first failure.
+    /// </summary>
+    public static async IAsyncEnumerable<Result<TOut>> MapStreamAsync<TIn, TOut>(
+        IAsyncEnumerable<TIn> source,
+        Func<TIn, CancellationToken, ValueTask<Result<TOut>>> selector,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (source is null)
+            throw new ArgumentNullException(nameof(source));
+        if (selector is null)
+            throw new ArgumentNullException(nameof(selector));
+
+        var configuredSource = source.WithCancellation(cancellationToken).ConfigureAwait(false);
+        await using var enumerator = configuredSource.GetAsyncEnumerator();
+
+        while (true)
+        {
+            bool hasNext;
+            Result<TOut> failure = default;
+            var hasFailure = false;
+            try
+            {
+                hasNext = await enumerator.MoveNextAsync();
+            }
+            catch (OperationCanceledException oce)
+            {
+                failure = Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+                hasFailure = true;
+                hasNext = false;
+            }
+            catch (Exception ex)
+            {
+                failure = Fail<TOut>(Error.FromException(ex));
+                hasFailure = true;
+                hasNext = false;
+            }
+
+            if (hasFailure)
+            {
+                yield return failure;
+                yield break;
+            }
+
+            if (!hasNext)
+            {
+                yield break;
+            }
+
+            Result<TOut> mapped;
+            failure = default;
+            hasFailure = false;
+            try
+            {
+                mapped = await selector(enumerator.Current, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException oce)
+            {
+                failure = Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+                hasFailure = true;
+                mapped = default;
+            }
+            catch (Exception ex)
+            {
+                failure = Fail<TOut>(Error.FromException(ex));
+                hasFailure = true;
+                mapped = default;
+            }
+
+            if (hasFailure)
+            {
+                yield return failure;
+                yield break;
+            }
+
+            yield return mapped;
+
+            if (mapped.IsFailure)
+            {
+                yield break;
+            }
+        }
     }
 }
 
