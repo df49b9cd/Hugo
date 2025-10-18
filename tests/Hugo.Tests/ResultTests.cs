@@ -19,6 +19,12 @@ public class ResultTests
     }
 
     [Fact]
+    public void Sequence_ShouldThrow_WhenResultsAreNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => Result.Sequence<int>(null!));
+    }
+
+    [Fact]
     public void Try_ShouldReturnSuccess()
     {
         var result = Result.Try(() => 5);
@@ -96,6 +102,18 @@ public class ResultTests
     }
 
     [Fact]
+    public void Traverse_ShouldThrow_WhenSourceIsNull()
+    {
+    Assert.Throws<ArgumentNullException>(() => Result.Traverse<int, int>(null!, x => Result.Ok(x)));
+    }
+
+    [Fact]
+    public void Traverse_ShouldThrow_WhenSelectorIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => Result.Traverse(Array.Empty<int>(), (Func<int, Result<int>>)null!));
+    }
+
+    [Fact]
     public void Sequence_ShouldReturnFirstFailure()
     {
         var error = Error.From("fail");
@@ -131,6 +149,18 @@ public class ResultTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(new[] { 2, 3 }, result.Value);
+    }
+
+    [Fact]
+    public async Task TraverseAsync_ShouldThrow_WhenSourceIsNull()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(() => Result.TraverseAsync<int, int>((IEnumerable<int>)null!, _ => Task.FromResult(Result.Ok(0)), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task TraverseAsync_ShouldThrow_WhenSelectorIsNull()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(() => Result.TraverseAsync(Array.Empty<int>(), (Func<int, Task<Result<int>>>)null!, TestContext.Current.CancellationToken));
     }
 
     [Fact]

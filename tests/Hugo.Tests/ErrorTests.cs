@@ -19,12 +19,28 @@ public class ErrorTests
     }
 
     [Fact]
+    public void WithMetadata_ShouldThrow_WhenKeyIsInvalid()
+    {
+        var error = Error.From("message");
+
+        Assert.Throws<ArgumentException>(() => error.WithMetadata(" ", 1));
+    }
+
+    [Fact]
     public void WithMetadataCollection_ShouldMergeCaseInsensitive()
     {
         var error = Error.From("boom").WithMetadata("Key", 1);
         var enriched = error.WithMetadata(new[] { new KeyValuePair<string, object?>("key", 2) });
 
         Assert.Equal(2, enriched.Metadata["key"]);
+    }
+
+    [Fact]
+    public void WithMetadataCollection_ShouldThrow_WhenMetadataIsNull()
+    {
+        var error = Error.From("message");
+
+        Assert.Throws<ArgumentNullException>(() => error.WithMetadata((IEnumerable<KeyValuePair<string, object?>>)null!));
     }
 
     [Fact]
@@ -45,6 +61,12 @@ public class ErrorTests
         var enriched = error.WithCause(cause);
 
         Assert.Same(cause, enriched.Cause);
+    }
+
+    [Fact]
+    public void FromException_ShouldThrow_WhenExceptionIsNull()
+    {
+        Assert.Throws<ArgumentNullException>(() => Error.FromException(null!));
     }
 
     [Fact]
