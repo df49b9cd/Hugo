@@ -7,14 +7,13 @@ The repository ships with runnable projects that demonstrate Hugo in real applic
 Path: `samples/Hugo.WorkerSample`
 
 ```bash
-cd samples/Hugo.WorkerSample
-dotnet run
+dotnet run --project samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj
 ```
 
 Highlights:
 
 - Demonstrates `WaitGroup` fan-out alongside channels inside a `BackgroundService` worker.
-- Uses `Go.Defer` for structured cleanup, deterministic `TimeProvider` injection, and cancellation-first patterns.
+- Registers `TimeProvider` for deterministic scheduling during tests and propagates cancellation tokens end-to-end.
 - Streams structured logs through `ILogger` so the worker can plug into observability pipelines.
 
 ## Benchmark Suite
@@ -22,12 +21,11 @@ Highlights:
 Path: `benchmarks/Hugo.Benchmarks`
 
 ```bash
-cd benchmarks/Hugo.Benchmarks
-DOTNET_ENVIRONMENT=Development dotnet run -c Release
+dotnet run -c Release --project benchmarks/Hugo.Benchmarks/Hugo.Benchmarks.csproj
 ```
 
 Highlights:
 
 - Uses BenchmarkDotNet to compare `Hugo.Mutex` against `SemaphoreSlim` under varying contention levels.
 - Captures throughput and allocation data to validate the primitives under load.
-- Provides an extensible scaffold to add new microbenchmarks as additional primitives land.
+- Writes detailed markdown, CSV, and JSON summaries under `BenchmarkDotNet.Artifacts/results` for further analysis.
