@@ -101,15 +101,15 @@ public class GoFunctionalTests
             }
 
             channel.Writer.Complete();
-        });
+        }, TestContext.Current.CancellationToken);
 
         var collected = new List<int>();
-        await foreach (var item in channel.Reader.ReadAllAsync())
+        await foreach (var item in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
         {
             collected.Add(item);
         }
 
-        await wg.WaitAsync();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
 
         var result = Ok(collected)
             .Map(items => items.Sum())
