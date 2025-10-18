@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/.github/"> 
+    <File Path=".github/copilot-instructions.md" />
+  </Folder>
+  <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/ci.yml" />
+  </Folder>
+  <Folder Name="/solution/" />
+  <Folder Name="/src/">
+    <Project Path="src/Hugo/Hugo.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Hugo.Tests/Hugo.Tests.csproj" />
+  </Folder>
+</Solution>
