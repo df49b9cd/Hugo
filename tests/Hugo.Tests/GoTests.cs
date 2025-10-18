@@ -1,7 +1,5 @@
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
-using System.Collections.Generic;
 using System.Threading.Channels;
-using Hugo;
 using Microsoft.Extensions.Time.Testing;
 using static Hugo.Go;
 

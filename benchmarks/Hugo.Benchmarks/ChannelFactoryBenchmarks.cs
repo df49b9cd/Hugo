@@ -1,6 +1,5 @@
 using System.Threading.Channels;
 using BenchmarkDotNet.Attributes;
-using Hugo;
 
 namespace Hugo.Benchmarks;
 

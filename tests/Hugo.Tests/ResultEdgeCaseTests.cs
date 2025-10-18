@@ -1,4 +1,3 @@
-using Hugo;
 using static Hugo.Go;
 
 namespace Hugo.Tests;

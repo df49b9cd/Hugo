@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using Hugo;
-
 namespace Hugo.Tests;
 
 public class ErrorTests
