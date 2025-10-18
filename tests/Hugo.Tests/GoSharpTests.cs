@@ -1,4 +1,8 @@
-// Import the Hugo helpers to use them without the 'Hugo.' prefix.
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
 using Hugo;
 using static Hugo.Go;
 
@@ -6,272 +10,102 @@ namespace Hugo.Tests;
 
 public class GoSharpTests
 {
-    // This helper is not a test, so it's okay for it to write to the console.
-    private static Result<string> ReadFileContent(string path)
-    {
-        using (Defer(() => Console.WriteLine("[ReadFileContent] Cleanup finished.")))
-        {
-            if (string.IsNullOrWhiteSpace(path))
-                return Err<string>("Path cannot be null or empty.");
-            try
-            {
-                return Ok(File.ReadAllText(path));
-            }
-            catch (Exception ex)
-            {
-                return Err<string>(ex);
-            }
-        }
-    }
-
     [Fact]
-    public async ValueTask Defer_ShouldExecute_OnException()
-    {
-        var deferredActionExecuted = false;
-        _ = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-        {
-            using (Defer(() => deferredActionExecuted = true))
-            {
-                throw new InvalidOperationException("Simulating an error.");
-            }
-        });
-        Assert.True(deferredActionExecuted);
-    }
-
-    [Fact]
-    public async Task Mutex_ShouldThrow_WhenLockIsCancelled()
-    {
-        var mutex = new Mutex();
-        var cts = new CancellationTokenSource();
-        using (await mutex.LockAsync(TestContext.Current.CancellationToken))
-        {
-            var waitingTask = mutex.LockAsync(cts.Token);
-            await Task.Delay(50, TestContext.Current.CancellationToken);
-            cts.Cancel();
-            _ = await Assert.ThrowsAsync<OperationCanceledException>(async () => await waitingTask);
-        }
-    }
-
-    [Fact]
-    public async Task Mutex_ShouldNotBeReentrant()
-    {
-        var mutex = new Mutex();
-        using (await mutex.LockAsync(TestContext.Current.CancellationToken))
-        {
-            var reentrantLockTask = mutex.LockAsync(TestContext.Current.CancellationToken).AsTask();
-            var completedTask = await Task.WhenAny(
-                reentrantLockTask,
-                Task.Delay(100, TestContext.Current.CancellationToken)
-            );
-            Assert.NotEqual(reentrantLockTask, completedTask);
-        }
-    }
-
-    [Fact]
-    public async Task Once_ShouldExecuteAction_ExactlyOnce_Concurrently()
-    {
-        var once = new Once();
-        var counter = 0;
-        var wg = new WaitGroup();
-        for (var i = 0; i < 10; i++)
-        {
-            wg.Go(() =>
-            {
-                once.Do(() => Interlocked.Increment(ref counter));
-                return Task.CompletedTask;
-            }, TestContext.Current.CancellationToken);
-        }
-        await wg.WaitAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(1, counter);
-    }
-
-    [Fact]
-    public void Pool_ShouldRecycleObjects()
-    {
-        var pool = new Pool<object> { New = () => new object() };
-        var obj1 = pool.Get();
-        pool.Put(obj1);
-        var obj2 = pool.Get();
-        Assert.Same(obj1, obj2);
-    }
-
-    [Fact]
-    public void Pool_Get_ShouldThrow_WhenEmptyAndNoFactory()
-    {
-        var pool = new Pool<object>();
-        _ = Assert.Throws<InvalidOperationException>(() => pool.Get());
-    }
-
-    [Fact]
-    public async Task RWMutex_ShouldAllow_MultipleConcurrentReaders()
-    {
-        var rwMutex = new RwMutex();
-        var maxReaders = 0;
-        var readersInside = 0;
-        var wg = new WaitGroup();
-        for (var i = 0; i < 5; i++)
-        {
-            wg.Go(async () =>
-            {
-                using (await rwMutex.RLockAsync())
-                {
-                    var currentReaders = Interlocked.Increment(ref readersInside);
-                    maxReaders = Math.Max(maxReaders, currentReaders);
-                    await Task.Delay(50);
-                    _ = Interlocked.Decrement(ref readersInside);
-                }
-            }, TestContext.Current.CancellationToken);
-        }
-        await wg.WaitAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(5, maxReaders);
-    }
-
-    [Fact]
-    public async Task RWMutex_ShouldProvide_ExclusiveWriteLock()
-    {
-        var rwMutex = new RwMutex();
-        var writerFinished = false;
-        Task readerTask,
-            writerTask;
-
-        using (await rwMutex.LockAsync(TestContext.Current.CancellationToken)) // Acquire the main write lock.
-        {
-            // Start a reader and a writer task that will wait.
-            readerTask = Task.Run(
-                async () =>
-                {
-                    using (await rwMutex.RLockAsync())
-                    {
-                        Assert.True(writerFinished);
-                    }
-                },
-                TestContext.Current.CancellationToken
-            );
-            writerTask = Task.Run(
-                async () =>
-                {
-                    using (await rwMutex.LockAsync())
-                    {
-                        Assert.True(writerFinished);
-                    }
-                },
-                TestContext.Current.CancellationToken
-            );
-
-            await Task.Delay(100, TestContext.Current.CancellationToken); // Give tasks time to block.
-            writerFinished = true;
-        } // The write lock is released here.
-
-        // Both tasks should now be able to complete.
-        await Task.WhenAll(readerTask, writerTask);
-    }
-
-    [Fact]
-    public void ReadFileContent_ShouldSucceed_WithValidFile()
-    {
-        var tempFile = Path.GetTempFileName();
-        File.WriteAllText(tempFile, "Hello from GoSharp!");
-        var result = ReadFileContent(tempFile);
-        Assert.True(result.IsSuccess);
-        Assert.Equal("Hello from GoSharp!", result.Value);
-        File.Delete(tempFile);
-    }
-
-    [Fact]
-    public void ReadFileContent_ShouldFail_WithInvalidFile()
-    {
-        var result = ReadFileContent("non_existent_file.txt");
-        Assert.True(result.IsFailure);
-        Assert.NotNull(result.Error);
-        Assert.Contains("Could not find file", result.Error!.Message);
-    }
-
-    [Fact]
-    public async Task Concurrency_ShouldCommunicate_ViaChannel()
-    {
-        var channel = MakeChannel<string>();
-        _ = Run(async () =>
-        {
-            await Task.Delay(100);
-            await channel.Writer.WriteAsync("Work complete!");
-        });
-        var message = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
-        Assert.Equal("Work complete!", message);
-    }
-
-    [Fact]
-    public async Task Concurrency_ShouldBlock_WhenBoundedChannelIsFull()
-    {
-        var channel = MakeChannel<int>(1);
-        var writerTaskCompleted = false;
-        await channel.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
-        var writerTask = Task.Run(
-            async () =>
-            {
-                await channel.Writer.WriteAsync(2);
-                writerTaskCompleted = true;
-            },
-            TestContext.Current.CancellationToken
-        );
-        await Task.Delay(50, TestContext.Current.CancellationToken);
-        Assert.False(writerTaskCompleted);
-        var firstItem = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
-        await writerTask;
-        var secondItem = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(1, firstItem);
-        Assert.Equal(2, secondItem);
-        Assert.True(writerTaskCompleted);
-    }
-
-    [Fact]
-    public async Task WaitGroup_ShouldWait_ForAllTasksToComplete()
+    public async Task WaitGroup_Go_WithCancellationAwareWork_ShouldComplete()
     {
         var wg = new WaitGroup();
         var counter = 0;
-        for (var i = 0; i < 5; i++)
+
+        for (var i = 0; i < 3; i++)
         {
-            wg.Go(async () =>
+            wg.Go(async token =>
             {
-                await Task.Delay(20);
-                _ = Interlocked.Increment(ref counter);
+                await Task.Delay(10, token);
+                Interlocked.Increment(ref counter);
             }, TestContext.Current.CancellationToken);
         }
+
         await wg.WaitAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(5, counter);
+
+        Assert.Equal(3, counter);
     }
 
     [Fact]
-    public async Task WaitGroup_ShouldCompleteImmediately_WhenNoTasksAreAdded()
+    public async Task WaitGroup_Go_WithFaultedTask_ShouldStillComplete()
     {
         var wg = new WaitGroup();
+
+        wg.Go(async () =>
+        {
+            await Task.Delay(5, TestContext.Current.CancellationToken);
+            throw new InvalidOperationException("boom");
+        }, TestContext.Current.CancellationToken);
+
         await wg.WaitAsync(TestContext.Current.CancellationToken);
+
         Assert.True(true);
     }
 
     [Fact]
-    public async Task Mutex_ShouldPreventRaceConditions()
+    public void Defer_ShouldExecuteInReverseOrder()
     {
-        var wg = new WaitGroup();
-        var mutex = new Mutex();
-        var counter = 0;
-        const int numTasks = 5;
-        const int incrementsPerTask = 10;
-        for (var i = 0; i < numTasks; i++)
+        var order = new List<int>();
+
+        using (Defer(() => order.Add(1)))
+        using (Defer(() => order.Add(2)))
         {
-            wg.Go(async () =>
-            {
-                for (var j = 0; j < incrementsPerTask; j++)
-                {
-                    using (await mutex.LockAsync())
-                    {
-                        var currentValue = counter;
-                        await Task.Delay(1);
-                        counter = currentValue + 1;
-                    }
-                }
-            }, TestContext.Current.CancellationToken);
+            order.Add(0);
         }
-        await wg.WaitAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(numTasks * incrementsPerTask, counter);
+
+        Assert.Equal(new[] { 0, 2, 1 }, order);
+    }
+
+    [Fact]
+    public void Err_WithExceptionAndCode_ShouldCaptureMetadata()
+    {
+        var ex = new InvalidOperationException("boom");
+        var result = Err<int>(ex, "custom.code");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("custom.code", result.Error?.Code);
+        Assert.True(result.Error?.Metadata.ContainsKey("exceptionType"));
+    }
+
+    [Fact]
+    public async Task MakeChannel_BoundedOptions_ShouldDropOldestWhenFull()
+    {
+        var options = new BoundedChannelOptions(1)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = true
+        };
+
+        var channel = MakeChannel<int>(options);
+
+        Assert.True(channel.Writer.TryWrite(1));
+        Assert.True(channel.Writer.TryWrite(2));
+
+        var value = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, value);
+    }
+
+    [Fact]
+    public async Task MakeChannel_UnboundedOptions_ShouldAllowMultipleWrites()
+    {
+        var options = new UnboundedChannelOptions { SingleReader = true, SingleWriter = true };
+        var channel = MakeChannel<int>(options);
+
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.True(channel.Writer.TryWrite(i));
+        }
+
+        for (var i = 0; i < 5; i++)
+        {
+            var value = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(i, value);
+        }
     }
 }

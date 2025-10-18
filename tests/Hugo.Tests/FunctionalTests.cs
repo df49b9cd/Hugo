@@ -309,4 +309,169 @@ public class FunctionalTests
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
+
+    [Fact]
+    public void OnSuccess_ShouldInvokeAction()
+    {
+        var invoked = false;
+        _ = Ok(1).OnSuccess(_ => invoked = true);
+
+        Assert.True(invoked);
+    }
+
+    [Fact]
+    public void OnFailure_ShouldInvokeAction()
+    {
+        Error? captured = null;
+        _ = Err<int>("fail").OnFailure(err => captured = err);
+
+        Assert.NotNull(captured);
+    }
+
+    [Fact]
+    public void Tee_ShouldBehaveLikeTap()
+    {
+        var tapped = false;
+        var result = Ok(3).Tee(_ => tapped = true);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(tapped);
+    }
+
+    [Fact]
+    public async Task TeeAsync_TaskResult_WithAction_ShouldInvoke()
+    {
+        var tapped = false;
+        var resultTask = Task.FromResult(Ok("value"));
+        var result = await resultTask.TeeAsync(_ => tapped = true, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(tapped);
+    }
+
+    [Fact]
+    public async Task TeeAsync_TaskResult_WithAsyncSideEffect_ShouldInvoke()
+    {
+        var tapped = false;
+        var resultTask = Task.FromResult(Ok(5));
+        var result = await resultTask.TeeAsync(async (_, ct) =>
+        {
+            await Task.Delay(5, ct);
+            tapped = true;
+        }, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(tapped);
+    }
+
+    [Fact]
+    public async Task MapAsync_TaskResult_ShouldTransformValue()
+    {
+        var resultTask = Task.FromResult(Ok(2));
+        var mapped = await resultTask.MapAsync(v => v * 3, TestContext.Current.CancellationToken);
+
+        Assert.True(mapped.IsSuccess);
+        Assert.Equal(6, mapped.Value);
+    }
+
+    [Fact]
+    public async Task RecoverAsync_TaskResultWithAsyncRecover_ShouldReturnRecoveredResult()
+    {
+        var task = Task.FromResult(Err<int>("fail"));
+        var recovered = await task.RecoverAsync(async (_, ct) =>
+        {
+            await Task.Delay(5, ct);
+            return Ok(9);
+        }, TestContext.Current.CancellationToken);
+
+        Assert.True(recovered.IsSuccess);
+        Assert.Equal(9, recovered.Value);
+    }
+
+    [Fact]
+    public async Task EnsureAsync_TaskResult_ShouldFailWhenPredicateFalse()
+    {
+        var task = Task.FromResult(Ok(1));
+        var ensured = await task.EnsureAsync(async (_, ct) =>
+        {
+            await Task.Delay(5, ct);
+            return false;
+        }, TestContext.Current.CancellationToken);
+
+        Assert.True(ensured.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, ensured.Error?.Code);
+    }
+
+    [Fact]
+    public async Task FinallyAsync_Result_ShouldInvokeAsyncHandlers()
+    {
+        var result = await Ok(1).FinallyAsync(
+            async (value, ct) =>
+            {
+                await Task.Delay(5, ct);
+                return value + 1;
+            },
+            async (_, ct) =>
+            {
+                await Task.Delay(5, ct);
+                return -1;
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(2, result);
+    }
+
+    [Fact]
+    public async Task FinallyAsync_TaskResult_ShouldInvokeAsyncHandlers()
+    {
+        var outcome = await Task.FromResult(Ok("value")).FinallyAsync(
+            async (value, ct) =>
+            {
+                await Task.Delay(5, ct);
+                return value.ToUpperInvariant();
+            },
+            async (_, ct) =>
+            {
+                await Task.Delay(5, ct);
+                return string.Empty;
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal("VALUE", outcome);
+    }
+
+    [Fact]
+    public async Task FinallyAsync_TaskResult_ShouldReturnCanceledError()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var task = Task.FromCanceled<Result<int>>(cts.Token);
+        var result = await task.FinallyAsync(
+            async (value, ct) =>
+            {
+                await Task.Delay(1, ct);
+                return value.ToString(CultureInfo.InvariantCulture);
+            },
+            async (error, ct) =>
+            {
+                await Task.Delay(1, ct);
+                return error.Code ?? string.Empty;
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(ErrorCodes.Canceled, result);
+    }
+
+    [Fact]
+    public void Where_ShouldFailWhenPredicateFalse()
+    {
+        var result = Ok(1).Where(v => v > 5);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+    }
 }

@@ -310,4 +310,150 @@ public class GoTests
         await wg.WaitAsync(TestContext.Current.CancellationToken);
         Assert.Equal(numTasks * incrementsPerTask, counter);
     }
+
+    [Fact]
+    public void WaitGroup_Add_ShouldThrow_OnNonPositiveDelta()
+    {
+        var wg = new WaitGroup();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => wg.Add(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => wg.Add(-1));
+    }
+
+    [Fact]
+    public void WaitGroup_Done_ShouldThrow_WhenCalledTooManyTimes()
+    {
+        var wg = new WaitGroup();
+        wg.Add(1);
+        wg.Done();
+
+        Assert.Throws<InvalidOperationException>(() => wg.Done());
+    }
+
+    [Fact]
+    public async Task WaitGroup_WaitAsync_ShouldRespectCancellation()
+    {
+        var wg = new WaitGroup();
+        wg.Add(1);
+
+        using var cts = new CancellationTokenSource(20);
+        var waitTask = wg.WaitAsync(cts.Token);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waitTask);
+        wg.Done();
+    }
+
+    [Fact]
+    public async Task WaitGroup_AddTask_ShouldCompleteWhenTrackedTaskFinishes()
+    {
+        var wg = new WaitGroup();
+        var tcs = new TaskCompletionSource();
+        wg.Add(tcs.Task);
+
+        tcs.SetResult();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, wg.Count);
+    }
+
+    [Fact]
+    public async Task Mutex_DisposeAsync_ShouldReleaseLock()
+    {
+        var mutex = new Mutex();
+        var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
+
+        var pending = mutex.LockAsync(TestContext.Current.CancellationToken).AsTask();
+        await Task.Delay(10, TestContext.Current.CancellationToken);
+        Assert.False(pending.IsCompleted);
+
+        await releaser.DisposeAsync();
+        using (await pending)
+        {
+            Assert.True(true);
+        }
+    }
+
+    [Fact]
+    public async Task RwMutex_RLockAsync_ShouldCancelWhenWriterHeld()
+    {
+        var rwMutex = new RwMutex();
+        using (await rwMutex.LockAsync(TestContext.Current.CancellationToken))
+        {
+            using var cts = new CancellationTokenSource(20);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await rwMutex.RLockAsync(cts.Token));
+        }
+    }
+
+    [Fact]
+    public async Task RwMutex_LockAsync_DisposeAsync_ShouldRelease()
+    {
+        var rwMutex = new RwMutex();
+        var writer = await rwMutex.LockAsync(TestContext.Current.CancellationToken);
+        var pendingWriter = rwMutex.LockAsync(TestContext.Current.CancellationToken).AsTask();
+
+        await Task.Delay(10, TestContext.Current.CancellationToken);
+        Assert.False(pendingWriter.IsCompleted);
+
+        await writer.DisposeAsync();
+        using (await pendingWriter)
+        {
+            Assert.True(true);
+        }
+    }
+
+    [Fact]
+    public void Pool_Put_ShouldThrowOnNull()
+    {
+        var pool = new Pool<object> { New = () => new object() };
+
+        Assert.Throws<ArgumentNullException>(() => pool.Put(null!));
+    }
+
+    [Fact]
+    public async Task Run_ShouldExecuteDelegate()
+    {
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await Go.Run(async () =>
+        {
+            tcs.SetResult();
+            await Task.CompletedTask;
+        });
+
+        await tcs.Task.WaitAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Run_ShouldThrowWhenFuncIsNull()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(() => Go.Run((Func<Task>)null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => Go.Run((Func<CancellationToken, Task>)null!, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Run_WithCancellationToken_ShouldPropagateCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Go.Run(_ => Task.Delay(1000, _), cts.Token));
+    }
+
+    [Fact]
+    public void MakeChannel_WithZeroCapacity_ShouldCreateUnboundedChannel()
+    {
+        var channel = MakeChannel<int>(0);
+
+        Assert.True(channel.Writer.TryWrite(1));
+        Assert.True(channel.Writer.TryWrite(2));
+    }
+
+    [Fact]
+    public void Err_WithMessage_ShouldReturnFailure()
+    {
+        var result = Err<int>("message", ErrorCodes.Validation);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("message", result.Error?.Message);
+        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+    }
 }

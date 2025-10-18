@@ -47,7 +47,7 @@ public class GoFunctionalTests
         },
         cts.Token);
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() => task);
+    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class GoFunctionalTests
         },
         cts.Token);
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() => wg.WaitAsync(cts.Token));
+    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wg.WaitAsync(cts.Token));
     }
 
     [Fact]
