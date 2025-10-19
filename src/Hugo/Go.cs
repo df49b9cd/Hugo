@@ -608,7 +608,21 @@ public static class Go
 
     private static bool IsSelectDrained(Error? error) => error is { Code: ErrorCodes.SelectDrained };
 
-    private static Exception CreateFanInException(Error error) => error.Cause ?? new InvalidOperationException(error.ToString());
+    private static Exception CreateFanInException(Error error)
+    {
+        if (error.Code == ErrorCodes.Canceled)
+        {
+            var message = error.Message ?? "Operation was canceled.";
+            if (error.TryGetMetadata("cancellationToken", out CancellationToken token) && token.CanBeCanceled)
+            {
+                return new OperationCanceledException(message, error.Cause, token);
+            }
+
+            return new OperationCanceledException(message, error.Cause);
+        }
+
+        return error.Cause ?? new InvalidOperationException(error.ToString());
+    }
 
     public readonly struct GoTicker : IAsyncDisposable, IDisposable
     {
