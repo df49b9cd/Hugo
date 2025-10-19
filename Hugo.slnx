@@ -9,11 +9,25 @@
     <Project Path="benchmarks/Hugo.Benchmarks/Hugo.Benchmarks.csproj" />
   </Folder>
   <Folder Name="/docs/">
-    <File Path="docs/concurrency.md" />
-    <File Path="docs/diagnostics.md" />
-    <File Path="docs/results.md" />
-    <File Path="docs/roadmap.md" />
-    <File Path="docs/samples.md" />
+    <File Path="docs/index.md" />
+    <Folder Name="/docs/tutorials/">
+      <File Path="docs/tutorials/getting-started.md" />
+    </Folder>
+    <Folder Name="/docs/how-to/">
+      <File Path="docs/how-to/fan-in-channels.md" />
+      <File Path="docs/how-to/observe-with-opentelemetry.md" />
+    </Folder>
+    <Folder Name="/docs/reference/">
+      <File Path="docs/reference/concurrency-primitives.md" />
+      <File Path="docs/reference/result-pipelines.md" />
+      <File Path="docs/reference/diagnostics.md" />
+    </Folder>
+    <Folder Name="/docs/explanation/">
+      <File Path="docs/explanation/design-principles.md" />
+    </Folder>
+    <Folder Name="/docs/meta/">
+      <File Path="docs/meta/roadmap.md" />
+    </Folder>
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj" />
