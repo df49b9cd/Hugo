@@ -3,6 +3,7 @@ name: Build Test Pack Hugo
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*.*.*" ]
   pull_request:
     branches: [ "main" ]
 
@@ -54,6 +55,7 @@ jobs:
       run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory ${{ matrix.resultsDirectory }}
 
     - name: Pack
+      if: matrix.targetFramework == 'net10.0'
       run: dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
 
     - name: Upload Coverage Report
@@ -63,7 +65,14 @@ jobs:
         path: ${{ matrix.resultsDirectory }}/**/*coverage.cobertura.xml
 
     - name: Upload NuGet Package
+      if: matrix.targetFramework == 'net10.0'
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.packageArtifact }}
         path: ./artifacts/${{ matrix.targetFramework }}/*.nupkg
+
+    - name: Publish to NuGet
+      if: startsWith(github.ref, 'refs/tags/') && matrix.targetFramework == 'net10.0'
+      env:
+        NUGET_AUTH_TOKEN: ${{ secrets.NUGET_TOKEN }}
+      run: dotnet nuget push ./artifacts/${{ matrix.targetFramework }}/*.nupkg --api-key "$NUGET_AUTH_TOKEN" --source https://api.nuget.org/v3/index.json --skip-duplicate
