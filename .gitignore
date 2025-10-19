@@ -1,5 +1,35 @@
+# Build outputs
 bin/
+[Bb]uild/
 obj/
+TestResults/
+
+# Dependencies
 /packages/
+
+# Generated files
+*.g.cs
+*.g.i.cs
+*.generated.cs
+*.designer.cs
+Generated/
+
+# Publish artifacts
+[Pp]ublish/
+artifacts/
+*.nupkg
+*.snupkg
+
+# IDE artifacts
+.vs/
+.idea/
 riderModule.iml
+*.iml
 /_ReSharper.Caches/
+
+# User-specific settings
+*.user
+*.suo
+
+# Logs
+*.log

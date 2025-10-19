@@ -132,6 +132,12 @@ The workflow uses the same helper script and sets `ARTIFACT_ROOT=artifacts/profi
 2. During regression investigations, re-run the recipes and diff metrics (for example, `git diff --stat artifacts/profiling`).
 3. Share the `.nettrace` or SpeedScope JSON with the team; annotate findings such as long-lived goroutines or elevated GC pause ratios.
 
+## Step 6: Inspect baselines with the analyzer
+
+- Run `dotnet run --project tools/Hugo.ProfilingAnalyzer/Hugo.ProfilingAnalyzer.csproj -- artifacts/profiling/<timestamp>` to summarize counters after a collection. The CLI highlights wait-group leaks, channel latency spikes, GC pause ratios, and other heuristics derived from the captured metrics.
+- Pass `--sort p95`, `--provider Hugo.Go`, or `--include-system` to focus the counter table on the most relevant signals. Combine `--findings-only` when you just want the heuristic verdict in CI logs.
+- Invoke the analyzer on GitHub Actions artifacts by downloading the timestamped folder and pointing the command at the extracted directory (`counters.csv` is discovered automatically).
+
 ## Troubleshooting
 
 - **Empty Hugo counters**: ensure `GoDiagnostics.Configure` executes before channel or wait-group creation, and confirm the process runs on .NET 6+ where EventPipe supports custom meters.

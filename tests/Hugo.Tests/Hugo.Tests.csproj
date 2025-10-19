@@ -42,6 +42,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\src\Hugo\Hugo.csproj" />
+            <ProjectReference Include="..\..\src\Hugo.Profiling\Hugo.Profiling.csproj" />
     </ItemGroup>
 
 </Project>
