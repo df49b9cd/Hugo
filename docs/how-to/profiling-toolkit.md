@@ -113,6 +113,19 @@ dotnet monitor collect \
 
 Run `dotnet monitor help collect` for all switches, including exporting straight to an OTLP backend or Azure Blob Storage.
 
+### Automate baselines in CI with GitHub Actions
+
+Ship reproducible baselines straight from CI by running the `Hugo Profiling Baseline` workflow that lives at `.github/workflows/profiling-baseline.yml`:
+
+1. Navigate to **Actions ▸ Hugo Profiling Baseline ▸ Run workflow** and provide overrides when needed. The workflow defaults to `samples/Hugo.WorkerSample`, publishes it for `net10.0`, waits 10 seconds for warmup, and then calls `collect-baseline.sh` so the timestamped artifacts mirror local captures.
+2. Customize collection knobs through the dispatch inputs:
+    - `runDuration` and `traceDuration` control the underlying `dotnet-counters collect` and `dotnet-trace collect` durations.
+    - `sampleProject`, `targetFramework`, and `dotnetVersion` let you target any Hugo-based worker or service in the repo.
+    - `waitForWarmupSeconds` ensures background workloads have emitted metrics before sampling begins.
+3. After completion, download the uploaded artifacts (`profiling-<run-id>` and `worker-log-<run-id>`) from the workflow run and check them into your baselines repo or attach them to an incident.
+
+The workflow uses the same helper script and sets `ARTIFACT_ROOT=artifacts/profiling`, so you get consistent folder naming between local and CI scenarios. When profiling a different service, publish the corresponding project and update the `ProcessName` filter in `collection-rules.sample.json` to match the executable that runs in production.
+
 ## Step 5: Compare and share baselines
 
 1. Commit a golden set of counters and traces for healthy builds in source control or artifact storage.

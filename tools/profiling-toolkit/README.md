@@ -25,6 +25,10 @@ pwsh ./tools/profiling-toolkit/collect-baseline.ps1 -Name WorkerService -Profile
 > [!NOTE]
 > Mark the bash script executable (`chmod +x tools/profiling-toolkit/collect-baseline.sh`) before first use.
 
+## CI workflow
+
+Trigger `.github/workflows/profiling-baseline.yml` from GitHub Actions to publish a sample (defaults to `samples/Hugo.WorkerSample`), wait for warmup, and invoke the bash helper. Dispatch inputs mirror the script arguments (`runDuration`, `traceDuration`, `waitForWarmupSeconds`, etc.), and the workflow uploads the timestamped folder from `artifacts/profiling/<timestamp>` alongside the worker log. Point `sampleProject` at any Hugo-hosted worker to reuse the same automation.
+
 ## Collection rule template
 
 The `collection-rules.sample.json` file seeds a `dotnet monitor` configuration that:

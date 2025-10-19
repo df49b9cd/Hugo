@@ -1,0 +1,96 @@
+name: Hugo Profiling Baseline
+
+on:
+  workflow_dispatch:
+    inputs:
+      dotnetVersion:
+        description: ".NET SDK version"
+        default: "10.0.x"
+        required: true
+      sampleProject:
+        description: "Relative path to the sample project to profile"
+        default: "samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj"
+        required: true
+      targetFramework:
+        description: "Target framework to publish"
+        default: "net10.0"
+        required: true
+      runDuration:
+        description: "Duration for dotnet-counters collect"
+        default: "00:01:00"
+        required: true
+      traceDuration:
+        description: "Duration for dotnet-trace collect"
+        default: "00:00:30"
+        required: true
+      waitForWarmupSeconds:
+        description: "Seconds to wait before collecting diagnostics"
+        default: "10"
+        required: true
+
+jobs:
+  collect-profiling-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      ARTIFACT_ROOT: artifacts/profiling
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ github.event.inputs.dotnetVersion }}
+
+      - name: Restore sample
+        run: dotnet restore ${{ github.event.inputs.sampleProject }}
+
+      - name: Publish sample
+        run: dotnet publish ${{ github.event.inputs.sampleProject }} --configuration Release --framework ${{ github.event.inputs.targetFramework }} --output publish
+
+      - name: Launch worker
+        id: launch
+        run: |
+          project="${{ github.event.inputs.sampleProject }}"
+          assembly="$(basename "$project" .csproj).dll"
+          nohup dotnet "publish/$assembly" > worker.log 2>&1 &
+          echo "pid=$!" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for warmup
+        run: sleep ${{ github.event.inputs.waitForWarmupSeconds }}
+
+      - name: Ensure artifacts root
+        run: mkdir -p "$ARTIFACT_ROOT"
+
+      - name: Collect baseline
+        run: ./tools/profiling-toolkit/collect-baseline.sh --pid ${{ steps.launch.outputs.pid }} --duration ${{ github.event.inputs.runDuration }} --trace-duration ${{ github.event.inputs.traceDuration }} --output "$ARTIFACT_ROOT"
+
+      - name: Convert timestamp to env
+        id: timestamp
+        run: |
+          latest=$(ls -1dt "$ARTIFACT_ROOT"/*/ | head -n 1)
+          echo "folder=${latest%/}" >> "$GITHUB_OUTPUT"
+
+      - name: Stop worker
+        if: steps.launch.outputs.pid != ''
+        run: |
+          kill ${{ steps.launch.outputs.pid }} || true
+          wait ${{ steps.launch.outputs.pid }} 2>/dev/null || true
+
+      - name: Upload profiling artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: profiling-${{ github.run_id }}
+          path: ${{ steps.timestamp.outputs.folder }}
+
+      - name: Upload worker log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: worker-log-${{ github.run_id }}
+          path: worker.log
