@@ -34,13 +34,13 @@ jobs:
       run: dotnet restore Hugo.slnx --nologo
 
     - name: Build (.NET 9)
-      run: dotnet build src/Hugo/Hugo.csproj --configuration Release --no-restore --framework net9.0 /p:Version=${{ steps.gitversion.outputs.semVer }}
+      run: dotnet build src/Hugo/Hugo.csproj --configuration Release --no-restore /p:Version=${{ steps.gitversion.outputs.semVer }}
 
     - name: Test (.NET 9)
       run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --no-restore --framework net9.0 --collect:"XPlat Code Coverage" --results-directory tests/Hugo.Tests/TestResults/net9
 
     - name: Pack (.NET 9)
-      run: dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:TargetFramework=net9.0 -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/net9
+      run: dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/net9
 
     - name: Upload Coverage Report
       uses: actions/upload-artifact@v4

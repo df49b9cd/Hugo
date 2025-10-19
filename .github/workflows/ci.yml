@@ -34,13 +34,13 @@ jobs:
       run: dotnet restore Hugo.slnx --nologo
 
     - name: Build
-      run: dotnet build Hugo.slnx --configuration Release --no-restore /p:TargetFramework=net10.0 /p:Version=${{ steps.gitversion.outputs.semVer }}
+      run: dotnet build Hugo.slnx --configuration Release --no-restore /p:Version=${{ steps.gitversion.outputs.semVer }}
 
     - name: Test with coverage
       run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --no-build --framework net10.0 --collect:"XPlat Code Coverage" --results-directory tests/Hugo.Tests/TestResults/net10
 
     - name: Pack
-      run: dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:TargetFramework=net10.0 -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/net10
+      run: dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/net10
 
     - name: Upload NuGet Package
       uses: actions/upload-artifact@v4
