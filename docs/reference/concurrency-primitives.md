@@ -82,13 +82,15 @@ await using (await rwMutex.LockAsync(ct))
 
 ## Channels
 
-`Go.MakeChannel<T>` creates unbounded or bounded channels for message passing.
+`Go.MakeChannel<T>` creates unbounded or bounded channels for message passing. Fluent builders provide DI-friendly factories when you need to customise options once and share the channel through dependency injection.
 
 ### Overloads
 
 - `MakeChannel<T>(int? capacity = null)`
 - `MakeChannel<T>(BoundedChannelOptions options)`
 - `MakePrioritizedChannel<T>(int priorityLevels, int defaultPriority)`
+- `Go.BoundedChannel<T>(int capacity)`
+- `Go.PrioritizedChannel<T>()` / `Go.PrioritizedChannel<T>(int priorityLevels)`
 
 ### Channel usage
 
@@ -102,6 +104,22 @@ var value = await channel.Reader.ReadAsync(ct);
 
 - Bounded channels respect `FullMode` from `BoundedChannelOptions`.
 - `TryComplete(Exception?)` propagates faults to readers.
+
+### Channel builders
+
+```csharp
+services.AddBoundedChannel<Job>(capacity: 64, builder => builder
+    .SingleWriter()
+    .WithFullMode(BoundedChannelFullMode.DropOldest));
+
+services.AddPrioritizedChannel<Job>(priorityLevels: 3, builder => builder
+    .WithCapacityPerLevel(32)
+    .WithDefaultPriority(1));
+```
+
+- `AddBoundedChannel<T>` registers a `Channel<T>` alongside its reader and writer.
+- `AddPrioritizedChannel<T>` registers `PrioritizedChannel<T>`, the prioritized reader/writer helpers, and the base `ChannelReader<T>`/`ChannelWriter<T>` facades.
+- Builders expose `.Build()` when you need an inline channel instance without DI.
 
 ## Select helpers
 

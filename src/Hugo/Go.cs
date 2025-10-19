@@ -101,6 +101,21 @@ public static class Go
     public static SelectBuilder<TResult> Select<TResult>(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default) =>
         new(timeout, provider, cancellationToken);
 
+    /// <summary>
+    /// Creates a fluent builder that configures a bounded channel instance.
+    /// </summary>
+    public static BoundedChannelBuilder<T> BoundedChannel<T>(int capacity) => new(capacity);
+
+    /// <summary>
+    /// Creates a fluent builder that configures a prioritized channel instance.
+    /// </summary>
+    public static PrioritizedChannelBuilder<T> PrioritizedChannel<T>() => new();
+
+    /// <summary>
+    /// Creates a fluent builder that configures a prioritized channel instance with the specified priority levels.
+    /// </summary>
+    public static PrioritizedChannelBuilder<T> PrioritizedChannel<T>(int priorityLevels) => new(priorityLevels);
+
     private static async Task<Result<Unit>> SelectInternalAsync(ChannelCase[] cases, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(cases);

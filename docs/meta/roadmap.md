@@ -3,7 +3,6 @@
 ## In progress
 
 - **Structured API reference**: Expand XML docs and integrate with DocFX to keep the reference section in sync with the codebase.
-- **Channel builders**: Provide fluent factories for prioritised and bounded channels to simplify DI registration.
 - **Diagnostics exporters**: Prototype `Hugo.Diagnostics.OpenTelemetry` with opinionated views and histogram boundaries.
 - **Profiling toolkit**: Document dotnet diagnostic recipes (`docs/how-to/profiling-toolkit.md`), ship helper scripts and collection rule templates under `tools/profiling-toolkit`, capture reproducible traces with `dotnet-trace`, watch runtime counters with `dotnet-counters`, and surface automated collection rules via `dotnet-monitor` to detect throughput and GC regressions. **Status:** GitHub Actions baseline workflow available; iterate on additional automation samples as needed.
 
@@ -13,6 +12,7 @@
 - **Timer primitives**: `Go.After`, `Go.AfterAsync`, `Go.NewTicker`, and `Go.Tick` built on `TimeProvider` for deterministic tests.
 - **Cancellation audit**: Async combinators propagate `Error.Canceled` with origin metadata; `Go.SelectAsync` surfaces structured failures.
 - **Select ergonomics**: Added `Go.SelectFanInAsync`, `Go.FanInAsync`, and `Go.FanIn` for ergonomic fan-in workflows.
+- **Channel builders**: Fluent factories and DI helpers for bounded and prioritised channels.
 
 ## Backlog
 
