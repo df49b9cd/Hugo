@@ -5,6 +5,7 @@
 - **Structured API reference**: Expand XML docs and integrate with DocFX to keep the reference section in sync with the codebase.
 - **Channel builders**: Provide fluent factories for prioritised and bounded channels to simplify DI registration.
 - **Diagnostics exporters**: Prototype `Hugo.Diagnostics.OpenTelemetry` with opinionated views and histogram boundaries.
+- **Profiling toolkit**: Capture reproducible traces with `dotnet-trace`, watch runtime counters with `dotnet-counters`, and surface automated collection recipes via `dotnet-monitor` for detecting throughput and GC regressions.
 
 ## Recently shipped
 
