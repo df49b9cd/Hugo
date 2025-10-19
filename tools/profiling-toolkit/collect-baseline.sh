@@ -169,7 +169,7 @@ if [[ $skip_trace -eq 0 ]]; then
     speedscope_file="$output_root/hugo.speedscope.json"
 
     echo "[collect-baseline] Running dotnet-trace collect for $trace_duration"
-    trace_cmd=(dotnet-trace collect "${target_args[@]}" --duration "$trace_duration" --profile "$profile" --output "$trace_file")
+    trace_cmd=(dotnet-trace --yes collect "${target_args[@]}" --duration "$trace_duration" --profile "$profile" --output "$trace_file")
     if [[ -n "$providers" ]]; then
         trace_cmd+=(--providers "$providers")
     fi
