@@ -155,7 +155,7 @@ echo "[collect-baseline] Target: ${target_args[*]}"
 if [[ $skip_counters -eq 0 ]]; then
     counters_file="$output_root/counters.csv"
     echo "[collect-baseline] Running dotnet-counters collect for $duration"
-    run_tool dotnet-counters collect "${target_args[@]}" \
+    run_tool dotnet-counters --yes collect "${target_args[@]}" \
         --refresh-interval "$refresh_interval" \
         --format csv \
         --output "$counters_file" \
