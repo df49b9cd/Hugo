@@ -1,6 +1,5 @@
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Threading.Channels;
 using Microsoft.Extensions.Time.Testing;
 using static Hugo.Go;
@@ -15,7 +14,10 @@ public class GoTests
         using (Defer(() => Console.WriteLine("[ReadFileContent] Cleanup finished.")))
         {
             if (string.IsNullOrWhiteSpace(path))
+            {
                 return Err<string>("Path cannot be null or empty.");
+            }
+
             try
             {
                 return Ok(File.ReadAllText(path));

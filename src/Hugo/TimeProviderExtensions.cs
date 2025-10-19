@@ -4,32 +4,26 @@ internal static class TimeProviderExtensions
 {
     public static Task DelayAsync(this TimeProvider provider, TimeSpan delay, CancellationToken cancellationToken = default)
     {
-        if (provider is null)
-            throw new ArgumentNullException(nameof(provider));
+        ArgumentNullException.ThrowIfNull(provider);
 
         if (delay == Timeout.InfiniteTimeSpan)
+        {
             return Task.Delay(Timeout.Infinite, cancellationToken);
+        }
 
         var state = new DelayState(provider, delay, cancellationToken);
         state.Initialize();
         return state.Task;
     }
 
-    private sealed class DelayState
+    private sealed class DelayState(TimeProvider provider, TimeSpan dueTime, CancellationToken cancellationToken)
     {
-        private readonly TimeProvider _provider;
-        private readonly TimeSpan _dueTime;
-        private readonly CancellationToken _cancellationToken;
+        private readonly TimeProvider _provider = provider;
+        private readonly TimeSpan _dueTime = dueTime;
+        private readonly CancellationToken _cancellationToken = cancellationToken;
         private readonly TaskCompletionSource _tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private ITimer? _timer;
         private CancellationTokenRegistration _registration;
-
-        public DelayState(TimeProvider provider, TimeSpan dueTime, CancellationToken cancellationToken)
-        {
-            _provider = provider;
-            _dueTime = dueTime;
-            _cancellationToken = cancellationToken;
-        }
 
         public Task Task => _tcs.Task;
 

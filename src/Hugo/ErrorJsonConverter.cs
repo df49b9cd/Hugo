@@ -250,19 +250,29 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
     private static object? ParseStringMetadata(string? value)
     {
         if (value is null)
+        {
             return null;
+        }
 
         if (TimeSpan.TryParseExact(value, ["c", "g", "G"], CultureInfo.InvariantCulture, out var timeSpan))
+        {
             return timeSpan;
+        }
 
         if (Guid.TryParse(value, out var guid))
+        {
             return guid;
+        }
 
         if (DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dateTimeOffset))
+        {
             return dateTimeOffset;
+        }
 
         if (DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dateTime))
+        {
             return dateTime;
+        }
 
         return value;
     }
@@ -304,18 +314,11 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
             && messageProperty.ValueKind == JsonValueKind.String;
     }
 
-    private sealed class SerializedErrorException : Exception
+    private sealed class SerializedErrorException(string? typeName, string? message, string? stackTrace) : Exception(message ?? typeName ?? nameof(SerializedErrorException))
     {
-        private readonly string? _stackTrace;
+        private readonly string? _stackTrace = stackTrace;
 
-        public SerializedErrorException(string? typeName, string? message, string? stackTrace)
-            : base(message ?? typeName ?? nameof(SerializedErrorException))
-        {
-            TypeName = typeName;
-            _stackTrace = stackTrace;
-        }
-
-        public string? TypeName { get; }
+        public string? TypeName { get; } = typeName;
 
         public override string? StackTrace => _stackTrace ?? base.StackTrace;
     }

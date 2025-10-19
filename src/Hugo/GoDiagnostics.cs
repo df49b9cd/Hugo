@@ -29,8 +29,7 @@ public static class GoDiagnostics
     /// </summary>
     public static void Configure(IMeterFactory factory, string? meterName = null)
     {
-        if (factory is null)
-            throw new ArgumentNullException(nameof(factory));
+        ArgumentNullException.ThrowIfNull(factory);
 
         var options = new MeterOptions(meterName ?? DefaultMeterName);
         Configure(factory.Create(options));
@@ -41,8 +40,7 @@ public static class GoDiagnostics
     /// </summary>
     public static void Configure(Meter meter)
     {
-        if (meter is null)
-            throw new ArgumentNullException(nameof(meter));
+        ArgumentNullException.ThrowIfNull(meter);
 
         lock (Sync)
         {
@@ -87,7 +85,9 @@ public static class GoDiagnostics
     internal static void RecordWaitGroupAdd(int delta)
     {
         if (delta <= 0)
+        {
             return;
+        }
 
         _waitGroupAdditions?.Add(delta);
         _waitGroupOutstanding?.Add(delta);
@@ -126,7 +126,9 @@ public static class GoDiagnostics
     internal static void RecordChannelDepth(long depth)
     {
         if (depth < 0)
+        {
             return;
+        }
 
         _channelDepth?.Record(depth);
     }

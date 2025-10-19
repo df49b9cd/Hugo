@@ -1,4 +1,3 @@
-using System;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Hugo;
@@ -22,7 +21,9 @@ public readonly record struct Optional<T>
     public static Optional<T> Some(T value)
     {
         if (value is null)
+        {
             throw new ArgumentNullException(nameof(value));
+        }
 
         return new Optional<T>(value, true);
     }
@@ -72,8 +73,7 @@ public readonly record struct Optional<T>
     /// </summary>
     public T ValueOr(Func<T> fallbackFactory)
     {
-        if (fallbackFactory is null)
-            throw new ArgumentNullException(nameof(fallbackFactory));
+        ArgumentNullException.ThrowIfNull(fallbackFactory);
 
         return HasValue ? _value : fallbackFactory();
     }
@@ -83,10 +83,9 @@ public readonly record struct Optional<T>
     /// </summary>
     public TResult Match<TResult>(Func<T, TResult> onValue, Func<TResult> onNone)
     {
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
-        if (onNone is null)
-            throw new ArgumentNullException(nameof(onNone));
+        ArgumentNullException.ThrowIfNull(onValue);
+
+        ArgumentNullException.ThrowIfNull(onNone);
 
         return HasValue ? onValue(_value) : onNone();
     }
@@ -96,10 +95,9 @@ public readonly record struct Optional<T>
     /// </summary>
     public void Switch(Action<T> onValue, Action onNone)
     {
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
-        if (onNone is null)
-            throw new ArgumentNullException(nameof(onNone));
+        ArgumentNullException.ThrowIfNull(onValue);
+
+        ArgumentNullException.ThrowIfNull(onNone);
 
         if (HasValue)
         {
@@ -116,8 +114,7 @@ public readonly record struct Optional<T>
     /// </summary>
     public Optional<TResult> Map<TResult>(Func<T, TResult> mapper)
     {
-        if (mapper is null)
-            throw new ArgumentNullException(nameof(mapper));
+        ArgumentNullException.ThrowIfNull(mapper);
 
         return HasValue ? Optional<TResult>.Some(mapper(_value)) : Optional<TResult>.None();
     }
@@ -127,8 +124,7 @@ public readonly record struct Optional<T>
     /// </summary>
     public Optional<TResult> Bind<TResult>(Func<T, Optional<TResult>> binder)
     {
-        if (binder is null)
-            throw new ArgumentNullException(nameof(binder));
+        ArgumentNullException.ThrowIfNull(binder);
 
         return HasValue ? binder(_value) : Optional<TResult>.None();
     }
@@ -138,11 +134,12 @@ public readonly record struct Optional<T>
     /// </summary>
     public Optional<T> Filter(Func<T, bool> predicate)
     {
-        if (predicate is null)
-            throw new ArgumentNullException(nameof(predicate));
+        ArgumentNullException.ThrowIfNull(predicate);
 
         if (!HasValue)
+        {
             return this;
+        }
 
         return predicate(_value) ? this : None();
     }
@@ -152,8 +149,7 @@ public readonly record struct Optional<T>
     /// </summary>
     public Result<T> ToResult(Func<Error> errorFactory)
     {
-        if (errorFactory is null)
-            throw new ArgumentNullException(nameof(errorFactory));
+        ArgumentNullException.ThrowIfNull(errorFactory);
 
         return HasValue ? Result.Ok(_value) : Result.Fail<T>(errorFactory() ?? Error.Unspecified());
     }

@@ -41,7 +41,9 @@ public class PrioritizedChannelBenchmarks
     private async Task ExecutePrioritizedAsync()
     {
         if (_priorities is null)
+        {
             throw new InvalidOperationException("Priorities were not initialized.");
+        }
 
         var options = new PrioritizedChannelOptions
         {
@@ -86,7 +88,9 @@ public class PrioritizedChannelBenchmarks
     private async Task ExecuteStandardAsync(bool bounded)
     {
         if (_priorities is null)
+        {
             throw new InvalidOperationException("Priorities were not initialized.");
+        }
 
         Channel<int> channel;
         if (bounded && UseBoundedCapacity)

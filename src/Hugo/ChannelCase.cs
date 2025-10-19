@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Threading.Channels;
 
 namespace Hugo;
@@ -28,8 +27,8 @@ public readonly struct ChannelCase
     /// </summary>
     public static ChannelCase Create<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<Go.Unit>>> onValue)
     {
-        if (reader is null)
-            throw new ArgumentNullException(nameof(reader));
+        ArgumentNullException.ThrowIfNull(reader);
+
         return onValue is null
             ? throw new ArgumentNullException(nameof(onValue))
             : new ChannelCase(
@@ -38,7 +37,9 @@ public readonly struct ChannelCase
                 try
                 {
                     if (!await reader.WaitToReadAsync(ct).ConfigureAwait(false))
+                    {
                         return (false, null);
+                    }
 
                     return (true, new DeferredRead<T>(reader));
                 }
@@ -96,35 +97,26 @@ public readonly struct ChannelCase
         });
 }
 
-internal sealed class DeferredRead<T>
+internal sealed class DeferredRead<T>(ChannelReader<T> reader)
 {
-    public DeferredRead(ChannelReader<T> reader)
-    {
-        Reader = reader ?? throw new ArgumentNullException(nameof(reader));
-    }
-
-    public ChannelReader<T> Reader { get; }
+    public ChannelReader<T> Reader { get; } = reader ?? throw new ArgumentNullException(nameof(reader));
 }
 
 /// <summary>
 /// Represents a reusable template for creating typed <see cref="ChannelCase"/> instances.
 /// </summary>
-public readonly struct ChannelCaseTemplate<T>
+/// <remarks>
+/// Initializes a new instance of the <see cref="ChannelCaseTemplate{T}"/> struct.
+/// </remarks>
+/// <param name="reader">The channel reader that drives the template.</param>
+/// <exception cref="ArgumentNullException">Thrown when <paramref name="reader"/> is <see langword="null"/>.</exception>
+public readonly struct ChannelCaseTemplate<T>(ChannelReader<T> reader)
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ChannelCaseTemplate{T}"/> struct.
-    /// </summary>
-    /// <param name="reader">The channel reader that drives the template.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="reader"/> is <see langword="null"/>.</exception>
-    public ChannelCaseTemplate(ChannelReader<T> reader)
-    {
-        Reader = reader ?? throw new ArgumentNullException(nameof(reader));
-    }
 
     /// <summary>
     /// Gets the channel reader associated with this template.
     /// </summary>
-    public ChannelReader<T> Reader { get; }
+    public ChannelReader<T> Reader { get; } = reader ?? throw new ArgumentNullException(nameof(reader));
 
     /// <summary>
     /// Creates a <see cref="ChannelCase"/> using the supplied continuation.
@@ -162,10 +154,9 @@ public static class ChannelCaseTemplates
     /// </summary>
     public static ChannelCase[] With<T>(this IEnumerable<ChannelCaseTemplate<T>> templates, Func<T, CancellationToken, Task<Result<Go.Unit>>> onValue)
     {
-        if (templates is null)
-            throw new ArgumentNullException(nameof(templates));
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
+        ArgumentNullException.ThrowIfNull(templates);
+
+        ArgumentNullException.ThrowIfNull(onValue);
 
         return Materialize(templates, template => template.With(onValue));
     }
@@ -175,10 +166,9 @@ public static class ChannelCaseTemplates
     /// </summary>
     public static ChannelCase[] With<T>(this IEnumerable<ChannelCaseTemplate<T>> templates, Func<T, Task<Result<Go.Unit>>> onValue)
     {
-        if (templates is null)
-            throw new ArgumentNullException(nameof(templates));
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
+        ArgumentNullException.ThrowIfNull(templates);
+
+        ArgumentNullException.ThrowIfNull(onValue);
 
         return Materialize(templates, template => template.With(onValue));
     }
@@ -188,10 +178,9 @@ public static class ChannelCaseTemplates
     /// </summary>
     public static ChannelCase[] With<T>(this IEnumerable<ChannelCaseTemplate<T>> templates, Func<T, CancellationToken, Task> onValue)
     {
-        if (templates is null)
-            throw new ArgumentNullException(nameof(templates));
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
+        ArgumentNullException.ThrowIfNull(templates);
+
+        ArgumentNullException.ThrowIfNull(onValue);
 
         return Materialize(templates, template => template.With(onValue));
     }
@@ -201,10 +190,9 @@ public static class ChannelCaseTemplates
     /// </summary>
     public static ChannelCase[] With<T>(this IEnumerable<ChannelCaseTemplate<T>> templates, Action<T> onValue)
     {
-        if (templates is null)
-            throw new ArgumentNullException(nameof(templates));
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
+        ArgumentNullException.ThrowIfNull(templates);
+
+        ArgumentNullException.ThrowIfNull(onValue);
 
         return Materialize(templates, template => template.With(onValue));
     }

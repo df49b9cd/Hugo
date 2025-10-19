@@ -154,7 +154,9 @@ public class SelectBenchmarks
                     remaining--;
                     progress = true;
                     if (remaining == 0)
+                    {
                         break;
+                    }
                 }
             }
 

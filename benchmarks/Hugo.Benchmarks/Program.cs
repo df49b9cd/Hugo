@@ -102,17 +102,17 @@ public class MutexBenchmarks
         {
         }
 
-        private sealed class AsyncReleaser : IAsyncDisposable
+        private sealed class AsyncReleaser(Hugo.Mutex.AsyncLockReleaser releaser) : IAsyncDisposable
         {
-            private Hugo.Mutex.AsyncLockReleaser _releaser;
+            private Hugo.Mutex.AsyncLockReleaser _releaser = releaser;
             private bool _disposed;
-
-            public AsyncReleaser(Hugo.Mutex.AsyncLockReleaser releaser) => _releaser = releaser;
 
             public ValueTask DisposeAsync()
             {
                 if (_disposed)
+                {
                     return ValueTask.CompletedTask;
+                }
 
                 _disposed = true;
                 return _releaser.DisposeAsync();
@@ -132,11 +132,9 @@ public class MutexBenchmarks
 
         public void Cleanup() => _semaphore.Dispose();
 
-        private sealed class Releaser : IAsyncDisposable
+        private sealed class Releaser(SemaphoreSlim semaphore) : IAsyncDisposable
         {
-            private SemaphoreSlim? _semaphore;
-
-            public Releaser(SemaphoreSlim semaphore) => _semaphore = semaphore;
+            private SemaphoreSlim? _semaphore = semaphore;
 
             public ValueTask DisposeAsync()
             {

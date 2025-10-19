@@ -26,7 +26,9 @@ internal static class BenchmarkWorkloads
     public static CancellationTokenSource CreateCancellationScope(bool enableCancellation, int cancelAfterMilliseconds = 2)
     {
         if (!enableCancellation)
+        {
             return new CancellationTokenSource();
+        }
 
         var cts = new CancellationTokenSource();
         cts.CancelAfter(TimeSpan.FromMilliseconds(cancelAfterMilliseconds));

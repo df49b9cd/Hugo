@@ -23,8 +23,7 @@ public static class Result
     /// </summary>
     public static Result<T> FromOptional<T>(Optional<T> optional, Func<Error> errorFactory)
     {
-        if (errorFactory is null)
-            throw new ArgumentNullException(nameof(errorFactory));
+        ArgumentNullException.ThrowIfNull(errorFactory);
 
         return optional.TryGetValue(out var value)
             ? Ok(value)
@@ -36,8 +35,7 @@ public static class Result
     /// </summary>
     public static Result<T> Try<T>(Func<T> operation, Func<Exception, Error?>? errorFactory = null)
     {
-        if (operation is null)
-            throw new ArgumentNullException(nameof(operation));
+        ArgumentNullException.ThrowIfNull(operation);
 
         try
         {
@@ -55,8 +53,7 @@ public static class Result
     /// </summary>
     public static async Task<Result<T>> TryAsync<T>(Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken = default, Func<Exception, Error?>? errorFactory = null)
     {
-        if (operation is null)
-            throw new ArgumentNullException(nameof(operation));
+        ArgumentNullException.ThrowIfNull(operation);
 
         try
         {
@@ -79,8 +76,7 @@ public static class Result
     /// </summary>
     public static Result<IReadOnlyList<T>> Sequence<T>(IEnumerable<Result<T>> results)
     {
-        if (results is null)
-            throw new ArgumentNullException(nameof(results));
+        ArgumentNullException.ThrowIfNull(results);
 
         var values = new List<T>();
         foreach (var result in results)
@@ -101,10 +97,9 @@ public static class Result
     /// </summary>
     public static Result<IReadOnlyList<TOut>> Traverse<TIn, TOut>(IEnumerable<TIn> source, Func<TIn, Result<TOut>> selector)
     {
-        if (source is null)
-            throw new ArgumentNullException(nameof(source));
-        if (selector is null)
-            throw new ArgumentNullException(nameof(selector));
+        ArgumentNullException.ThrowIfNull(source);
+
+        ArgumentNullException.ThrowIfNull(selector);
 
         var values = new List<TOut>();
         foreach (var item in source)
@@ -126,8 +121,7 @@ public static class Result
     /// </summary>
     public static Task<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(IEnumerable<TIn> source, Func<TIn, Task<Result<TOut>>> selector, CancellationToken cancellationToken = default)
     {
-        if (selector is null)
-            throw new ArgumentNullException(nameof(selector));
+        ArgumentNullException.ThrowIfNull(selector);
 
         return TraverseAsync(source, (item, _) => selector(item), cancellationToken);
     }
@@ -140,10 +134,9 @@ public static class Result
         Func<TIn, CancellationToken, Task<Result<TOut>>> selector,
         CancellationToken cancellationToken = default)
     {
-        if (source is null)
-            throw new ArgumentNullException(nameof(source));
-        if (selector is null)
-            throw new ArgumentNullException(nameof(selector));
+        ArgumentNullException.ThrowIfNull(source);
+
+        ArgumentNullException.ThrowIfNull(selector);
 
         var values = new List<TOut>();
 
@@ -174,8 +167,7 @@ public static class Result
     /// </summary>
     public static async Task<Result<IReadOnlyList<T>>> SequenceAsync<T>(IAsyncEnumerable<Result<T>> results, CancellationToken cancellationToken = default)
     {
-        if (results is null)
-            throw new ArgumentNullException(nameof(results));
+        ArgumentNullException.ThrowIfNull(results);
 
         var values = new List<T>();
         try
@@ -220,10 +212,9 @@ public static class Result
         Func<TIn, CancellationToken, ValueTask<Result<TOut>>> selector,
         CancellationToken cancellationToken = default)
     {
-        if (source is null)
-            throw new ArgumentNullException(nameof(source));
-        if (selector is null)
-            throw new ArgumentNullException(nameof(selector));
+        ArgumentNullException.ThrowIfNull(source);
+
+        ArgumentNullException.ThrowIfNull(selector);
 
         var values = new List<TOut>();
 
@@ -270,10 +261,9 @@ public static class Result
         Func<TIn, CancellationToken, ValueTask<Result<TOut>>> selector,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        if (source is null)
-            throw new ArgumentNullException(nameof(source));
-        if (selector is null)
-            throw new ArgumentNullException(nameof(selector));
+        ArgumentNullException.ThrowIfNull(source);
+
+        ArgumentNullException.ThrowIfNull(selector);
 
         var configuredSource = source.WithCancellation(cancellationToken).ConfigureAwait(false);
         await using var enumerator = configuredSource.GetAsyncEnumerator();
@@ -429,10 +419,9 @@ public readonly record struct Result<T>
     /// </summary>
     public void Switch(Action<T> onSuccess, Action<Error> onFailure)
     {
-        if (onSuccess is null)
-            throw new ArgumentNullException(nameof(onSuccess));
-        if (onFailure is null)
-            throw new ArgumentNullException(nameof(onFailure));
+        ArgumentNullException.ThrowIfNull(onSuccess);
+
+        ArgumentNullException.ThrowIfNull(onFailure);
 
         if (IsSuccess)
         {
@@ -449,10 +438,9 @@ public readonly record struct Result<T>
     /// </summary>
     public TResult Match<TResult>(Func<T, TResult> onSuccess, Func<Error, TResult> onFailure)
     {
-        if (onSuccess is null)
-            throw new ArgumentNullException(nameof(onSuccess));
-        if (onFailure is null)
-            throw new ArgumentNullException(nameof(onFailure));
+        ArgumentNullException.ThrowIfNull(onSuccess);
+
+        ArgumentNullException.ThrowIfNull(onFailure);
 
         return IsSuccess ? onSuccess(_value) : onFailure(Error!);
     }
@@ -462,10 +450,9 @@ public readonly record struct Result<T>
     /// </summary>
     public ValueTask SwitchAsync(Func<T, CancellationToken, ValueTask> onSuccess, Func<Error, CancellationToken, ValueTask> onFailure, CancellationToken cancellationToken = default)
     {
-        if (onSuccess is null)
-            throw new ArgumentNullException(nameof(onSuccess));
-        if (onFailure is null)
-            throw new ArgumentNullException(nameof(onFailure));
+        ArgumentNullException.ThrowIfNull(onSuccess);
+
+        ArgumentNullException.ThrowIfNull(onFailure);
 
         cancellationToken.ThrowIfCancellationRequested();
         return IsSuccess
@@ -478,10 +465,9 @@ public readonly record struct Result<T>
     /// </summary>
     public ValueTask<TResult> MatchAsync<TResult>(Func<T, CancellationToken, ValueTask<TResult>> onSuccess, Func<Error, CancellationToken, ValueTask<TResult>> onFailure, CancellationToken cancellationToken = default)
     {
-        if (onSuccess is null)
-            throw new ArgumentNullException(nameof(onSuccess));
-        if (onFailure is null)
-            throw new ArgumentNullException(nameof(onFailure));
+        ArgumentNullException.ThrowIfNull(onSuccess);
+
+        ArgumentNullException.ThrowIfNull(onFailure);
 
         cancellationToken.ThrowIfCancellationRequested();
         return IsSuccess

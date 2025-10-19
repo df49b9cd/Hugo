@@ -33,7 +33,9 @@ public sealed class WaitGroup
     public void Add(int delta)
     {
         if (delta <= 0)
+        {
             throw new ArgumentOutOfRangeException(nameof(delta), delta, "The delta must be a positive value.");
+        }
 
         var newValue = Interlocked.Add(ref _count, delta);
         if (newValue <= 0)
@@ -56,8 +58,7 @@ public sealed class WaitGroup
     /// </summary>
     public void Add(Task task)
     {
-        if (task is null)
-            throw new ArgumentNullException(nameof(task));
+        ArgumentNullException.ThrowIfNull(task);
 
         Add(1);
         task.ContinueWith(static (t, state) => ((WaitGroup)state!).Done(), this, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
@@ -68,8 +69,7 @@ public sealed class WaitGroup
     /// </summary>
     public void Go(Func<Task> work, CancellationToken cancellationToken = default)
     {
-        if (work is null)
-            throw new ArgumentNullException(nameof(work));
+        ArgumentNullException.ThrowIfNull(work);
 
         Add(1);
 
@@ -116,7 +116,9 @@ public sealed class WaitGroup
     public Task WaitAsync(CancellationToken cancellationToken = default)
     {
         if (Count == 0)
+        {
             return Task.CompletedTask;
+        }
 
         var awaitable = _tcs.Task;
         return cancellationToken.CanBeCanceled ? awaitable.WaitAsync(cancellationToken) : awaitable;
@@ -135,12 +137,16 @@ public sealed class WaitGroup
         }
 
         if (timeout < TimeSpan.Zero)
+        {
             throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
 
         provider ??= TimeProvider.System;
 
         if (Count == 0)
+        {
             return true;
+        }
 
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var waitTask = WaitAsync(linkedCts.Token);
@@ -191,11 +197,9 @@ public sealed class Mutex
     /// <summary>
     /// Releases the asynchronous lock when disposed.
     /// </summary>
-    public readonly struct AsyncLockReleaser : IAsyncDisposable, IDisposable
+    public readonly struct AsyncLockReleaser(SemaphoreSlim semaphore) : IAsyncDisposable, IDisposable
     {
-        private readonly SemaphoreSlim _semaphore;
-
-        public AsyncLockReleaser(SemaphoreSlim semaphore) => _semaphore = semaphore ?? throw new ArgumentNullException(nameof(semaphore));
+        private readonly SemaphoreSlim _semaphore = semaphore ?? throw new ArgumentNullException(nameof(semaphore));
 
         public void Dispose() => _semaphore.Release();
 
@@ -277,29 +281,23 @@ public sealed class RwMutex
 
     private void ReleaseWriter() => _writerGate.Release();
 
-    private readonly struct ReadScope : IDisposable
+    private readonly struct ReadScope(ReaderWriterLockSlim rwLock) : IDisposable
     {
-        private readonly ReaderWriterLockSlim _rwLock;
-
-        public ReadScope(ReaderWriterLockSlim rwLock) => _rwLock = rwLock;
+        private readonly ReaderWriterLockSlim _rwLock = rwLock;
 
         public void Dispose() => _rwLock.ExitReadLock();
     }
 
-    private readonly struct WriteScope : IDisposable
+    private readonly struct WriteScope(ReaderWriterLockSlim rwLock) : IDisposable
     {
-        private readonly ReaderWriterLockSlim _rwLock;
-
-        public WriteScope(ReaderWriterLockSlim rwLock) => _rwLock = rwLock;
+        private readonly ReaderWriterLockSlim _rwLock = rwLock;
 
         public void Dispose() => _rwLock.ExitWriteLock();
     }
 
-    public readonly struct AsyncReadReleaser : IAsyncDisposable, IDisposable
+    public readonly struct AsyncReadReleaser(RwMutex mutex) : IAsyncDisposable, IDisposable
     {
-        private readonly RwMutex _mutex;
-
-        public AsyncReadReleaser(RwMutex mutex) => _mutex = mutex;
+        private readonly RwMutex _mutex = mutex;
 
         public void Dispose() => _mutex.ReleaseReader();
 
@@ -310,11 +308,9 @@ public sealed class RwMutex
         }
     }
 
-    public readonly struct AsyncWriteReleaser : IAsyncDisposable, IDisposable
+    public readonly struct AsyncWriteReleaser(RwMutex mutex) : IAsyncDisposable, IDisposable
     {
-        private readonly RwMutex _mutex;
-
-        public AsyncWriteReleaser(RwMutex mutex) => _mutex = mutex;
+        private readonly RwMutex _mutex = mutex;
 
         public void Dispose() => _mutex.ReleaseWriter();
 
@@ -336,11 +332,12 @@ public sealed class Once
 
     public void Do(Action action)
     {
-        if (action is null)
-            throw new ArgumentNullException(nameof(action));
+        ArgumentNullException.ThrowIfNull(action);
 
         if (Volatile.Read(ref _done) == 1)
+        {
             return;
+        }
 
         lock (_lock)
         {
@@ -375,8 +372,7 @@ public sealed class Pool<T>
 
     public void Put(T item)
     {
-        if (item is null)
-            throw new ArgumentNullException(nameof(item));
+        ArgumentNullException.ThrowIfNull(item);
 
         _items.Add(item);
     }
@@ -413,7 +409,9 @@ public sealed class Error
     public Error WithMetadata(string key, object? value)
     {
         if (string.IsNullOrWhiteSpace(key))
+        {
             throw new ArgumentException("Metadata key must be provided.", nameof(key));
+        }
 
         var builder = CloneMetadata(_metadata, 1);
         builder[key] = value;
@@ -423,8 +421,7 @@ public sealed class Error
 
     public Error WithMetadata(IEnumerable<KeyValuePair<string, object?>> metadata)
     {
-        if (metadata is null)
-            throw new ArgumentNullException(nameof(metadata));
+        ArgumentNullException.ThrowIfNull(metadata);
 
         var builder = CloneMetadata(_metadata);
         foreach (var kvp in metadata)
@@ -458,8 +455,7 @@ public sealed class Error
 
     public static Error FromException(Exception exception, string? code = null)
     {
-        if (exception is null)
-            throw new ArgumentNullException(nameof(exception));
+        ArgumentNullException.ThrowIfNull(exception);
 
         var builder = new Dictionary<string, object?>(2, MetadataComparer)
         {
@@ -496,8 +492,7 @@ public sealed class Error
 
     public static Error Aggregate(string message, params Error[] errors)
     {
-        if (errors is null)
-            throw new ArgumentNullException(nameof(errors));
+        ArgumentNullException.ThrowIfNull(errors);
 
         var builder = new Dictionary<string, object?>(1, MetadataComparer)
         {
@@ -525,7 +520,9 @@ public sealed class Error
     private static FrozenDictionary<string, object?> FreezeMetadata(IReadOnlyDictionary<string, object?>? metadata)
     {
         if (metadata is null || metadata.Count == 0)
+        {
             return EmptyMetadata;
+        }
 
         return metadata is FrozenDictionary<string, object?> frozen && MetadataComparer.Equals(frozen.Comparer)
             ? frozen

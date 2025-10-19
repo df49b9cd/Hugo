@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using System.Threading;
 
 namespace Hugo;
 
@@ -82,7 +81,9 @@ internal sealed class TimerChannel : IAsyncDisposable, IDisposable
     private void OnTick()
     {
         if (Volatile.Read(ref _completed) == 1)
+        {
             return;
+        }
 
         PublishTick();
 
@@ -95,7 +96,9 @@ internal sealed class TimerChannel : IAsyncDisposable, IDisposable
     private void PublishTick()
     {
         if (Volatile.Read(ref _completed) == 1)
+        {
             return;
+        }
 
         var timestamp = _provider.GetUtcNow();
         _channel.Writer.TryWrite(timestamp);
@@ -109,7 +112,9 @@ internal sealed class TimerChannel : IAsyncDisposable, IDisposable
     private void Complete(Exception? error = null)
     {
         if (Interlocked.Exchange(ref _completed, 1) == 1)
+        {
             return;
+        }
 
         _cancellationRegistration.Dispose();
 

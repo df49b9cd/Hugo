@@ -29,8 +29,7 @@ public static class Functional
     /// </summary>
     public static Result<T> Tap<T>(this Result<T> result, Action<T> tap)
     {
-        if (tap is null)
-            throw new ArgumentNullException(nameof(tap));
+        ArgumentNullException.ThrowIfNull(tap);
 
         if (result.IsSuccess)
         {
@@ -50,8 +49,8 @@ public static class Functional
     /// </summary>
     public static TOut Finally<TIn, TOut>(this Result<TIn> result, Func<TIn, TOut> onSuccess, Func<Error, TOut> onError)
     {
-        if (onSuccess is null)
-            throw new ArgumentNullException(nameof(onSuccess));
+        ArgumentNullException.ThrowIfNull(onSuccess);
+
         return onError is null
             ? throw new ArgumentNullException(nameof(onError))
             : result.IsSuccess ? onSuccess(result.Value) : onError(result.Error!);
@@ -67,11 +66,12 @@ public static class Functional
     /// </summary>
     public static Result<T> Ensure<T>(this Result<T> result, Func<T, bool> predicate, Func<T, Error>? errorFactory = null)
     {
-        if (predicate is null)
-            throw new ArgumentNullException(nameof(predicate));
+        ArgumentNullException.ThrowIfNull(predicate);
 
         if (result.IsFailure || predicate(result.Value))
+        {
             return result;
+        }
 
         var error = errorFactory?.Invoke(result.Value) ?? Error.From("The result did not satisfy the required condition.", ErrorCodes.Validation);
         return Result.Fail<T>(error);
@@ -82,8 +82,7 @@ public static class Functional
     /// </summary>
     public static Result<T> OnSuccess<T>(this Result<T> result, Action<T> action)
     {
-        if (action is null)
-            throw new ArgumentNullException(nameof(action));
+        ArgumentNullException.ThrowIfNull(action);
 
         if (result.IsSuccess)
         {
@@ -98,8 +97,7 @@ public static class Functional
     /// </summary>
     public static Result<T> OnFailure<T>(this Result<T> result, Action<Error> action)
     {
-        if (action is null)
-            throw new ArgumentNullException(nameof(action));
+        ArgumentNullException.ThrowIfNull(action);
 
         if (result.IsFailure)
         {
@@ -114,8 +112,7 @@ public static class Functional
     /// </summary>
     public static Result<T> TapError<T>(this Result<T> result, Action<Error> tap)
     {
-        if (tap is null)
-            throw new ArgumentNullException(nameof(tap));
+        ArgumentNullException.ThrowIfNull(tap);
 
         if (result.IsFailure)
         {
@@ -146,13 +143,14 @@ public static class Functional
         Func<TIn, TMiddle, TOut> projector
     )
     {
-        if (binder is null)
-            throw new ArgumentNullException(nameof(binder));
-        if (projector is null)
-            throw new ArgumentNullException(nameof(projector));
+        ArgumentNullException.ThrowIfNull(binder);
+
+        ArgumentNullException.ThrowIfNull(projector);
 
         if (result.IsFailure)
+        {
             return Result.Fail<TOut>(result.Error!);
+        }
 
         var intermediate = binder(result.Value);
         return intermediate.IsFailure ? Result.Fail<TOut>(intermediate.Error!) : Result.Ok(projector(result.Value, intermediate.Value));
@@ -171,11 +169,12 @@ public static class Functional
         CancellationToken cancellationToken = default
     )
     {
-        if (next is null)
-            throw new ArgumentNullException(nameof(next));
+        ArgumentNullException.ThrowIfNull(next);
 
         if (result.IsFailure)
+        {
             return Result.Fail<TOut>(result.Error!);
+        }
 
         try
         {
@@ -197,17 +196,18 @@ public static class Functional
         CancellationToken cancellationToken = default
     )
     {
-        if (resultTask is null)
-            throw new ArgumentNullException(nameof(resultTask));
-        if (next is null)
-            throw new ArgumentNullException(nameof(next));
+        ArgumentNullException.ThrowIfNull(resultTask);
+
+        ArgumentNullException.ThrowIfNull(next);
 
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
+            {
                 return Result.Fail<TOut>(result.Error!);
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
             return next(result.Value);
@@ -227,17 +227,18 @@ public static class Functional
         CancellationToken cancellationToken = default
     )
     {
-        if (resultTask is null)
-            throw new ArgumentNullException(nameof(resultTask));
-        if (next is null)
-            throw new ArgumentNullException(nameof(next));
+        ArgumentNullException.ThrowIfNull(resultTask);
+
+        ArgumentNullException.ThrowIfNull(next);
 
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
+            {
                 return Result.Fail<TOut>(result.Error!);
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
             return await next(result.Value, cancellationToken).ConfigureAwait(false);
@@ -257,17 +258,18 @@ public static class Functional
         CancellationToken cancellationToken = default
     )
     {
-        if (resultTask is null)
-            throw new ArgumentNullException(nameof(resultTask));
-        if (mapper is null)
-            throw new ArgumentNullException(nameof(mapper));
+        ArgumentNullException.ThrowIfNull(resultTask);
+
+        ArgumentNullException.ThrowIfNull(mapper);
 
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
+            {
                 return Result.Fail<TOut>(result.Error!);
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
             return Result.Ok(mapper(result.Value));
@@ -287,11 +289,12 @@ public static class Functional
         CancellationToken cancellationToken = default
     )
     {
-        if (mapper is null)
-            throw new ArgumentNullException(nameof(mapper));
+        ArgumentNullException.ThrowIfNull(mapper);
 
         if (result.IsFailure)
+        {
             return Result.Fail<TOut>(result.Error!);
+        }
 
         try
         {
@@ -314,11 +317,12 @@ public static class Functional
         CancellationToken cancellationToken = default
     )
     {
-        if (tapAsync is null)
-            throw new ArgumentNullException(nameof(tapAsync));
+        ArgumentNullException.ThrowIfNull(tapAsync);
 
         if (result.IsFailure)
+        {
             return result;
+        }
 
         try
         {
@@ -341,10 +345,9 @@ public static class Functional
         CancellationToken cancellationToken = default
     )
     {
-        if (resultTask is null)
-            throw new ArgumentNullException(nameof(resultTask));
-        if (tap is null)
-            throw new ArgumentNullException(nameof(tap));
+        ArgumentNullException.ThrowIfNull(resultTask);
+
+        ArgumentNullException.ThrowIfNull(tap);
 
         try
         {
@@ -372,10 +375,9 @@ public static class Functional
         CancellationToken cancellationToken = default
     )
     {
-        if (resultTask is null)
-            throw new ArgumentNullException(nameof(resultTask));
-        if (tapAsync is null)
-            throw new ArgumentNullException(nameof(tapAsync));
+        ArgumentNullException.ThrowIfNull(resultTask);
+
+        ArgumentNullException.ThrowIfNull(tapAsync);
 
         try
         {
@@ -422,10 +424,9 @@ public static class Functional
         CancellationToken cancellationToken = default
     )
     {
-        if (resultTask is null)
-            throw new ArgumentNullException(nameof(resultTask));
-        if (recover is null)
-            throw new ArgumentNullException(nameof(recover));
+        ArgumentNullException.ThrowIfNull(resultTask);
+
+        ArgumentNullException.ThrowIfNull(recover);
 
         try
         {
@@ -448,17 +449,18 @@ public static class Functional
         CancellationToken cancellationToken = default
     )
     {
-        if (resultTask is null)
-            throw new ArgumentNullException(nameof(resultTask));
-        if (recoverAsync is null)
-            throw new ArgumentNullException(nameof(recoverAsync));
+        ArgumentNullException.ThrowIfNull(resultTask);
+
+        ArgumentNullException.ThrowIfNull(recoverAsync);
 
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsSuccess)
+            {
                 return result;
+            }
 
             cancellationToken.ThrowIfCancellationRequested();
             return await recoverAsync(result.Error!, cancellationToken).ConfigureAwait(false);
@@ -479,11 +481,12 @@ public static class Functional
         Func<T, Error>? errorFactory = null
     )
     {
-        if (predicate is null)
-            throw new ArgumentNullException(nameof(predicate));
+        ArgumentNullException.ThrowIfNull(predicate);
 
         if (result.IsFailure)
+        {
             return result;
+        }
 
         try
         {
@@ -507,10 +510,9 @@ public static class Functional
         Func<T, Error>? errorFactory = null
     )
     {
-        if (resultTask is null)
-            throw new ArgumentNullException(nameof(resultTask));
-        if (predicate is null)
-            throw new ArgumentNullException(nameof(predicate));
+        ArgumentNullException.ThrowIfNull(resultTask);
+
+        ArgumentNullException.ThrowIfNull(predicate);
 
         try
         {
@@ -534,12 +536,11 @@ public static class Functional
         CancellationToken cancellationToken = default
     )
     {
-        if (resultTask is null)
-            throw new ArgumentNullException(nameof(resultTask));
-        if (onSuccess is null)
-            throw new ArgumentNullException(nameof(onSuccess));
-        if (onError is null)
-            throw new ArgumentNullException(nameof(onError));
+        ArgumentNullException.ThrowIfNull(resultTask);
+
+        ArgumentNullException.ThrowIfNull(onSuccess);
+
+        ArgumentNullException.ThrowIfNull(onError);
 
         try
         {
@@ -564,10 +565,9 @@ public static class Functional
         CancellationToken cancellationToken = default
     )
     {
-        if (onSuccess is null)
-            throw new ArgumentNullException(nameof(onSuccess));
-        if (onError is null)
-            throw new ArgumentNullException(nameof(onError));
+        ArgumentNullException.ThrowIfNull(onSuccess);
+
+        ArgumentNullException.ThrowIfNull(onError);
 
         try
         {
@@ -592,12 +592,11 @@ public static class Functional
         CancellationToken cancellationToken = default
     )
     {
-        if (resultTask is null)
-            throw new ArgumentNullException(nameof(resultTask));
-        if (onSuccess is null)
-            throw new ArgumentNullException(nameof(onSuccess));
-        if (onError is null)
-            throw new ArgumentNullException(nameof(onError));
+        ArgumentNullException.ThrowIfNull(resultTask);
+
+        ArgumentNullException.ThrowIfNull(onSuccess);
+
+        ArgumentNullException.ThrowIfNull(onError);
 
         try
         {

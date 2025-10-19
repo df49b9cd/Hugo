@@ -20,7 +20,9 @@ public sealed class PrioritizedChannelOptions
         set
         {
             if (value <= 0)
+            {
                 throw new ArgumentOutOfRangeException(nameof(value));
+            }
 
             _priorityLevels = value;
         }
@@ -42,7 +44,9 @@ public sealed class PrioritizedChannelOptions
             }
 
             if (value < 0)
+            {
                 throw new ArgumentOutOfRangeException(nameof(value));
+            }
 
             _defaultPriority = value;
         }
@@ -63,7 +67,9 @@ public sealed class PrioritizedChannelOptions
             }
 
             if (value <= 0)
+            {
                 throw new ArgumentOutOfRangeException(nameof(value));
+            }
 
             _capacityPerLevel = value;
         }
@@ -100,12 +106,13 @@ public sealed class PrioritizedChannel<T>
     /// </summary>
     public PrioritizedChannel(PrioritizedChannelOptions options)
     {
-        if (options is null)
-            throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
 
         var levels = options.PriorityLevels;
         if (options.DefaultPriority is { } defaultPriority && defaultPriority >= levels)
+        {
             throw new ArgumentOutOfRangeException(nameof(options.DefaultPriority), "Default priority must be less than the number of priority levels.");
+        }
 
         var capacity = options.CapacityPerLevel;
         var readers = new ChannelReader<T>[levels];
@@ -209,12 +216,16 @@ public sealed class PrioritizedChannel<T>
         public override bool TryRead(out T item)
         {
             if (_buffer.TryDequeue(out item!))
+            {
                 return true;
+            }
 
             for (var i = 0; i < _readers.Length; i++)
             {
                 if (_readers[i].TryRead(out item!))
+                {
                     return true;
+                }
             }
 
             item = default!;
@@ -232,10 +243,14 @@ public sealed class PrioritizedChannel<T>
 
                 var hasData = await WaitToReadAsync(cancellationToken).ConfigureAwait(false);
                 if (!hasData)
+                {
                     throw new ChannelClosedException();
+                }
 
                 if (TryRead(out var item))
+                {
                     return item;
+                }
             }
         }
 
@@ -243,7 +258,9 @@ public sealed class PrioritizedChannel<T>
         public override ValueTask<bool> WaitToReadAsync(CancellationToken cancellationToken = default)
         {
             if (!_buffer.IsEmpty)
+            {
                 return new ValueTask<bool>(true);
+            }
 
             for (var i = 0; i < _readers.Length; i++)
             {
@@ -272,7 +289,9 @@ public sealed class PrioritizedChannel<T>
                 var completed = await Task.WhenAny(waitTasks).ConfigureAwait(false);
 
                 if (completed.IsFaulted)
+                {
                     await Task.FromException(completed.Exception!).ConfigureAwait(false);
+                }
 
                 var hasItems = false;
                 for (var priority = 0; priority < _readers.Length; priority++)
@@ -289,7 +308,9 @@ public sealed class PrioritizedChannel<T>
                 }
 
                 if (hasItems)
+                {
                     return true;
+                }
 
                 var allCompleted = true;
                 for (var i = 0; i < waitTasks.Length; i++)
@@ -309,7 +330,9 @@ public sealed class PrioritizedChannel<T>
                 }
 
                 if (allCompleted && _buffer.IsEmpty)
+                {
                     return false;
+                }
             }
         }
     }
@@ -326,7 +349,9 @@ public sealed class PrioritizedChannel<T>
         {
             _writers = writers ?? throw new ArgumentNullException(nameof(writers));
             if (defaultPriority < 0 || defaultPriority >= writers.Length)
+            {
                 throw new ArgumentOutOfRangeException(nameof(defaultPriority));
+            }
 
             _defaultPriority = defaultPriority;
         }

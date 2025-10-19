@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Threading.Channels;
 
 namespace Hugo;
@@ -19,7 +18,9 @@ public static class Go
     public static Task DelayAsync(TimeSpan delay, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
         if (delay < TimeSpan.Zero && delay != Timeout.InfiniteTimeSpan)
+        {
             throw new ArgumentOutOfRangeException(nameof(delay));
+        }
 
         provider ??= TimeProvider.System;
         return provider.DelayAsync(delay, cancellationToken);
@@ -31,7 +32,9 @@ public static class Go
     public static GoTicker NewTicker(TimeSpan period, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
         if (period <= TimeSpan.Zero)
+        {
             throw new ArgumentOutOfRangeException(nameof(period), period, "Ticker period must be positive.");
+        }
 
         provider ??= TimeProvider.System;
         var timerChannel = TimerChannel.Start(provider, period, period, cancellationToken, singleShot: false);
@@ -50,10 +53,14 @@ public static class Go
     public static ChannelReader<DateTimeOffset> After(TimeSpan delay, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
         if (delay == Timeout.InfiniteTimeSpan)
+        {
             throw new ArgumentOutOfRangeException(nameof(delay), delay, "Delay cannot be infinite.");
+        }
 
         if (delay < TimeSpan.Zero)
+        {
             throw new ArgumentOutOfRangeException(nameof(delay), delay, "Delay must be non-negative.");
+        }
 
         provider ??= TimeProvider.System;
         var timerChannel = TimerChannel.Start(provider, delay, Timeout.InfiniteTimeSpan, cancellationToken, singleShot: true);
@@ -95,12 +102,17 @@ public static class Go
 
     private static async Task<Result<Unit>> SelectInternalAsync(ChannelCase[] cases, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
     {
-        if (cases is null)
-            throw new ArgumentNullException(nameof(cases));
+        ArgumentNullException.ThrowIfNull(cases);
+
         if (cases.Length == 0)
+        {
             throw new ArgumentException("At least one channel case must be provided.", nameof(cases));
+        }
+
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+        {
             throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
 
         provider ??= TimeProvider.System;
         GoDiagnostics.RecordChannelSelectAttempt();
@@ -228,19 +240,22 @@ public static class Go
     /// </summary>
     public static Task<Result<Unit>> SelectFanInAsync<T>(IEnumerable<ChannelReader<T>> readers, Func<T, CancellationToken, Task<Result<Unit>>> onValue, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
-        if (readers is null)
-            throw new ArgumentNullException(nameof(readers));
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
+        ArgumentNullException.ThrowIfNull(readers);
+
+        ArgumentNullException.ThrowIfNull(onValue);
 
         var collected = CollectSources(readers);
         if (collected.Length == 0)
+        {
             return Task.FromResult(Result.Ok(Unit.Value));
+        }
 
         for (var i = 0; i < collected.Length; i++)
         {
             if (collected[i] is null)
+            {
                 throw new ArgumentException("Reader collection cannot contain null entries.", nameof(readers));
+            }
         }
 
         var effectiveTimeout = timeout ?? Timeout.InfiniteTimeSpan;
@@ -249,16 +264,14 @@ public static class Go
 
     public static Task<Result<Unit>> SelectFanInAsync<T>(IEnumerable<ChannelReader<T>> readers, Func<T, Task<Result<Unit>>> onValue, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
+        ArgumentNullException.ThrowIfNull(onValue);
 
         return SelectFanInAsync(readers, (value, _) => onValue(value), timeout, provider, cancellationToken);
     }
 
     public static Task<Result<Unit>> SelectFanInAsync<T>(IEnumerable<ChannelReader<T>> readers, Func<T, CancellationToken, Task> onValue, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
+        ArgumentNullException.ThrowIfNull(onValue);
 
         return SelectFanInAsync(readers, async (value, ct) =>
         {
@@ -269,8 +282,7 @@ public static class Go
 
     public static Task<Result<Unit>> SelectFanInAsync<T>(IEnumerable<ChannelReader<T>> readers, Func<T, Task> onValue, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
+        ArgumentNullException.ThrowIfNull(onValue);
 
         return SelectFanInAsync(readers, async (value, _) =>
         {
@@ -281,8 +293,7 @@ public static class Go
 
     public static Task<Result<Unit>> SelectFanInAsync<T>(IEnumerable<ChannelReader<T>> readers, Action<T> onValue, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
-        if (onValue is null)
-            throw new ArgumentNullException(nameof(onValue));
+        ArgumentNullException.ThrowIfNull(onValue);
 
         return SelectFanInAsync(readers, (value, _) =>
         {
@@ -296,10 +307,9 @@ public static class Go
     /// </summary>
     public static Task<Result<Unit>> FanInAsync<T>(IEnumerable<ChannelReader<T>> sources, ChannelWriter<T> destination, bool completeDestination = true, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
-        if (sources is null)
-            throw new ArgumentNullException(nameof(sources));
-        if (destination is null)
-            throw new ArgumentNullException(nameof(destination));
+        ArgumentNullException.ThrowIfNull(sources);
+
+        ArgumentNullException.ThrowIfNull(destination);
 
         var readers = CollectSources(sources);
         if (readers.Length == 0)
@@ -315,7 +325,9 @@ public static class Go
         for (var i = 0; i < readers.Length; i++)
         {
             if (readers[i] is null)
+            {
                 throw new ArgumentException("Source readers cannot contain null entries.", nameof(sources));
+            }
         }
 
         return FanInAsyncCore(readers, destination, completeDestination, timeout ?? Timeout.InfiniteTimeSpan, provider, cancellationToken);
@@ -326,8 +338,7 @@ public static class Go
     /// </summary>
     public static ChannelReader<T> FanIn<T>(IEnumerable<ChannelReader<T>> sources, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
-        if (sources is null)
-            throw new ArgumentNullException(nameof(sources));
+        ArgumentNullException.ThrowIfNull(sources);
 
         var readers = CollectSources(sources);
         var output = Channel.CreateUnbounded<T>();
@@ -366,7 +377,9 @@ public static class Go
         internal SelectBuilder(TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
         {
             if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+            {
                 throw new ArgumentOutOfRangeException(nameof(timeout));
+            }
 
             _timeout = timeout;
             _provider = provider;
@@ -375,10 +388,9 @@ public static class Go
 
         public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue)
         {
-            if (reader is null)
-                throw new ArgumentNullException(nameof(reader));
-            if (onValue is null)
-                throw new ArgumentNullException(nameof(onValue));
+            ArgumentNullException.ThrowIfNull(reader);
+
+            ArgumentNullException.ThrowIfNull(onValue);
 
             _caseFactories.Add(completion => CreateCase(reader, onValue, completion));
             return this;
@@ -386,32 +398,28 @@ public static class Go
 
         public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, Task<Result<TResult>>> onValue)
         {
-            if (onValue is null)
-                throw new ArgumentNullException(nameof(onValue));
+            ArgumentNullException.ThrowIfNull(onValue);
 
             return Case(reader, (value, _) => onValue(value));
         }
 
         public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<TResult>> onValue)
         {
-            if (onValue is null)
-                throw new ArgumentNullException(nameof(onValue));
+            ArgumentNullException.ThrowIfNull(onValue);
 
             return Case(reader, async (value, ct) => Result.Ok(await onValue(value, ct).ConfigureAwait(false)));
         }
 
         public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, Task<TResult>> onValue)
         {
-            if (onValue is null)
-                throw new ArgumentNullException(nameof(onValue));
+            ArgumentNullException.ThrowIfNull(onValue);
 
             return Case(reader, async (value, _) => Result.Ok(await onValue(value).ConfigureAwait(false)));
         }
 
         public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, TResult> onValue)
         {
-            if (onValue is null)
-                throw new ArgumentNullException(nameof(onValue));
+            ArgumentNullException.ThrowIfNull(onValue);
 
             return Case(reader, (value, _) => Task.FromResult(Result.Ok(onValue(value))));
         }
@@ -434,7 +442,9 @@ public static class Go
         public async Task<Result<TResult>> ExecuteAsync()
         {
             if (_caseFactories.Count == 0)
+            {
                 throw new InvalidOperationException("At least one channel case must be configured before executing the select.");
+            }
 
             var completion = new TaskCompletionSource<Result<TResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
             var cases = new ChannelCase[_caseFactories.Count];
@@ -446,10 +456,14 @@ public static class Go
             var selectResult = await Go.SelectAsync(_timeout, _provider, _cancellationToken, cases).ConfigureAwait(false);
 
             if (completion.Task.IsCompleted)
+            {
                 return await completion.Task.ConfigureAwait(false);
+            }
 
             if (selectResult.IsFailure)
+            {
                 return Result.Fail<TResult>(selectResult.Error ?? Error.Unspecified());
+            }
 
             return await completion.Task.ConfigureAwait(false);
         }
@@ -489,10 +503,14 @@ public static class Go
     private static ChannelReader<T>[] CollectSources<T>(IEnumerable<ChannelReader<T>> sources)
     {
         if (sources is ChannelReader<T>[] array)
+        {
             return array.Length == 0 ? Array.Empty<ChannelReader<T>>() : array;
+        }
 
         if (sources is List<ChannelReader<T>> list)
+        {
             return list.Count == 0 ? Array.Empty<ChannelReader<T>>() : list.ToArray();
+        }
 
         var collected = new List<ChannelReader<T>>();
         foreach (var reader in sources)
@@ -506,11 +524,15 @@ public static class Go
     private static async Task<Result<Unit>> SelectFanInAsyncCore<T>(ChannelReader<T>[] readers, Func<T, CancellationToken, Task<Result<Unit>>> onValue, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+        {
             throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
 
         var active = new List<ChannelReader<T>>(readers);
         if (active.Count == 0)
+        {
             return Result.Ok(Unit.Value);
+        }
 
         while (active.Count > 0)
         {
@@ -536,7 +558,9 @@ public static class Go
                 await WaitForCompletionsAsync(active).ConfigureAwait(false);
                 RemoveCompletedReaders(active);
                 if (active.Count == 0)
+                {
                     return Result.Ok(Unit.Value);
+                }
 
                 continue;
             }
@@ -560,7 +584,9 @@ public static class Go
         static Task WaitForCompletionsAsync(List<ChannelReader<T>> list)
         {
             if (list.Count == 0)
+            {
                 return Task.CompletedTask;
+            }
 
             var tasks = new Task[list.Count];
             for (var i = 0; i < list.Count; i++)
@@ -717,7 +743,9 @@ public static class Go
         };
 
         if (defaultPriority.HasValue)
+        {
             options.DefaultPriority = defaultPriority.Value;
+        }
 
         return MakeChannel<T>(options);
     }
@@ -747,11 +775,9 @@ public static class GoWaitGroupExtensions
     /// <example>wg.Go(async () => { ... });</example>
     public static void Go(this WaitGroup wg, Func<Task> func)
     {
-        if (wg is null)
-            throw new ArgumentNullException(nameof(wg));
+        ArgumentNullException.ThrowIfNull(wg);
 
-        if (func is null)
-            throw new ArgumentNullException(nameof(func));
+        ArgumentNullException.ThrowIfNull(func);
 
         wg.Add(Task.Run(func));
     }
@@ -761,11 +787,9 @@ public static class GoWaitGroupExtensions
     /// </summary>
     public static void Go(this WaitGroup wg, Func<CancellationToken, Task> func, CancellationToken cancellationToken)
     {
-        if (wg is null)
-            throw new ArgumentNullException(nameof(wg));
+        ArgumentNullException.ThrowIfNull(wg);
 
-        if (func is null)
-            throw new ArgumentNullException(nameof(func));
+        ArgumentNullException.ThrowIfNull(func);
 
         wg.Go(() => func(cancellationToken), cancellationToken);
     }
