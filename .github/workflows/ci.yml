@@ -1,4 +1,4 @@
-name: Build and Pack Hugo (.NET 10)
+name: Build Test Pack Hugo
 
 on:
   push:
@@ -7,8 +7,22 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build-dotnet-10:
+  build-test-pack:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - targetFramework: net9.0
+            resultsDirectory: tests/Hugo.Tests/TestResults/net9
+            coverageArtifact: coverage-net9
+            packageArtifact: nugetPackage-net9
+            sdkVersion: 10.0.x
+          - targetFramework: net10.0
+            resultsDirectory: tests/Hugo.Tests/TestResults/net10
+            coverageArtifact: coverage-net10
+            packageArtifact: nugetPackage-net10
+            sdkVersion: 10.0.x
 
     steps:
     - name: Checkout
@@ -16,15 +30,15 @@ jobs:
       with:
         fetch-depth: 0 # Necessary for GitVersion to work correctly
 
-    - name: Setup .NET 10 SDK
+    - name: Setup .NET SDK
       uses: actions/setup-dotnet@v5
       with:
-        dotnet-version: 10.0.x
+        dotnet-version: ${{ matrix.sdkVersion }}
 
     - name: Install GitVersion
       uses: gittools/actions/gitversion/setup@v4.1.0
       with:
-          versionSpec: '6.4.x'
+        versionSpec: '6.4.x'
 
     - name: Determine Version
       id: gitversion
@@ -36,20 +50,20 @@ jobs:
     - name: Build
       run: dotnet build Hugo.slnx --configuration Release --no-restore /p:Version=${{ steps.gitversion.outputs.semVer }}
 
-    - name: Test with coverage
-      run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --no-build --framework net10.0 --collect:"XPlat Code Coverage" --results-directory tests/Hugo.Tests/TestResults/net10
+    - name: Test ${{ matrix.targetFramework }} with coverage
+      run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory ${{ matrix.resultsDirectory }}
 
     - name: Pack
-      run: dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/net10
-
-    - name: Upload NuGet Package
-      uses: actions/upload-artifact@v4
-      with:
-        name: nugetPackage-net10
-        path: ./artifacts/net10/*.nupkg
+      run: dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
 
     - name: Upload Coverage Report
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-net10
-        path: tests/Hugo.Tests/TestResults/net10/**/*coverage.cobertura.xml
+        name: ${{ matrix.coverageArtifact }}
+        path: ${{ matrix.resultsDirectory }}/**/*coverage.cobertura.xml
+
+    - name: Upload NuGet Package
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.packageArtifact }}
+        path: ./artifacts/${{ matrix.targetFramework }}/*.nupkg
