@@ -87,6 +87,20 @@ public class GoTests
     }
 
     [Fact]
+    public async Task Mutex_AsyncReleaser_ShouldBeIdempotent()
+    {
+        var mutex = new Mutex();
+        var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
+
+        releaser.Dispose();
+        releaser.Dispose();
+
+        using (await mutex.LockAsync(TestContext.Current.CancellationToken))
+        {
+        }
+    }
+
+    [Fact]
     public async Task Once_ShouldExecuteAction_ExactlyOnce_Concurrently()
     {
         var once = new Once();

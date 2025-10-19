@@ -46,16 +46,27 @@ public sealed class Mutex : IDisposable
     /// <summary>
     /// Releases the asynchronous lock when disposed.
     /// </summary>
-    public readonly struct AsyncLockReleaser(SemaphoreSlim semaphore) : IAsyncDisposable, IDisposable
+    public struct AsyncLockReleaser : IAsyncDisposable, IDisposable
     {
-        private readonly SemaphoreSlim _semaphore = semaphore ?? throw new ArgumentNullException(nameof(semaphore));
+        private SemaphoreSlim? _semaphore;
 
-        public void Dispose() => _semaphore.Release();
+        internal AsyncLockReleaser(SemaphoreSlim semaphore)
+        {
+            _semaphore = semaphore ?? throw new ArgumentNullException(nameof(semaphore));
+        }
+
+        public void Dispose() => Release();
 
         public ValueTask DisposeAsync()
         {
-            _semaphore.Release();
+            Release();
             return ValueTask.CompletedTask;
+        }
+
+        private void Release()
+        {
+            var semaphore = Interlocked.Exchange(ref _semaphore, null);
+            semaphore?.Release();
         }
     }
 }

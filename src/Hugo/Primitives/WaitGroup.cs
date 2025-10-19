@@ -111,15 +111,23 @@ public sealed class WaitGroup
     /// <summary>
     /// Asynchronously waits for all registered operations to complete.
     /// </summary>
-    public Task WaitAsync(CancellationToken cancellationToken = default)
+    public async Task WaitAsync(CancellationToken cancellationToken = default)
     {
         if (Count == 0)
         {
-            return Task.CompletedTask;
+            cancellationToken.ThrowIfCancellationRequested();
+            return;
         }
 
         var awaitable = _tcs.Task;
-        return cancellationToken.CanBeCanceled ? awaitable.WaitAsync(cancellationToken) : awaitable;
+        if (cancellationToken.CanBeCanceled)
+        {
+            await awaitable.WaitAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return;
+        }
+
+        await awaitable.ConfigureAwait(false);
     }
 
     /// <summary>
