@@ -533,7 +533,7 @@ public class GoTests
     public async Task SelectAsync_ShouldThrow_WhenCasesNull() => await Assert.ThrowsAsync<ArgumentNullException>(() => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: null!));
 
     [Fact]
-    public async Task SelectAsync_ShouldThrow_WhenCasesEmpty() => await Assert.ThrowsAsync<ArgumentException>(() => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: Array.Empty<ChannelCase>()));
+    public async Task SelectAsync_ShouldThrow_WhenCasesEmpty() => await Assert.ThrowsAsync<ArgumentException>(() => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: []));
 
     [Fact]
     public async Task SelectAsync_ShouldThrow_WhenTimeoutIsNegative()
@@ -1027,7 +1027,7 @@ public class GoTests
 
         var merged = FanIn([source.Reader], cancellationToken: cts.Token);
 
-        await Assert.ThrowsAsync<OperationCanceledException>(async () => await merged.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await merged.ReadAsync(cts.Token));
         source.Writer.TryComplete();
     }
 

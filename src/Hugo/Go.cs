@@ -513,12 +513,12 @@ public static class Go
     {
         if (sources is ChannelReader<T>[] array)
         {
-            return array.Length == 0 ? Array.Empty<ChannelReader<T>>() : array;
+            return array.Length == 0 ? [] : array;
         }
 
         if (sources is List<ChannelReader<T>> list)
         {
-            return list.Count == 0 ? Array.Empty<ChannelReader<T>>() : list.ToArray();
+            return list.Count == 0 ? [] : [.. list];
         }
 
         var collected = new List<ChannelReader<T>>();
@@ -527,7 +527,7 @@ public static class Go
             collected.Add(reader);
         }
 
-        return collected.Count == 0 ? Array.Empty<ChannelReader<T>>() : collected.ToArray();
+        return collected.Count == 0 ? [] : [.. collected];
     }
 
     private static async Task<Result<Unit>> SelectFanInAsyncCore<T>(ChannelReader<T>[] readers, Func<T, CancellationToken, Task<Result<Unit>>> onValue, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
