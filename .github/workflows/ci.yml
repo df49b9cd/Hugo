@@ -1,4 +1,4 @@
-name: Build and Pack Hugo
+name: Build and Pack Hugo (.NET 10)
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  build-dotnet-10:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,12 +16,10 @@ jobs:
       with:
         fetch-depth: 0 # Necessary for GitVersion to work correctly
 
-    - name: Setup .NET
+    - name: Setup .NET 10 SDK
       uses: actions/setup-dotnet@v5
       with:
-        dotnet-version: |
-          10.0.x
-          9.0.x
+        dotnet-version: 10.0.x
 
     - name: Install GitVersion
       uses: gittools/actions/gitversion/setup@v4.1.0
@@ -32,23 +30,26 @@ jobs:
       id: gitversion
       uses: gittools/actions/gitversion/execute@v4.1.0
 
+    - name: Restore
+      run: dotnet restore Hugo.slnx --configuration Release /p:TargetFrameworks=net10.0
+
     - name: Build
-      run: dotnet build Hugo.slnx --configuration Release /p:Version=${{ steps.gitversion.outputs.semVer }}
+      run: dotnet build Hugo.slnx --configuration Release --no-restore /p:TargetFrameworks=net10.0 /p:Version=${{ steps.gitversion.outputs.semVer }}
 
     - name: Test with coverage
-      run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --collect:"XPlat Code Coverage"
+      run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --no-build --framework net10.0 --collect:"XPlat Code Coverage" --results-directory tests/Hugo.Tests/TestResults/net10
 
     - name: Pack
-      run: dotnet pack src/Hugo/Hugo.csproj --configuration Release /p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts
+      run: dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build --framework net10.0 /p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/net10
 
     - name: Upload NuGet Package
       uses: actions/upload-artifact@v4
       with:
-        name: nugetPackage
-        path: ./artifacts/*.nupkg
+        name: nugetPackage-net10
+        path: ./artifacts/net10/*.nupkg
 
     - name: Upload Coverage Report
       uses: actions/upload-artifact@v4
       with:
-        name: coverage
-        path: tests/Hugo.Tests/TestResults/**/*coverage.cobertura.xml
+        name: coverage-net10
+        path: tests/Hugo.Tests/TestResults/net10/**/*coverage.cobertura.xml
