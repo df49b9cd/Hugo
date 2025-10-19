@@ -34,7 +34,7 @@ public class ErrorJsonConverterTests
         Assert.Equal("inner", nested.Message);
         Assert.True(deserialized.Metadata.TryGetValue("tags", out var tags));
         var tagArray = Assert.IsType<object?[]>(tags);
-        Assert.Equal(new[] { "one", "two" }, tagArray.OfType<string>());
+        Assert.Equal(["one", "two"], tagArray.OfType<string>());
     }
 
     [Fact]

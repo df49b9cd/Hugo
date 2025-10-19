@@ -24,7 +24,7 @@ public class ResultTests
     public void Sequence_ShouldReturnFirstFailure()
     {
         var error = Error.From("fail");
-        var result = Result.Sequence(new[] { Result.Ok(1), Result.Fail<int>(error), Result.Ok(3) });
+        var result = Result.Sequence([Result.Ok(1), Result.Fail<int>(error), Result.Ok(3)]);
 
         Assert.True(result.IsFailure);
         Assert.Same(error, result.Error);
@@ -33,26 +33,26 @@ public class ResultTests
     [Fact]
     public void Sequence_ShouldAggregateSuccessfulValues()
     {
-        var result = Result.Sequence(new[] { Result.Ok(1), Result.Ok(2), Result.Ok(3) });
+        var result = Result.Sequence([Result.Ok(1), Result.Ok(2), Result.Ok(3)]);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { 1, 2, 3 }, result.Value);
+        Assert.Equal([1, 2, 3], result.Value);
     }
 
     [Fact]
     public void Traverse_ShouldApplySelector()
     {
-        var result = Result.Traverse(new[] { 1, 2, 3 }, n => Result.Ok(n * 2));
+        var result = Result.Traverse([1, 2, 3], n => Result.Ok(n * 2));
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { 2, 4, 6 }, result.Value);
+        Assert.Equal([2, 4, 6], result.Value);
     }
 
     [Fact]
     public void Traverse_ShouldStopOnFailure()
     {
         var error = Error.From("fail");
-        var result = Result.Traverse(new[] { 1, 2, 3 }, n => n == 2 ? Result.Fail<int>(error) : Result.Ok(n));
+        var result = Result.Traverse([1, 2, 3], n => n == 2 ? Result.Fail<int>(error) : Result.Ok(n));
 
         Assert.True(result.IsFailure);
         Assert.Same(error, result.Error);
@@ -61,10 +61,10 @@ public class ResultTests
     [Fact]
     public async Task TraverseAsync_ShouldAggregateSuccessfulValues()
     {
-    var result = await Result.TraverseAsync(new[] { 1, 2 }, n => Task.FromResult(Result.Ok(n + 1)), TestContext.Current.CancellationToken);
+    var result = await Result.TraverseAsync([1, 2], n => Task.FromResult(Result.Ok(n + 1)), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { 2, 3 }, result.Value);
+        Assert.Equal([2, 3], result.Value);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class ResultTests
     public async Task TraverseAsync_ShouldReturnFailure()
     {
         var error = Error.From("fail");
-    var result = await Result.TraverseAsync(new[] { 1, 2 }, n => Task.FromResult(n == 2 ? Result.Fail<int>(error) : Result.Ok(n)), TestContext.Current.CancellationToken);
+    var result = await Result.TraverseAsync([1, 2], n => Task.FromResult(n == 2 ? Result.Fail<int>(error) : Result.Ok(n)), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Same(error, result.Error);
@@ -89,7 +89,7 @@ public class ResultTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var result = await Result.TraverseAsync(new[] { 1 }, _ => Task.FromResult(Result.Ok(1)), cts.Token);
+        var result = await Result.TraverseAsync([1], _ => Task.FromResult(Result.Ok(1)), cts.Token);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -105,7 +105,7 @@ public class ResultTests
         var observed = false;
 
         var result = await Result.TraverseAsync(
-            new[] { 1, 2 },
+            [1, 2],
             (value, token) =>
             {
                 observedToken = token;
@@ -126,7 +126,7 @@ public class ResultTests
         cts.Cancel();
 
         var result = await Result.TraverseAsync(
-            new[] { 1 },
+            [1],
             (value, token) =>
             {
                 token.ThrowIfCancellationRequested();
@@ -154,7 +154,7 @@ public class ResultTests
     var result = await Result.SequenceAsync(Source(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { 1, 2 }, result.Value);
+        Assert.Equal([1, 2], result.Value);
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public class ResultTests
             TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { 2, 4 }, result.Value);
+        Assert.Equal([2, 4], result.Value);
     }
 
     [Fact]

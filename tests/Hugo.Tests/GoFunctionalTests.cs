@@ -142,14 +142,14 @@ public class GoFunctionalTests
             timeout: TimeSpan.FromSeconds(5),
             provider: provider,
             cancellationToken: TestContext.Current.CancellationToken,
-            cases: new[]
-            {
+            cases:
+            [
                 ChannelCase.Create(channel.Reader, (value, _) =>
                 {
                     collected.Add(value);
                     return Task.FromResult(Result.Ok(Unit.Value));
                 })
-            });
+            ]);
 
         Assert.False(selectTask.IsCompleted);
 

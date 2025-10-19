@@ -25,7 +25,7 @@ public class ErrorTests
     public void WithMetadataCollection_ShouldMergeCaseInsensitive()
     {
         var error = Error.From("boom").WithMetadata("Key", 1);
-        var enriched = error.WithMetadata(new[] { new KeyValuePair<string, object?>("key", 2) });
+        var enriched = error.WithMetadata([new KeyValuePair<string, object?>("key", 2)]);
 
         Assert.Equal(2, enriched.Metadata["key"]);
     }

@@ -540,7 +540,7 @@ public class GoTests
         var channel = MakeChannel<int>();
         var @case = ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)));
 
-    await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => SelectAsync(TimeSpan.FromMilliseconds(-5), cancellationToken: TestContext.Current.CancellationToken, cases: new[] { @case }));
+    await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => SelectAsync(TimeSpan.FromMilliseconds(-5), cancellationToken: TestContext.Current.CancellationToken, cases: [@case]));
     }
 
     [Fact]
@@ -549,7 +549,7 @@ public class GoTests
         var channel = MakeChannel<int>();
         channel.Writer.TryComplete();
 
-    var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: new[] { ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value))) });
+    var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))]);
 
     Assert.True(result.IsFailure);
     Assert.Equal(ErrorCodes.SelectDrained, result.Error?.Code);
@@ -562,7 +562,7 @@ public class GoTests
         channel.Writer.TryWrite(42);
         channel.Writer.TryComplete();
 
-    var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: new[] { ChannelCase.Create(channel.Reader, (Action<int>)(_ => throw new InvalidOperationException("boom"))) });
+    var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, (Action<int>)(_ => throw new InvalidOperationException("boom")))]);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
@@ -581,8 +581,8 @@ public class GoTests
 
         var selectTask = SelectAsync(
             cancellationToken: cts.Token,
-            cases: new[]
-            {
+            cases:
+            [
                 ChannelCase.Create(channel1.Reader, (value, _) =>
                 {
                     firstExecuted = true;
@@ -594,7 +594,7 @@ public class GoTests
                     secondExecuted = true;
                     return Task.FromResult(Result.Ok(Go.Unit.Value));
                 })
-            });
+            ]);
 
         await channel1.Writer.WriteAsync(42, cts.Token);
         channel1.Writer.TryComplete();
@@ -619,10 +619,10 @@ public class GoTests
             timeout: TimeSpan.FromSeconds(1),
             provider: provider,
             cancellationToken: cts.Token,
-            cases: new[]
-            {
+            cases:
+            [
                 ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))
-            });
+            ]);
 
         Assert.False(selectTask.IsCompleted);
 
@@ -644,7 +644,7 @@ public class GoTests
 
         var selectTask = SelectAsync(
             cancellationToken: cts.Token,
-            cases: new[] { ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value))) });
+            cases: [ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))]);
 
         cts.CancelAfter(20);
 
@@ -665,7 +665,7 @@ public class GoTests
         var observed = new ConcurrentBag<int>();
 
         var fanInTask = SelectFanInAsync(
-            new[] { channel1.Reader, channel2.Reader },
+            [channel1.Reader, channel2.Reader],
             (int value, CancellationToken _) =>
             {
                 observed.Add(value);
@@ -700,7 +700,7 @@ public class GoTests
     {
         var channel = MakeChannel<int>();
         var fanInTask = SelectFanInAsync(
-            new[] { channel.Reader },
+            [channel.Reader],
             (int _, CancellationToken _) => Task.FromResult(Result.Fail<Unit>(Error.From("boom", ErrorCodes.Validation))),
             cancellationToken: TestContext.Current.CancellationToken);
 
@@ -721,7 +721,7 @@ public class GoTests
         using var cts = new CancellationTokenSource(25);
 
         var result = await SelectFanInAsync(
-            new[] { channel.Reader },
+            [channel.Reader],
             (int _, CancellationToken _) => Task.FromResult(Result.Ok(Unit.Value)),
             cancellationToken: cts.Token);
 
@@ -861,7 +861,7 @@ public class GoTests
         var destination = MakeChannel<int>();
 
         var ct = TestContext.Current.CancellationToken;
-        var fanInTask = FanInAsync(new[] { source1.Reader, source2.Reader }, destination.Writer, cancellationToken: ct);
+        var fanInTask = FanInAsync([source1.Reader, source2.Reader], destination.Writer, cancellationToken: ct);
 
         var producers = Task.WhenAll(
             Task.Run(async () =>
@@ -897,7 +897,7 @@ public class GoTests
         var destination = MakeChannel<int>();
         destination.Writer.TryComplete(new InvalidOperationException("closed"));
 
-        var fanInTask = FanInAsync(new[] { source.Reader }, destination.Writer, cancellationToken: TestContext.Current.CancellationToken);
+        var fanInTask = FanInAsync([source.Reader], destination.Writer, cancellationToken: TestContext.Current.CancellationToken);
 
         await source.Writer.WriteAsync(42, TestContext.Current.CancellationToken);
         source.Writer.TryComplete();
@@ -916,7 +916,7 @@ public class GoTests
         var source2 = MakeChannel<int>();
 
         var ct = TestContext.Current.CancellationToken;
-        var merged = FanIn(new[] { source1.Reader, source2.Reader }, cancellationToken: ct);
+        var merged = FanIn([source1.Reader, source2.Reader], cancellationToken: ct);
 
         var producers = Task.WhenAll(
             Task.Run(async () =>
