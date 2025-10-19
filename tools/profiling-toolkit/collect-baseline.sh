@@ -176,7 +176,7 @@ if [[ $skip_trace -eq 0 ]]; then
     run_tool "${trace_cmd[@]}"
 
     echo "[collect-baseline] Converting trace to speedscope"
-    run_tool dotnet-trace convert "$trace_file" --format speedscope --output "$speedscope_file"
+    run_tool dotnet-trace --yes convert "$trace_file" --format speedscope --output "$speedscope_file"
     echo "[collect-baseline] Trace saved to $trace_file and $speedscope_file"
 fi
 
