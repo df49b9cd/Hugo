@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.CommandLine;
 using System.CommandLine.Parsing;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -59,6 +61,17 @@ internal static class Program
             Description = "Only print heuristic findings (skip the counter table)."
         };
 
+        var speedscopeOption = new Option<string?>("--speedscope", aliases: new[] { "--speedscope-path" })
+        {
+            Description = "Path to a Speedscope JSON file for trace summarization. Defaults to discovering a trace next to the counters file."
+        };
+
+        var traceTopOption = new Option<int>("--trace-top")
+        {
+            Description = "Number of frames to display from the Speedscope summary table.",
+            DefaultValueFactory = _ => 12
+        };
+
         var root = new RootCommand("Analyze Hugo profiling baselines")
         {
             pathArgument,
@@ -67,14 +80,16 @@ internal static class Program
             sortOption,
             providerOption,
             counterOption,
-            findingsOnlyOption
+            findingsOnlyOption,
+            speedscopeOption,
+            traceTopOption
         };
 
         root.SetAction((ParseResult parseResult, CancellationToken _) =>
         {
             try
             {
-                return Task.FromResult(Run(parseResult, pathArgument, topOption, includeSystemOption, sortOption, providerOption, counterOption, findingsOnlyOption));
+                return Task.FromResult(Run(parseResult, pathArgument, topOption, includeSystemOption, sortOption, providerOption, counterOption, findingsOnlyOption, speedscopeOption, traceTopOption));
             }
             catch (Exception ex)
             {
@@ -94,7 +109,9 @@ internal static class Program
         Option<string> sortOption,
         Option<string?> providerOption,
         Option<string?> counterOption,
-        Option<bool> findingsOnlyOption)
+        Option<bool> findingsOnlyOption,
+        Option<string?> speedscopeOption,
+        Option<int> traceTopOption)
     {
         var path = parseResult.GetValue(pathArgument);
         if (string.IsNullOrWhiteSpace(path))
@@ -105,10 +122,12 @@ internal static class Program
 
         var top = Math.Max(1, parseResult.GetValue(topOption));
         var includeSystem = parseResult.GetValue(includeSystemOption);
-    var sortColumn = parseResult.GetValue(sortOption) ?? "max";
+        var sortColumn = parseResult.GetValue(sortOption) ?? "max";
         var providerFilter = parseResult.GetValue(providerOption);
         var counterFilter = parseResult.GetValue(counterOption);
         var findingsOnly = parseResult.GetValue(findingsOnlyOption);
+        var speedscopeCandidate = parseResult.GetValue(speedscopeOption);
+        var traceTop = Math.Max(1, parseResult.GetValue(traceTopOption));
 
         if (!SupportedSortColumns.Contains(sortColumn, StringComparer.OrdinalIgnoreCase))
         {
@@ -128,6 +147,16 @@ internal static class Program
         }
 
         PrintParseDiagnostics(report);
+
+        if (TryResolveSpeedscopePath(path, countersPath, speedscopeCandidate, out var speedscopePath, out var speedscopeMessage))
+        {
+            PrintSpeedscopeSummary(speedscopePath, traceTop);
+        }
+        else if (!string.IsNullOrWhiteSpace(speedscopeCandidate) && !string.IsNullOrWhiteSpace(speedscopeMessage))
+        {
+            Console.Error.WriteLine($"warning: {speedscopeMessage}");
+        }
+
         return 0;
     }
 
@@ -243,6 +272,141 @@ internal static class Program
         }
     }
 
+    private static bool TryResolveSpeedscopePath(
+        string inputPath,
+        string countersPath,
+        string? speedscopeCandidate,
+        [MaybeNullWhen(false)] out string speedscopePath,
+        out string? message)
+    {
+        if (!string.IsNullOrWhiteSpace(speedscopeCandidate))
+        {
+            if (File.Exists(speedscopeCandidate))
+            {
+                speedscopePath = speedscopeCandidate;
+                message = null;
+                return true;
+            }
+
+            speedscopePath = null;
+            message = $"Speedscope trace not found at '{speedscopeCandidate}'.";
+            return false;
+        }
+
+        var searchDirectory = Directory.Exists(inputPath)
+            ? inputPath
+            : Path.GetDirectoryName(countersPath);
+
+        if (string.IsNullOrWhiteSpace(searchDirectory))
+        {
+            speedscopePath = null;
+            message = "Unable to infer Speedscope trace location.";
+            return false;
+        }
+
+        var candidates = new List<string>();
+        candidates.AddRange(Directory.EnumerateFiles(searchDirectory, "*.speedscope.json", SearchOption.TopDirectoryOnly));
+        candidates.AddRange(Directory.EnumerateFiles(searchDirectory, "*.speedscope", SearchOption.TopDirectoryOnly));
+
+        if (candidates.Count > 0)
+        {
+            candidates.Sort(StringComparer.OrdinalIgnoreCase);
+            speedscopePath = candidates[0];
+            message = null;
+            return true;
+        }
+
+        speedscopePath = null;
+        message = null;
+        return false;
+    }
+
+    private static void PrintSpeedscopeSummary(string speedscopePath, int traceTop)
+    {
+        SpeedscopeReport report;
+        try
+        {
+            report = SpeedscopeAnalyzer.Analyze(speedscopePath);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"warning: failed to analyze Speedscope trace '{speedscopePath}': {ex.Message}");
+            return;
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Trace summary:");
+        Console.WriteLine($"  Source: {speedscopePath}");
+        Console.WriteLine($"  Total duration: {FormatMilliseconds(report.TotalDurationMilliseconds)}; Profiles: {report.Profiles.Count}; Frames with samples: {report.Frames.Count}");
+
+        PrintSpeedscopeProfiles(report.Profiles);
+        PrintSpeedscopeFrames(report.Frames, traceTop);
+
+        if (report.Warnings.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Trace warnings:");
+            foreach (var warning in report.Warnings.Take(10))
+            {
+                Console.WriteLine($"  - {warning}");
+            }
+
+            if (report.Warnings.Count > 10)
+            {
+                Console.WriteLine($"  ... {report.Warnings.Count - 10} additional warnings");
+            }
+        }
+    }
+
+    private static void PrintSpeedscopeProfiles(IReadOnlyList<SpeedscopeProfileSummary> profiles)
+    {
+        if (profiles.Count == 0)
+        {
+            return;
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Profiles:");
+
+        int nameWidth = Math.Min(48, Math.Max("Name".Length, profiles.Select(profile => profile.Name.Length).DefaultIfEmpty(0).Max()));
+
+        Console.WriteLine($"  {PadRight("Name", nameWidth)} {PadLeft("Duration", 12)} {PadLeft("Events", 8)} {PadRight("Unit", 12)}");
+
+        foreach (var profile in profiles.OrderByDescending(static profile => profile.DurationMilliseconds))
+        {
+            Console.WriteLine(
+                $"  {PadRight(profile.Name, nameWidth)} {PadLeft(FormatMilliseconds(profile.DurationMilliseconds), 12)} {PadLeft(profile.EventCount.ToString(CultureInfo.InvariantCulture), 8)} {PadRight(profile.Unit ?? "milliseconds", 12)}");
+        }
+    }
+
+    private static void PrintSpeedscopeFrames(IReadOnlyList<SpeedscopeFrameSummary> frames, int traceTop)
+    {
+        if (frames.Count == 0)
+        {
+            return;
+        }
+
+        var topFrames = frames
+            .OrderByDescending(static frame => frame.InclusiveMilliseconds)
+            .ThenBy(static frame => frame.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(traceTop)
+            .ToList();
+
+        Console.WriteLine();
+        Console.WriteLine("Frames:");
+
+        int nameWidth = Math.Min(60, Math.Max("Name".Length, topFrames.Select(frame => frame.Name.Length).DefaultIfEmpty(0).Max()));
+
+        Console.WriteLine(
+            $"  {PadRight("Name", nameWidth)} {PadLeft("Inclusive", 12)} {PadLeft("Self", 12)} {PadLeft("Calls", 8)}");
+
+        foreach (var frame in topFrames)
+        {
+            Console.WriteLine(
+                $"  {PadRight(frame.Name, nameWidth)} {PadLeft(FormatMilliseconds(frame.InclusiveMilliseconds), 12)} {PadLeft(FormatMilliseconds(frame.SelfMilliseconds), 12)} {PadLeft(frame.CallCount.ToString(CultureInfo.InvariantCulture), 8)}");
+        }
+    }
+
     private static string ResolveCountersPath(string path)
     {
         if (File.Exists(path))
@@ -331,5 +495,32 @@ internal static class Program
         }
 
         return (value / 1_000_000_000).ToString("0.##B", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatMilliseconds(double value)
+    {
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            return "-";
+        }
+
+        var abs = Math.Abs(value);
+
+        if (abs >= 1_000)
+        {
+            return (value / 1_000).ToString("0.###", CultureInfo.InvariantCulture) + "s";
+        }
+
+        if (abs >= 1)
+        {
+            return value.ToString("0.###", CultureInfo.InvariantCulture) + "ms";
+        }
+
+        if (abs > 0)
+        {
+            return (value * 1_000).ToString("0.###", CultureInfo.InvariantCulture) + "us";
+        }
+
+        return "0";
     }
 }

@@ -136,6 +136,7 @@ The workflow uses the same helper script and sets `ARTIFACT_ROOT=artifacts/profi
 
 - Run `dotnet run --project tools/Hugo.ProfilingAnalyzer/Hugo.ProfilingAnalyzer.csproj -- artifacts/profiling/<timestamp>` to summarize counters after a collection. The CLI highlights wait-group leaks, channel latency spikes, GC pause ratios, and other heuristics derived from the captured metrics.
 - Pass `--sort p95`, `--provider Hugo.Go`, or `--include-system` to focus the counter table on the most relevant signals. Combine `--findings-only` when you just want the heuristic verdict in CI logs.
+- Supply `--speedscope artifacts/profiling/<timestamp>/trace.speedscope.json` (or drop the flag if the file sits next to `counters.csv`) to print the trace summary. Adjust `--trace-top` to display more or fewer hot frames in the Speedscope section.
 - Invoke the analyzer on GitHub Actions artifacts by downloading the timestamped folder and pointing the command at the extracted directory (`counters.csv` is discovered automatically).
 
 ## Troubleshooting
