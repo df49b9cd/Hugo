@@ -92,13 +92,13 @@ public static class Go
     /// Creates a fluent builder that materializes a typed channel select workflow.
     /// </summary>
     public static SelectBuilder<TResult> Select<TResult>(TimeProvider? provider = null, CancellationToken cancellationToken = default) =>
-        new SelectBuilder<TResult>(Timeout.InfiniteTimeSpan, provider, cancellationToken);
+        new(Timeout.InfiniteTimeSpan, provider, cancellationToken);
 
     /// <summary>
     /// Creates a fluent builder that materializes a typed channel select workflow with a timeout.
     /// </summary>
     public static SelectBuilder<TResult> Select<TResult>(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default) =>
-        new SelectBuilder<TResult>(timeout, provider, cancellationToken);
+        new(timeout, provider, cancellationToken);
 
     private static async Task<Result<Unit>> SelectInternalAsync(ChannelCase[] cases, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
     {

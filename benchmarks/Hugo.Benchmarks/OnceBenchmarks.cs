@@ -51,7 +51,7 @@ public class OnceBenchmarks
     {
         int target = 0;
         bool initialized = false;
-        object sync = new object();
+        object sync = new();
         var tasks = new Task[TaskCount];
 
         for (var i = 0; i < TaskCount; i++)
