@@ -114,14 +114,15 @@ public static class Go
             throw new ArgumentOutOfRangeException(nameof(timeout));
         }
 
-        provider ??= TimeProvider.System;
-        GoDiagnostics.RecordChannelSelectAttempt();
-        var startTimestamp = provider.GetTimestamp();
+    provider ??= TimeProvider.System;
+    using var activity = GoDiagnostics.StartSelectActivity(cases.Length, timeout);
+    GoDiagnostics.RecordChannelSelectAttempt(activity);
+    var startTimestamp = provider.GetTimestamp();
 
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var caseList = new List<ChannelCase>(cases.Length);
-        var waitTasks = new List<Task<(bool HasValue, object? Value)>>(cases.Length);
-        var taskIndex = new Dictionary<Task, int>(cases.Length);
+    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+    var caseList = new List<ChannelCase>(cases.Length);
+    var waitTasks = new List<Task<(bool HasValue, object? Value)>>(cases.Length);
+    var taskIndex = new Dictionary<Task, int>(cases.Length);
 
         for (var i = 0; i < cases.Length; i++)
         {
@@ -143,8 +144,10 @@ public static class Go
                 if (waitTasks.Count == 0)
                 {
                     linkedCts.Cancel();
-                    GoDiagnostics.RecordChannelSelectCompleted(provider.GetElapsedTime(startTimestamp));
-                    return Result.Fail<Unit>(Error.From("All channel cases completed without yielding a value.", ErrorCodes.SelectDrained));
+                    var drainedDuration = provider.GetElapsedTime(startTimestamp);
+                    var drainedError = Error.From("All channel cases completed without yielding a value.", ErrorCodes.SelectDrained);
+                    GoDiagnostics.RecordChannelSelectCompleted(drainedDuration, activity, drainedError);
+                    return Result.Fail<Unit>(drainedError);
                 }
 
                 Task completedTask;
@@ -166,7 +169,8 @@ public static class Go
                     if (completedTask == timeoutTask)
                     {
                         linkedCts.Cancel();
-                        GoDiagnostics.RecordChannelSelectTimeout(provider.GetElapsedTime(startTimestamp));
+                        var timeoutDuration = provider.GetElapsedTime(startTimestamp);
+                        GoDiagnostics.RecordChannelSelectTimeout(timeoutDuration, activity);
                         return Result.Fail<Unit>(Error.Timeout(timeout));
                     }
                 }
@@ -189,12 +193,13 @@ public static class Go
                 }
 
                 linkedCts.Cancel();
-                var duration = provider.GetElapsedTime(startTimestamp);
-                GoDiagnostics.RecordChannelSelectCompleted(duration);
+                var completionDuration = provider.GetElapsedTime(startTimestamp);
 
                 try
                 {
-                    return await caseList[index].ContinueWithAsync(value, cancellationToken).ConfigureAwait(false);
+                    var continuationResult = await caseList[index].ContinueWithAsync(value, cancellationToken).ConfigureAwait(false);
+                    GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, continuationResult.IsSuccess ? null : continuationResult.Error);
+                    return continuationResult;
                 }
                 catch (OperationCanceledException)
                 {
@@ -202,13 +207,17 @@ public static class Go
                 }
                 catch (Exception ex)
                 {
-                    return Result.Fail<Unit>(Error.FromException(ex));
+                    var error = Error.FromException(ex);
+                    GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, error);
+                    return Result.Fail<Unit>(error);
                 }
             }
         }
         catch (OperationCanceledException oce)
         {
-            GoDiagnostics.RecordChannelSelectCanceled(provider.GetElapsedTime(startTimestamp));
+            var canceledDuration = provider.GetElapsedTime(startTimestamp);
+            var canceledByCaller = cancellationToken.CanBeCanceled && cancellationToken.IsCancellationRequested;
+            GoDiagnostics.RecordChannelSelectCanceled(canceledDuration, activity, canceledByCaller);
             var token = cancellationToken.CanBeCanceled ? cancellationToken : oce.CancellationToken;
             return Result.Fail<Unit>(Error.Canceled(token: token.CanBeCanceled ? token : null));
         }

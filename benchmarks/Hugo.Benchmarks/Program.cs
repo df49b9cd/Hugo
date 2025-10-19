@@ -162,7 +162,7 @@ public class MutexBenchmarks
 
     private sealed class MonitorLockStrategy : ISyncLockStrategy
     {
-        private readonly object _gate = new();
+        private readonly Lock _gate = new();
 
         public void Execute(Action criticalSection)
         {

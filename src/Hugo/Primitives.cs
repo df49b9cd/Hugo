@@ -328,7 +328,7 @@ public sealed class RwMutex
 public sealed class Once
 {
     private int _done;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     public void Do(Action action)
     {

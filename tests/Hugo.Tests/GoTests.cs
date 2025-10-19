@@ -1,5 +1,6 @@
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading.Channels;
 using Microsoft.Extensions.Time.Testing;
 using static Hugo.Go;
@@ -658,6 +659,81 @@ public class GoTests
     }
 
     [Fact]
+    public async Task SelectAsync_ShouldEmitActivityTelemetry_OnSuccess()
+    {
+        GoDiagnostics.Reset();
+        var stoppedActivities = new List<Activity>();
+
+        try
+        {
+            using var source = new ActivitySource("Hugo.Go.Tests", "1.0.0");
+            GoDiagnostics.Configure(source);
+            using var listener = CreateSelectActivityListener(source.Name, stoppedActivities);
+
+            var channel = MakeChannel<int>();
+            channel.Writer.TryWrite(7);
+            channel.Writer.TryComplete();
+
+            var result = await SelectAsync(
+                cancellationToken: TestContext.Current.CancellationToken,
+                cases:
+                [
+                    ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Unit.Value)))
+                ]);
+
+            Assert.True(result.IsSuccess);
+
+            var activity = Assert.Single(stoppedActivities);
+            Assert.Equal("Go.Select", activity.DisplayName);
+            Assert.Equal(ActivityStatusCode.Ok, activity.Status);
+            Assert.Equal(1, activity.GetTagItem("hugo.select.case_count"));
+            Assert.Equal("completed", activity.GetTagItem("hugo.select.outcome"));
+            Assert.NotNull(activity.GetTagItem("hugo.select.duration_ms"));
+        }
+        finally
+        {
+            GoDiagnostics.Reset();
+        }
+    }
+
+    [Fact]
+    public async Task SelectAsync_ShouldEmitActivityTelemetry_OnFailure()
+    {
+        GoDiagnostics.Reset();
+        var stoppedActivities = new List<Activity>();
+
+        try
+        {
+            using var source = new ActivitySource("Hugo.Go.Tests", "1.0.0");
+            GoDiagnostics.Configure(source);
+            using var listener = CreateSelectActivityListener(source.Name, stoppedActivities);
+
+            var channel = MakeChannel<int>();
+            channel.Writer.TryWrite(13);
+            channel.Writer.TryComplete();
+
+            var result = await SelectAsync(
+                cancellationToken: TestContext.Current.CancellationToken,
+                cases:
+                [
+                    ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Fail<Unit>(Error.From("failure", "error.activity"))))
+                ]);
+
+            Assert.True(result.IsFailure);
+            Assert.Equal("error.activity", result.Error?.Code);
+
+            var activity = Assert.Single(stoppedActivities);
+            Assert.Equal(ActivityStatusCode.Error, activity.Status);
+            Assert.Equal("error", activity.GetTagItem("hugo.select.outcome"));
+            Assert.Equal("error.activity", activity.GetTagItem("hugo.error.code"));
+        }
+        finally
+        {
+            GoDiagnostics.Reset();
+        }
+    }
+
+    [Fact]
     public async Task SelectFanInAsync_ShouldDrainAllCases()
     {
         var channel1 = MakeChannel<int>();
@@ -1078,5 +1154,19 @@ public class GoTests
         Assert.True(result.IsFailure);
         Assert.Equal("message", result.Error?.Message);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+    }
+
+    private static ActivityListener CreateSelectActivityListener(string sourceName, List<Activity> stoppedActivities)
+    {
+        var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == sourceName,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            SampleUsingParentId = (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activity => stoppedActivities.Add(activity)
+        };
+
+        ActivitySource.AddActivityListener(listener);
+        return listener;
     }
 }

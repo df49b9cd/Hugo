@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 namespace Hugo;
@@ -9,9 +10,10 @@ public static class GoDiagnostics
 {
     private const string DefaultMeterName = "Hugo.Go";
 
-    private static readonly object Sync = new();
+    private static readonly Lock Sync = new();
 
     private static Meter? _meter;
+    private static ActivitySource? _activitySource;
     private static Counter<long>? _waitGroupAdditions;
     private static Counter<long>? _waitGroupCompletions;
     private static Counter<long>? _resultSuccesses;
@@ -60,6 +62,30 @@ public static class GoDiagnostics
     }
 
     /// <summary>
+    /// Configures distributed tracing instrumentation using the provided <see cref="ActivitySource"/>.
+    /// </summary>
+    public static void Configure(ActivitySource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        lock (Sync)
+        {
+            _activitySource = source;
+        }
+    }
+
+    /// <summary>
+    /// Configures metrics and distributed tracing instrumentation.
+    /// </summary>
+    public static void Configure(Meter meter, ActivitySource activitySource)
+    {
+        ArgumentNullException.ThrowIfNull(activitySource);
+
+        Configure(meter);
+        Configure(activitySource);
+    }
+
+    /// <summary>
     /// Resets instrumentation to a no-op state. Intended for unit testing.
     /// </summary>
     public static void Reset()
@@ -68,6 +94,7 @@ public static class GoDiagnostics
         {
             _meter?.Dispose();
             _meter = null;
+            _activitySource = null;
             _waitGroupAdditions = null;
             _waitGroupCompletions = null;
             _resultSuccesses = null;
@@ -103,24 +130,121 @@ public static class GoDiagnostics
 
     internal static void RecordResultFailure() => _resultFailures?.Add(1);
 
-    internal static void RecordChannelSelectAttempt() => _channelSelectAttempts?.Add(1);
+    internal static void RecordChannelSelectAttempt(Activity? activity = null)
+    {
+        _channelSelectAttempts?.Add(1);
 
-    internal static void RecordChannelSelectCompleted(TimeSpan duration)
+        if (activity is not null)
+        {
+            activity.AddEvent(new ActivityEvent("select.attempt"));
+        }
+    }
+
+    internal static void RecordChannelSelectCompleted(TimeSpan duration, Activity? activity = null, Error? error = null)
     {
         _channelSelectCompletions?.Add(1);
         _channelSelectLatency?.Record(duration.TotalMilliseconds);
+
+        if (activity is null)
+        {
+            return;
+        }
+
+        if (activity.IsAllDataRequested)
+        {
+            activity.SetTag("hugo.select.duration_ms", duration.TotalMilliseconds);
+            activity.SetTag("hugo.select.outcome", error is null ? "completed" : "error");
+
+            if (error is not null)
+            {
+                if (!string.IsNullOrEmpty(error.Code))
+                {
+                    activity.SetTag("hugo.error.code", error.Code);
+                }
+
+                if (!string.IsNullOrEmpty(error.Message))
+                {
+                    activity.SetTag("hugo.error.message", error.Message);
+                }
+            }
+        }
+
+        if (error is null)
+        {
+            activity.SetStatus(ActivityStatusCode.Ok);
+        }
+        else
+        {
+            activity.SetStatus(ActivityStatusCode.Error, error.Message);
+        }
     }
 
-    internal static void RecordChannelSelectTimeout(TimeSpan duration)
+    internal static void RecordChannelSelectTimeout(TimeSpan duration, Activity? activity = null)
     {
         _channelSelectTimeouts?.Add(1);
         _channelSelectLatency?.Record(duration.TotalMilliseconds);
+
+        if (activity is null)
+        {
+            return;
+        }
+
+        if (activity.IsAllDataRequested)
+        {
+            activity.SetTag("hugo.select.duration_ms", duration.TotalMilliseconds);
+            activity.SetTag("hugo.select.outcome", "timeout");
+        }
+
+        activity.SetStatus(ActivityStatusCode.Error, "Timeout");
     }
 
-    internal static void RecordChannelSelectCanceled(TimeSpan duration)
+    internal static void RecordChannelSelectCanceled(TimeSpan duration, Activity? activity = null, bool cancellationFromCaller = true)
     {
         _channelSelectCancellations?.Add(1);
         _channelSelectLatency?.Record(duration.TotalMilliseconds);
+
+        if (activity is null)
+        {
+            return;
+        }
+
+        if (activity.IsAllDataRequested)
+        {
+            activity.SetTag("hugo.select.duration_ms", duration.TotalMilliseconds);
+            activity.SetTag("hugo.select.outcome", "canceled");
+            activity.SetTag("hugo.select.canceled.byCaller", cancellationFromCaller);
+        }
+
+        activity.SetStatus(ActivityStatusCode.Error, cancellationFromCaller ? "Canceled by caller." : "Canceled.");
+    }
+
+    internal static Activity? StartSelectActivity(int caseCount, TimeSpan timeout)
+    {
+        var source = _activitySource;
+        var activity = source?.StartActivity("Go.Select", ActivityKind.Internal);
+
+        if (activity is null)
+        {
+            return null;
+        }
+
+        if (activity.IsAllDataRequested)
+        {
+            activity.SetTag("hugo.select.case_count", caseCount);
+
+            if (timeout == Timeout.InfiniteTimeSpan)
+            {
+                activity.SetTag("hugo.select.has_timeout", false);
+                activity.SetTag("hugo.select.timeout_ms", double.PositiveInfinity);
+            }
+            else
+            {
+                activity.SetTag("hugo.select.has_timeout", true);
+                activity.SetTag("hugo.select.timeout_ms", timeout.TotalMilliseconds);
+            }
+        }
+
+        return activity;
     }
 
     internal static void RecordChannelDepth(long depth)
