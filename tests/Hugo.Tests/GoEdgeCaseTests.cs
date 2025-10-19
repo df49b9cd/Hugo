@@ -1,6 +1,5 @@
 using System.Threading.Channels;
 using Hugo;
-using Hugo.Primitives;
 using static Hugo.Go;
 
 namespace Hugo.Tests;
@@ -29,7 +28,7 @@ public class GoEdgeCaseTests
     [Fact]
     public async Task Mutex_Contention_ShouldSerializeCriticalSection()
     {
-        var mutex = new HMutex();
+    var mutex = new Mutex();
         var concurrent = 0;
         var observedMax = 0;
 

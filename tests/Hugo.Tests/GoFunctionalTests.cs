@@ -1,5 +1,5 @@
 using System.Threading.Channels;
-using Hugo.Primitives;
+using Hugo;
 using Microsoft.Extensions.Time.Testing;
 using static Hugo.Go;
 
@@ -86,7 +86,7 @@ public class GoFunctionalTests
     public async Task Integration_Pipeline_ShouldComposeGoAndFunctionalHelpers()
     {
         var channel = MakeChannel<int>(capacity: 2);
-        var mutex = new HMutex();
+    var mutex = new Mutex();
         var wg = new WaitGroup();
 
         wg.Go(async () =>

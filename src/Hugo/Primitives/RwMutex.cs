@@ -1,4 +1,4 @@
-namespace Hugo.Primitives;
+namespace Hugo;
 
 /// <summary>
 /// Provides reader/writer mutual exclusion semantics with both synchronous and asynchronous APIs.

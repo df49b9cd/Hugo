@@ -1,4 +1,4 @@
-namespace Hugo.Primitives;
+namespace Hugo;
 
 /// <summary>
 /// A Once is an object that will perform an action exactly once.

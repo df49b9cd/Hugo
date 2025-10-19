@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace Hugo.Primitives;
+namespace Hugo;
 
 /// <summary>
 /// A concurrency-safe pool of reusable objects, similar to Go's <c>sync.Pool</c>.

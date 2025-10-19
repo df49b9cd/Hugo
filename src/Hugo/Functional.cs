@@ -1,4 +1,4 @@
-using Hugo.Primitives;
+using Hugo;
 
 namespace Hugo;
 

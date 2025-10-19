@@ -1,5 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
+using Hugo;
 
 namespace Hugo.Benchmarks;
 
@@ -90,7 +91,7 @@ public class MutexBenchmarks
 
     private sealed class HugoMutexAsyncStrategy : IAsyncLockStrategy
     {
-        private readonly Primitives.HMutex _mutex = new();
+    private readonly Mutex _mutex = new();
 
         public async ValueTask<IAsyncDisposable> EnterAsync()
         {
@@ -102,9 +103,9 @@ public class MutexBenchmarks
         {
         }
 
-        private sealed class AsyncReleaser(Primitives.HMutex.AsyncLockReleaser releaser) : IAsyncDisposable
+        private sealed class AsyncReleaser(Mutex.AsyncLockReleaser releaser) : IAsyncDisposable
         {
-            private Primitives.HMutex.AsyncLockReleaser _releaser = releaser;
+            private Mutex.AsyncLockReleaser _releaser = releaser;
             private bool _disposed;
 
             public ValueTask DisposeAsync()
@@ -147,7 +148,7 @@ public class MutexBenchmarks
 
     private sealed class HugoMutexSyncStrategy : ISyncLockStrategy
     {
-        private readonly Primitives.HMutex _mutex = new();
+    private readonly Mutex _mutex = new();
 
         public void Execute(Action criticalSection)
         {

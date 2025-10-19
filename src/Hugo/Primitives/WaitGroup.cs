@@ -1,4 +1,4 @@
-namespace Hugo.Primitives;
+namespace Hugo;
 
 /// <summary>
 /// Coordinates the completion of a set of asynchronous operations, similar to Go's <c>sync.WaitGroup</c>.

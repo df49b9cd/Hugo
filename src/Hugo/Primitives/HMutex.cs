@@ -1,67 +1,26 @@
-namespace Hugo.Primitives;
+namespace Hugo;
 
 /// <summary>
-/// Provides both synchronous and asynchronous mutual exclusion primitives.
+/// Backward-compatible wrapper around <see cref="Mutex"/>.
 /// </summary>
+[Obsolete("HMutex is deprecated. Use Mutex instead.")]
 public sealed class HMutex : IDisposable
 {
-    private readonly SemaphoreSlim _asyncLock = new(1, 1);
-    private readonly Lock _lock = new();
-    private int _disposed;
+    private readonly Mutex _inner = new();
 
     /// <summary>
     /// Enters the synchronous critical section, returning a scope that releases the lock when disposed.
     /// </summary>
-    public Lock.Scope EnterScope()
-    {
-        ThrowIfDisposed();
-        return _lock.EnterScope();
-    }
+    public Lock.Scope EnterScope() => _inner.EnterScope();
 
     /// <summary>
     /// Asynchronously waits for the mutex and returns a releaser that unlocks when disposed.
     /// </summary>
-    public async ValueTask<AsyncLockReleaser> LockAsync(CancellationToken cancellationToken = default)
-    {
-        ThrowIfDisposed();
-        await _asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        return new AsyncLockReleaser(_asyncLock);
-    }
-
-    private void ThrowIfDisposed()
-    {
-        if (Volatile.Read(ref _disposed) == 1)
-        {
-            throw new ObjectDisposedException(nameof(HMutex));
-        }
-    }
+    public ValueTask<Mutex.AsyncLockReleaser> LockAsync(CancellationToken cancellationToken = default) =>
+        _inner.LockAsync(cancellationToken);
 
     /// <summary>
     /// Releases unmanaged resources.
     /// </summary>
-    public void Dispose()
-    {
-        if (Interlocked.Exchange(ref _disposed, 1) == 1)
-        {
-            return;
-        }
-
-        _asyncLock.Dispose();
-    }
-
-    /// <summary>
-    /// Releases the asynchronous lock when disposed.
-    /// </summary>
-    public readonly struct AsyncLockReleaser(SemaphoreSlim semaphore) : IAsyncDisposable, IDisposable
-    {
-        private readonly SemaphoreSlim _semaphore = semaphore ?? throw new ArgumentNullException(nameof(semaphore));
-
-        public void Dispose() => _semaphore.Release();
-
-        public ValueTask DisposeAsync()
-        {
-            _semaphore.Release();
-            return ValueTask.CompletedTask;
-        }
-    }
+    public void Dispose() => _inner.Dispose();
 }

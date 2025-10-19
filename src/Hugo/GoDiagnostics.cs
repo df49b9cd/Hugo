@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using Hugo.Primitives;
+using Hugo;
 
 namespace Hugo;
 

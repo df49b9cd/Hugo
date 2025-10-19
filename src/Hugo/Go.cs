@@ -1,5 +1,5 @@
 using System.Threading.Channels;
-using Hugo.Primitives;
+using Hugo;
 
 namespace Hugo;
 

@@ -1,4 +1,4 @@
-namespace Hugo.Primitives;
+namespace Hugo;
 
 /// <summary>
 /// Well-known error codes emitted by the library.

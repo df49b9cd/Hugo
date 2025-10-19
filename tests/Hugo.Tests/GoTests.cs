@@ -2,7 +2,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading.Channels;
-using Hugo.Primitives;
+using Hugo;
 using Microsoft.Extensions.Time.Testing;
 using static Hugo.Go;
 
@@ -60,7 +60,7 @@ public class GoTests
     [Fact]
     public async Task Mutex_ShouldThrow_WhenLockIsCancelled()
     {
-        var mutex = new HMutex();
+    var mutex = new Mutex();
         var cts = new CancellationTokenSource();
         using (await mutex.LockAsync(cts.Token))
         {
@@ -74,7 +74,7 @@ public class GoTests
     [Fact]
     public async Task Mutex_ShouldNotBeReentrant()
     {
-        var mutex = new HMutex();
+    var mutex = new Mutex();
         using (await mutex.LockAsync(TestContext.Current.CancellationToken))
         {
             var reentrantLockTask = mutex.LockAsync(TestContext.Current.CancellationToken).AsTask();
@@ -303,7 +303,7 @@ public class GoTests
     public async Task Mutex_ShouldPreventRaceConditions()
     {
         var wg = new WaitGroup();
-        var mutex = new HMutex();
+    var mutex = new Mutex();
         var counter = 0;
         const int numTasks = 5;
         const int incrementsPerTask = 10;
@@ -402,7 +402,7 @@ public class GoTests
     [Fact]
     public async Task Mutex_DisposeAsync_ShouldReleaseLock()
     {
-        var mutex = new HMutex();
+    var mutex = new Mutex();
         var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
 
         var pending = mutex.LockAsync(TestContext.Current.CancellationToken);

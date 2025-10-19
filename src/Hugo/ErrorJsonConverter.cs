@@ -2,7 +2,7 @@ using System.Collections;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Hugo.Primitives;
+using Hugo;
 
 namespace Hugo;
 

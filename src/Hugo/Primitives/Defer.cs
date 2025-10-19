@@ -1,4 +1,4 @@
-namespace Hugo.Primitives;
+namespace Hugo;
 
 /// <summary>
 /// A helper struct that enables the <c>defer</c> functionality via the <see cref="IDisposable"/> pattern.

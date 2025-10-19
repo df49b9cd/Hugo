@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using Hugo.Primitives;
+using Hugo;
 
 namespace Hugo;
 
