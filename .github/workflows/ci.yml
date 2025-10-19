@@ -31,10 +31,10 @@ jobs:
       uses: gittools/actions/gitversion/execute@v4.1.0
 
     - name: Restore
-      run: dotnet restore Hugo.slnx --configuration Release /p:TargetFrameworks=net10.0
+      run: dotnet restore Hugo.slnx --nologo
 
     - name: Build
-      run: dotnet build Hugo.slnx --configuration Release --no-restore /p:TargetFrameworks=net10.0 /p:Version=${{ steps.gitversion.outputs.semVer }}
+      run: dotnet build Hugo.slnx --configuration Release --no-restore /p:TargetFramework=net10.0 /p:Version=${{ steps.gitversion.outputs.semVer }}
 
     - name: Test with coverage
       run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --no-build --framework net10.0 --collect:"XPlat Code Coverage" --results-directory tests/Hugo.Tests/TestResults/net10

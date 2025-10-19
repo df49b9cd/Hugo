@@ -31,7 +31,7 @@ jobs:
       uses: gittools/actions/gitversion/execute@v4.1.0
 
     - name: Restore (.NET 9)
-      run: dotnet restore Hugo.slnx --configuration Release /p:TargetFrameworks=net9.0
+      run: dotnet restore Hugo.slnx --nologo
 
     - name: Build (.NET 9)
       run: dotnet build src/Hugo/Hugo.csproj --configuration Release --no-restore --framework net9.0 /p:Version=${{ steps.gitversion.outputs.semVer }}
