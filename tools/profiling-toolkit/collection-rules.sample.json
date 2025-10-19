@@ -1,0 +1,55 @@
+{
+  "CollectionRules": {
+    "HugoHotPath": {
+      "Filters": [
+        {
+          "Key": "ProcessName",
+          "MatchType": "Exact",
+          "Value": "ChangeMe"
+        }
+      ],
+      "Trigger": {
+        "Type": "EventMeter",
+        "Settings": {
+          "MeterName": "Hugo.Go",
+          "InstrumentName": "waitgroup.outstanding",
+          "GreaterThan": 50,
+          "SlidingWindowDuration": "00:00:30"
+        }
+      },
+      "Actions": [
+        {
+          "Name": "CpuTrace",
+          "Type": "CollectTrace",
+          "Settings": {
+            "Profile": "Cpu",
+            "Duration": "00:00:45",
+            "Egress": "profiling"
+          },
+          "WaitForCompletion": true
+        },
+        {
+          "Type": "CollectLogs",
+          "Settings": {
+            "Egress": "profiling",
+            "DefaultLevel": "Warning",
+            "UseAppFilters": false,
+            "Duration": "00:00:30"
+          }
+        }
+      ],
+      "Limits": {
+        "ActionCount": 3,
+        "ActionCountSlidingWindowDuration": "00:30:00"
+      }
+    }
+  },
+  "Egress": {
+    "FileSystem": {
+      "profiling": {
+        "directoryPath": "./artifacts/profiling",
+        "intermediateDirectoryPath": "./artifacts/profiling/.tmp"
+      }
+    }
+  }
+}

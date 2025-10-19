@@ -10,6 +10,7 @@ Hugo brings Go-style concurrency and result pipelines to .NET. This documentatio
 
 - [Coordinate fan-in workflows](how-to/fan-in-channels.md): step-by-step recipe for merging multiple channel readers with cancellation and deadlines.
 - [Publish metrics to OpenTelemetry](how-to/observe-with-opentelemetry.md): wire `GoDiagnostics` into your meter provider and export counters/histograms.
+- [Capture baselines with the profiling toolkit](how-to/profiling-toolkit.md): gather counters, traces, and automated recipes with `dotnet-counters`, `dotnet-trace`, and `dotnet-monitor`.
 
 ## Reference
 
