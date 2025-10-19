@@ -163,7 +163,7 @@ public class ResultTests
         var error = Error.From("fail");
         var enumeratedAfterFailure = false;
 
-        async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct = default)
+        static async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct = default, Error? error = null, bool enumeratedAfterFailure = false)
         {
             yield return Result.Ok(1);
             yield return Result.Fail<int>(error);
@@ -171,7 +171,7 @@ public class ResultTests
             yield return Result.Ok(3);
         }
 
-    var result = await Result.SequenceAsync(Source(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
+    var result = await Result.SequenceAsync(Source(TestContext.Current.CancellationToken, error, enumeratedAfterFailure), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Same(error, result.Error);

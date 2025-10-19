@@ -947,7 +947,7 @@ public class GoTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var merged = FanIn(new[] { source.Reader }, cancellationToken: cts.Token);
+        var merged = FanIn([source.Reader], cancellationToken: cts.Token);
 
         await Assert.ThrowsAsync<OperationCanceledException>(async () => await merged.ReadAsync(TestContext.Current.CancellationToken).AsTask());
         source.Writer.TryComplete();

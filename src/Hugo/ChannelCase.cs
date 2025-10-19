@@ -37,15 +37,44 @@ public readonly struct ChannelCase
             {
                 try
                 {
-                    var value = await reader.ReadAsync(ct).ConfigureAwait(false);
-                    return (true, (object?)value);
+                    if (!await reader.WaitToReadAsync(ct).ConfigureAwait(false))
+                        return (false, null);
+
+                    return (true, new DeferredRead<T>(reader));
                 }
                 catch (ChannelClosedException)
                 {
                     return (false, null);
                 }
             },
-            (value, ct) => onValue((T)value!, ct));
+            async (state, ct) =>
+            {
+                var deferred = (DeferredRead<T>)state!;
+                if (!deferred.Reader.TryRead(out var item))
+                {
+                    try
+                    {
+                        item = await deferred.Reader.ReadAsync(ct).ConfigureAwait(false);
+                    }
+                    catch (ChannelClosedException)
+                    {
+                        return Result.Fail<Go.Unit>(Error.From("Channel closed before a value could be read.", ErrorCodes.SelectDrained));
+                    }
+                }
+
+                try
+                {
+                    return await onValue(item, ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    return Result.Fail<Go.Unit>(Error.FromException(ex));
+                }
+            });
     }
 
     public static ChannelCase Create<T>(ChannelReader<T> reader, Func<T, Task<Result<Go.Unit>>> onValue) => onValue is null ? throw new ArgumentNullException(nameof(onValue)) : Create(reader, (item, _) => onValue(item));
@@ -65,6 +94,16 @@ public readonly struct ChannelCase
             onValue(item);
             return Task.FromResult(Result.Ok(Go.Unit.Value));
         });
+}
+
+internal sealed class DeferredRead<T>
+{
+    public DeferredRead(ChannelReader<T> reader)
+    {
+        Reader = reader ?? throw new ArgumentNullException(nameof(reader));
+    }
+
+    public ChannelReader<T> Reader { get; }
 }
 
 /// <summary>

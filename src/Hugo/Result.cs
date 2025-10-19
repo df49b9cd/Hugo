@@ -16,7 +16,7 @@ public static class Result
     /// <summary>
     /// Wraps the provided error in a failed result.
     /// </summary>
-    public static Result<T> Fail<T>(Error error) => Result<T>.Failure(error ?? Error.Unspecified());
+    public static Result<T> Fail<T>(Error? error) => Result<T>.Failure(error ?? Error.Unspecified());
 
     /// <summary>
     /// Converts an optional value into a <see cref="Result{T}"/> using the provided error factory when no value is present.

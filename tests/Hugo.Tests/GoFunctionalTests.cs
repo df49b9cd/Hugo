@@ -125,12 +125,18 @@ public class GoFunctionalTests
         var wg = new WaitGroup();
         var collected = new List<int>();
 
+        var delayScheduled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); // coordinate timer scheduling with fake time
+
         wg.Go(async token =>
         {
-            await DelayAsync(TimeSpan.FromSeconds(3), provider, token);
+            var delayTask = DelayAsync(TimeSpan.FromSeconds(3), provider, token);
+            delayScheduled.TrySetResult();
+            await delayTask;
             await channel.Writer.WriteAsync(42, token);
             channel.Writer.TryComplete();
         }, TestContext.Current.CancellationToken);
+
+        await delayScheduled.Task; // ensure the delay is registered before advancing fake time
 
         var selectTask = SelectAsync(
             timeout: TimeSpan.FromSeconds(5),
