@@ -1,7 +1,4 @@
-using System;
-using System.Threading;
-
-namespace Hugo;
+namespace Hugo.Primitives;
 
 /// <summary>
 /// A Once is an object that will perform an action exactly once.

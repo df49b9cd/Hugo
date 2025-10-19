@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Hugo.Primitives;
 using Microsoft.Extensions.Time.Testing;
 using static Hugo.Go;
 
@@ -84,8 +85,8 @@ public class GoFunctionalTests
     [Fact]
     public async Task Integration_Pipeline_ShouldComposeGoAndFunctionalHelpers()
     {
-    var channel = MakeChannel<int>(capacity: 2);
-    var mutex = new Mutex();
+        var channel = MakeChannel<int>(capacity: 2);
+        var mutex = new HMutex();
         var wg = new WaitGroup();
 
         wg.Go(async () =>
@@ -116,6 +117,8 @@ public class GoFunctionalTests
         Assert.True(result.IsSuccess);
         Assert.Equal(3, result.Value);
     }
+
+    private static readonly int[] expected = [42];
 
     [Fact]
     public async Task Integration_WithFakeTimeProvider_ShouldDriveChannelWorkflow()
@@ -158,7 +161,7 @@ public class GoFunctionalTests
         var result = await selectTask;
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { 42 }, collected);
+        Assert.Equal(expected, collected);
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
     }

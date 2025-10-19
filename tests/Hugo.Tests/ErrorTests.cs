@@ -1,3 +1,5 @@
+using Hugo.Primitives;
+
 namespace Hugo.Tests;
 
 public class ErrorTests

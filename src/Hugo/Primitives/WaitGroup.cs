@@ -1,8 +1,4 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace Hugo;
+namespace Hugo.Primitives;
 
 /// <summary>
 /// Coordinates the completion of a set of asynchronous operations, similar to Go's <c>sync.WaitGroup</c>.

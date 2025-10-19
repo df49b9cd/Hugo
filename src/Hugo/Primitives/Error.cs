@@ -1,10 +1,7 @@
-using System;
 using System.Collections.Frozen;
-using System.Collections.Generic;
 using System.Text.Json.Serialization;
-using System.Threading;
 
-namespace Hugo;
+namespace Hugo.Primitives;
 
 /// <summary>
 /// Represents a structured error with optional metadata, code, and cause.

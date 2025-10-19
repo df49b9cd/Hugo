@@ -1,4 +1,5 @@
 using BenchmarkDotNet.Attributes;
+using Hugo.Primitives;
 using Microsoft.VisualStudio.Threading;
 
 namespace Hugo.Benchmarks;
@@ -56,7 +57,7 @@ public class RwMutexBenchmarks
     {
         public async Task ExecuteAsync(int[] operations, CancellationToken cancellationToken)
         {
-            var mutex = new Hugo.RwMutex();
+            var mutex = new RwMutex();
             var tasks = new Task[operations.Length];
 
             for (var i = 0; i < operations.Length; i++)

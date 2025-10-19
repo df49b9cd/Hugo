@@ -1,4 +1,5 @@
 using BenchmarkDotNet.Attributes;
+using Hugo.Primitives;
 
 namespace Hugo.Benchmarks;
 
@@ -16,7 +17,7 @@ public class OnceBenchmarks
     [Benchmark]
     public async Task HugoOnceAsync()
     {
-        var once = new Hugo.Once();
+        var once = new Once();
         var tasks = new Task[TaskCount];
 
         for (var i = 0; i < TaskCount; i++)

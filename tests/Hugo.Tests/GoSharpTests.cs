@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Hugo.Primitives;
 using static Hugo.Go;
 
 namespace Hugo.Tests;
@@ -41,6 +42,8 @@ public class GoSharpTests
         Assert.True(true);
     }
 
+    private static readonly int[] expected = [0, 2, 1];
+
     [Fact]
     public void Defer_ShouldExecuteInReverseOrder()
     {
@@ -52,7 +55,7 @@ public class GoSharpTests
             order.Add(0);
         }
 
-        Assert.Equal(new[] { 0, 2, 1 }, order);
+        Assert.Equal(expected, order);
     }
 
     [Fact]

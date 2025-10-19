@@ -1,8 +1,4 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace Hugo;
+namespace Hugo.Primitives;
 
 /// <summary>
 /// Provides reader/writer mutual exclusion semantics with both synchronous and asynchronous APIs.

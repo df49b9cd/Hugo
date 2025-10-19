@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Hugo.Primitives;
 
 namespace Hugo.Tests;
 

@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading.Channels;
+using Hugo.Primitives;
 using Microsoft.Extensions.Time.Testing;
 using static Hugo.Go;
 
@@ -59,7 +60,7 @@ public class GoTests
     [Fact]
     public async Task Mutex_ShouldThrow_WhenLockIsCancelled()
     {
-        var mutex = new Mutex();
+        var mutex = new HMutex();
         var cts = new CancellationTokenSource();
         using (await mutex.LockAsync(cts.Token))
         {
@@ -73,7 +74,7 @@ public class GoTests
     [Fact]
     public async Task Mutex_ShouldNotBeReentrant()
     {
-        var mutex = new Mutex();
+        var mutex = new HMutex();
         using (await mutex.LockAsync(TestContext.Current.CancellationToken))
         {
             var reentrantLockTask = mutex.LockAsync(TestContext.Current.CancellationToken).AsTask();
@@ -302,21 +303,21 @@ public class GoTests
     public async Task Mutex_ShouldPreventRaceConditions()
     {
         var wg = new WaitGroup();
-        var mutex = new Mutex();
+        var mutex = new HMutex();
         var counter = 0;
         const int numTasks = 5;
         const int incrementsPerTask = 10;
         for (var i = 0; i < numTasks; i++)
         {
-            var task = Task.Run(
-                async () =>
+            var task = Go.Run(
+                async ct =>
                 {
                     for (var j = 0; j < incrementsPerTask; j++)
                     {
-                        using (await mutex.LockAsync())
+                        using (await mutex.LockAsync(ct))
                         {
                             var currentValue = counter;
-                            await Task.Delay(1);
+                            await Task.Delay(1, ct);
                             counter = currentValue + 1;
                         }
                     }
@@ -401,10 +402,10 @@ public class GoTests
     [Fact]
     public async Task Mutex_DisposeAsync_ShouldReleaseLock()
     {
-        var mutex = new Mutex();
+        var mutex = new HMutex();
         var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
 
-        var pending = mutex.LockAsync(TestContext.Current.CancellationToken).AsTask();
+        var pending = mutex.LockAsync(TestContext.Current.CancellationToken);
         await Task.Delay(10, TestContext.Current.CancellationToken);
         Assert.False(pending.IsCompleted);
 
@@ -806,8 +807,9 @@ public class GoTests
         channel.Writer.TryComplete();
     }
 
-    [Fact]
-    public async Task SelectAsync_ShouldSupportRepeatedInvocations()
+    [Theory]
+    [InlineData(new[] { 1, 2 })]
+    public async Task SelectAsync_ShouldSupportRepeatedInvocations(int[] expected)
     {
         var channel = MakeChannel<int>();
         var observed = new List<int>();
@@ -831,11 +833,12 @@ public class GoTests
         var second = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: cases);
 
         Assert.True(second.IsSuccess);
-        Assert.Equal(new[] { 1, 2 }, observed);
+        Assert.Equal(expected, observed);
     }
 
-    [Fact]
-    public async Task ChannelCaseTemplates_With_ShouldMaterializeCases()
+    [Theory]
+    [InlineData(new[] { 99 })]
+    public async Task ChannelCaseTemplates_With_ShouldMaterializeCases(int[] expected)
     {
         var channel1 = MakeChannel<int>();
         var channel2 = MakeChannel<int>();
@@ -862,7 +865,7 @@ public class GoTests
         var result = await selectTask;
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { 99 }, observed);
+        Assert.Equal(expected, observed);
     }
 
     [Fact]
@@ -929,8 +932,9 @@ public class GoTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => builder.ExecuteAsync());
     }
 
-    [Fact]
-    public async Task FanInAsync_ShouldMergeIntoDestination()
+    [Theory]
+    [InlineData(new[] { 1, 2 })]
+    public async Task FanInAsync_ShouldMergeIntoDestination(int[] expected)
     {
         var source1 = MakeChannel<int>();
         var source2 = MakeChannel<int>();
@@ -963,7 +967,7 @@ public class GoTests
         }
 
         observed.Sort();
-        Assert.Equal(new[] { 1, 2 }, observed);
+        Assert.Equal(expected, observed);
     }
 
     [Fact]
@@ -985,8 +989,9 @@ public class GoTests
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await destination.Reader.Completion);
     }
 
-    [Fact]
-    public async Task FanIn_ShouldMergeSources()
+    [Theory]
+    [InlineData(new[] { 7, 9 })]
+    public async Task FanIn_ShouldMergeSources(int[] expected)
     {
         var source1 = MakeChannel<int>();
         var source2 = MakeChannel<int>();
@@ -1015,7 +1020,7 @@ public class GoTests
         }
 
         values.Sort();
-        Assert.Equal(new[] { 7, 9 }, values);
+        Assert.Equal(expected, values);
     }
 
     [Fact]
@@ -1097,6 +1102,8 @@ public class GoTests
     [Fact]
     public void MakePrioritizedChannel_ShouldThrow_WhenDefaultPriorityTooHigh() => Assert.Throws<ArgumentOutOfRangeException>(() => MakePrioritizedChannel<int>(priorityLevels: 2, defaultPriority: 2));
 
+    private static readonly int[] expected = [2, 3, 1];
+
     [Fact]
     public async Task MakeChannel_WithPrioritizedOptions_ShouldYieldHigherPriorityFirst()
     {
@@ -1116,7 +1123,7 @@ public class GoTests
             await reader.ReadAsync(TestContext.Current.CancellationToken)
         };
 
-        Assert.Equal(new[] { 2, 3, 1 }, results);
+        Assert.Equal(expected, results);
     }
 
     [Fact]

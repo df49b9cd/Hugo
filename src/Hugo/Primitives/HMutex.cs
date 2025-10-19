@@ -1,13 +1,9 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace Hugo;
+namespace Hugo.Primitives;
 
 /// <summary>
 /// Provides both synchronous and asynchronous mutual exclusion primitives.
 /// </summary>
-public sealed class Mutex : IDisposable
+public sealed class HMutex : IDisposable
 {
     private readonly SemaphoreSlim _asyncLock = new(1, 1);
     private readonly Lock _lock = new();
@@ -36,7 +32,7 @@ public sealed class Mutex : IDisposable
     {
         if (Volatile.Read(ref _disposed) == 1)
         {
-            throw new ObjectDisposedException(nameof(Mutex));
+            throw new ObjectDisposedException(nameof(HMutex));
         }
     }
 
