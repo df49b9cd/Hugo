@@ -10,6 +10,7 @@
         <Company>df49b9cd</Company>
         <PackageDescription>A library for functional programming in C#.</PackageDescription>
         <RepositoryUrl>https://github.com/df49b9cd/Hugo</RepositoryUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
 </Project>
