@@ -2,7 +2,7 @@
 
 ## Concurrency upgrades
 
-- [ ] Design API surface for `ErrGroup`-style orchestration (cancellation + shared error propagation) and spike implementation in `src/Hugo/Primitives`.
+- [x] Design API surface for `ErrGroup`-style orchestration (cancellation + shared error propagation) and spike implementation in `src/Hugo/Primitives`.
 - [ ] Extend `SelectBuilder` to support default cases, priority ordering, and deadline helpers while maintaining deterministic replay semantics.
 - [ ] Prototype deterministic side-effect/version-gating utilities that persist recorded outputs for replay-safe workflows.
 - [ ] Draft channel-backed task queue abstraction (poll loops, leasing, heartbeats) and integration tests for workflow/activity workers.
