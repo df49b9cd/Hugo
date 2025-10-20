@@ -121,6 +121,70 @@ services.AddPrioritizedChannel<Job>(priorityLevels: 3, builder => builder
 - `AddPrioritizedChannel<T>` registers `PrioritizedChannel<T>`, the prioritized reader/writer helpers, and the base `ChannelReader<T>`/`ChannelWriter<T>` facades.
 - Builders expose `.Build()` when you need an inline channel instance without DI.
 
+## Task queue leasing
+
+`TaskQueue<T>` layers cooperative leasing semantics on top of channels. Producers enqueue work items, workers lease them for a configurable duration, and can heartbeat, complete, or fail each lease. Options configure buffer size, lease duration, heartbeat cadence, sweep interval, requeue delay, and maximum delivery attempts.
+
+### TaskQueue usage
+
+```csharp
+var options = new TaskQueueOptions
+{
+    LeaseDuration = TimeSpan.FromSeconds(10),
+    HeartbeatInterval = TimeSpan.FromSeconds(2),
+    RequeueDelay = TimeSpan.FromMilliseconds(250)
+};
+
+await using var queue = new TaskQueue<Job>(options);
+
+await queue.EnqueueAsync(new Job("alpha"), ct);
+var lease = await queue.LeaseAsync(ct);
+
+try
+{
+    await ProcessAsync(lease.Value, ct);
+    await lease.CompleteAsync(ct);
+}
+catch (Exception ex)
+{
+    await lease.FailAsync(Error.FromException(ex), requeue: true, ct);
+}
+```
+
+### TaskQueue notes
+
+- Heartbeats extend the lease without handing work to another worker while still respecting `HeartbeatInterval` throttling.
+- `FailAsync` captures the provided `Error`, increments the attempt, and either requeues or dead-letters when `MaxDeliveryAttempts` is exceeded.
+- Expired leases are detected by a background sweep and automatically requeued with an `error.taskqueue.lease_expired` payload.
+
+### TaskQueueChannelAdapter usage
+
+```csharp
+await using var queue = new TaskQueue<EventPayload>();
+await using var adapter = TaskQueueChannelAdapter<EventPayload>.Create(queue, concurrency: 4);
+
+await queue.EnqueueAsync(payload, ct);
+
+await foreach (var lease in adapter.Reader.ReadAllAsync(ct))
+{
+    try
+    {
+        await HandleAsync(lease.Value, ct);
+        await lease.CompleteAsync(ct);
+    }
+    catch (Exception ex)
+    {
+        await lease.FailAsync(Error.FromException(ex), requeue: true, ct);
+    }
+}
+```
+
+### TaskQueueChannelAdapter notes
+
+- Pumps run in the background and publish leases to the channel reader. If the channel is closed or cancellation triggers before delivery, the adapter requeues the lease with `Error.Canceled` metadata.
+- `concurrency` controls the number of concurrent pumps issuing leases.
+- Disposing the adapter waits for pumps to finish; when `ownsQueue` is `true`, the underlying queue is disposed as well.
+
 ## Select helpers
 
 Await whichever channel case becomes ready first.
