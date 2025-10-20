@@ -7,7 +7,7 @@ namespace Hugo;
 /// <summary>
 /// Provides static helpers for creating and composing <see cref="Result{T}"/> instances.
 /// </summary>
-public static class Result
+public static partial class Result
 {
     /// <summary>
     /// Wraps the provided value in a successful result.
