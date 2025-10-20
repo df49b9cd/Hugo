@@ -17,4 +17,5 @@ public static class ErrorCodes
     public const string TaskQueueLeaseExpired = "error.taskqueue.lease_expired";
     public const string TaskQueueAbandoned = "error.taskqueue.abandoned";
     public const string TaskQueueDeadLettered = "error.taskqueue.deadlettered";
+    public const string ChannelCompleted = "error.channel.completed";
 }

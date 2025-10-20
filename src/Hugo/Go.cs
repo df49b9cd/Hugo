@@ -506,7 +506,7 @@ public static class Go
                 }
                 else
                 {
-                    output.Writer.TryComplete(CreateFanInException(result.Error ?? Error.Unspecified()));
+                    output.Writer.TryComplete(CreateChannelOperationException(result.Error ?? Error.Unspecified()));
                 }
             }
             catch (Exception ex)
@@ -516,6 +516,85 @@ public static class Go
         }, CancellationToken.None);
 
         return output.Reader;
+    }
+
+    /// <summary>
+    /// Broadcasts each value from a source channel to the provided destination writers.
+    /// </summary>
+    public static Task<Result<Unit>> FanOutAsync<T>(ChannelReader<T> source, IReadOnlyList<ChannelWriter<T>> destinations, bool completeDestinations = true, TimeSpan? deadline = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        ArgumentNullException.ThrowIfNull(destinations);
+
+        if (deadline.HasValue && deadline.Value < TimeSpan.Zero && deadline.Value != Timeout.InfiniteTimeSpan)
+        {
+            throw new ArgumentOutOfRangeException(nameof(deadline));
+        }
+
+        if (destinations.Count == 0)
+        {
+            return Task.FromResult(Result.Ok(Unit.Value));
+        }
+
+        for (var i = 0; i < destinations.Count; i++)
+        {
+            if (destinations[i] is null)
+            {
+                throw new ArgumentException("Destination collection cannot contain null entries.", nameof(destinations));
+            }
+        }
+
+        var effectiveDeadline = deadline ?? Timeout.InfiniteTimeSpan;
+        provider ??= TimeProvider.System;
+
+        return FanOutAsyncCore(source, destinations, completeDestinations, effectiveDeadline, provider, cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates <paramref name="branchCount"/> unbounded channels and fans the source reader into each branch.
+    /// </summary>
+    public static IReadOnlyList<ChannelReader<T>> FanOut<T>(ChannelReader<T> source, int branchCount, bool completeBranches = true, TimeSpan? deadline = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        if (branchCount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(branchCount));
+        }
+
+        var channels = new Channel<T>[branchCount];
+        var writers = new ChannelWriter<T>[branchCount];
+        for (var i = 0; i < branchCount; i++)
+        {
+            var channel = Channel.CreateUnbounded<T>();
+            channels[i] = channel;
+            writers[i] = channel.Writer;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await FanOutAsync(source, writers, completeBranches, deadline, provider, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (completeBranches)
+            {
+                CompleteWriters(writers, ex);
+            }
+            catch
+            {
+                // Caller manages branch completion when completeBranches is false.
+            }
+        }, CancellationToken.None);
+
+        var readers = new ChannelReader<T>[branchCount];
+        for (var i = 0; i < branchCount; i++)
+        {
+            readers[i] = channels[i].Reader;
+        }
+
+        return readers;
     }
 
 
@@ -943,7 +1022,7 @@ public static class Go
                 }
                 else
                 {
-                    destination.TryComplete(CreateFanInException(result.Error ?? Error.Unspecified()));
+                    destination.TryComplete(CreateChannelOperationException(result.Error ?? Error.Unspecified()));
                 }
             }
 
@@ -960,9 +1039,155 @@ public static class Go
         }
     }
 
+    private static async Task<Result<Unit>> FanOutAsyncCore<T>(ChannelReader<T> source, IReadOnlyList<ChannelWriter<T>> destinations, bool completeDestinations, TimeSpan deadline, TimeProvider provider, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await source.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                while (source.TryRead(out var item))
+                {
+                    var itemTimestamp = deadline == Timeout.InfiniteTimeSpan ? 0 : provider.GetTimestamp();
+
+                    for (var i = 0; i < destinations.Count; i++)
+                    {
+                        var writeResult = await WriteWithDeadlineAsync(destinations[i], item, deadline, provider, itemTimestamp, cancellationToken).ConfigureAwait(false);
+                        if (writeResult.IsFailure)
+                        {
+                            if (completeDestinations)
+                            {
+                                CompleteWriters(destinations, CreateChannelOperationException(writeResult.Error ?? Error.Unspecified()));
+                            }
+
+                            return writeResult;
+                        }
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            var canceled = Error.Canceled(token: cancellationToken.CanBeCanceled ? cancellationToken : null);
+            if (completeDestinations)
+            {
+                CompleteWriters(destinations, CreateChannelOperationException(canceled));
+            }
+
+            return Result.Fail<Unit>(canceled);
+        }
+        catch (Exception ex)
+        {
+            if (completeDestinations)
+            {
+                CompleteWriters(destinations, ex);
+            }
+
+            return Result.Fail<Unit>(Error.FromException(ex));
+        }
+
+        if (source.Completion.IsFaulted)
+        {
+            var fault = source.Completion.Exception?.GetBaseException() ?? new InvalidOperationException("Source channel faulted.");
+            if (completeDestinations)
+            {
+                CompleteWriters(destinations, fault);
+            }
+
+            return Result.Fail<Unit>(Error.FromException(fault));
+        }
+
+        if (source.Completion.IsCanceled)
+        {
+            var canceled = Error.Canceled();
+            if (completeDestinations)
+            {
+                CompleteWriters(destinations, CreateChannelOperationException(canceled));
+            }
+
+            return Result.Fail<Unit>(canceled);
+        }
+
+        if (completeDestinations)
+        {
+            CompleteWriters(destinations, null);
+        }
+
+        return Result.Ok(Unit.Value);
+    }
+
+    private static async Task<Result<Unit>> WriteWithDeadlineAsync<T>(ChannelWriter<T> writer, T value, TimeSpan deadline, TimeProvider provider, long startTimestamp, CancellationToken cancellationToken)
+    {
+        if (writer.TryWrite(value))
+        {
+            return Result.Ok(Unit.Value);
+        }
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (deadline == Timeout.InfiniteTimeSpan)
+            {
+                var canWrite = await writer.WaitToWriteAsync(cancellationToken).ConfigureAwait(false);
+                if (!canWrite)
+                {
+                    return Result.Fail<Unit>(Error.From("Destination channel has completed.", ErrorCodes.ChannelCompleted));
+                }
+            }
+            else
+            {
+                var elapsed = provider.GetElapsedTime(startTimestamp);
+                var remaining = deadline - elapsed;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    return Result.Fail<Unit>(Error.Timeout(deadline));
+                }
+
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                var waitTask = writer.WaitToWriteAsync(linkedCts.Token).AsTask();
+                var delayTask = provider.DelayAsync(remaining, linkedCts.Token);
+
+                var completed = await Task.WhenAny(waitTask, delayTask).ConfigureAwait(false);
+                if (completed == delayTask)
+                {
+                    linkedCts.Cancel();
+                    return Result.Fail<Unit>(Error.Timeout(deadline));
+                }
+
+                var canWrite = await waitTask.ConfigureAwait(false);
+                if (!canWrite)
+                {
+                    linkedCts.Cancel();
+                    return Result.Fail<Unit>(Error.From("Destination channel has completed.", ErrorCodes.ChannelCompleted));
+                }
+
+                linkedCts.Cancel();
+            }
+
+            if (writer.TryWrite(value))
+            {
+                return Result.Ok(Unit.Value);
+            }
+        }
+    }
+
+    private static void CompleteWriters<T>(IReadOnlyList<ChannelWriter<T>> writers, Exception? exception)
+    {
+        for (var i = 0; i < writers.Count; i++)
+        {
+            if (exception is null)
+            {
+                writers[i].TryComplete();
+                continue;
+            }
+
+            writers[i].TryComplete(exception);
+        }
+    }
+
     private static bool IsSelectDrained(Error? error) => error is { Code: ErrorCodes.SelectDrained };
 
-    private static Exception CreateFanInException(Error error)
+    private static Exception CreateChannelOperationException(Error error)
     {
         if (error.Code == ErrorCodes.Canceled)
         {

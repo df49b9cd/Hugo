@@ -877,6 +877,135 @@ public class GoTests
         channel.Writer.TryComplete();
     }
 
+    [Fact]
+    public async Task FanOutAsync_ShouldBroadcastToAllDestinations()
+    {
+        var source = MakeChannel<int>();
+        var destination1 = MakeChannel<int>();
+        var destination2 = MakeChannel<int>();
+
+        var fanOutTask = FanOutAsync(
+            source.Reader,
+            new[] { destination1.Writer, destination2.Writer },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        await source.Writer.WriteAsync(42, TestContext.Current.CancellationToken);
+        source.Writer.TryComplete();
+
+        var result = await fanOutTask;
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(42, await destination1.Reader.ReadAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(42, await destination2.Reader.ReadAsync(TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ChannelClosedException>(async () => await destination1.Reader.ReadAsync(TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ChannelClosedException>(async () => await destination2.Reader.ReadAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task FanOutAsync_ShouldTimeoutWhenDeadlineExpires()
+    {
+        var provider = new FakeTimeProvider();
+        var source = MakeChannel<int>();
+
+        var destinationOptions = new BoundedChannelOptions(1)
+        {
+            FullMode = BoundedChannelFullMode.Wait
+        };
+        var destination = Channel.CreateBounded<int>(destinationOptions);
+        Assert.True(destination.Writer.TryWrite(7));
+
+        var fanOutTask = FanOutAsync(
+            source.Reader,
+            new[] { destination.Writer },
+            deadline: TimeSpan.FromSeconds(1),
+            provider: provider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        await source.Writer.WriteAsync(13, TestContext.Current.CancellationToken);
+        source.Writer.TryComplete();
+
+        provider.Advance(TimeSpan.FromMilliseconds(1100));
+
+        var totalVirtualTime = TimeSpan.FromMilliseconds(1100);
+        var step = TimeSpan.FromMilliseconds(200);
+        using var advanceCts = new CancellationTokenSource();
+
+        var advanceLoop = Task.Run(async () =>
+        {
+            while (!fanOutTask.IsCompleted && !advanceCts.IsCancellationRequested)
+            {
+                provider.Advance(step);
+                totalVirtualTime += step;
+                await Task.Yield();
+            }
+        }, CancellationToken.None);
+
+        Result<Unit> result;
+        try
+        {
+            result = await fanOutTask.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            advanceCts.Cancel();
+            await advanceLoop;
+        }
+
+        Assert.True(fanOutTask.IsCompleted, "Fan-out did not respect the configured deadline within the virtual time window.");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task FanOutAsync_ShouldRespectCancellation()
+    {
+        var source = MakeChannel<int>();
+        var destination = MakeChannel<int>();
+        using var cts = new CancellationTokenSource();
+
+        var fanOutTask = FanOutAsync(
+            source.Reader,
+            new[] { destination.Writer },
+            cancellationToken: cts.Token);
+
+        cts.Cancel();
+
+        var result = await fanOutTask;
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task FanOut_ShouldReturnBranchReaders()
+    {
+        var source = MakeChannel<int>();
+
+        var branches = FanOut(source.Reader, 2, cancellationToken: TestContext.Current.CancellationToken);
+
+        await source.Writer.WriteAsync(99, TestContext.Current.CancellationToken);
+        source.Writer.TryComplete();
+
+        var value1 = await branches[0].ReadAsync(TestContext.Current.CancellationToken);
+        var value2 = await branches[1].ReadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(99, value1);
+        Assert.Equal(99, value2);
+    }
+
+    [Fact]
+    public async Task FakeTimeProviderDelay_ShouldCompleteAfterAdvance()
+    {
+        var provider = new FakeTimeProvider();
+
+        var delayTask = Go.DelayAsync(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken);
+
+        provider.Advance(TimeSpan.FromSeconds(2));
+
+        await delayTask;
+    }
+
     [Theory]
     [InlineData(new[] { 1, 2 })]
     public async Task SelectAsync_ShouldSupportRepeatedInvocations(int[] expected)
