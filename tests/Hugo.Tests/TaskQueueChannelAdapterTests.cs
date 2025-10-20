@@ -166,7 +166,7 @@ public class TaskQueueChannelAdapterTests
         using (var leaseIssuedCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken))
         {
             leaseIssuedCts.CancelAfter(TimeSpan.FromSeconds(3));
-            await WaitForConditionAsync(() => queue.ActiveLeaseCount == 1, leaseIssuedCts.Token, TimeSpan.FromMilliseconds(1));
+            await WaitForConditionAsync(() => queue.PendingCount == 1, leaseIssuedCts.Token, TimeSpan.FromMilliseconds(1));
         }
 
         using var leaseCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);

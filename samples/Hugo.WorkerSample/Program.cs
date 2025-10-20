@@ -38,6 +38,26 @@ builder.Services.AddSingleton<TaskQueue<TelemetryWorkItem>>(sp =>
             return ValueTask.CompletedTask;
         });
 });
+builder.Services.AddSingleton<IDeterministicStateStore, InMemoryDeterministicStateStore>();
+builder.Services.AddSingleton(sp =>
+{
+    var store = sp.GetRequiredService<IDeterministicStateStore>();
+    var timeProvider = sp.GetRequiredService<TimeProvider>();
+    return new VersionGate(store, timeProvider);
+});
+builder.Services.AddSingleton(sp =>
+{
+    var store = sp.GetRequiredService<IDeterministicStateStore>();
+    var timeProvider = sp.GetRequiredService<TimeProvider>();
+    return new DeterministicEffectStore(store, timeProvider);
+});
+builder.Services.AddSingleton(sp =>
+{
+    var versionGate = sp.GetRequiredService<VersionGate>();
+    var effectStore = sp.GetRequiredService<DeterministicEffectStore>();
+    return new DeterministicGate(versionGate, effectStore);
+});
+builder.Services.AddSingleton<TelemetryCalibration>();
 builder.Services.AddHostedService<TelemetryWorker>();
 
 var app = builder.Build();
@@ -45,15 +65,31 @@ await app.RunAsync();
 
 sealed class TelemetryWorker(
     ILogger<TelemetryWorker> logger,
+    TelemetryCalibration calibration,
     TimeProvider timeProvider,
     TaskQueue<TelemetryWorkItem> queue) : BackgroundService
 {
     private readonly ILogger<TelemetryWorker> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly TelemetryCalibration _calibration = calibration ?? throw new ArgumentNullException(nameof(calibration));
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
     private readonly TaskQueue<TelemetryWorkItem> _queue = queue ?? throw new ArgumentNullException(nameof(queue));
+    private CalibrationProfile? _calibrationProfile;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var calibrationResult = await _calibration.RunAsync(stoppingToken).ConfigureAwait(false);
+        if (calibrationResult.IsFailure)
+        {
+            var error = calibrationResult.Error!;
+            _logger.LogError(
+                "Telemetry calibration failed ({Code}): {Message}",
+                error.Code ?? ErrorCodes.Unspecified,
+                error.Message);
+            throw new InvalidOperationException("Telemetry calibration failed – see logs for details.");
+        }
+
+        _calibrationProfile = calibrationResult.Value;
+
         var wg = new WaitGroup();
 
         wg.Go(async ct =>
@@ -182,19 +218,30 @@ sealed class TelemetryWorker(
     private async ValueTask HandleCpuReadingAsync(TaskQueueLease<TelemetryWorkItem> lease, CancellationToken stoppingToken)
     {
         var message = lease.Value;
+        var profile = _calibrationProfile ?? throw new InvalidOperationException("Calibration profile has not been loaded.");
 
         // Simulate longer processing that requires periodic heartbeats to keep the lease alive.
         await DelayAsync(TimeSpan.FromSeconds(1.2), _timeProvider, stoppingToken).ConfigureAwait(false);
         await lease.HeartbeatAsync(stoppingToken).ConfigureAwait(false);
         await DelayAsync(TimeSpan.FromSeconds(0.8), _timeProvider, stoppingToken).ConfigureAwait(false);
 
-        if (message.Value is >= 0 and <= 100)
+    if (message.Value >= 0d && message.Value <= profile.MaxCpuPercent)
         {
             _logger.LogInformation(
-                "CPU reading {Value:F2}%% captured at {ObservedAt:o} processed on attempt {Attempt}",
+                "CPU reading {Value:F2}%% captured at {ObservedAt:o} processed on attempt {Attempt} within calibrated max {Max:F2}",
                 message.Value,
                 message.ObservedAt,
-                lease.Attempt);
+                lease.Attempt,
+                profile.MaxCpuPercent);
+
+            if (message.Value >= profile.WarningCpuPercent)
+            {
+                _logger.LogWarning(
+                    "Reading {Value:F2}%% exceeded warning threshold {Warning:F2}%% (calibration v{Version})",
+                    message.Value,
+                    profile.WarningCpuPercent,
+                    profile.Version);
+            }
 
             await lease.CompleteAsync(stoppingToken).ConfigureAwait(false);
             return;
@@ -231,3 +278,53 @@ enum TelemetryKind
 }
 
 readonly record struct TelemetryWorkItem(TelemetryKind Kind, double Value, DateTimeOffset ObservedAt);
+
+sealed class TelemetryCalibration(
+    DeterministicGate gate,
+    TimeProvider timeProvider,
+    ILogger<TelemetryCalibration> logger)
+{
+    private readonly DeterministicGate _gate = gate ?? throw new ArgumentNullException(nameof(gate));
+    private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+    private readonly ILogger<TelemetryCalibration> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+    public async Task<Result<CalibrationProfile>> RunAsync(CancellationToken cancellationToken)
+    {
+        var result = await _gate.Workflow<CalibrationProfile>("telemetry.calibration", 1, 2, _ => 2)
+            .ForVersion(1, (ctx, ct) => ctx.CaptureAsync(
+                "legacy-profile",
+                _ => Task.FromResult(Result.Ok(new CalibrationProfile(100, 90, ctx.Version, _timeProvider.GetUtcNow()))),
+                ct))
+            .ForVersion(2, (ctx, ct) => ctx.CaptureAsync(
+                "profile.v2",
+                async token =>
+                {
+                    if (ctx.IsNew)
+                    {
+                        _logger.LogInformation("Running calibration change {ChangeId} version {Version}", ctx.ChangeId, ctx.Version);
+                    }
+
+                    await DelayAsync(TimeSpan.FromSeconds(1.5), _timeProvider, token).ConfigureAwait(false);
+
+                    var profile = new CalibrationProfile(97.5, 92.5, ctx.Version, _timeProvider.GetUtcNow());
+                    return Result.Ok(profile);
+                },
+                ct))
+            .WithFallback((ctx, ct) => ctx.CaptureAsync(
+                "fallback-profile",
+                _ => Task.FromResult(Result.Ok(new CalibrationProfile(100, 95, ctx.Version, _timeProvider.GetUtcNow()))),
+                ct))
+            .ExecuteAsync(cancellationToken).ConfigureAwait(false);
+
+        return result.Tap(profile =>
+        {
+            _logger.LogInformation(
+                "Calibrated telemetry thresholds: max {Max:F2}%% warning {Warning:F2}%% (version {Version})",
+                profile.MaxCpuPercent,
+                profile.WarningCpuPercent,
+                profile.Version);
+        });
+    }
+}
+
+readonly record struct CalibrationProfile(double MaxCpuPercent, double WarningCpuPercent, int Version, DateTimeOffset CapturedAt);

@@ -15,6 +15,7 @@ Hugo brings Go-style concurrency and result pipelines to .NET. This documentatio
 ## Reference
 
 - [Concurrency primitives](reference/concurrency-primitives.md): definitive description of `WaitGroup`, `Mutex`, `RwMutex`, timers, and select helpers.
+- [Deterministic coordination](reference/deterministic-coordination.md): workflow builder, version markers, and replay-safe effect capture.
 - [Result pipeline APIs](reference/result-pipelines.md): catalogue of `Result<T>` operations, async overloads, and error metadata helpers.
 - [Diagnostics surface](reference/diagnostics.md): instruments emitted by `GoDiagnostics` with units, dimensions, and usage notes.
 
