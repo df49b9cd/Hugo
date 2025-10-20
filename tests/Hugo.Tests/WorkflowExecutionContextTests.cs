@@ -11,12 +11,10 @@ public sealed class WorkflowExecutionContextTests : IDisposable
 {
     public WorkflowExecutionContextTests()
     {
-        GoDiagnostics.Reset();
     }
 
     public void Dispose()
     {
-        GoDiagnostics.Reset();
     }
 
     [Fact]
@@ -106,6 +104,16 @@ public sealed class WorkflowExecutionContextTests : IDisposable
     }
 
     [Fact]
+    public void TryGetMetadata_ShouldReturnExistingValue()
+    {
+    var context = CreateContext(metadata: new Dictionary<string, string> { ["region"] = "eu-west" });
+
+        Assert.True(context.TryGetMetadata("region", out var value));
+        Assert.Equal("eu-west", value);
+        Assert.False(context.TryGetMetadata("missing", out _));
+    }
+
+    [Fact]
     public void Complete_ShouldPopulateVisibilityRecordAndErrorMetadata()
     {
         var provider = new FakeTimeProvider();
@@ -126,6 +134,8 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.NotNull(context.CompletionError);
         Assert.True(context.CompletionError!.TryGetMetadata("workflow.namespace", out string? ns));
         Assert.Equal(context.Namespace, ns);
+        Assert.True(context.CompletionError!.TryGetMetadata("workflow.metadata.tenant", out string? tenant));
+        Assert.Equal("contoso", tenant);
     }
 
     [Fact]
@@ -298,6 +308,23 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         cleanup.Dispose();
 
         Assert.False(WorkflowExecution.HasCurrent);
+    }
+
+    [Fact]
+    public void Enter_WithReplace_ShouldSwapAmbientContext()
+    {
+        var original = CreateContext(workflowId: "original");
+        var replacement = CreateContext(workflowId: "replacement");
+
+        var originalScope = WorkflowExecution.Enter(original, TestContext.Current.CancellationToken);
+
+        using (WorkflowExecution.Enter(replacement, TestContext.Current.CancellationToken, replace: true))
+        {
+            Assert.Same(replacement, WorkflowExecution.RequireCurrent());
+        }
+
+        Assert.False(WorkflowExecution.HasCurrent);
+        Assert.Throws<InvalidOperationException>(() => originalScope.Dispose());
     }
 
     [Fact]
