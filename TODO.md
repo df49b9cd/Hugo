@@ -9,10 +9,10 @@
 
 ## Functional pipeline enhancements
 
-- [ ] Implement `Result.WhenAll`/`Result.WhenAny` helpers with policy-driven retry/compensation hooks.
-- [ ] Add saga/compensation pipeline module with automatic rollback semantics for multi-step activities.
-- [ ] Bridge `IAsyncEnumerable<T>` with channels/results via streaming combinators (fan-in/out, windowing, partitioning).
-- [ ] Provide higher-order operators (`Group`, `Partition`, `Window`) and resilient retry wrappers aligned with schedule/cron workflows.
+- [x] Implement `Result.WhenAll`/`Result.WhenAny` helpers with policy-driven retry/compensation hooks.
+- [x] Add saga/compensation pipeline module with automatic rollback semantics for multi-step activities.
+- [x] Bridge `IAsyncEnumerable<T>` with channels/results via streaming combinators (fan-in/out, windowing, partitioning).
+- [x] Provide higher-order operators (`Group`, `Partition`, `Window`) and resilient retry wrappers aligned with schedule/cron workflows.
 
 ## Determinism & observability support
 
