@@ -10,18 +10,46 @@ public readonly struct ChannelCase
 {
     private readonly Func<CancellationToken, Task<(bool HasValue, object? Value)>> _waiter;
     private readonly Func<object?, CancellationToken, Task<Result<Go.Unit>>> _continuation;
+    private readonly Func<(bool HasValue, object? Value)>? _readyProbe;
+    private readonly int _priority;
+    private readonly bool _isDefault;
 
     private ChannelCase(
         Func<CancellationToken, Task<(bool HasValue, object? Value)>> waiter,
-        Func<object?, CancellationToken, Task<Result<Go.Unit>>> continuation)
+        Func<object?, CancellationToken, Task<Result<Go.Unit>>> continuation,
+        Func<(bool HasValue, object? Value)>? readyProbe,
+        int priority,
+        bool isDefault)
     {
         _waiter = waiter ?? throw new ArgumentNullException(nameof(waiter));
         _continuation = continuation ?? throw new ArgumentNullException(nameof(continuation));
+        _readyProbe = readyProbe;
+        _priority = priority;
+        _isDefault = isDefault;
     }
 
     internal Task<(bool HasValue, object? Value)> WaitAsync(CancellationToken cancellationToken) => _waiter(cancellationToken);
 
     internal Task<Result<Go.Unit>> ContinueWithAsync(object? value, CancellationToken cancellationToken) => _continuation(value, cancellationToken);
+
+    internal int Priority => _priority;
+
+    internal bool IsDefault => _isDefault;
+
+    internal bool TryDequeueImmediately(out object? state)
+    {
+        if (_readyProbe is null)
+        {
+            state = null;
+            return false;
+        }
+
+        var (hasValue, value) = _readyProbe();
+        state = value;
+        return hasValue;
+    }
+
+    internal ChannelCase WithPriority(int priority) => new(_waiter, _continuation, _readyProbe, priority, _isDefault);
 
     /// <summary>
     /// Creates a channel case that executes <paramref name="onValue"/> when <paramref name="reader"/> produces a value.
@@ -51,17 +79,31 @@ public readonly struct ChannelCase
             },
             async (state, ct) =>
             {
-                var deferred = (DeferredRead<T>)state!;
-                if (!deferred.Reader.TryRead(out var item))
+                T item = default!;
+                switch (state)
                 {
-                    try
-                    {
-                        item = await deferred.Reader.ReadAsync(ct).ConfigureAwait(false);
-                    }
-                    catch (ChannelClosedException)
-                    {
-                        return Result.Fail<Go.Unit>(Error.From("Channel closed before a value could be read.", ErrorCodes.SelectDrained));
-                    }
+                    case ImmediateRead<T> immediate:
+                        item = immediate.Value;
+                        break;
+                    case DeferredRead<T> deferred:
+                        if (deferred.Reader.TryRead(out var immediateItem))
+                        {
+                            item = immediateItem;
+                            break;
+                        }
+
+                        try
+                        {
+                            item = await deferred.Reader.ReadAsync(ct).ConfigureAwait(false);
+                        }
+                        catch (ChannelClosedException)
+                        {
+                            return Result.Fail<Go.Unit>(Error.From("Channel closed before a value could be read.", ErrorCodes.SelectDrained));
+                        }
+
+                        break;
+                    default:
+                        return Result.Fail<Go.Unit>(Error.From("Invalid channel state encountered during select continuation.", ErrorCodes.Exception));
                 }
 
                 try
@@ -76,7 +118,31 @@ public readonly struct ChannelCase
                 {
                     return Result.Fail<Go.Unit>(Error.FromException(ex));
                 }
-            });
+            },
+            () =>
+            {
+                try
+                {
+                    var wait = reader.WaitToReadAsync(CancellationToken.None);
+                    if (!wait.IsCompleted)
+                    {
+                        return (false, null);
+                    }
+
+                    if (!wait.GetAwaiter().GetResult())
+                    {
+                        return (false, null);
+                    }
+
+                    return (true, new DeferredRead<T>(reader));
+                }
+                catch (ChannelClosedException)
+                {
+                    return (false, null);
+                }
+            },
+            priority: 0,
+            isDefault: false);
     }
 
     public static ChannelCase Create<T>(ChannelReader<T> reader, Func<T, Task<Result<Go.Unit>>> onValue) => onValue is null ? throw new ArgumentNullException(nameof(onValue)) : Create(reader, (item, _) => onValue(item));
@@ -96,11 +162,56 @@ public readonly struct ChannelCase
             onValue(item);
             return Task.FromResult(Result.Ok(Go.Unit.Value));
         });
+
+    public static ChannelCase CreateDefault(Func<CancellationToken, Task<Result<Go.Unit>>> onDefault, int priority = 0)
+    {
+        ArgumentNullException.ThrowIfNull(onDefault);
+
+        return new ChannelCase(
+            _ => Task.FromResult((true, (object?)null)),
+            async (_, ct) =>
+            {
+                try
+                {
+                    return await onDefault(ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    return Result.Fail<Go.Unit>(Error.FromException(ex));
+                }
+            },
+            () => (true, (object?)null),
+            priority,
+            isDefault: true);
+    }
+
+    public static ChannelCase CreateDefault(Func<Task<Result<Go.Unit>>> onDefault, int priority = 0)
+    {
+        ArgumentNullException.ThrowIfNull(onDefault);
+
+        return CreateDefault(_ => onDefault(), priority);
+    }
+
+    public static ChannelCase CreateDefault(Func<Result<Go.Unit>> onDefault, int priority = 0)
+    {
+        ArgumentNullException.ThrowIfNull(onDefault);
+
+        return CreateDefault(_ => Task.FromResult(onDefault()), priority);
+    }
 }
 
 internal sealed class DeferredRead<T>(ChannelReader<T> reader)
 {
     public ChannelReader<T> Reader { get; } = reader ?? throw new ArgumentNullException(nameof(reader));
+}
+
+internal sealed class ImmediateRead<T>(T value)
+{
+    public T Value { get; } = value;
 }
 
 /// <summary>

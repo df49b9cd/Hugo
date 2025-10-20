@@ -946,6 +946,70 @@ public class GoTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => builder.ExecuteAsync());
     }
 
+    [Fact]
+    public async Task SelectBuilder_ShouldReturnDefaultResult_WhenNoCasesConfigured()
+    {
+        var result = await Select<string>(cancellationToken: TestContext.Current.CancellationToken)
+            .Default(() => "fallback")
+            .ExecuteAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("fallback", result.Value);
+    }
+
+    [Fact]
+    public async Task SelectBuilder_ShouldPreferReadyCasesOverDefault()
+    {
+        var channel = MakeChannel<int>();
+        channel.Writer.TryWrite(9);
+        channel.Writer.TryComplete();
+
+        var result = await Select<int>(cancellationToken: TestContext.Current.CancellationToken)
+            .Case(channel.Reader, value => value)
+            .Default(() => 5)
+            .ExecuteAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(9, result.Value);
+    }
+
+    [Fact]
+    public async Task SelectBuilder_ShouldHonorPriorityOrdering_WhenMultipleCasesReady()
+    {
+        var highPriority = MakeChannel<int>();
+        var lowPriority = MakeChannel<int>();
+
+        highPriority.Writer.TryWrite(1);
+        lowPriority.Writer.TryWrite(2);
+        highPriority.Writer.TryComplete();
+        lowPriority.Writer.TryComplete();
+
+        var result = await Select<int>(cancellationToken: TestContext.Current.CancellationToken)
+            .Case(lowPriority.Reader, value => value)
+            .Case(highPriority.Reader, priority: -1, value => value)
+            .ExecuteAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.Value);
+    }
+
+    [Fact]
+    public async Task SelectBuilder_Deadline_ShouldYieldConfiguredResult()
+    {
+        var provider = new FakeTimeProvider();
+
+        var selectTask = Select<string>(provider: provider, cancellationToken: TestContext.Current.CancellationToken)
+            .Deadline(TimeSpan.FromSeconds(1), () => "expired")
+            .ExecuteAsync();
+
+        provider.Advance(TimeSpan.FromSeconds(1));
+
+        var result = await selectTask;
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("expired", result.Value);
+    }
+
     [Theory]
     [InlineData(new[] { 1, 2 })]
     public async Task FanInAsync_ShouldMergeIntoDestination(int[] expected)

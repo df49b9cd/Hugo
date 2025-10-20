@@ -157,6 +157,7 @@ var result = await Go.SelectAsync(
 - Diagnostics capture attempts, completions, latency, cancellations.
 - Timeouts use `TimeProvider` when supplied.
 - Cancelled tokens surface as `Error.Canceled` with originating token metadata.
+- `SelectBuilder` supports `.Default(...)` fallbacks, per-case `priority` ordering, and `.Deadline(...)` helpers for timer-driven outcomes.
 
 ## Fan-in utilities
 

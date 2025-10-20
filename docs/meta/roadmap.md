@@ -3,11 +3,14 @@
 ## In progress
 
 - **Structured API reference**: Expand XML docs and integrate with DocFX to keep the reference section in sync with the codebase.
-- **Diagnostics exporters**: Prototype `Hugo.Diagnostics.OpenTelemetry` with opinionated views and histogram boundaries.
-- **Profiling toolkit**: Document dotnet diagnostic recipes (`docs/how-to/profiling-toolkit.md`), ship helper scripts and collection rule templates under `tools/profiling-toolkit`, capture reproducible traces with `dotnet-trace`, watch runtime counters with `dotnet-counters`, and surface automated collection rules via `dotnet-monitor` to detect throughput and GC regressions. **Status:** GitHub Actions baseline workflow available; iterate on additional automation samples as needed.
+- **Diagnostics exporters**: Prototype `Hugo.Diagnostics.OpenTelemetry` with schema-aware meters (`Meter.TelemetrySchemaUrl`), `ActivitySourceOptions`, and Aspire ServiceDefaults so Hugo apps emit OTLP/Prometheus friendly signals out-of-the-box.
+- **Result pipeline orchestration**: Nail down retry/compensation story across `Result<T>` and `ErrGroup`, including guidance for tiered fallbacks and cancellation surfacing.
 
 ## Recently shipped
 
+- **ErrGroup orchestration**: Added `Hugo.ErrGroup` for cancellable task orchestration with `WaitGroup` integration and structured error propagation.
+- **Select builder upgrades**: `Go.Select(...)` now supports default branches, priority ordering, and deadline helpers for deterministic channel coordination.
+- **Profiling toolkit**: Documented dotnet diagnostic recipes (`docs/how-to/profiling-toolkit.md`), shipped helper scripts and collection rule templates under `tools/profiling-toolkit`, and published a GitHub Actions baseline workflow for automated trace captures.
 - **Result enrichments**: Pattern-matching helpers, JSON-friendly error serialization, and optional value support.
 - **Timer primitives**: `Go.After`, `Go.AfterAsync`, `Go.NewTicker`, and `Go.Tick` built on `TimeProvider` for deterministic tests.
 - **Cancellation audit**: Async combinators propagate `Error.Canceled` with origin metadata; `Go.SelectAsync` surfaces structured failures.
@@ -19,9 +22,9 @@
 - **Cross-runtime samples**: Azure Functions, ASP.NET minimal APIs, and Orleans grains that showcase Hugo primitives.
 - **Distributed coordination**: Investigate Redis- or Event Hubs-backed wait groups for multi-node workloads.
 - **Playbook templates**: Publish recommended timeout, retry, and cancellation patterns for common distributed tasks.
-- **Concurrency upgrades**: Ship an `ErrGroup` analogue for cancellable task orchestration, enrich `SelectBuilder` with default/prioritised cases plus deadline helpers, record deterministic side effects/version gates, and layer task-queue semantics (polling, leasing, heartbeats) atop channels to prepare workflow/activity workers.
+- **Concurrency upgrades**: Layer task-queue semantics (polling, leasing, heartbeats) atop channels, add deterministic side-effect/version gating primitives, and expose deadline-aware fan-out helpers informed by .NET 10 de-abstraction work.
 - **Functional pipeline enhancements**: Add `Result.WhenAll/WhenAny`, saga-style compensation helpers, resilient retry wrappers, and streaming/partitioning combinators that bridge `IAsyncEnumerable<T>` with channels/results for deterministic fan-in/out.
-- **Determinism & observability support**: Model workflow execution context metadata (logical clock, schedule IDs, namespace scope) and extend diagnostics with task-queue depth, replay counters, and workflow-status metrics to unlock Temporal-grade visibility.
+- **Diagnostics & observability support**: Adopt telemetry schema URLs, rate-limited sampling, and Aspire dashboard integration so Hugo diagnostics align with modern OpenTelemetry guidance; model workflow execution context metadata (logical clock, schedule IDs, namespace scope) and extend metrics for task-queue depth, replay counters, and workflow-status visibility.
 
 ## Contribution guidelines
 

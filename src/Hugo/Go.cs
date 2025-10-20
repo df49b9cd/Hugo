@@ -81,13 +81,13 @@ public static class Go
     /// Awaits the first channel case to produce a value.
     /// </summary>
     public static Task<Result<Unit>> SelectAsync(TimeProvider? provider = null, CancellationToken cancellationToken = default, params ChannelCase[] cases) =>
-        SelectInternalAsync(cases, Timeout.InfiniteTimeSpan, provider, cancellationToken);
+        SelectInternalAsync(cases, defaultCase: null, Timeout.InfiniteTimeSpan, provider, cancellationToken);
 
     /// <summary>
     /// Awaits the first channel case to produce a value or returns when the timeout elapses.
     /// </summary>
     public static Task<Result<Unit>> SelectAsync(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default, params ChannelCase[] cases) =>
-        SelectInternalAsync(cases, timeout, provider, cancellationToken);
+        SelectInternalAsync(cases, defaultCase: null, timeout, provider, cancellationToken);
 
     /// <summary>
     /// Creates a fluent builder that materializes a typed channel select workflow.
@@ -116,37 +116,107 @@ public static class Go
     /// </summary>
     public static PrioritizedChannelBuilder<T> PrioritizedChannel<T>(int priorityLevels) => new(priorityLevels);
 
-    private static async Task<Result<Unit>> SelectInternalAsync(ChannelCase[] cases, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
+    private static async Task<Result<Unit>> SelectInternalAsync(IReadOnlyList<ChannelCase> cases, ChannelCase? defaultCase, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(cases);
-
-        if (cases.Length == 0)
-        {
-            throw new ArgumentException("At least one channel case must be provided.", nameof(cases));
-        }
 
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
         {
             throw new ArgumentOutOfRangeException(nameof(timeout));
         }
 
-    provider ??= TimeProvider.System;
-    using var activity = GoDiagnostics.StartSelectActivity(cases.Length, timeout);
-    GoDiagnostics.RecordChannelSelectAttempt(activity);
-    var startTimestamp = provider.GetTimestamp();
+        provider ??= TimeProvider.System;
 
-    using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-    var caseList = new List<ChannelCase>(cases.Length);
-    var waitTasks = new List<Task<(bool HasValue, object? Value)>>(cases.Length);
-    var taskIndex = new Dictionary<Task, int>(cases.Length);
-
-        for (var i = 0; i < cases.Length; i++)
+        var resolvedDefault = defaultCase;
+        var caseList = new List<ChannelCase>(cases.Count);
+        for (var i = 0; i < cases.Count; i++)
         {
             var channelCase = cases[i];
-            var waitTask = channelCase.WaitAsync(linkedCts.Token);
+            if (channelCase.IsDefault)
+            {
+                if (resolvedDefault.HasValue)
+                {
+                    throw new ArgumentException("Only one default case may be supplied.", nameof(cases));
+                }
+
+                resolvedDefault = channelCase;
+                continue;
+            }
+
             caseList.Add(channelCase);
-            waitTasks.Add(waitTask);
-            taskIndex[waitTask] = i;
+        }
+
+        if (caseList.Count == 0 && !resolvedDefault.HasValue)
+        {
+            throw new ArgumentException("At least one channel case must be provided.", nameof(cases));
+        }
+
+        using var activity = GoDiagnostics.StartSelectActivity(caseList.Count + (resolvedDefault.HasValue ? 1 : 0), timeout);
+        GoDiagnostics.RecordChannelSelectAttempt(activity);
+        var startTimestamp = provider.GetTimestamp();
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        // Attempt immediate reads to honor priority without awaiting.
+        var immediateCandidates = new List<(int Index, object? State)>();
+        for (var i = 0; i < caseList.Count; i++)
+        {
+            if (caseList[i].TryDequeueImmediately(out var state))
+            {
+                immediateCandidates.Add((i, state));
+            }
+        }
+
+        if (immediateCandidates.Count > 0)
+        {
+            var (selectedIndex, selectedState) = SelectByPriority(immediateCandidates, caseList);
+            linkedCts.Cancel();
+            var completionDuration = provider.GetElapsedTime(startTimestamp);
+
+            try
+            {
+                var continuationResult = await caseList[selectedIndex].ContinueWithAsync(selectedState, cancellationToken).ConfigureAwait(false);
+                GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, continuationResult.IsSuccess ? null : continuationResult.Error);
+                return continuationResult;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                var error = Error.FromException(ex);
+                GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, error);
+                return Result.Fail<Unit>(error);
+            }
+        }
+
+        if (resolvedDefault.HasValue)
+        {
+            linkedCts.Cancel();
+            var completionDuration = provider.GetElapsedTime(startTimestamp);
+            try
+            {
+                var defaultResult = await resolvedDefault.Value.ContinueWithAsync(null, cancellationToken).ConfigureAwait(false);
+                GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, defaultResult.IsSuccess ? null : defaultResult.Error);
+                return defaultResult;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                var error = Error.FromException(ex);
+                GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, error);
+                return Result.Fail<Unit>(error);
+            }
+        }
+
+        var waitTasks = new List<Task<(bool HasValue, object? Value)>>(caseList.Count);
+        for (var i = 0; i < caseList.Count; i++)
+        {
+            waitTasks.Add(caseList[i].WaitAsync(linkedCts.Token));
         }
 
         Task? timeoutTask = timeout == Timeout.InfiniteTimeSpan
@@ -191,29 +261,45 @@ public static class Go
                     }
                 }
 
-                if (!taskIndex.TryGetValue(completedTask, out var index))
+                var completedIndices = CollectCompletedIndices(waitTasks);
+                if (completedIndices.Count == 0)
                 {
                     continue;
                 }
 
-                var waitTask = waitTasks[index];
-                taskIndex.Remove(waitTask);
+                var drainedIndices = new List<int>();
+                var ready = new List<(int Index, object? State)>();
 
-                var (hasValue, value) = await waitTask.ConfigureAwait(false);
-                if (!hasValue)
+                foreach (var idx in completedIndices)
                 {
-                    caseList.RemoveAt(index);
-                    waitTasks.RemoveAt(index);
-                    RebuildIndex(taskIndex, waitTasks);
+                    var (hasValue, value) = await waitTasks[idx].ConfigureAwait(false);
+                    if (hasValue)
+                    {
+                        ready.Add((idx, value));
+                    }
+                    else
+                    {
+                        drainedIndices.Add(idx);
+                    }
+                }
+
+                if (ready.Count == 0)
+                {
+                    if (drainedIndices.Count > 0)
+                    {
+                        RemoveAtIndices(caseList, waitTasks, drainedIndices);
+                    }
+
                     continue;
                 }
 
+                var (selectedIndex, selectedState) = SelectByPriority(ready, caseList);
                 linkedCts.Cancel();
                 var completionDuration = provider.GetElapsedTime(startTimestamp);
 
                 try
                 {
-                    var continuationResult = await caseList[index].ContinueWithAsync(value, cancellationToken).ConfigureAwait(false);
+                    var continuationResult = await caseList[selectedIndex].ContinueWithAsync(selectedState, cancellationToken).ConfigureAwait(false);
                     GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, continuationResult.IsSuccess ? null : continuationResult.Error);
                     return continuationResult;
                 }
@@ -249,12 +335,53 @@ public static class Go
             return array;
         }
 
-        static void RebuildIndex(Dictionary<Task, int> map, List<Task<(bool HasValue, object? Value)>> tasks)
+        static List<int> CollectCompletedIndices(List<Task<(bool HasValue, object? Value)>> tasks)
         {
-            map.Clear();
+            var indices = new List<int>();
             for (var i = 0; i < tasks.Count; i++)
             {
-                map[tasks[i]] = i;
+                if (tasks[i].IsCompleted)
+                {
+                    indices.Add(i);
+                }
+            }
+
+            return indices;
+        }
+
+        static (int Index, object? State) SelectByPriority(List<(int Index, object? State)> candidates, List<ChannelCase> cases)
+        {
+            var (selectedIndex, selectedState) = candidates[0];
+            var bestPriority = cases[selectedIndex].Priority;
+
+            for (var i = 1; i < candidates.Count; i++)
+            {
+                var (candidateIndex, candidateState) = candidates[i];
+                var priority = cases[candidateIndex].Priority;
+                if (priority < bestPriority || (priority == bestPriority && candidateIndex < selectedIndex))
+                {
+                    selectedIndex = candidateIndex;
+                    selectedState = candidateState;
+                    bestPriority = priority;
+                }
+            }
+
+            return (selectedIndex, selectedState);
+        }
+
+        static void RemoveAtIndices(List<ChannelCase> cases, List<Task<(bool HasValue, object? Value)>> tasks, List<int> indices)
+        {
+            if (indices.Count == 0)
+            {
+                return;
+            }
+
+            indices.Sort();
+            for (var i = indices.Count - 1; i >= 0; i--)
+            {
+                var index = indices[i];
+                cases.RemoveAt(index);
+                tasks.RemoveAt(index);
             }
         }
     }
@@ -394,7 +521,10 @@ public static class Go
 
     public sealed class SelectBuilder<TResult>
     {
-        private readonly List<Func<TaskCompletionSource<Result<TResult>>, ChannelCase>> _caseFactories = [];
+    private sealed record SelectCaseRegistration(int Priority, Func<TaskCompletionSource<Result<TResult>>, ChannelCase> Factory);
+
+    private readonly List<SelectCaseRegistration> _caseFactories = [];
+    private Func<TaskCompletionSource<Result<TResult>>, ChannelCase>? _defaultFactory;
         private readonly TimeSpan _timeout;
         private readonly TimeProvider? _provider;
         private readonly CancellationToken _cancellationToken;
@@ -411,21 +541,24 @@ public static class Go
             _cancellationToken = cancellationToken;
         }
 
-        public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue)
-        {
-            ArgumentNullException.ThrowIfNull(reader);
+        public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue) =>
+            AddCase(reader, onValue, priority: 0);
 
-            ArgumentNullException.ThrowIfNull(onValue);
-
-            _caseFactories.Add(completion => CreateCase(reader, onValue, completion));
-            return this;
-        }
+        public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, int priority, Func<T, CancellationToken, Task<Result<TResult>>> onValue) =>
+            AddCase(reader, onValue, priority);
 
         public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, Task<Result<TResult>>> onValue)
         {
             ArgumentNullException.ThrowIfNull(onValue);
 
             return Case(reader, (value, _) => onValue(value));
+        }
+
+        public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, int priority, Func<T, Task<Result<TResult>>> onValue)
+        {
+            ArgumentNullException.ThrowIfNull(onValue);
+
+            return Case(reader, priority, (value, _) => onValue(value));
         }
 
         public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<TResult>> onValue)
@@ -435,11 +568,25 @@ public static class Go
             return Case(reader, async (value, ct) => Result.Ok(await onValue(value, ct).ConfigureAwait(false)));
         }
 
+        public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, int priority, Func<T, CancellationToken, Task<TResult>> onValue)
+        {
+            ArgumentNullException.ThrowIfNull(onValue);
+
+            return Case(reader, priority, async (value, ct) => Result.Ok(await onValue(value, ct).ConfigureAwait(false)));
+        }
+
         public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, Task<TResult>> onValue)
         {
             ArgumentNullException.ThrowIfNull(onValue);
 
             return Case(reader, async (value, _) => Result.Ok(await onValue(value).ConfigureAwait(false)));
+        }
+
+        public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, int priority, Func<T, Task<TResult>> onValue)
+        {
+            ArgumentNullException.ThrowIfNull(onValue);
+
+            return Case(reader, priority, async (value, _) => Result.Ok(await onValue(value).ConfigureAwait(false)));
         }
 
         public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, TResult> onValue)
@@ -449,36 +596,162 @@ public static class Go
             return Case(reader, (value, _) => Task.FromResult(Result.Ok(onValue(value))));
         }
 
+        public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, int priority, Func<T, TResult> onValue)
+        {
+            ArgumentNullException.ThrowIfNull(onValue);
+
+            return Case(reader, priority, (value, _) => Task.FromResult(Result.Ok(onValue(value))));
+        }
+
         public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, Func<T, CancellationToken, Task<Result<TResult>>> onValue) =>
             Case(template.Reader, onValue);
+
+        public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, int priority, Func<T, CancellationToken, Task<Result<TResult>>> onValue) =>
+            Case(template.Reader, priority, onValue);
 
         public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, Func<T, Task<Result<TResult>>> onValue) =>
             Case(template.Reader, onValue);
 
+        public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, int priority, Func<T, Task<Result<TResult>>> onValue) =>
+            Case(template.Reader, priority, onValue);
+
         public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, Func<T, CancellationToken, Task<TResult>> onValue) =>
             Case(template.Reader, onValue);
+
+        public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, int priority, Func<T, CancellationToken, Task<TResult>> onValue) =>
+            Case(template.Reader, priority, onValue);
 
         public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, Func<T, Task<TResult>> onValue) =>
             Case(template.Reader, onValue);
 
+        public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, int priority, Func<T, Task<TResult>> onValue) =>
+            Case(template.Reader, priority, onValue);
+
         public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, Func<T, TResult> onValue) =>
             Case(template.Reader, onValue);
 
+        public SelectBuilder<TResult> Case<T>(ChannelCaseTemplate<T> template, int priority, Func<T, TResult> onValue) =>
+            Case(template.Reader, priority, onValue);
+
+        public SelectBuilder<TResult> Default(Func<CancellationToken, Task<Result<TResult>>> onDefault)
+        {
+            ArgumentNullException.ThrowIfNull(onDefault);
+
+            EnsureDefaultNotConfigured();
+            _defaultFactory = completion => CreateDefaultCase(onDefault, completion, priority: 0);
+            return this;
+        }
+
+        public SelectBuilder<TResult> Default(Func<Task<Result<TResult>>> onDefault)
+        {
+            ArgumentNullException.ThrowIfNull(onDefault);
+
+            return Default(_ => onDefault());
+        }
+
+        public SelectBuilder<TResult> Default(Func<CancellationToken, Task<TResult>> onDefault)
+        {
+            ArgumentNullException.ThrowIfNull(onDefault);
+
+            return Default(async (ct) => Result.Ok(await onDefault(ct).ConfigureAwait(false)));
+        }
+
+        public SelectBuilder<TResult> Default(Func<Task<TResult>> onDefault)
+        {
+            ArgumentNullException.ThrowIfNull(onDefault);
+
+            return Default(async _ => Result.Ok(await onDefault().ConfigureAwait(false)));
+        }
+
+        public SelectBuilder<TResult> Default(Func<TResult> onDefault)
+        {
+            ArgumentNullException.ThrowIfNull(onDefault);
+
+            return Default(_ => Task.FromResult(Result.Ok(onDefault())));
+        }
+
+        public SelectBuilder<TResult> Default(TResult value) =>
+            Default(() => value);
+
+        public SelectBuilder<TResult> Deadline(TimeSpan dueIn, Func<CancellationToken, Task<Result<TResult>>> onDeadline, int priority = 0, TimeProvider? provider = null)
+        {
+            ArgumentNullException.ThrowIfNull(onDeadline);
+
+            if (dueIn < TimeSpan.Zero || dueIn == Timeout.InfiniteTimeSpan)
+            {
+                throw new ArgumentOutOfRangeException(nameof(dueIn));
+            }
+
+            var effectiveProvider = provider ?? _provider ?? TimeProvider.System;
+            var reader = Go.After(dueIn, effectiveProvider, _cancellationToken);
+            return AddCase(reader, async (_, ct) => await onDeadline(ct).ConfigureAwait(false), priority);
+        }
+
+        public SelectBuilder<TResult> Deadline(TimeSpan dueIn, Func<Task<Result<TResult>>> onDeadline, int priority = 0, TimeProvider? provider = null)
+        {
+            ArgumentNullException.ThrowIfNull(onDeadline);
+
+            return Deadline(dueIn, _ => onDeadline(), priority, provider);
+        }
+
+        public SelectBuilder<TResult> Deadline(TimeSpan dueIn, Func<CancellationToken, Task<TResult>> onDeadline, int priority = 0, TimeProvider? provider = null)
+        {
+            ArgumentNullException.ThrowIfNull(onDeadline);
+
+            return Deadline(dueIn, async ct => Result.Ok(await onDeadline(ct).ConfigureAwait(false)), priority, provider);
+        }
+
+        public SelectBuilder<TResult> Deadline(TimeSpan dueIn, Func<Task<TResult>> onDeadline, int priority = 0, TimeProvider? provider = null)
+        {
+            ArgumentNullException.ThrowIfNull(onDeadline);
+
+            return Deadline(dueIn, async _ => Result.Ok(await onDeadline().ConfigureAwait(false)), priority, provider);
+        }
+
+        public SelectBuilder<TResult> Deadline(TimeSpan dueIn, Func<TResult> onDeadline, int priority = 0, TimeProvider? provider = null)
+        {
+            ArgumentNullException.ThrowIfNull(onDeadline);
+
+            return Deadline(dueIn, _ => Task.FromResult(Result.Ok(onDeadline())), priority, provider);
+        }
+
+        public SelectBuilder<TResult> Deadline(TimeSpan dueIn, TResult value, int priority = 0, TimeProvider? provider = null) =>
+            Deadline(dueIn, () => value, priority, provider);
+
+        private SelectBuilder<TResult> AddCase<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue, int priority)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+            ArgumentNullException.ThrowIfNull(onValue);
+
+            _caseFactories.Add(new SelectCaseRegistration(priority, completion => CreateCase(reader, onValue, completion, priority)));
+            return this;
+        }
+
+        private void EnsureDefaultNotConfigured()
+        {
+            if (_defaultFactory is not null)
+            {
+                throw new InvalidOperationException("A default case has already been configured for this select builder.");
+            }
+        }
+
         public async Task<Result<TResult>> ExecuteAsync()
         {
-            if (_caseFactories.Count == 0)
+            if (_caseFactories.Count == 0 && _defaultFactory is null)
             {
-                throw new InvalidOperationException("At least one channel case must be configured before executing the select.");
+                throw new InvalidOperationException("At least one channel case or a default case must be configured before executing the select.");
             }
 
             var completion = new TaskCompletionSource<Result<TResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
             var cases = new ChannelCase[_caseFactories.Count];
             for (var i = 0; i < _caseFactories.Count; i++)
             {
-                cases[i] = _caseFactories[i](completion);
+                cases[i] = _caseFactories[i].Factory(completion);
             }
 
-            var selectResult = await Go.SelectAsync(_timeout, _provider, _cancellationToken, cases).ConfigureAwait(false);
+            ChannelCase? defaultCase = _defaultFactory is null ? null : _defaultFactory(completion);
+
+            var selectResult = await Go.SelectInternalAsync(cases, defaultCase, _timeout, _provider, _cancellationToken).ConfigureAwait(false);
 
             if (completion.Task.IsCompleted)
             {
@@ -493,9 +766,9 @@ public static class Go
             return await completion.Task.ConfigureAwait(false);
         }
 
-        private ChannelCase CreateCase<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue, TaskCompletionSource<Result<TResult>> completion)
+        private ChannelCase CreateCase<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue, TaskCompletionSource<Result<TResult>> completion, int priority)
         {
-            return ChannelCase.Create(reader, async (value, ct) =>
+            var channelCase = ChannelCase.Create(reader, async (value, ct) =>
             {
                 Result<TResult> caseResult;
                 try
@@ -517,6 +790,36 @@ public static class Go
                     ? Result.Ok(Unit.Value)
                     : Result.Fail<Unit>(caseResult.Error ?? Error.Unspecified());
             });
+
+            return channelCase.WithPriority(priority);
+        }
+
+        private ChannelCase CreateDefaultCase(Func<CancellationToken, Task<Result<TResult>>> onDefault, TaskCompletionSource<Result<TResult>> completion, int priority)
+        {
+            var defaultCase = ChannelCase.CreateDefault(async ct =>
+            {
+                Result<TResult> defaultResult;
+                try
+                {
+                    defaultResult = await onDefault(ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    defaultResult = Result.Fail<TResult>(Error.FromException(ex));
+                }
+
+                completion.TrySetResult(defaultResult);
+
+                return defaultResult.IsSuccess
+                    ? Result.Ok(Unit.Value)
+                    : Result.Fail<Unit>(defaultResult.Error ?? Error.Unspecified());
+            }, priority);
+
+            return defaultCase;
         }
     }
 
