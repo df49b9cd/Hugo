@@ -26,6 +26,20 @@ public static class GoDiagnostics
     private static Counter<long>? _channelSelectCancellations;
     private static Histogram<double>? _channelSelectLatency;
     private static Histogram<long>? _channelDepth;
+    private static Counter<long>? _taskQueueEnqueued;
+    private static Counter<long>? _taskQueueLeased;
+    private static Counter<long>? _taskQueueCompleted;
+    private static Counter<long>? _taskQueueHeartbeats;
+    private static Counter<long>? _taskQueueFailed;
+    private static Counter<long>? _taskQueueExpired;
+    private static Counter<long>? _taskQueueRequeued;
+    private static Counter<long>? _taskQueueDeadLettered;
+    private static UpDownCounter<long>? _taskQueuePending;
+    private static UpDownCounter<long>? _taskQueueActive;
+    private static Histogram<long>? _taskQueuePendingDepth;
+    private static Histogram<long>? _taskQueueActiveDepth;
+    private static Histogram<double>? _taskQueueLeaseDuration;
+    private static Histogram<double>? _taskQueueHeartbeatExtension;
 
     /// <summary>
     /// Configures instrumentation using the supplied <see cref="IMeterFactory"/>.
@@ -59,6 +73,20 @@ public static class GoDiagnostics
             _channelSelectCancellations = meter.CreateCounter<long>("channel.select.cancellations", unit: "operations", description: "Number of Go.Select operations that were canceled.");
             _channelSelectLatency = meter.CreateHistogram<double>("channel.select.latency", unit: "ms", description: "Latency of Go.Select operations.");
             _channelDepth = meter.CreateHistogram<long>("channel.depth", unit: "items", description: "Observed depth of channels when values are consumed.");
+            _taskQueueEnqueued = meter.CreateCounter<long>("taskqueue.enqueued", unit: "items", description: "Number of work items enqueued on task queues.");
+            _taskQueueLeased = meter.CreateCounter<long>("taskqueue.leased", unit: "leases", description: "Number of leases granted by task queues.");
+            _taskQueueCompleted = meter.CreateCounter<long>("taskqueue.completed", unit: "leases", description: "Number of leases completed successfully.");
+            _taskQueueHeartbeats = meter.CreateCounter<long>("taskqueue.heartbeats", unit: "leases", description: "Number of lease heartbeat renewals.");
+            _taskQueueFailed = meter.CreateCounter<long>("taskqueue.failed", unit: "leases", description: "Number of leases that failed.");
+            _taskQueueExpired = meter.CreateCounter<long>("taskqueue.expired", unit: "leases", description: "Number of leases that expired without renewal.");
+            _taskQueueRequeued = meter.CreateCounter<long>("taskqueue.requeued", unit: "items", description: "Number of work items requeued after a failure or expiration.");
+            _taskQueueDeadLettered = meter.CreateCounter<long>("taskqueue.deadlettered", unit: "items", description: "Number of work items routed to the dead-letter handler.");
+            _taskQueuePending = meter.CreateUpDownCounter<long>("taskqueue.pending", unit: "items", description: "Current number of pending work items queued for leasing.");
+            _taskQueueActive = meter.CreateUpDownCounter<long>("taskqueue.active", unit: "leases", description: "Current number of active leases in flight.");
+            _taskQueuePendingDepth = meter.CreateHistogram<long>("taskqueue.pending.depth", unit: "items", description: "Observed pending backlog when queue operations occur.");
+            _taskQueueActiveDepth = meter.CreateHistogram<long>("taskqueue.active.depth", unit: "leases", description: "Observed active lease count when queue operations occur.");
+            _taskQueueLeaseDuration = meter.CreateHistogram<double>("taskqueue.lease.duration", unit: "ms", description: "Observed durations between lease grant and completion.");
+            _taskQueueHeartbeatExtension = meter.CreateHistogram<double>("taskqueue.heartbeat.extension", unit: "ms", description: "Observed extensions granted by lease heartbeats.");
         }
     }
 
@@ -107,6 +135,20 @@ public static class GoDiagnostics
             _channelSelectCancellations = null;
             _channelSelectLatency = null;
             _channelDepth = null;
+            _taskQueueEnqueued = null;
+            _taskQueueLeased = null;
+            _taskQueueCompleted = null;
+            _taskQueueHeartbeats = null;
+            _taskQueueFailed = null;
+            _taskQueueExpired = null;
+            _taskQueueRequeued = null;
+            _taskQueueDeadLettered = null;
+            _taskQueuePending = null;
+            _taskQueueActive = null;
+            _taskQueuePendingDepth = null;
+            _taskQueueActiveDepth = null;
+            _taskQueueLeaseDuration = null;
+            _taskQueueHeartbeatExtension = null;
         }
     }
 
@@ -256,5 +298,81 @@ public static class GoDiagnostics
         }
 
         _channelDepth?.Record(depth);
+    }
+
+    internal static void RecordTaskQueueQueued(long pendingDepth)
+    {
+        if (pendingDepth < 0)
+        {
+            return;
+        }
+
+        _taskQueueEnqueued?.Add(1);
+        _taskQueuePending?.Add(1);
+        _taskQueuePendingDepth?.Record(pendingDepth);
+    }
+
+    internal static void RecordTaskQueueLeased(int attempt, long pendingDepth, int activeLeases)
+    {
+        _ = attempt;
+        _taskQueueLeased?.Add(1);
+        _taskQueuePending?.Add(-1);
+        _taskQueueActive?.Add(1);
+        _taskQueuePendingDepth?.Record(pendingDepth);
+        _taskQueueActiveDepth?.Record(activeLeases);
+    }
+
+    internal static void RecordTaskQueueCompleted(int attempt, TimeSpan leaseDuration, long pendingDepth, int activeLeases)
+    {
+        _ = attempt;
+        _taskQueueCompleted?.Add(1);
+        _taskQueueActive?.Add(-1);
+        _taskQueueLeaseDuration?.Record(leaseDuration.TotalMilliseconds);
+        _taskQueuePendingDepth?.Record(pendingDepth);
+        _taskQueueActiveDepth?.Record(activeLeases);
+    }
+
+    internal static void RecordTaskQueueHeartbeat(int attempt, TimeSpan extension, int activeLeases)
+    {
+        _ = attempt;
+        _taskQueueHeartbeats?.Add(1);
+        _taskQueueHeartbeatExtension?.Record(extension.TotalMilliseconds);
+        _taskQueueActiveDepth?.Record(activeLeases);
+    }
+
+    internal static void RecordTaskQueueFailed(int attempt, TimeSpan leaseDuration, long pendingDepth, int activeLeases)
+    {
+        _ = attempt;
+        _taskQueueFailed?.Add(1);
+        _taskQueueActive?.Add(-1);
+        _taskQueueLeaseDuration?.Record(leaseDuration.TotalMilliseconds);
+        _taskQueuePendingDepth?.Record(pendingDepth);
+        _taskQueueActiveDepth?.Record(activeLeases);
+    }
+
+    internal static void RecordTaskQueueExpired(int attempt, TimeSpan leaseDuration, long pendingDepth, int activeLeases)
+    {
+        _ = attempt;
+        _taskQueueExpired?.Add(1);
+        _taskQueueActive?.Add(-1);
+        _taskQueueLeaseDuration?.Record(leaseDuration.TotalMilliseconds);
+        _taskQueuePendingDepth?.Record(pendingDepth);
+        _taskQueueActiveDepth?.Record(activeLeases);
+    }
+
+    internal static void RecordTaskQueueRequeued(int attempt, long pendingDepth, int activeLeases)
+    {
+        _ = attempt;
+        _taskQueueRequeued?.Add(1);
+        _taskQueuePending?.Add(1);
+        _taskQueuePendingDepth?.Record(pendingDepth);
+        _taskQueueActiveDepth?.Record(activeLeases);
+    }
+
+    internal static void RecordTaskQueueDeadLettered(int attempt, long pendingDepth, int activeLeases)
+    {
+        _ = attempt;
+        _taskQueueDeadLettered?.Add(1);
+        _taskQueueActiveDepth?.Record(activeLeases);
     }
 }

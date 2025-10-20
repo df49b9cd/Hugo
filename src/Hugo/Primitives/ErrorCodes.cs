@@ -14,4 +14,7 @@ public static class ErrorCodes
     public const string SelectDrained = "error.select.drained";
     public const string VersionConflict = "error.version.conflict";
     public const string DeterministicReplay = "error.deterministic.replay";
+    public const string TaskQueueLeaseExpired = "error.taskqueue.lease_expired";
+    public const string TaskQueueAbandoned = "error.taskqueue.abandoned";
+    public const string TaskQueueDeadLettered = "error.taskqueue.deadlettered";
 }

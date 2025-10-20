@@ -1,0 +1,194 @@
+using Microsoft.Extensions.Time.Testing;
+
+namespace Hugo.Tests;
+
+public class TaskQueueTests
+{
+    [Fact]
+    public async Task EnqueueLeaseComplete_ShouldClearCounts()
+    {
+        var provider = new FakeTimeProvider();
+        await using var queue = new TaskQueue<string>(timeProvider: provider);
+
+        await queue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
+        Assert.Equal(1, queue.PendingCount);
+
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("alpha", lease.Value);
+        Assert.Equal(1, lease.Attempt);
+        Assert.Equal(0, queue.PendingCount);
+        Assert.Equal(1, queue.ActiveLeaseCount);
+
+        await lease.CompleteAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, queue.PendingCount);
+        Assert.Equal(0, queue.ActiveLeaseCount);
+    }
+
+    [Fact]
+    public async Task FailAsync_WithRequeue_ShouldIncrementAttempt()
+    {
+        var provider = new FakeTimeProvider();
+        var options = new TaskQueueOptions { MaxDeliveryAttempts = 3 };
+        await using var queue = new TaskQueue<string>(options, provider);
+
+        await queue.EnqueueAsync("beta", TestContext.Current.CancellationToken);
+    var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        var error = Error.From("worker abandoned", ErrorCodes.TaskQueueAbandoned)
+            .WithMetadata("worker", "A");
+
+        await firstLease.FailAsync(error, requeue: true, TestContext.Current.CancellationToken);
+
+        var secondLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2, secondLease.Attempt);
+        Assert.Equal("beta", secondLease.Value);
+        Assert.Same(error, secondLease.LastError);
+        Assert.Equal(0, queue.PendingCount);
+        Assert.Equal(1, queue.ActiveLeaseCount);
+
+        await secondLease.CompleteAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task FailAsync_WithoutRequeue_ShouldDeadLetter()
+    {
+        var provider = new FakeTimeProvider();
+        var contexts = new List<TaskQueueDeadLetterContext<string>>();
+
+        ValueTask DeadLetter(TaskQueueDeadLetterContext<string> context, CancellationToken cancellationToken)
+        {
+            contexts.Add(context);
+            return ValueTask.CompletedTask;
+        }
+
+        await using var queue = new TaskQueue<string>(timeProvider: provider, deadLetter: DeadLetter);
+
+        await queue.EnqueueAsync("gamma", TestContext.Current.CancellationToken);
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        var error = Error.From("fatal", ErrorCodes.TaskQueueAbandoned);
+
+        await lease.FailAsync(error, requeue: false, TestContext.Current.CancellationToken);
+
+        Assert.Single(contexts);
+        var context = contexts[0];
+        Assert.Equal("gamma", context.Value);
+        Assert.Equal(error, context.Error);
+        Assert.Equal(lease.EnqueuedAt, context.EnqueuedAt);
+        Assert.Equal(1, context.Attempt);
+        Assert.Equal(0, queue.PendingCount);
+        Assert.Equal(0, queue.ActiveLeaseCount);
+    }
+
+    [Fact]
+    public async Task LeaseExpiration_ShouldRequeueWithExpiredError()
+    {
+        var options = new TaskQueueOptions
+        {
+            LeaseDuration = TimeSpan.FromMilliseconds(50),
+            LeaseSweepInterval = TimeSpan.FromMilliseconds(20),
+            HeartbeatInterval = TimeSpan.Zero,
+            MaxDeliveryAttempts = 3
+        };
+
+        await using var queue = new TaskQueue<string>(options);
+
+        await queue.EnqueueAsync("delta", TestContext.Current.CancellationToken);
+        var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+
+        await Task.Delay(TimeSpan.FromMilliseconds(70), TestContext.Current.CancellationToken);
+        var secondLeaseTask = queue.LeaseAsync(TestContext.Current.CancellationToken).AsTask();
+        await Task.Delay(TimeSpan.FromMilliseconds(40), TestContext.Current.CancellationToken);
+        var secondLease = await secondLeaseTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        Assert.Equal(2, secondLease.Attempt);
+        Assert.Equal("delta", secondLease.Value);
+        Assert.NotNull(secondLease.LastError);
+        Assert.Equal(ErrorCodes.TaskQueueLeaseExpired, secondLease.LastError?.Code);
+        Assert.True(secondLease.LastError!.TryGetMetadata<int>("attempt", out var attemptMetadata));
+        Assert.Equal(1, attemptMetadata);
+    Assert.True(secondLease.LastError!.TryGetMetadata<DateTimeOffset>("expiredAt", out var expiredAt));
+    Assert.True(expiredAt >= firstLease.EnqueuedAt);
+    Assert.Equal(firstLease.EnqueuedAt, secondLease.EnqueuedAt);
+    Assert.True(secondLease.LastError!.TryGetMetadata<DateTimeOffset>("enqueuedAt", out var enqueuedAt));
+    Assert.Equal(firstLease.EnqueuedAt, enqueuedAt);
+
+        await secondLease.CompleteAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task LeaseExpiration_PastMaxAttempts_ShouldDeadLetter()
+    {
+        var contexts = new List<TaskQueueDeadLetterContext<string>>();
+        var deadLetterSignal = new TaskCompletionSource<TaskQueueDeadLetterContext<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        ValueTask DeadLetter(TaskQueueDeadLetterContext<string> context, CancellationToken cancellationToken)
+        {
+            contexts.Add(context);
+            deadLetterSignal.TrySetResult(context);
+            return ValueTask.CompletedTask;
+        }
+
+        var options = new TaskQueueOptions
+        {
+            LeaseDuration = TimeSpan.FromMilliseconds(60),
+            LeaseSweepInterval = TimeSpan.FromMilliseconds(25),
+            HeartbeatInterval = TimeSpan.Zero,
+            MaxDeliveryAttempts = 2
+        };
+
+        await using var queue = new TaskQueue<string>(options, deadLetter: DeadLetter);
+
+        await queue.EnqueueAsync("epsilon", TestContext.Current.CancellationToken);
+        var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+
+        await Task.Delay(TimeSpan.FromMilliseconds(80), TestContext.Current.CancellationToken);
+        var secondLeaseTask = queue.LeaseAsync(TestContext.Current.CancellationToken).AsTask();
+        await Task.Delay(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken);
+        var secondLease = await secondLeaseTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        await Task.Delay(TimeSpan.FromMilliseconds(80), TestContext.Current.CancellationToken);
+        await Task.Delay(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken);
+
+        var context = await deadLetterSignal.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        Assert.Single(contexts);
+        Assert.Equal("epsilon", context.Value);
+        Assert.Equal(2, context.Attempt);
+    Assert.Equal(ErrorCodes.TaskQueueLeaseExpired, context.Error.Code);
+        Assert.Equal(firstLease.EnqueuedAt, context.EnqueuedAt);
+    Assert.True(context.Error.TryGetMetadata<int>("attempt", out var attemptMetadata));
+    Assert.Equal(2, attemptMetadata);
+        Assert.Equal(0, queue.PendingCount);
+        Assert.Equal(0, queue.ActiveLeaseCount);
+    }
+
+    [Fact]
+    public async Task Heartbeat_ShouldExtendLease()
+    {
+        var provider = new FakeTimeProvider();
+        var options = new TaskQueueOptions
+        {
+            LeaseDuration = TimeSpan.FromSeconds(5),
+            LeaseSweepInterval = TimeSpan.FromSeconds(1),
+            HeartbeatInterval = TimeSpan.FromSeconds(1)
+        };
+
+        await using var queue = new TaskQueue<string>(options, provider);
+
+        await queue.EnqueueAsync("zeta", TestContext.Current.CancellationToken);
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+
+        provider.Advance(TimeSpan.FromSeconds(2));
+        await lease.HeartbeatAsync(TestContext.Current.CancellationToken);
+
+        provider.Advance(TimeSpan.FromSeconds(2));
+        await lease.HeartbeatAsync(TestContext.Current.CancellationToken);
+
+        provider.Advance(TimeSpan.FromSeconds(2));
+        await lease.CompleteAsync(TestContext.Current.CancellationToken);
+
+        provider.Advance(TimeSpan.FromSeconds(3));
+
+        Assert.Equal(0, queue.PendingCount);
+        Assert.Equal(0, queue.ActiveLeaseCount);
+    }
+
+}

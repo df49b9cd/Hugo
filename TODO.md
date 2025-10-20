@@ -5,7 +5,7 @@
 - [x] Design API surface for `ErrGroup`-style orchestration (cancellation + shared error propagation) and spike implementation in `src/Hugo/Primitives`.
 - [x] Extend `SelectBuilder` to support default cases, priority ordering, and deadline helpers while maintaining deterministic replay semantics.
 - [x] Prototype deterministic side-effect/version-gating utilities that persist recorded outputs for replay-safe workflows.
-- [ ] Draft channel-backed task queue abstraction (poll loops, leasing, heartbeats) and integration tests for workflow/activity workers.
+- [x] Draft channel-backed task queue abstraction (poll loops, leasing, heartbeats) and integration tests for workflow/activity workers.
 
 ## Functional pipeline enhancements
 
