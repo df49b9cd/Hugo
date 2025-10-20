@@ -16,6 +16,6 @@
 
 ## Determinism & observability support
 
-- [ ] Define workflow execution context object exposing logical clock, schedule identifiers, and namespace metadata.
-- [ ] Expand `GoDiagnostics` to emit task-queue depth, replay counters, and workflow status metrics; add documentation and exporters.
+- [x] Define workflow execution context object exposing logical clock, schedule identifiers, and namespace metadata.
+- [x] Expand `GoDiagnostics` to emit task-queue depth, replay counters, and workflow status metrics; add documentation and exporters.
 - [ ] Plan visibility/search attribute strategy leveraging new diagnostics for advanced querying.

@@ -40,6 +40,15 @@ public static class GoDiagnostics
     private static Histogram<long>? _taskQueueActiveDepth;
     private static Histogram<double>? _taskQueueLeaseDuration;
     private static Histogram<double>? _taskQueueHeartbeatExtension;
+    private static Counter<long>? _workflowStarted;
+    private static Counter<long>? _workflowCompleted;
+    private static Counter<long>? _workflowFailed;
+    private static Counter<long>? _workflowCanceled;
+    private static Counter<long>? _workflowTerminated;
+    private static UpDownCounter<long>? _workflowActive;
+    private static Histogram<long>? _workflowReplayCount;
+    private static Histogram<long>? _workflowLogicalClock;
+    private static Histogram<double>? _workflowDuration;
 
     /// <summary>
     /// Configures instrumentation using the supplied <see cref="IMeterFactory"/>.
@@ -87,6 +96,15 @@ public static class GoDiagnostics
             _taskQueueActiveDepth = meter.CreateHistogram<long>("taskqueue.active.depth", unit: "leases", description: "Observed active lease count when queue operations occur.");
             _taskQueueLeaseDuration = meter.CreateHistogram<double>("taskqueue.lease.duration", unit: "ms", description: "Observed durations between lease grant and completion.");
             _taskQueueHeartbeatExtension = meter.CreateHistogram<double>("taskqueue.heartbeat.extension", unit: "ms", description: "Observed extensions granted by lease heartbeats.");
+            _workflowStarted = meter.CreateCounter<long>("workflow.started", unit: "workflows", description: "Number of workflow executions started.");
+            _workflowCompleted = meter.CreateCounter<long>("workflow.completed", unit: "workflows", description: "Number of workflow executions that completed successfully.");
+            _workflowFailed = meter.CreateCounter<long>("workflow.failed", unit: "workflows", description: "Number of workflow executions that failed.");
+            _workflowCanceled = meter.CreateCounter<long>("workflow.canceled", unit: "workflows", description: "Number of workflow executions that were canceled.");
+            _workflowTerminated = meter.CreateCounter<long>("workflow.terminated", unit: "workflows", description: "Number of workflow executions that were terminated.");
+            _workflowActive = meter.CreateUpDownCounter<long>("workflow.active", unit: "workflows", description: "Current number of active workflow executions.");
+            _workflowReplayCount = meter.CreateHistogram<long>("workflow.replay.count", unit: "replays", description: "Observed workflow replay counts.");
+            _workflowLogicalClock = meter.CreateHistogram<long>("workflow.logical.clock", unit: "ticks", description: "Observed workflow logical clock values.");
+            _workflowDuration = meter.CreateHistogram<double>("workflow.duration", unit: "ms", description: "Observed workflow execution durations.");
         }
     }
 
@@ -149,7 +167,173 @@ public static class GoDiagnostics
             _taskQueueActiveDepth = null;
             _taskQueueLeaseDuration = null;
             _taskQueueHeartbeatExtension = null;
+            _workflowStarted = null;
+            _workflowCompleted = null;
+            _workflowFailed = null;
+            _workflowCanceled = null;
+            _workflowTerminated = null;
+            _workflowActive = null;
+            _workflowReplayCount = null;
+            _workflowLogicalClock = null;
+            _workflowDuration = null;
         }
+    }
+
+    internal static void RecordWorkflowStarted(WorkflowExecutionContext context, long logicalClock)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        var tags = CreateWorkflowTags(context);
+        _workflowStarted?.Add(1, tags);
+        _workflowActive?.Add(1, tags);
+        _workflowReplayCount?.Record(context.ReplayCount, tags);
+        _workflowLogicalClock?.Record(logicalClock, tags);
+    }
+
+    internal static Activity? StartWorkflowActivity(WorkflowExecutionContext context, long logicalClock)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        var source = _activitySource;
+        if (source is null)
+        {
+            return null;
+        }
+
+        var activity = source.StartActivity("Hugo.Workflow", ActivityKind.Internal);
+        if (activity is null)
+        {
+            return null;
+        }
+
+        if (activity.IsAllDataRequested)
+        {
+            activity.SetTag("workflow.namespace", context.Namespace);
+            activity.SetTag("workflow.id", context.WorkflowId);
+            activity.SetTag("workflow.run_id", context.RunId);
+            activity.SetTag("workflow.task_queue", context.TaskQueue);
+            activity.SetTag("workflow.logical_clock", logicalClock);
+            activity.SetTag("workflow.replay_count", context.ReplayCount);
+
+            if (context.ScheduleId is not null)
+            {
+                activity.SetTag("workflow.schedule_id", context.ScheduleId);
+            }
+
+            if (context.ScheduleGroup is not null)
+            {
+                activity.SetTag("workflow.schedule_group", context.ScheduleGroup);
+            }
+
+            foreach (var entry in context.Metadata)
+            {
+                activity.SetTag($"workflow.metadata.{entry.Key}", entry.Value);
+            }
+        }
+
+        return activity;
+    }
+
+    internal static void RecordWorkflowCompleted(
+        WorkflowExecutionContext context,
+        WorkflowCompletionStatus status,
+        TimeSpan duration,
+        long logicalClock,
+        Error? error)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        var tags = CreateWorkflowTags(context);
+        var tagsWithStatus = tags;
+        tagsWithStatus.Add("workflow.status", status.ToString().ToLowerInvariant());
+
+        _workflowActive?.Add(-1, tags);
+        _workflowDuration?.Record(Math.Max(duration.TotalMilliseconds, 0d), tagsWithStatus);
+        _workflowReplayCount?.Record(context.ReplayCount, tagsWithStatus);
+        _workflowLogicalClock?.Record(logicalClock, tagsWithStatus);
+
+        switch (status)
+        {
+            case WorkflowCompletionStatus.Completed:
+                _workflowCompleted?.Add(1, tagsWithStatus);
+                break;
+            case WorkflowCompletionStatus.Failed:
+                _workflowFailed?.Add(1, tagsWithStatus);
+                break;
+            case WorkflowCompletionStatus.Canceled:
+                _workflowCanceled?.Add(1, tagsWithStatus);
+                break;
+            case WorkflowCompletionStatus.Terminated:
+                _workflowTerminated?.Add(1, tagsWithStatus);
+                break;
+        }
+    }
+
+    internal static void CompleteWorkflowActivity(
+        Activity? activity,
+        WorkflowExecutionContext context,
+        WorkflowCompletionStatus status,
+        long logicalClock,
+        DateTimeOffset completedAt,
+        Error? error)
+    {
+        if (activity is null)
+        {
+            return;
+        }
+
+        if (activity.IsAllDataRequested)
+        {
+            activity.SetTag("workflow.logical_clock", logicalClock);
+            activity.SetTag("workflow.status", status.ToString().ToLowerInvariant());
+            activity.SetTag("workflow.replay_count", context.ReplayCount);
+
+            if (error is not null)
+            {
+                if (!string.IsNullOrEmpty(error.Code))
+                {
+                    activity.SetTag("workflow.error.code", error.Code);
+                }
+
+                if (!string.IsNullOrEmpty(error.Message))
+                {
+                    activity.SetTag("workflow.error.message", error.Message);
+                }
+            }
+        }
+
+        if (error is null)
+        {
+            activity.SetStatus(ActivityStatusCode.Ok);
+        }
+        else
+        {
+            activity.SetStatus(ActivityStatusCode.Error, error.Message);
+        }
+
+        activity.SetEndTime(completedAt.UtcDateTime);
+        activity.Stop();
+    }
+
+    private static TagList CreateWorkflowTags(WorkflowExecutionContext context)
+    {
+        var tags = new TagList();
+        tags.Add("workflow.namespace", context.Namespace);
+        tags.Add("workflow.id", context.WorkflowId);
+        tags.Add("workflow.run_id", context.RunId);
+        tags.Add("workflow.task_queue", context.TaskQueue);
+
+        if (context.ScheduleId is not null)
+        {
+            tags.Add("workflow.schedule_id", context.ScheduleId);
+        }
+
+        if (context.ScheduleGroup is not null)
+        {
+            tags.Add("workflow.schedule_group", context.ScheduleGroup);
+        }
+
+        return tags;
     }
 
     internal static void RecordWaitGroupAdd(int delta)

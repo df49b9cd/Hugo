@@ -5,6 +5,7 @@
 - **Structured API reference**: Expand XML docs and integrate with DocFX to keep the reference section in sync with the codebase.
 - **Diagnostics exporters**: Prototype `Hugo.Diagnostics.OpenTelemetry` with schema-aware meters (`Meter.TelemetrySchemaUrl`), `ActivitySourceOptions`, and Aspire ServiceDefaults so Hugo apps emit OTLP/Prometheus friendly signals out-of-the-box.
 - **Result pipeline orchestration**: Nail down retry/compensation story across `Result<T>` and `ErrGroup`, including guidance for tiered fallbacks and cancellation surfacing.
+- **Workflow visibility & search**: Define attribute schema, storage guidance, and query patterns that take advantage of the new workflow execution context metadata.
 
 ## Recently shipped
 
@@ -16,6 +17,7 @@
 - **Cancellation audit**: Async combinators propagate `Error.Canceled` with origin metadata; `Go.SelectAsync` surfaces structured failures.
 - **Select ergonomics**: Added `Go.SelectFanInAsync`, `Go.FanInAsync`, and `Go.FanIn` for ergonomic fan-in workflows.
 - **Channel builders**: Fluent factories and DI helpers for bounded and prioritised channels.
+- **Workflow execution context & metrics**: Introduced ambient `WorkflowExecutionContext`, visibility records, and workflow-centric counters/histograms/activity spans in `GoDiagnostics` to surface logical clocks, replay counts, and status transitions.
 
 ## Backlog
 
@@ -24,7 +26,7 @@
 - **Playbook templates**: Publish recommended timeout, retry, and cancellation patterns for common distributed tasks.
 - **Concurrency upgrades**: Layer task-queue semantics (polling, leasing, heartbeats) atop channels, add deterministic side-effect/version gating primitives, and expose deadline-aware fan-out helpers informed by .NET 10 de-abstraction work.
 - **Functional pipeline enhancements**: Add `Result.WhenAll/WhenAny`, saga-style compensation helpers, resilient retry wrappers, and streaming/partitioning combinators that bridge `IAsyncEnumerable<T>` with channels/results for deterministic fan-in/out.
-- **Diagnostics & observability support**: Adopt telemetry schema URLs, rate-limited sampling, and Aspire dashboard integration so Hugo diagnostics align with modern OpenTelemetry guidance; model workflow execution context metadata (logical clock, schedule IDs, namespace scope) and extend metrics for task-queue depth, replay counters, and workflow-status visibility.
+- **Diagnostics & observability hardening**: Adopt telemetry schema URLs, rate-limited sampling, and Aspire dashboard integration so Hugo diagnostics align with modern OpenTelemetry guidance; document storage/OTLP exporter defaults leveraging the enriched workflow metrics.
 
 ## Contribution guidelines
 
