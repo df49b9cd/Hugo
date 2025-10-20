@@ -72,6 +72,26 @@ public class GoTests
     }
 
     [Fact]
+    public async Task Mutex_LockAsync_WithPreCanceledToken_ShouldThrow()
+    {
+        var mutex = new Mutex();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await mutex.LockAsync(cts.Token));
+    }
+
+    [Fact]
+    public async Task Mutex_ShouldThrowAfterDispose()
+    {
+        var mutex = new Mutex();
+        mutex.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => mutex.EnterScope());
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await mutex.LockAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task Mutex_ShouldNotBeReentrant()
     {
     var mutex = new Mutex();
@@ -98,6 +118,29 @@ public class GoTests
         using (await mutex.LockAsync(TestContext.Current.CancellationToken))
         {
         }
+    }
+
+    [Fact]
+    public async Task Mutex_AsyncReleaser_DisposeAsync_ShouldReleaseLock()
+    {
+        var mutex = new Mutex();
+        var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
+
+        await releaser.DisposeAsync();
+
+        await using (await mutex.LockAsync(TestContext.Current.CancellationToken))
+        {
+        }
+    }
+
+    [Fact]
+    public async Task Mutex_AsyncReleaser_DisposeAsyncTwice_ShouldNotThrow()
+    {
+        var mutex = new Mutex();
+        var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
+
+        await releaser.DisposeAsync();
+        await releaser.DisposeAsync();
     }
 
     [Fact]

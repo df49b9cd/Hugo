@@ -1,5 +1,8 @@
 # Project TODO
 
+- [ ] Add workflow edge case tests to mutex primitives
+- [ ] Add workflow edge case tests to task queue primitives
+
 ## Concurrency upgrades
 
 - [x] Design API surface for `ErrGroup`-style orchestration (cancellation + shared error propagation) and spike implementation in `src/Hugo/Primitives`.

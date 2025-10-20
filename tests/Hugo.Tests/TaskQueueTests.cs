@@ -5,6 +5,24 @@ namespace Hugo.Tests;
 public class TaskQueueTests
 {
     [Fact]
+    public void TaskQueueOptions_InvalidCapacity_ShouldThrow()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TaskQueueOptions { Capacity = 0 });
+    }
+
+    [Fact]
+    public void TaskQueueOptions_InvalidLeaseDuration_ShouldThrow()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TaskQueueOptions { LeaseDuration = TimeSpan.Zero });
+    }
+
+    [Fact]
+    public void TaskQueueOptions_NegativeRequeueDelay_ShouldThrow()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TaskQueueOptions { RequeueDelay = TimeSpan.FromMilliseconds(-1) });
+    }
+
+    [Fact]
     public async Task EnqueueLeaseComplete_ShouldClearCounts()
     {
         var provider = new FakeTimeProvider();
@@ -77,6 +95,17 @@ public class TaskQueueTests
         Assert.Equal(1, context.Attempt);
         Assert.Equal(0, queue.PendingCount);
         Assert.Equal(0, queue.ActiveLeaseCount);
+    }
+
+    [Fact]
+    public async Task FailAsync_ShouldThrowWhenErrorNull()
+    {
+        await using var queue = new TaskQueue<string>();
+
+        await queue.EnqueueAsync("value", TestContext.Current.CancellationToken);
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await lease.FailAsync(null!, requeue: true, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -158,6 +187,32 @@ public class TaskQueueTests
     Assert.Equal(2, attemptMetadata);
         Assert.Equal(0, queue.PendingCount);
         Assert.Equal(0, queue.ActiveLeaseCount);
+    }
+
+    [Fact]
+    public async Task LeaseOperations_ShouldRejectAfterCompletion()
+    {
+        await using var queue = new TaskQueue<string>();
+
+        await queue.EnqueueAsync("theta", TestContext.Current.CancellationToken);
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+
+        await lease.CompleteAsync(TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await lease.CompleteAsync(TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await lease.HeartbeatAsync(TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await lease.FailAsync(Error.From("after-complete", ErrorCodes.TaskQueueAbandoned), cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task TaskQueue_Disposed_ShouldThrowOnEnqueueAndLease()
+    {
+        await using var queue = new TaskQueue<string>();
+
+        await queue.DisposeAsync();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await queue.EnqueueAsync("value", TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await queue.LeaseAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
