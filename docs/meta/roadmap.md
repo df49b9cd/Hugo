@@ -19,6 +19,7 @@
 - **Select ergonomics**: Added `Go.SelectFanInAsync`, `Go.FanInAsync`, and `Go.FanIn` for ergonomic fan-in workflows.
 - **Channel builders**: Fluent factories and DI helpers for bounded and prioritised channels.
 - **Workflow execution context & metrics**: Introduced ambient `WorkflowExecutionContext`, visibility records, and workflow-centric counters/histograms/activity spans in `GoDiagnostics` to surface logical clocks, replay counts, and status transitions.
+- **Functional pipeline enhancements**: Delivered `Result.WhenAll/WhenAny`, saga builders with compensation support, retry policies, and streaming/partitioning combinators that bridge `IAsyncEnumerable<T>` with channels and results for deterministic fan-in/out patterns.
 
 ## Backlog
 
@@ -26,7 +27,6 @@
 - **Distributed coordination**: Investigate Redis- or Event Hubs-backed wait groups for multi-node workloads.
 - **Playbook templates**: Publish recommended timeout, retry, and cancellation patterns for common distributed tasks.
 - **Deterministic coordination**: Extend `DeterministicGate` into a full version/side-effect gating workflow and document replay strategies informed by deterministic replay requirements.
-- **Functional pipeline enhancements**: Add `Result.WhenAll/WhenAny`, saga-style compensation helpers, resilient retry wrappers, and streaming/partitioning combinators that bridge `IAsyncEnumerable<T>` with channels/results for deterministic fan-in/out.
 - **Diagnostics & observability hardening**: Adopt telemetry schema URLs, rate-limited sampling, and Aspire dashboard integration so Hugo diagnostics align with modern OpenTelemetry guidance; document storage/OTLP exporter defaults leveraging the enriched workflow metrics.
 
 ## Contribution guidelines
