@@ -9,6 +9,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
+[Collection("GoConcurrency")]
 public class GoTests
 {
     // This helper is used by tests but is not a test itself.

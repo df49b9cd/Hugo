@@ -86,12 +86,26 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
                     return null;
                 }
 
-                while (await _leaseChannel.Writer.WaitToWriteAsync(_cts.Token).ConfigureAwait(false))
+                try
                 {
-                    if (_leaseChannel.Writer.TryWrite(lease))
+                    if (await TryPublishLeaseAsync(lease).ConfigureAwait(false))
                     {
-                        break;
+                        continue;
                     }
+
+                    _cts.Cancel();
+                    var completionError = await RequeueLeaseAsync(lease, Error.Canceled("Lease could not be delivered before completion.")).ConfigureAwait(false);
+                    return completionError;
+                }
+                catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+                {
+                    var cancellationError = await RequeueLeaseAsync(lease, Error.Canceled(token: _cts.Token)).ConfigureAwait(false);
+                    return cancellationError;
+                }
+                catch (Exception ex)
+                {
+                    var requeueError = await RequeueLeaseAsync(lease, Error.FromException(ex)).ConfigureAwait(false);
+                    return requeueError ?? ex;
                 }
             }
         }
@@ -105,6 +119,36 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
         }
 
         return null;
+    }
+
+    private async ValueTask<bool> TryPublishLeaseAsync(TaskQueueLease<T> lease)
+    {
+        while (await _leaseChannel.Writer.WaitToWriteAsync(_cts.Token).ConfigureAwait(false))
+        {
+            if (_leaseChannel.Writer.TryWrite(lease))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private async ValueTask<Exception?> RequeueLeaseAsync(TaskQueueLease<T> lease, Error reason)
+    {
+        try
+        {
+            await lease.FailAsync(reason, requeue: true, cancellationToken: CancellationToken.None).ConfigureAwait(false);
+            return null;
+        }
+        catch (ObjectDisposedException)
+        {
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex;
+        }
     }
 
     private void HandlePumpCompletion(Task<Exception?> pumpTask)

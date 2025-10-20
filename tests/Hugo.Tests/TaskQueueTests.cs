@@ -2,6 +2,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests;
 
+[Collection("TaskQueueConcurrency")]
 public class TaskQueueTests
 {
     [Fact]
