@@ -317,7 +317,7 @@ public readonly record struct CompensationAction(Func<object?, CancellationToken
 public sealed class CompensationScope
 {
     private readonly Stack<CompensationAction> _actions = new();
-    private readonly object _sync = new();
+    private readonly Lock _sync = new();
 
     public bool HasActions
     {
