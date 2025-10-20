@@ -87,7 +87,7 @@ Console.WriteLine(string.Join(' ', messages));
 
 ## Samples & Benchmarks
 
-- `samples/Hugo.WorkerSample`: Background worker demonstrating wait groups, channels, and defer for structured concurrency.
+- `samples/Hugo.WorkerSample`: Background worker demonstrating task leasing with `TaskQueue<T>` plus wait groups and deferred cleanup.
 - `benchmarks/Hugo.Benchmarks`: BenchmarkDotNet suite comparing Hugo mutexes against native `SemaphoreSlim` primitives.
 
 ## Support & policies

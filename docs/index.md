@@ -26,4 +26,4 @@ Hugo brings Go-style concurrency and result pipelines to .NET. This documentatio
 
 - [Roadmap](meta/roadmap.md): active initiatives, recently shipped features, and contribution expectations.
 
-For runnable demonstrations and performance data, see `samples/Hugo.WorkerSample` and `benchmarks/Hugo.Benchmarks`.
+For runnable demonstrations and performance data, see `samples/Hugo.WorkerSample` (TaskQueue leasing in a hosted service) and `benchmarks/Hugo.Benchmarks`.
