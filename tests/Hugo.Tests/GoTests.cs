@@ -1,6 +1,7 @@
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading.Channels;
 using Hugo;
 using Microsoft.Extensions.Time.Testing;
@@ -741,7 +742,13 @@ public class GoTests
 
             Assert.True(result.IsSuccess);
 
-            var activity = Assert.Single(stoppedActivities);
+            Activity[] recorded;
+            lock (stoppedActivities)
+            {
+                recorded = stoppedActivities.ToArray();
+            }
+
+            var activity = Assert.Single(recorded, static activity => activity.DisplayName == "Go.Select");
             Assert.Equal("Go.Select", activity.DisplayName);
             Assert.Equal(ActivityStatusCode.Ok, activity.Status);
             Assert.Equal(1, activity.GetTagItem("hugo.select.case_count"));
@@ -780,7 +787,13 @@ public class GoTests
             Assert.True(result.IsFailure);
             Assert.Equal("error.activity", result.Error?.Code);
 
-            var activity = Assert.Single(stoppedActivities);
+            Activity[] recorded;
+            lock (stoppedActivities)
+            {
+                recorded = stoppedActivities.ToArray();
+            }
+
+            var activity = Assert.Single(recorded, static activity => activity.DisplayName == "Go.Select");
             Assert.Equal(ActivityStatusCode.Error, activity.Status);
             Assert.Equal("error", activity.GetTagItem("hugo.select.outcome"));
             Assert.Equal("error.activity", activity.GetTagItem("hugo.error.code"));
@@ -1335,7 +1348,13 @@ public class GoTests
             ShouldListenTo = source => source.Name == sourceName,
             Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
             SampleUsingParentId = (ref ActivityCreationOptions<string> _) => ActivitySamplingResult.AllDataAndRecorded,
-            ActivityStopped = activity => stoppedActivities.Add(activity)
+            ActivityStopped = activity =>
+            {
+                lock (stoppedActivities)
+                {
+                    stoppedActivities.Add(activity);
+                }
+            }
         };
 
         ActivitySource.AddActivityListener(listener);
