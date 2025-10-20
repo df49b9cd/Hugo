@@ -193,3 +193,54 @@ var tick = await ticker.ReadAsync(ct);
 
 - `GoTicker.Stop()` / `StopAsync()` dispose timers and complete the channel.
 - Use fake time providers in tests for deterministic scheduling.
+
+## Deterministic utilities
+
+These helpers keep workflow-style orchestrations deterministic across replays by persisting decisions externally.
+
+- `VersionGate` records version markers for long-lived change management. Call `Require(changeId, minVersion, maxVersion)` to retrieve the persisted version or create one deterministically. Supply a custom provider when you need to phase rollouts.
+- `DeterministicEffectStore` captures side-effect results once and replays them. Use a durable implementation of `IDeterministicStateStore` in production and the provided `InMemoryDeterministicStateStore` inside tests.
+
+### VersionGate usage
+
+```csharp
+var store = new InMemoryDeterministicStateStore();
+var gate = new VersionGate(store);
+
+var decision = gate.Require("workflow.stepA", VersionGate.DefaultVersion, maxSupportedVersion: 2);
+if (decision.IsFailure)
+{
+    return decision.Error!;
+}
+
+switch (decision.Value.Version)
+{
+    case VersionGate.DefaultVersion:
+        return await RunLegacyAsync(ct);
+    case 2:
+        return await RunV2Async(ct);
+    default:
+        throw new InvalidOperationException();
+}
+```
+
+### DeterministicEffectStore usage
+
+```csharp
+var effectStore = new DeterministicEffectStore(store);
+
+var payload = await effectStore.CaptureAsync("side-effect.payment", async token =>
+{
+    var response = await httpClient.PostAsync("/payments", content, token);
+    return response.IsSuccessStatusCode
+        ? Result.Ok(await response.Content.ReadFromJsonAsync<Receipt>(cancellationToken: token))
+        : Result.Fail<Receipt>(Error.From("payment failed", ErrorCodes.Validation));
+});
+
+if (payload.IsFailure)
+{
+    return payload.Error!;
+}
+
+return payload.Value;
+```

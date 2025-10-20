@@ -7,6 +7,9 @@ TestResults/
 # Dependencies
 /packages/
 
+# vs code settings
+.vscode/
+
 # Generated files
 *.g.cs
 *.g.i.cs

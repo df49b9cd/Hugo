@@ -994,6 +994,50 @@ public class GoTests
     }
 
     [Fact]
+    public async Task SelectBuilder_ShouldHonorRegistrationOrder_WhenPrioritiesMatch()
+    {
+        var first = MakeChannel<int>();
+        var second = MakeChannel<int>();
+
+        first.Writer.TryWrite(7);
+        second.Writer.TryWrite(9);
+        first.Writer.TryComplete();
+        second.Writer.TryComplete();
+
+        var result = await Select<int>(cancellationToken: TestContext.Current.CancellationToken)
+            .Case(first.Reader, value => value)
+            .Case(second.Reader, value => value)
+            .ExecuteAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(7, result.Value);
+    }
+
+    [Fact]
+    public async Task SelectBuilder_ShouldInvokeDefault_WhenCasesDrainWithoutValues()
+    {
+        var channel = MakeChannel<int>();
+        channel.Writer.TryComplete();
+
+        var result = await Select<string>(cancellationToken: TestContext.Current.CancellationToken)
+            .Case(channel.Reader, value => value.ToString())
+            .Default(() => "fallback")
+            .ExecuteAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("fallback", result.Value);
+    }
+
+    [Fact]
+    public void SelectBuilder_Default_ShouldThrow_WhenConfiguredTwice()
+    {
+        var builder = Select<int>(cancellationToken: TestContext.Current.CancellationToken)
+            .Default(() => 1);
+
+        Assert.Throws<InvalidOperationException>(() => builder.Default(() => 2));
+    }
+
+    [Fact]
     public async Task SelectBuilder_Deadline_ShouldYieldConfiguredResult()
     {
         var provider = new FakeTimeProvider();

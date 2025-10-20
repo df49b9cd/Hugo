@@ -12,4 +12,6 @@ public static class ErrorCodes
     public const string Aggregate = "error.aggregate";
     public const string Validation = "error.validation";
     public const string SelectDrained = "error.select.drained";
+    public const string VersionConflict = "error.version.conflict";
+    public const string DeterministicReplay = "error.deterministic.replay";
 }
