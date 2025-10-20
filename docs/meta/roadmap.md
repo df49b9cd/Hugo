@@ -19,6 +19,9 @@
 - **Cross-runtime samples**: Azure Functions, ASP.NET minimal APIs, and Orleans grains that showcase Hugo primitives.
 - **Distributed coordination**: Investigate Redis- or Event Hubs-backed wait groups for multi-node workloads.
 - **Playbook templates**: Publish recommended timeout, retry, and cancellation patterns for common distributed tasks.
+- **Concurrency upgrades**: Ship an `ErrGroup` analogue for cancellable task orchestration, enrich `SelectBuilder` with default/prioritised cases plus deadline helpers, record deterministic side effects/version gates, and layer task-queue semantics (polling, leasing, heartbeats) atop channels to prepare workflow/activity workers.
+- **Functional pipeline enhancements**: Add `Result.WhenAll/WhenAny`, saga-style compensation helpers, resilient retry wrappers, and streaming/partitioning combinators that bridge `IAsyncEnumerable<T>` with channels/results for deterministic fan-in/out.
+- **Determinism & observability support**: Model workflow execution context metadata (logical clock, schedule IDs, namespace scope) and extend diagnostics with task-queue depth, replay counters, and workflow-status metrics to unlock Temporal-grade visibility.
 
 ## Contribution guidelines
 
