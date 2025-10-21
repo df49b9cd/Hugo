@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/df49b9cd/Hugo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/df49b9cd/Hugo/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/Hugo.svg?logo=nuget)](https://www.nuget.org/packages/Hugo)
+[![NuGet Diagnostics](https://img.shields.io/nuget/v/Hugo.Diagnostics.OpenTelemetry.svg?logo=nuget&label=Hugo.Diagnostics.OpenTelemetry)](https://www.nuget.org/packages/Hugo.Diagnostics.OpenTelemetry)
 
 Go-style concurrency primitives and functional result pipelines for .NET 9/10 applications.
 
