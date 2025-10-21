@@ -57,10 +57,10 @@ public static class HugoOpenTelemetryBuilderExtensions
 
             if (options.AttachSchemaAttribute && !string.IsNullOrWhiteSpace(options.SchemaUrl))
             {
-                    resourceBuilder.AddAttributes(new[]
-                    {
-                        new KeyValuePair<string, object>("telemetry.schema.url", options.SchemaUrl!)
-                    });
+                resourceBuilder.AddAttributes(new[]
+                {
+                    new KeyValuePair<string, object>("telemetry.schema.url", options.SchemaUrl!)
+                });
             }
         });
 

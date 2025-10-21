@@ -88,6 +88,54 @@ Console.WriteLine(string.Join(' ', messages));
 ## Samples & Benchmarks
 
 - `samples/Hugo.WorkerSample`: Background worker demonstrating task leasing with `TaskQueue<T>` plus wait groups and deferred cleanup.
+
+### Run the worker sample with a local OpenTelemetry collector
+
+1. Save the collector config below as `otel-collector.yaml` in the repository root:
+
+     ```yaml
+     receivers:
+         otlp:
+             protocols:
+                 grpc:
+                 http:
+
+     exporters:
+         logging:
+             loglevel: info
+         prometheus:
+             endpoint: "0.0.0.0:9464"
+
+     service:
+         pipelines:
+             metrics:
+                 receivers: [otlp]
+                 exporters: [prometheus, logging]
+             traces:
+                 receivers: [otlp]
+                 exporters: [logging]
+     ```
+
+2. Start the collector (requires Docker):
+
+     ```bash
+     docker run --rm \
+         -p 4317:4317 -p 4318:4318 -p 9464:9464 \
+         -v "${PWD}/otel-collector.yaml:/etc/otelcol/config.yaml" \
+         otel/opentelemetry-collector:0.103.1
+     ```
+
+3. In a second terminal, run the worker sample:
+
+     ```bash
+     dotnet run --project samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj
+     ```
+
+     - Override the collector endpoint with `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` if you change ports.
+     - Disable Prometheus scraping with `HUGO_PROMETHEUS_ENABLED=false` when running without the Prometheus exporter.
+
+4. Inspect emitted metrics at `http://localhost:9464/metrics` and watch the collector logs for OTLP traces.
+
 - `benchmarks/Hugo.Benchmarks`: BenchmarkDotNet suite comparing Hugo mutexes against native `SemaphoreSlim` primitives.
 
 ## Support & policies

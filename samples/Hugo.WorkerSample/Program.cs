@@ -1,10 +1,19 @@
 using Hugo;
+using Hugo.Diagnostics.OpenTelemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using static Hugo.Go;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+builder.AddHugoDiagnostics(options =>
+{
+    options.ServiceName = builder.Environment.ApplicationName;
+    options.OtlpEndpoint = ResolveOtlpEndpoint(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+    options.AddPrometheusExporter = ResolvePrometheusEnabled(builder.Configuration["HUGO_PROMETHEUS_ENABLED"]);
+    options.MaxActivitiesPerInterval = 64;
+});
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<TaskQueue<TelemetryWorkItem>>(sp =>
@@ -62,6 +71,25 @@ builder.Services.AddHostedService<TelemetryWorker>();
 
 var app = builder.Build();
 await app.RunAsync();
+
+static Uri ResolveOtlpEndpoint(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var endpoint)
+    ? endpoint
+    : new Uri("http://localhost:4317");
+
+static bool ResolvePrometheusEnabled(string? value)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return true;
+    }
+
+    return value.Trim() switch
+    {
+        "0" => false,
+        "false" or "False" or "FALSE" => false,
+        _ => true
+    };
+}
 
 sealed class TelemetryWorker(
     ILogger<TelemetryWorker> logger,
@@ -225,7 +253,7 @@ sealed class TelemetryWorker(
         await lease.HeartbeatAsync(stoppingToken).ConfigureAwait(false);
         await DelayAsync(TimeSpan.FromSeconds(0.8), _timeProvider, stoppingToken).ConfigureAwait(false);
 
-    if (message.Value >= 0d && message.Value <= profile.MaxCpuPercent)
+        if (message.Value >= 0d && message.Value <= profile.MaxCpuPercent)
         {
             _logger.LogInformation(
                 "CPU reading {Value:F2}%% captured at {ObservedAt:o} processed on attempt {Attempt} within calibrated max {Max:F2}",

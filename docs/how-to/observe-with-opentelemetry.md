@@ -126,3 +126,4 @@ services.AddOpenTelemetry().AddHugoDiagnostics(options =>
 
 - [Diagnostics surface](../reference/diagnostics.md)
 - [Concurrency primitives](../reference/concurrency-primitives.md)
+- Sample: [Hugo.WorkerSample](../../samples/Hugo.WorkerSample/Program.cs) shows `AddHugoDiagnostics` in a hosted worker.
