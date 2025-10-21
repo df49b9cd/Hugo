@@ -56,7 +56,9 @@ jobs:
 
     - name: Pack
       if: matrix.targetFramework == 'net10.0'
-      run: dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
+      run: |
+        dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
+        dotnet pack src/Hugo.Diagnostics.OpenTelemetry/Hugo.Diagnostics.OpenTelemetry.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
 
     - name: Upload Coverage Report
       uses: actions/upload-artifact@v4
