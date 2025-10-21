@@ -1,6 +1,6 @@
 # Diagnostics Reference
 
-`GoDiagnostics` emits `System.Diagnostics.Metrics` instruments that you can export through OpenTelemetry or other meter providers. Configure diagnostics via `GoDiagnostics.Configure(IMeterFactory, string meterName = "Hugo.Go")`.
+`GoDiagnostics` emits `System.Diagnostics.Metrics` instruments that you can export through OpenTelemetry or other meter providers. You can wire everything in manually with `GoDiagnostics.Configure(IMeterFactory, string meterName = "Hugo.Go")` or install the `Hugo.Diagnostics.OpenTelemetry` package and call `builder.AddHugoDiagnostics(...)` for Aspire-aligned defaults, schema-aware meters, activity sources, OTLP/Prometheus exporters, and rate-limited sampling.
 
 ## Instruments
 
@@ -67,7 +67,8 @@ Each workflow measurement includes metric tags for `workflow.namespace`, `workfl
 
 ## Configuration options
 
-- Call `GoDiagnostics.Configure(IMeterFactory factory, string meterName = GoDiagnostics.MeterName)` during startup to bind instruments to an existing `MeterProvider`. The helper applies the library version and telemetry schema URL automatically.
+- Use `builder.AddHugoDiagnostics(options => ...)` (from `Hugo.Diagnostics.OpenTelemetry`) to register meters, activity sources, OTLP/Prometheus exporters, runtime instrumentation, and rate-limited sampling in one call. The helper mirrors Aspire ServiceDefaults and surfaces options for `ServiceName`, `OtlpEndpoint`, `OtlpProtocol`, `AddPrometheusExporter`, and sampling limits.
+- Call `GoDiagnostics.Configure(IMeterFactory factory, string meterName = GoDiagnostics.MeterName)` during startup when you need manual control over meter creation (for example, non-OpenTelemetry providers). The helper applies the library version and telemetry schema URL automatically.
 - Use `GoDiagnostics.Configure(Meter meter)` when DI already exposes a pre-built `Meter`.
 - Create a schema-aware activity source with `GoDiagnostics.CreateActivitySource(string? name = GoDiagnostics.ActivitySourceName)` and optionally throttle spans via `GoDiagnostics.UseRateLimitedSampling(...)` when your workload emits high volumes of internal activities.
 - Invoke `GoDiagnostics.Reset()` (typically in unit tests) to dispose existing meters before registering new ones.

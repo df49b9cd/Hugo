@@ -32,7 +32,7 @@ Railway-oriented combinators minimise nested `if`/`try` statements. By supportin
 
 ## Observability hooks
 
-Metrics emitted by `GoDiagnostics` expose queue depth, select latency, and wait-group usage. These measurements exist because concurrency bugs are easier to diagnose when you can correlate execution with metric spikes. The design deliberately opts into standard .NET meters so you can connect exporters without custom instrumentation.
+Metrics emitted by `GoDiagnostics` expose queue depth, select latency, and wait-group usage. These measurements exist because concurrency bugs are easier to diagnose when you can correlate execution with metric spikes. The design deliberately opts into standard .NET meters so you can connect exporters without custom instrumentation. When you need turnkey exporters, the `Hugo.Diagnostics.OpenTelemetry` package wires schema-aware meters, activity sources, rate-limited sampling, and OTLP/Prometheus exporters through `builder.AddHugoDiagnostics(...)`, mirroring Aspire ServiceDefaults so hosted workers emit production-ready signals by default.
 
 ## Extensibility
 

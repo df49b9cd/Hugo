@@ -141,7 +141,7 @@ The workflow uses the same helper script and sets `ARTIFACT_ROOT=artifacts/profi
 
 ## Troubleshooting
 
-- **Empty Hugo counters**: ensure `GoDiagnostics.Configure` executes before channel or wait-group creation, and confirm the process runs on .NET 6+ where EventPipe supports custom meters.
+- **Empty Hugo counters**: ensure `GoDiagnostics.Configure` (or `builder.AddHugoDiagnostics` for OpenTelemetry setups) executes before channel or wait-group creation, and confirm the process runs on .NET 6+ where EventPipe supports custom meters.
 - **Permission denied**: run the CLI as an administrator or grant the `diagnostics` capability in containers (`--cap-add=SYS_PTRACE`).
 - **High overhead**: lower the sampling duration or narrow providers (`--providers System.Runtime:4:0x8`) to focus on GC-only events.
 - **dotnet-monitor cannot connect**: verify the diagnostic port path and disable HTTPS development certificates with `--tls false` when running locally.
