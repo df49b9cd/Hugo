@@ -9,7 +9,13 @@
     <Company>df49b9cd</Company>
     <PackageDescription>OpenTelemetry extensions and defaults for Hugo diagnostics instrumentation.</PackageDescription>
     <RepositoryUrl>https://github.com/df49b9cd/Hugo</RepositoryUrl>
-    <PackageTags>hugo;concurrency;opentelemetry;metrics;tracing</PackageTags>
+    <PackageProjectUrl>https://github.com/df49b9cd/Hugo</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>hugo;concurrency;opentelemetry;metrics;tracing;observability;diagnostics</PackageTags>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Hugo/Hugo.csproj" />

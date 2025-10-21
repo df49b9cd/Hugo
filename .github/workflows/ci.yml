@@ -1,4 +1,4 @@
-name: Build Test Pack Hugo
+name: CI
 
 on:
   push:
@@ -6,6 +6,10 @@ on:
     tags: [ "v*.*.*" ]
   pull_request:
     branches: [ "main" ]
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   build-test-pack:
@@ -73,8 +77,58 @@ jobs:
         name: ${{ matrix.packageArtifact }}
         path: ./artifacts/${{ matrix.targetFramework }}/*.nupkg
 
+  coverage-report:
+    runs-on: ubuntu-latest
+    needs: build-test-pack
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Download Coverage (net9.0)
+      uses: actions/download-artifact@v4
+      with:
+        name: coverage-net9
+        path: coverage/net9
+
+    - name: Download Coverage (net10.0)
+      uses: actions/download-artifact@v4
+      with:
+        name: coverage-net10
+        path: coverage/net10
+
+    - name: Code Coverage Report
+      uses: irongut/CodeCoverageSummary@v1.3.0
+      with:
+        filename: coverage/**/coverage.cobertura.xml
+        badge: true
+        fail_below_min: false
+        format: markdown
+        hide_branch_rate: false
+        hide_complexity: false
+        indicators: true
+        output: both
+        thresholds: '60 80'
+
+    - name: Add Coverage PR Comment
+      uses: marocchino/sticky-pull-request-comment@v2
+      if: github.event_name == 'pull_request'
+      with:
+        recreate: true
+        path: code-coverage-results.md
+
+  publish-nuget:
+    runs-on: ubuntu-latest
+    needs: build-test-pack
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+    - name: Download NuGet Package
+      uses: actions/download-artifact@v4
+      with:
+        name: nugetPackage-net10
+        path: ./artifacts
+
     - name: Publish to NuGet
-      if: startsWith(github.ref, 'refs/tags/') && matrix.targetFramework == 'net10.0'
       env:
         NUGET_AUTH_TOKEN: ${{ secrets.NUGET_TOKEN }}
-      run: dotnet nuget push ./artifacts/${{ matrix.targetFramework }}/*.nupkg --api-key "$NUGET_AUTH_TOKEN" --source https://api.nuget.org/v3/index.json --skip-duplicate
+      run: dotnet nuget push ./artifacts/*.nupkg --api-key "$NUGET_AUTH_TOKEN" --source https://api.nuget.org/v3/index.json --skip-duplicate

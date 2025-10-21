@@ -137,7 +137,26 @@ Console.WriteLine(string.Join(' ', messages));
 
 4. Inspect emitted metrics at `http://localhost:9464/metrics` and watch the collector logs for OTLP traces.
 
-- `benchmarks/Hugo.Benchmarks`: BenchmarkDotNet suite comparing Hugo mutexes against native `SemaphoreSlim` primitives.
+### Benchmarks
+
+The `benchmarks/Hugo.Benchmarks` directory contains a comprehensive BenchmarkDotNet suite comparing Hugo primitives against native .NET equivalents:
+
+- **Mutex vs SemaphoreSlim**: Lock acquisition and release performance
+- **RwMutex**: Read/write lock contention scenarios
+- **Once**: One-time initialization patterns
+- **Pool**: Object pooling efficiency
+- **Channel factories**: Bounded vs unbounded channel creation
+- **Prioritized channels**: Multi-level priority queue throughput
+- **Result pipelines**: Railway-oriented composition overhead
+- **Select operations**: Channel coordination latency
+
+Run benchmarks locally:
+
+```bash
+dotnet run --project benchmarks/Hugo.Benchmarks/Hugo.Benchmarks.csproj -c Release
+```
+
+Generated reports are available in `BenchmarkDotNet.Artifacts/results/`. Hugo primitives demonstrate competitive performance with native .NET types while providing additional safety guarantees and observability hooks.
 
 ## Support & policies
 
@@ -147,6 +166,16 @@ Console.WriteLine(string.Join(' ', messages));
 
 ## Contributing
 
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on:
+
+- Setting up your development environment
+- Code style and conventions
+- Running tests and collecting coverage
+- Submitting pull requests
+- Documentation updates
+
+Quick start:
+
 1. Install the .NET 10 preview SDK alongside .NET 9.
 2. Run `dotnet build Hugo.slnx` and `dotnet test tests/Hugo.Tests/Hugo.Tests.csproj` before submitting changes.
 3. Collect coverage locally with `dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --collect:"XPlat Code Coverage"` to mirror CI.
@@ -155,4 +184,4 @@ Console.WriteLine(string.Join(' ', messages));
 
 ## License
 
-License declaration is pending; open an issue if you need clarification before adopting the library in production.
+Hugo is licensed under the [MIT License](LICENSE). You are free to use, modify, and distribute this library in accordance with the license terms.

@@ -1,0 +1,7 @@
+- name: Documentation
+  href: docs/index.md
+- name: API Reference
+  href: api/
+  homepage: api/index.md
+- name: Changelog
+  href: CHANGELOG.md

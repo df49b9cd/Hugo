@@ -10,7 +10,19 @@
         <Company>df49b9cd</Company>
         <PackageDescription>Go-style concurrency primitives, result pipelines, and workflow instrumentation for .NET 9/10.</PackageDescription>
         <RepositoryUrl>https://github.com/df49b9cd/Hugo</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/df49b9cd/Hugo</PackageProjectUrl>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageTags>go;concurrency;channels;waitgroup;mutex;result;railway;error-handling;observability;workflow;deterministic</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryType>git</RepositoryType>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
