@@ -1,5 +1,3 @@
-using Hugo;
-
 namespace Hugo.Tests;
 
 public class OptionalTests

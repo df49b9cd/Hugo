@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using Hugo;
 using Microsoft.Extensions.DependencyInjection;
 using static Hugo.Go;
 

@@ -1,13 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.CommandLine;
-using System.CommandLine.Parsing;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Hugo.Profiling;
 
 namespace Hugo.ProfilingAnalyzer;
@@ -61,7 +54,7 @@ internal static class Program
             Description = "Only print heuristic findings (skip the counter table)."
         };
 
-        var speedscopeOption = new Option<string?>("--speedscope", aliases: new[] { "--speedscope-path" })
+        var speedscopeOption = new Option<string?>("--speedscope", aliases: ["--speedscope-path"])
         {
             Description = "Path to a Speedscope JSON file for trace summarization. Defaults to discovering a trace next to the counters file."
         };

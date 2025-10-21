@@ -1,5 +1,3 @@
-using System;
-
 namespace Hugo.Profiling;
 
 public sealed record CounterSummary(

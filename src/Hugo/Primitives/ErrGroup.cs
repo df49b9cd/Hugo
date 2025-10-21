@@ -6,22 +6,17 @@ using Unit = Hugo.Go.Unit;
 /// <summary>
 /// Coordinates asynchronous operations, propagating the first failure and cancelling remaining work, similar to Go's errgroup package.
 /// </summary>
-public sealed class ErrGroup : IDisposable
+/// <remarks>
+/// Initializes a new instance of the <see cref="ErrGroup"/> class.
+/// </remarks>
+/// <param name="cancellationToken">An optional cancellation token that cancels the group when signaled.</param>
+public sealed class ErrGroup(CancellationToken cancellationToken = default) : IDisposable
 {
-    private readonly CancellationTokenSource _cts;
-    private readonly WaitGroup _waitGroup = new();
-    private Error? _error;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ErrGroup"/> class.
-    /// </summary>
-    /// <param name="cancellationToken">An optional cancellation token that cancels the group when signaled.</param>
-    public ErrGroup(CancellationToken cancellationToken = default)
-    {
-        _cts = cancellationToken.CanBeCanceled
+    private readonly CancellationTokenSource _cts = cancellationToken.CanBeCanceled
             ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
             : new CancellationTokenSource();
-    }
+    private readonly WaitGroup _waitGroup = new();
+    private Error? _error;
 
     /// <summary>
     /// Gets a cancellation token that is signaled when the group is canceled or a task fails.

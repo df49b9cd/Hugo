@@ -5,103 +5,87 @@ namespace Hugo;
 /// <summary>
 /// Represents a visibility snapshot for a workflow execution.
 /// </summary>
-public sealed class WorkflowVisibilityRecord
+/// <remarks>
+/// Initializes a new instance of the <see cref="WorkflowVisibilityRecord"/> class.
+/// </remarks>
+public sealed class WorkflowVisibilityRecord(
+    string @namespace,
+    string workflowId,
+    string runId,
+    string taskQueue,
+    string? scheduleId,
+    string? scheduleGroup,
+    WorkflowStatus status,
+    DateTimeOffset startedAt,
+    DateTimeOffset? completedAt,
+    long logicalClock,
+    int replayCount,
+    IReadOnlyDictionary<string, string>? attributes = null)
 {
     private static readonly IReadOnlyDictionary<string, string> EmptyAttributes =
         new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(0, StringComparer.Ordinal));
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="WorkflowVisibilityRecord"/> class.
-    /// </summary>
-    public WorkflowVisibilityRecord(
-        string @namespace,
-        string workflowId,
-        string runId,
-        string taskQueue,
-        string? scheduleId,
-        string? scheduleGroup,
-        WorkflowStatus status,
-        DateTimeOffset startedAt,
-        DateTimeOffset? completedAt,
-        long logicalClock,
-        int replayCount,
-        IReadOnlyDictionary<string, string>? attributes = null)
-    {
-        Namespace = @namespace ?? throw new ArgumentNullException(nameof(@namespace));
-        WorkflowId = workflowId ?? throw new ArgumentNullException(nameof(workflowId));
-        RunId = runId ?? throw new ArgumentNullException(nameof(runId));
-        TaskQueue = taskQueue ?? throw new ArgumentNullException(nameof(taskQueue));
-        ScheduleId = scheduleId;
-        ScheduleGroup = scheduleGroup;
-        Status = status;
-        StartedAt = startedAt;
-        CompletedAt = completedAt;
-        LogicalClock = logicalClock;
-        ReplayCount = replayCount;
-        Attributes = attributes is null || attributes.Count == 0
-            ? EmptyAttributes
-            : new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(attributes, StringComparer.Ordinal));
-    }
-
-    /// <summary>
     /// Workflow namespace.
     /// </summary>
-    public string Namespace { get; }
+    public string Namespace { get; } = @namespace ?? throw new ArgumentNullException(nameof(@namespace));
 
     /// <summary>
     /// Workflow identifier.
     /// </summary>
-    public string WorkflowId { get; }
+    public string WorkflowId { get; } = workflowId ?? throw new ArgumentNullException(nameof(workflowId));
 
     /// <summary>
     /// Workflow run identifier.
     /// </summary>
-    public string RunId { get; }
+    public string RunId { get; } = runId ?? throw new ArgumentNullException(nameof(runId));
 
     /// <summary>
     /// Task queue handling workflow commands.
     /// </summary>
-    public string TaskQueue { get; }
+    public string TaskQueue { get; } = taskQueue ?? throw new ArgumentNullException(nameof(taskQueue));
 
     /// <summary>
     /// Optional schedule identifier.
     /// </summary>
-    public string? ScheduleId { get; }
+    public string? ScheduleId { get; } = scheduleId;
 
     /// <summary>
     /// Optional schedule grouping identifier.
     /// </summary>
-    public string? ScheduleGroup { get; }
+    public string? ScheduleGroup { get; } = scheduleGroup;
 
     /// <summary>
     /// Current workflow status.
     /// </summary>
-    public WorkflowStatus Status { get; }
+    public WorkflowStatus Status { get; } = status;
 
     /// <summary>
     /// Timestamp when the workflow started.
     /// </summary>
-    public DateTimeOffset StartedAt { get; }
+    public DateTimeOffset StartedAt { get; } = startedAt;
 
     /// <summary>
     /// Timestamp when the workflow completed, if applicable.
     /// </summary>
-    public DateTimeOffset? CompletedAt { get; }
+    public DateTimeOffset? CompletedAt { get; } = completedAt;
 
     /// <summary>
     /// Latest Lamport logical clock.
     /// </summary>
-    public long LogicalClock { get; }
+    public long LogicalClock { get; } = logicalClock;
 
     /// <summary>
     /// Current replay count observed for the workflow.
     /// </summary>
-    public int ReplayCount { get; }
+    public int ReplayCount { get; } = replayCount;
 
     /// <summary>
     /// Additional attributes associated with the workflow.
     /// </summary>
-    public IReadOnlyDictionary<string, string> Attributes { get; }
+    public IReadOnlyDictionary<string, string> Attributes { get; } = attributes is null || attributes.Count == 0
+            ? EmptyAttributes
+            : new ReadOnlyDictionary<string, string>(new Dictionary<string, string>(attributes, StringComparer.Ordinal));
 }
 
 /// <summary>

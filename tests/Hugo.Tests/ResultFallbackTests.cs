@@ -1,5 +1,3 @@
-using System;
-using Hugo;
 using Hugo.Policies;
 using Microsoft.Extensions.Time.Testing;
 using static Hugo.Go;
@@ -96,8 +94,7 @@ public class ResultFallbackTests
         {
             new ResultFallbackTier<int>(
                 "primary",
-                new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>[]
-                {
+                [
                     async (ctx, ct) =>
                     {
                         await Task.Delay(TimeSpan.FromMilliseconds(50), ct);
@@ -117,7 +114,7 @@ public class ResultFallbackTests
 
                         return Result.Ok(0);
                     }
-                })
+                ])
         };
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);

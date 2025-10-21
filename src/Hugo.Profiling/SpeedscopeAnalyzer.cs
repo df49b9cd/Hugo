@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text.Json;
 
 namespace Hugo.Profiling;
@@ -234,18 +230,11 @@ public static class SpeedscopeAnalyzer
         };
     }
 
-    private struct StackEntry
+    private struct StackEntry(int frameIndex, double startTimestamp)
     {
-        public StackEntry(int frameIndex, double startTimestamp)
-        {
-            FrameIndex = frameIndex;
-            StartTimestamp = startTimestamp;
-            ChildDuration = 0;
-        }
-
-        public int FrameIndex { get; }
-        public double StartTimestamp { get; }
-        public double ChildDuration { get; set; }
+        public int FrameIndex { get; } = frameIndex;
+        public double StartTimestamp { get; } = startTimestamp;
+        public double ChildDuration { get; set; } = 0;
     }
 
     private sealed class FrameAggregate

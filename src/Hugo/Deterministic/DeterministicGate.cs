@@ -1,20 +1,12 @@
-using System.Collections.Generic;
-
 namespace Hugo;
 
 /// <summary>
 /// Coordinates version decisions with deterministic side-effect capture.
 /// </summary>
-public sealed class DeterministicGate
+public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffectStore effectStore)
 {
-    private readonly VersionGate _versionGate;
-    private readonly DeterministicEffectStore _effectStore;
-
-    public DeterministicGate(VersionGate versionGate, DeterministicEffectStore effectStore)
-    {
-        _versionGate = versionGate ?? throw new ArgumentNullException(nameof(versionGate));
-        _effectStore = effectStore ?? throw new ArgumentNullException(nameof(effectStore));
-    }
+    private readonly VersionGate _versionGate = versionGate ?? throw new ArgumentNullException(nameof(versionGate));
+    private readonly DeterministicEffectStore _effectStore = effectStore ?? throw new ArgumentNullException(nameof(effectStore));
 
     public Task<Result<T>> ExecuteAsync<T>(
         string changeId,

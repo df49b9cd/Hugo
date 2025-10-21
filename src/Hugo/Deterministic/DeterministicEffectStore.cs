@@ -5,28 +5,21 @@ namespace Hugo;
 /// <summary>
 /// Records side-effect results so that replayed workflow executions observe deterministic outcomes.
 /// </summary>
-public sealed class DeterministicEffectStore
+/// <remarks>
+/// Initializes a new instance of the <see cref="DeterministicEffectStore"/> class.
+/// </remarks>
+/// <param name="store">Backing store used to persist side-effect outcomes.</param>
+/// <param name="timeProvider">Optional time provider used for timestamping.</param>
+/// <param name="serializerOptions">Serializer options used when materializing values.</param>
+public sealed class DeterministicEffectStore(IDeterministicStateStore store, TimeProvider? timeProvider = null, JsonSerializerOptions? serializerOptions = null)
 {
     private const string RecordKind = "hugo.effect";
 
     private static readonly JsonSerializerOptions DefaultSerializerOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly IDeterministicStateStore _store;
-    private readonly TimeProvider _timeProvider;
-    private readonly JsonSerializerOptions _serializerOptions;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="DeterministicEffectStore"/> class.
-    /// </summary>
-    /// <param name="store">Backing store used to persist side-effect outcomes.</param>
-    /// <param name="timeProvider">Optional time provider used for timestamping.</param>
-    /// <param name="serializerOptions">Serializer options used when materializing values.</param>
-    public DeterministicEffectStore(IDeterministicStateStore store, TimeProvider? timeProvider = null, JsonSerializerOptions? serializerOptions = null)
-    {
-        _store = store ?? throw new ArgumentNullException(nameof(store));
-        _timeProvider = timeProvider ?? TimeProvider.System;
-        _serializerOptions = serializerOptions ?? DefaultSerializerOptions;
-    }
+    private readonly IDeterministicStateStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly JsonSerializerOptions _serializerOptions = serializerOptions ?? DefaultSerializerOptions;
 
     /// <summary>
     /// Executes the provided side-effect once and replays the persisted outcome on subsequent invocations.

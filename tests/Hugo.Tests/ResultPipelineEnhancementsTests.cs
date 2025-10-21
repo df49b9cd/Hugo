@@ -1,8 +1,6 @@
 using System.Threading.Channels;
-using Hugo;
 using Hugo.Policies;
 using Hugo.Sagas;
-using static Hugo.Go;
 
 namespace Hugo.Tests;
 
@@ -38,7 +36,7 @@ public class ResultPipelineEnhancementsTests
         var result = await Result.WhenAll(operations, policy: new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { 1, 2 }, result.Value);
+        Assert.Equal([1, 2], result.Value);
         Assert.Equal(0, compensations);
     }
 
@@ -95,7 +93,7 @@ public class ResultPipelineEnhancementsTests
         });
 
         var policy = new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse);
-        var result = await Result.WhenAny(new[] { fast, slow }, policy, TestContext.Current.CancellationToken);
+        var result = await Result.WhenAny([fast, slow], policy, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("fast", result.Value);
@@ -182,8 +180,8 @@ public class ResultPipelineEnhancementsTests
         }
 
         Assert.Equal(2, batches.Count);
-        Assert.Equal(new[] { 1, 2 }, batches[0]);
-        Assert.Equal(new[] { 3 }, batches[1]);
+        Assert.Equal([1, 2], batches[0]);
+        Assert.Equal([3], batches[1]);
 
         static async IAsyncEnumerable<Result<int>> GetSequence()
         {
@@ -211,8 +209,8 @@ public class ResultPipelineEnhancementsTests
 
         var partitioned = Result.Partition(data, value => value % 2 == 0);
         Assert.True(partitioned.IsSuccess);
-        Assert.Equal(new[] { 2, 4 }, partitioned.Value.True);
-        Assert.Equal(new[] { 1, 3 }, partitioned.Value.False);
+        Assert.Equal([2, 4], partitioned.Value.True);
+        Assert.Equal([1, 3], partitioned.Value.False);
 
         var windowed = Result.Window(data, 3);
         Assert.True(windowed.IsSuccess);

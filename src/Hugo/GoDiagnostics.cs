@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Reflection;
-using Hugo;
 
 namespace Hugo;
 
@@ -129,10 +128,10 @@ public static class GoDiagnostics
             var optionsInstance = CreateActivitySourceOptions(optionsType, resolvedSchemaUrl);
             if (optionsInstance is not null)
             {
-                var ctor = activitySourceType.GetConstructor(new[] { typeof(string), typeof(string), optionsType });
+                var ctor = activitySourceType.GetConstructor([typeof(string), typeof(string), optionsType]);
                 if (ctor is not null)
                 {
-                    return (ActivitySource)ctor.Invoke(new[] { resolvedName, resolvedVersion, optionsInstance });
+                    return (ActivitySource)ctor.Invoke([resolvedName, resolvedVersion, optionsInstance]);
                 }
             }
         }
@@ -218,7 +217,7 @@ public static class GoDiagnostics
     private static KeyValuePair<string, object?>[] CreateSchemaAttribute(string schemaUrl) =>
         string.IsNullOrWhiteSpace(schemaUrl)
             ? Array.Empty<KeyValuePair<string, object?>>()
-            : new[] { new KeyValuePair<string, object?>("otel.scope.schema_url", schemaUrl) };
+            : [new KeyValuePair<string, object?>("otel.scope.schema_url", schemaUrl)];
 
     private static object? CreateActivitySourceOptions(Type optionsType, string schemaUrl)
     {

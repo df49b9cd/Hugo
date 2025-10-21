@@ -5,28 +5,21 @@ namespace Hugo;
 /// <summary>
 /// Coordinates deterministic workflow branching by recording version markers that persist across replays.
 /// </summary>
-public sealed class VersionGate
+/// <remarks>
+/// Initializes a new instance of the <see cref="VersionGate"/> class.
+/// </remarks>
+/// <param name="store">Backing store used to persist version markers.</param>
+/// <param name="timeProvider">Optional <see cref="TimeProvider"/> for deterministic timestamps.</param>
+/// <param name="serializerOptions">Serializer options used for payload persistence.</param>
+public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? timeProvider = null, JsonSerializerOptions? serializerOptions = null)
 {
     private const string RecordKind = "hugo.version";
 
     private static readonly JsonSerializerOptions DefaultSerializerOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly IDeterministicStateStore _store;
-    private readonly TimeProvider _timeProvider;
-    private readonly JsonSerializerOptions _serializerOptions;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="VersionGate"/> class.
-    /// </summary>
-    /// <param name="store">Backing store used to persist version markers.</param>
-    /// <param name="timeProvider">Optional <see cref="TimeProvider"/> for deterministic timestamps.</param>
-    /// <param name="serializerOptions">Serializer options used for payload persistence.</param>
-    public VersionGate(IDeterministicStateStore store, TimeProvider? timeProvider = null, JsonSerializerOptions? serializerOptions = null)
-    {
-        _store = store ?? throw new ArgumentNullException(nameof(store));
-        _timeProvider = timeProvider ?? TimeProvider.System;
-        _serializerOptions = serializerOptions ?? DefaultSerializerOptions;
-    }
+    private readonly IDeterministicStateStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly JsonSerializerOptions _serializerOptions = serializerOptions ?? DefaultSerializerOptions;
 
     /// <summary>
     /// Sentinel value that mirrors Temporal's <c>DefaultVersion</c> and indicates the absence of a recorded version.

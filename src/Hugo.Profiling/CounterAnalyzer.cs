@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Text;
 
 namespace Hugo.Profiling;
@@ -171,24 +167,17 @@ public static class CounterAnalyzer
         }
     }
 
-    private sealed class CounterSeries
+    private sealed class CounterSeries(string provider, string name, string type)
     {
-        private readonly string _provider;
-        private readonly string _name;
-        private readonly string _type;
+        private readonly string _provider = provider;
+        private readonly string _name = name;
+        private readonly string _type = type;
         private readonly List<double> _values = new();
         private readonly List<DateTime> _timestamps = new();
         private double _sum;
         private double _min = double.PositiveInfinity;
         private double _max = double.NegativeInfinity;
         private double _latest;
-
-        public CounterSeries(string provider, string name, string type)
-        {
-            _provider = provider;
-            _name = name;
-            _type = type;
-        }
 
         public void Add(DateTime timestamp, double value)
         {

@@ -1,9 +1,7 @@
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Linq;
 using System.Threading.Channels;
-using Hugo;
 using Microsoft.Extensions.Time.Testing;
 using static Hugo.Go;
 
@@ -887,7 +885,7 @@ public class GoTests
 
         var fanOutTask = FanOutAsync(
             source.Reader,
-            new[] { destination1.Writer, destination2.Writer },
+            [destination1.Writer, destination2.Writer],
             cancellationToken: TestContext.Current.CancellationToken);
 
         await source.Writer.WriteAsync(42, TestContext.Current.CancellationToken);
@@ -917,7 +915,7 @@ public class GoTests
 
         var fanOutTask = FanOutAsync(
             source.Reader,
-            new[] { destination.Writer },
+            [destination.Writer],
             deadline: TimeSpan.FromSeconds(1),
             provider: provider,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -967,7 +965,7 @@ public class GoTests
 
         var fanOutTask = FanOutAsync(
             source.Reader,
-            new[] { destination.Writer },
+            [destination.Writer],
             cancellationToken: cts.Token);
 
         cts.Cancel();

@@ -90,17 +90,11 @@ public sealed class ResultSagaBuilder
         return Result.Ok(sagaState);
     }
 
-    private sealed class ResultSagaStep
+    private sealed class ResultSagaStep(string name, Func<ResultSagaStepContext, CancellationToken, ValueTask<Result<object?>>> executor)
     {
-        public ResultSagaStep(string name, Func<ResultSagaStepContext, CancellationToken, ValueTask<Result<object?>>> executor)
-        {
-            Name = name;
-            Executor = executor;
-        }
+        public string Name { get; } = name;
 
-        public string Name { get; }
-
-        public Func<ResultSagaStepContext, CancellationToken, ValueTask<Result<object?>>> Executor { get; }
+        public Func<ResultSagaStepContext, CancellationToken, ValueTask<Result<object?>>> Executor { get; } = executor;
 
         public ValueTask<Result<object?>> Execute(ResultSagaStepContext context, CancellationToken cancellationToken) => Executor(context, cancellationToken);
     }

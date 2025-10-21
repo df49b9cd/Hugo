@@ -1,5 +1,4 @@
 using BenchmarkDotNet.Attributes;
-using Hugo;
 
 namespace Hugo.Benchmarks;
 

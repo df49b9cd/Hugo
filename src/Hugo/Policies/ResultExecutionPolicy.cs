@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Globalization;
 
 namespace Hugo.Policies;
@@ -151,16 +150,11 @@ public sealed class ResultRetryPolicy
 /// <summary>
 /// Determines how compensating actions are executed when a pipeline partially fails.
 /// </summary>
-public sealed class ResultCompensationPolicy
+public sealed class ResultCompensationPolicy(Func<CompensationContext, ValueTask> executor)
 {
     public static ResultCompensationPolicy None { get; } = new(static _ => ValueTask.CompletedTask);
 
-    private readonly Func<CompensationContext, ValueTask> _executor;
-
-    public ResultCompensationPolicy(Func<CompensationContext, ValueTask> executor)
-    {
-        _executor = executor ?? throw new ArgumentNullException(nameof(executor));
-    }
+    private readonly Func<CompensationContext, ValueTask> _executor = executor ?? throw new ArgumentNullException(nameof(executor));
 
     public ValueTask ExecuteAsync(CompensationContext context) => _executor(context);
 
@@ -197,28 +191,19 @@ public readonly record struct RetryDecision
 /// <summary>
 /// Tracks retry attempt information and timing.
 /// </summary>
-public sealed class RetryState
+public sealed class RetryState(TimeProvider timeProvider, int maxAttempts, TimeSpan baseDelay, double multiplier, TimeSpan? maxDelay)
 {
     private List<Error>? _errors;
 
-    public RetryState(TimeProvider timeProvider, int maxAttempts, TimeSpan baseDelay, double multiplier, TimeSpan? maxDelay)
-    {
-        TimeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
-        MaxAttempts = maxAttempts;
-        BaseDelay = baseDelay;
-        Multiplier = multiplier;
-        MaxDelay = maxDelay;
-    }
+    public TimeProvider TimeProvider { get; } = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
-    public TimeProvider TimeProvider { get; }
+    public int MaxAttempts { get; } = maxAttempts;
 
-    public int MaxAttempts { get; }
+    public TimeSpan BaseDelay { get; } = baseDelay;
 
-    public TimeSpan BaseDelay { get; }
+    public double Multiplier { get; } = multiplier;
 
-    public double Multiplier { get; }
-
-    public TimeSpan? MaxDelay { get; }
+    public TimeSpan? MaxDelay { get; } = maxDelay;
 
     public int Attempt { get; private set; }
 
@@ -255,17 +240,11 @@ public sealed class RetryState
 /// <summary>
 /// Provides context and helpers for executing compensation actions.
 /// </summary>
-public sealed class CompensationContext
+public sealed class CompensationContext(Stack<CompensationAction> actions, CancellationToken cancellationToken)
 {
-    private readonly Stack<CompensationAction> _actions;
+    private readonly Stack<CompensationAction> _actions = actions;
 
-    public CompensationContext(Stack<CompensationAction> actions, CancellationToken cancellationToken)
-    {
-        _actions = actions;
-        CancellationToken = cancellationToken;
-    }
-
-    public CancellationToken CancellationToken { get; }
+    public CancellationToken CancellationToken { get; } = cancellationToken;
 
     public ValueTask ExecuteAsync(bool parallel = false)
     {

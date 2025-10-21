@@ -1,6 +1,3 @@
-using System.Threading;
-using System.Threading.Tasks;
-using Hugo;
 using Unit = Hugo.Go.Unit;
 
 namespace Hugo.Tests;

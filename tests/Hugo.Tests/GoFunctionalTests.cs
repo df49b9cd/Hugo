@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using Hugo;
 using Microsoft.Extensions.Time.Testing;
 using static Hugo.Go;
 

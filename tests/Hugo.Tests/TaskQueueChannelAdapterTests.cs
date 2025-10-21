@@ -1,6 +1,4 @@
-using System.Threading;
 using System.Threading.Channels;
-using Hugo;
 using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests;

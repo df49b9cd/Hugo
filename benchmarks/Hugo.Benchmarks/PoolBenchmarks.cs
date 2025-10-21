@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using BenchmarkDotNet.Attributes;
-using Hugo;
 using Microsoft.Extensions.ObjectPool;
 
 namespace Hugo.Benchmarks;

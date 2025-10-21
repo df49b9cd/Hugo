@@ -1,12 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using OpenTelemetry;
-using OpenTelemetry.Instrumentation.Runtime;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -46,7 +42,7 @@ public static class HugoOpenTelemetryBuilderExtensions
         ArgumentNullException.ThrowIfNull(options);
 
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, HugoDiagnosticsRegistrationService>());
-        builder.Services.TryAddSingleton<IOptions<HugoOpenTelemetryOptions>>(_ => Options.Create(options));
+        builder.Services.TryAddSingleton(_ => Options.Create(options));
 
         builder.ConfigureResource(resourceBuilder =>
         {
@@ -57,10 +53,10 @@ public static class HugoOpenTelemetryBuilderExtensions
 
             if (options.AttachSchemaAttribute && !string.IsNullOrWhiteSpace(options.SchemaUrl))
             {
-                resourceBuilder.AddAttributes(new[]
-                {
+                resourceBuilder.AddAttributes(
+                [
                     new KeyValuePair<string, object>("telemetry.schema.url", options.SchemaUrl!)
-                });
+                ]);
             }
         });
 

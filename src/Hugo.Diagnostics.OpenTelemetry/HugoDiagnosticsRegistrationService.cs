@@ -1,4 +1,3 @@
-using System;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Hosting;
@@ -6,20 +5,14 @@ using Microsoft.Extensions.Options;
 
 namespace Hugo.Diagnostics.OpenTelemetry;
 
-internal sealed class HugoDiagnosticsRegistrationService : IHostedService
+internal sealed class HugoDiagnosticsRegistrationService(
+    IMeterFactory meterFactory,
+    IOptions<HugoOpenTelemetryOptions> options) : IHostedService
 {
-    private readonly IMeterFactory _meterFactory;
-    private readonly HugoOpenTelemetryOptions _options;
+    private readonly IMeterFactory _meterFactory = meterFactory ?? throw new ArgumentNullException(nameof(meterFactory));
+    private readonly HugoOpenTelemetryOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
     private ActivitySource? _activitySource;
     private IDisposable? _samplingSubscription;
-
-    public HugoDiagnosticsRegistrationService(
-        IMeterFactory meterFactory,
-        IOptions<HugoOpenTelemetryOptions> options)
-    {
-        _meterFactory = meterFactory ?? throw new ArgumentNullException(nameof(meterFactory));
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-    }
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
