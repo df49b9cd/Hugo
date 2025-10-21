@@ -13,6 +13,14 @@ Use this guide to expose `GoDiagnostics` metrics and tracing spans through OpenT
   - `OpenTelemetry.Exporter.Otlp` (recommended) or another metrics exporter such as `OpenTelemetry.Exporter.Console`.
 - Optional for Aspire samples: `Aspire.Hosting` 9.0 or later.
 
+### Install the diagnostics helpers
+
+```bash
+dotnet add package Hugo.Diagnostics.OpenTelemetry
+```
+
+Add additional exporters or instrumentation packages with `dotnet add package` as needed for your environment.
+
 ## Enable Hugo diagnostics with one call
 
 ```csharp
