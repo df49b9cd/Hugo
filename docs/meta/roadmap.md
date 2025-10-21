@@ -4,13 +4,13 @@
 
 - **Structured API reference**: Expand XML docs and integrate with DocFX to keep the reference section in sync with the codebase.
 - **Diagnostics exporters**: Prototype `Hugo.Diagnostics.OpenTelemetry` with schema-aware meters (`Meter.TelemetrySchemaUrl`), `ActivitySourceOptions`, and Aspire ServiceDefaults so Hugo apps emit OTLP/Prometheus friendly signals out-of-the-box.
-- **Workflow visibility & search**: Define attribute schema, storage guidance, and query patterns that take advantage of the new workflow execution context metadata.
 
 ## Recently shipped
 
 - **Task queue channel adapter**: Introduced `TaskQueueChannelAdapter<T>` with lease requeue semantics, background pump fault handling, and a serialized xUnit collection to stabilise `TaskQueue` timing tests.
 - **Playbook templates**: Documented timeout, retry, and cancellation patterns for HTTP calls, queue handlers, and sagas in `docs/how-to/playbook-templates.md`.
 - **Diagnostics & observability hardening**: Adopted telemetry schema URLs, rate-limited sampling helpers, and Aspire integration guidance so Hugo diagnostics align with modern OpenTelemetry practice; documented OTLP exporter defaults for workflow metrics.
+- **Workflow visibility & search**: Published `docs/how-to/workflow-visibility.md` covering canonical attributes, storage layouts, and query recipes powered by `WorkflowExecutionContext`.
 - **ErrGroup orchestration**: Added `Hugo.ErrGroup` for cancellable task orchestration with `WaitGroup` integration and structured error propagation.
 - **Select builder upgrades**: `Go.Select(...)` now supports default branches, priority ordering, and deadline helpers for deterministic channel coordination.
 - **Profiling toolkit**: Documented dotnet diagnostic recipes (`docs/how-to/profiling-toolkit.md`), shipped helper scripts and collection rule templates under `tools/profiling-toolkit`, and published a GitHub Actions baseline workflow for automated trace captures.
