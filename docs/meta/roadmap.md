@@ -4,7 +4,6 @@
 
 - **Structured API reference**: Expand XML docs and integrate with DocFX to keep the reference section in sync with the codebase.
 - **Diagnostics exporters**: Prototype `Hugo.Diagnostics.OpenTelemetry` with schema-aware meters (`Meter.TelemetrySchemaUrl`), `ActivitySourceOptions`, and Aspire ServiceDefaults so Hugo apps emit OTLP/Prometheus friendly signals out-of-the-box.
-- **Result pipeline orchestration**: Nail down retry/compensation story across `Result<T>` and `ErrGroup`, including guidance for tiered fallbacks and cancellation surfacing.
 - **Workflow visibility & search**: Define attribute schema, storage guidance, and query patterns that take advantage of the new workflow execution context metadata.
 
 ## Recently shipped
@@ -21,6 +20,7 @@
 - **Workflow execution context & metrics**: Introduced ambient `WorkflowExecutionContext`, visibility records, and workflow-centric counters/histograms/activity spans in `GoDiagnostics` to surface logical clocks, replay counts, and status transitions.
 - **Functional pipeline enhancements**: Delivered `Result.WhenAll/WhenAny`, saga builders with compensation support, retry policies, and streaming/partitioning combinators that bridge `IAsyncEnumerable<T>` with channels and results for deterministic fan-in/out patterns.
 - **Deterministic coordination**: `DeterministicGate.Workflow` orchestrates versioned branches with scoped effect capture, replay-safe exception/cancellation handling, and documentation covering replay strategies.
+- **Result pipeline orchestration**: Added `Result.TieredFallbackAsync`, `ResultFallbackTier<T>`, and errgroup-aware `Go` overloads so retry, compensation, and tiered fallback guidance is one place, with docs covering cancellation metadata and observability.
 
 ## Backlog
 

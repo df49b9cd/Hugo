@@ -53,6 +53,60 @@ Each async method accepts the current value and a `CancellationToken`.
 - `RecoverAsync(Func<Error, CancellationToken, Task<Result<T>>>, CancellationToken)`
 - `FinallyAsync<TResult>(Func<T, TResult> onSuccess, Func<Error, TResult> onError, CancellationToken)`
 
+## Retry and fallback orchestration
+
+- `Result.RetryWithPolicyAsync` executes an operation under a `ResultExecutionPolicy`, applying retries and compensation before surfacing a failure.
+- `Result.TieredFallbackAsync` evaluates `ResultFallbackTier<T>` instances sequentially. Within each tier, multiple strategies run concurrently and cancel once a peer succeeds. Failures accumulate `fallbackTier`, `tierIndex`, and `strategyIndex` metadata for observability.
+- `ResultFallbackTier<T>.From` converts synchronous or asynchronous delegates into tier definitions without manual `ResultPipelineStepContext` handling.
+- `ErrGroup.Go((ctx, ct) => ..., policy: retryPolicy)` fans out result-aware work inside an errgroup. The overload honours retry policies and executes registered compensation when a step fails.
+
+### Tiered fallback example
+
+```csharp
+var policy = ResultExecutionPolicy.None.WithRetry(ResultRetryPolicy.Exponential(3, TimeSpan.FromMilliseconds(200)));
+
+var tiers = new[]
+{
+    ResultFallbackTier<HttpResponseMessage>.From(
+        "primary",
+        ct => TrySendAsync(primaryClient, payload, ct)),
+    new ResultFallbackTier<HttpResponseMessage>(
+        "regional",
+        new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<HttpResponseMessage>>>[]
+        {
+            (ctx, ct) => TrySendAsync(euClient, payload, ct),
+            (ctx, ct) => TrySendAsync(apacClient, payload, ct)
+        })
+};
+
+var response = await Result.TieredFallbackAsync(tiers, policy, cancellationToken);
+
+if (response.IsFailure && response.Error!.Metadata.TryGetValue("fallbackTier", out var tier))
+{
+    logger.LogWarning("All strategies in tier {Tier} failed: {Error}", tier, response.Error);
+}
+```
+
+### ErrGroup integration
+
+```csharp
+using var group = new ErrGroup();
+var retryPolicy = ResultExecutionPolicy.None.WithRetry(ResultRetryPolicy.FixedDelay(3, TimeSpan.FromSeconds(1)));
+
+group.Go((ctx, ct) =>
+{
+    return Result.RetryWithPolicyAsync(async (_, token) =>
+    {
+        var response = await client.SendAsync(request, token);
+        return response.IsSuccessStatusCode
+            ? Result.Ok(Go.Unit.Value)
+            : Result.Fail<Unit>(Error.From("HTTP failure", ErrorCodes.Validation));
+    }, retryPolicy, ct, ctx.TimeProvider);
+}, stepName: "ship-order", policy: retryPolicy);
+
+var completion = await group.WaitAsync(cancellationToken);
+```
+
 ### Metadata example
 
 ```csharp

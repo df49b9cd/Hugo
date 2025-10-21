@@ -1,5 +1,6 @@
 namespace Hugo;
 
+using Hugo.Policies;
 using Unit = Hugo.Go.Unit;
 
 /// <summary>
@@ -95,6 +96,28 @@ public sealed class ErrGroup : IDisposable
     }
 
     /// <summary>
+    /// Executes a result pipeline-aware delegate with retry/compensation support.
+    /// </summary>
+    /// <param name="work">Delegate that participates in the result pipeline.</param>
+    /// <param name="stepName">Optional name used for diagnostics.</param>
+    /// <param name="policy">Optional execution policy controlling retries and compensation.</param>
+    /// <param name="timeProvider">Optional time provider used for retry scheduling.</param>
+    public void Go(
+        Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<Unit>>> work,
+        string? stepName = null,
+        ResultExecutionPolicy? policy = null,
+        TimeProvider? timeProvider = null)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+
+        var effectivePolicy = policy ?? ResultExecutionPolicy.None;
+        var resolvedName = string.IsNullOrWhiteSpace(stepName) ? "errgroup.step" : stepName;
+        var provider = timeProvider ?? TimeProvider.System;
+
+        RegisterAndRun(() => ExecutePipelineAsync(resolvedName, work, effectivePolicy, provider));
+    }
+
+    /// <summary>
     /// Waits for all registered operations to complete and returns the first error, if any.
     /// </summary>
     public async Task<Result<Unit>> WaitAsync(CancellationToken cancellationToken = default)
@@ -157,6 +180,42 @@ public sealed class ErrGroup : IDisposable
         catch (OperationCanceledException oce)
         {
             TrySetError(Error.Canceled(token: oce.CancellationToken.CanBeCanceled ? oce.CancellationToken : null));
+        }
+        catch (Exception ex)
+        {
+            TrySetError(Error.FromException(ex));
+        }
+    }
+
+    private async Task ExecutePipelineAsync(
+        string stepName,
+        Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<Unit>>> work,
+        ResultExecutionPolicy policy,
+        TimeProvider timeProvider)
+    {
+        try
+        {
+            var result = await Result.ExecuteWithPolicyAsync(work, stepName, policy, timeProvider, Token).ConfigureAwait(false);
+            if (result.Result.IsSuccess)
+            {
+                result.Compensation.Clear();
+                return;
+            }
+
+            var compensationScope = result.Compensation;
+            var failure = result.Result.Error ?? Error.Unspecified();
+            var compensationError = await Result.RunCompensationAsync(policy, compensationScope, Token).ConfigureAwait(false);
+            compensationScope.Clear();
+            if (compensationError is not null)
+            {
+                failure = Error.Aggregate("ErrGroup step failed with compensation error.", failure, compensationError);
+            }
+
+            TrySetError(failure);
+        }
+        catch (OperationCanceledException oce)
+        {
+            TrySetError(Error.Canceled(token: oce.CancellationToken.CanBeCanceled ? oce.CancellationToken : Token));
         }
         catch (Exception ex)
         {

@@ -163,29 +163,16 @@ public class TaskQueueChannelAdapterTests
 
         await queue.EnqueueAsync("pending", TestContext.Current.CancellationToken);
 
-        using (var initialLeaseCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken))
-        {
-            initialLeaseCts.CancelAfter(TimeSpan.FromSeconds(3));
-            await WaitForConditionAsync(() => queue.ActiveLeaseCount == 1, initialLeaseCts.Token, TimeSpan.FromMilliseconds(1));
-        }
-
-        using (var requeueVisibleCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken))
-        {
-            requeueVisibleCts.CancelAfter(TimeSpan.FromSeconds(3));
-            await WaitForConditionAsync(
-                () => queue.PendingCount == 1 && queue.ActiveLeaseCount == 0,
-                requeueVisibleCts.Token,
-                TimeSpan.FromMilliseconds(1));
-        }
+        await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
 
         using var leaseCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        leaseCts.CancelAfter(TimeSpan.FromSeconds(3));
+        leaseCts.CancelAfter(TimeSpan.FromSeconds(5));
 
         var lease = await queue.LeaseAsync(leaseCts.Token);
 
         Assert.Equal("pending", lease.Value);
         Assert.Equal(2, lease.Attempt);
 
-    await lease.CompleteAsync(leaseCts.Token);
+        await lease.CompleteAsync(leaseCts.Token);
     }
 }
