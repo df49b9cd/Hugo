@@ -9,6 +9,7 @@
 ## Recently shipped
 
 - **Task queue channel adapter**: Introduced `TaskQueueChannelAdapter<T>` with lease requeue semantics, background pump fault handling, and a serialized xUnit collection to stabilise `TaskQueue` timing tests.
+- **Playbook templates**: Documented timeout, retry, and cancellation patterns for HTTP calls, queue handlers, and sagas in `docs/how-to/playbook-templates.md`.
 - **ErrGroup orchestration**: Added `Hugo.ErrGroup` for cancellable task orchestration with `WaitGroup` integration and structured error propagation.
 - **Select builder upgrades**: `Go.Select(...)` now supports default branches, priority ordering, and deadline helpers for deterministic channel coordination.
 - **Profiling toolkit**: Documented dotnet diagnostic recipes (`docs/how-to/profiling-toolkit.md`), shipped helper scripts and collection rule templates under `tools/profiling-toolkit`, and published a GitHub Actions baseline workflow for automated trace captures.
@@ -26,7 +27,6 @@
 
 - **Cross-runtime samples**: Azure Functions, ASP.NET minimal APIs, and Orleans grains that showcase Hugo primitives.
 - **Distributed coordination**: Investigate Redis- or Event Hubs-backed wait groups for multi-node workloads.
-- **Playbook templates**: Publish recommended timeout, retry, and cancellation patterns for common distributed tasks.
 - **Diagnostics & observability hardening**: Adopt telemetry schema URLs, rate-limited sampling, and Aspire dashboard integration so Hugo diagnostics align with modern OpenTelemetry guidance; document storage/OTLP exporter defaults leveraging the enriched workflow metrics.
 
 ## Contribution guidelines
