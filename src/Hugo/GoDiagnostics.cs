@@ -143,15 +143,9 @@ public static class GoDiagnostics
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        if (maxActivitiesPerInterval <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(maxActivitiesPerInterval));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxActivitiesPerInterval);
 
-        if (interval <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(interval));
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
 
         return new RateLimitedSamplingSubscription(source, maxActivitiesPerInterval, interval, unsampledResult);
     }

@@ -15,10 +15,7 @@ public static class ResultExecutionBuilders
     /// </remarks>
     public static ResultExecutionPolicy FixedRetryPolicy(int attempts, TimeSpan delay, ResultCompensationPolicy? compensation = null)
     {
-        if (attempts < 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(attempts));
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(attempts, 1);
 
         var retry = ResultRetryPolicy.FixedDelay(attempts, delay);
         var policy = ResultExecutionPolicy.None.WithRetry(retry);

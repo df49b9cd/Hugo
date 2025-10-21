@@ -62,10 +62,7 @@ public static partial class Result
     public static Result<IReadOnlyList<IReadOnlyList<T>>> Window<T>(IEnumerable<Result<T>> source, int size)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (size <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(size));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
 
         var windows = new List<IReadOnlyList<T>>();
         var buffer = new List<T>(size);

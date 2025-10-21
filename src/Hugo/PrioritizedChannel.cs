@@ -19,10 +19,7 @@ public sealed class PrioritizedChannelOptions
         get => _priorityLevels;
         set
         {
-            if (value <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
 
             _priorityLevels = value;
         }

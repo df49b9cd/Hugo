@@ -41,10 +41,7 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(queue);
 
-        if (concurrency <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(concurrency));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(concurrency);
 
         var leaseChannel = channel ?? Channel.CreateUnbounded<TaskQueueLease<T>>(new UnboundedChannelOptions
         {

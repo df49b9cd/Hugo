@@ -78,10 +78,7 @@ public static partial class Result
     public static async IAsyncEnumerable<Result<IReadOnlyList<T>>> WindowAsync<T>(this IAsyncEnumerable<Result<T>> source, int size, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (size <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(size));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
 
         var buffer = new List<T>(size);
 

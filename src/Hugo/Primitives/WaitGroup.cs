@@ -142,10 +142,7 @@ public sealed class WaitGroup
             return true;
         }
 
-        if (timeout < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(timeout));
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(timeout, TimeSpan.Zero);
 
         provider ??= TimeProvider.System;
 

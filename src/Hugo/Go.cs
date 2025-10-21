@@ -557,10 +557,7 @@ public static class Go
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        if (branchCount <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(branchCount));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(branchCount);
 
         var channels = new Channel<T>[branchCount];
         var writers = new ChannelWriter<T>[branchCount];

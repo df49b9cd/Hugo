@@ -14,20 +14,14 @@ public sealed class BoundedChannelBuilder<T>
 
     internal BoundedChannelBuilder(int capacity)
     {
-        if (capacity <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(capacity));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
 
         _capacity = capacity;
     }
 
     public BoundedChannelBuilder<T> WithCapacity(int capacity)
     {
-        if (capacity <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(capacity));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
 
         _capacity = capacity;
         return this;
@@ -100,20 +94,14 @@ public sealed class PrioritizedChannelBuilder<T>
 
     internal PrioritizedChannelBuilder(int priorityLevels)
     {
-        if (priorityLevels <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(priorityLevels));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(priorityLevels);
 
         _priorityLevels = priorityLevels;
     }
 
     public PrioritizedChannelBuilder<T> WithPriorityLevels(int priorityLevels)
     {
-        if (priorityLevels <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(priorityLevels));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(priorityLevels);
 
         if (_defaultPriority.HasValue && _defaultPriority.Value >= priorityLevels)
         {
@@ -126,10 +114,7 @@ public sealed class PrioritizedChannelBuilder<T>
 
     public PrioritizedChannelBuilder<T> WithDefaultPriority(int priority)
     {
-        if (priority < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(priority));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegative(priority);
 
         if (priority >= _priorityLevels)
         {
@@ -148,10 +133,7 @@ public sealed class PrioritizedChannelBuilder<T>
 
     public PrioritizedChannelBuilder<T> WithCapacityPerLevel(int capacity)
     {
-        if (capacity <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(capacity));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
 
         _capacityPerLevel = capacity;
         return this;

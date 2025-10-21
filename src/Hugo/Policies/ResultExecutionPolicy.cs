@@ -49,15 +49,9 @@ public sealed class ResultRetryPolicy
 
     public static ResultRetryPolicy FixedDelay(int maxAttempts, TimeSpan delay)
     {
-        if (maxAttempts < 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(maxAttempts));
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxAttempts, 1);
 
-        if (delay < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(delay));
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(delay, TimeSpan.Zero);
 
         return new ResultRetryPolicy(
             static (state, _) =>
@@ -75,15 +69,9 @@ public sealed class ResultRetryPolicy
 
     public static ResultRetryPolicy Exponential(int maxAttempts, TimeSpan initialDelay, double multiplier = 2.0, TimeSpan? maxDelay = null)
     {
-        if (maxAttempts < 1)
-        {
-            throw new ArgumentOutOfRangeException(nameof(maxAttempts));
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxAttempts, 1);
 
-        if (initialDelay < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(initialDelay));
-        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(initialDelay, TimeSpan.Zero);
 
         if (multiplier <= 1.0)
         {
