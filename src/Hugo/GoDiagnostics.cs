@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using System.Reflection;
 using Hugo;
 
 namespace Hugo;
@@ -9,7 +10,11 @@ namespace Hugo;
 /// </summary>
 public static class GoDiagnostics
 {
-    private const string DefaultMeterName = "Hugo.Go";
+    public const string MeterName = "Hugo.Go";
+    public const string ActivitySourceName = "Hugo.Go";
+    public const string TelemetrySchemaUrl = "https://opentelemetry.io/schemas/1.27.0";
+
+    private static readonly string DefaultInstrumentationVersion = typeof(GoDiagnostics).Assembly.GetName().Version?.ToString() ?? "1.0.0";
 
     private static readonly Lock Sync = new();
 
@@ -50,6 +55,8 @@ public static class GoDiagnostics
     private static Histogram<long>? _workflowLogicalClock;
     private static Histogram<double>? _workflowDuration;
 
+    public static string InstrumentationVersion => DefaultInstrumentationVersion;
+
     /// <summary>
     /// Configures instrumentation using the supplied <see cref="IMeterFactory"/>.
     /// </summary>
@@ -57,7 +64,7 @@ public static class GoDiagnostics
     {
         ArgumentNullException.ThrowIfNull(factory);
 
-        var options = new MeterOptions(meterName ?? DefaultMeterName);
+        var options = CreateMeterOptions(meterName, TelemetrySchemaUrl);
         Configure(factory.Create(options));
     }
 
@@ -108,6 +115,48 @@ public static class GoDiagnostics
         }
     }
 
+    public static ActivitySource CreateActivitySource(string? name = null, string? version = null, string? schemaUrl = null)
+    {
+        var resolvedName = string.IsNullOrWhiteSpace(name) ? ActivitySourceName : name!;
+        var resolvedVersion = string.IsNullOrWhiteSpace(version) ? DefaultInstrumentationVersion : version!;
+        var resolvedSchemaUrl = string.IsNullOrWhiteSpace(schemaUrl) ? TelemetrySchemaUrl : schemaUrl!;
+
+        var activitySourceType = typeof(ActivitySource);
+        var optionsType = Type.GetType("System.Diagnostics.ActivitySourceOptions, System.Diagnostics.DiagnosticSource", throwOnError: false);
+
+        if (optionsType is not null)
+        {
+            var optionsInstance = CreateActivitySourceOptions(optionsType, resolvedSchemaUrl);
+            if (optionsInstance is not null)
+            {
+                var ctor = activitySourceType.GetConstructor(new[] { typeof(string), typeof(string), optionsType });
+                if (ctor is not null)
+                {
+                    return (ActivitySource)ctor.Invoke(new[] { resolvedName, resolvedVersion, optionsInstance });
+                }
+            }
+        }
+
+        return new ActivitySource(resolvedName, resolvedVersion);
+    }
+
+    public static IDisposable UseRateLimitedSampling(ActivitySource source, int maxActivitiesPerInterval, TimeSpan interval, ActivitySamplingResult unsampledResult = ActivitySamplingResult.PropagationData)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        if (maxActivitiesPerInterval <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxActivitiesPerInterval));
+        }
+
+        if (interval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(interval));
+        }
+
+        return new RateLimitedSamplingSubscription(source, maxActivitiesPerInterval, interval, unsampledResult);
+    }
+
     /// <summary>
     /// Configures distributed tracing instrumentation using the provided <see cref="ActivitySource"/>.
     /// </summary>
@@ -130,6 +179,154 @@ public static class GoDiagnostics
 
         Configure(meter);
         Configure(activitySource);
+    }
+
+    private static MeterOptions CreateMeterOptions(string? meterName, string schemaUrl)
+    {
+        var options = new MeterOptions(string.IsNullOrWhiteSpace(meterName) ? MeterName : meterName!)
+        {
+            Version = DefaultInstrumentationVersion
+        };
+
+        if (!string.IsNullOrWhiteSpace(schemaUrl))
+        {
+            TryApplySchema(options, schemaUrl);
+        }
+
+        return options;
+    }
+
+    private static void TryApplySchema(MeterOptions options, string schemaUrl)
+    {
+        var type = options.GetType();
+        var keyValueArray = CreateSchemaAttribute(schemaUrl);
+
+        var scopeProperty = type.GetProperty("ScopeAttributes", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (scopeProperty is not null && scopeProperty.CanWrite && scopeProperty.PropertyType.IsAssignableFrom(keyValueArray.GetType()))
+        {
+            scopeProperty.SetValue(options, keyValueArray);
+            return;
+        }
+
+        var tagsProperty = type.GetProperty("Tags", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (tagsProperty is not null && tagsProperty.CanWrite && tagsProperty.PropertyType.IsAssignableFrom(keyValueArray.GetType()))
+        {
+            tagsProperty.SetValue(options, keyValueArray);
+        }
+    }
+
+    private static KeyValuePair<string, object?>[] CreateSchemaAttribute(string schemaUrl) =>
+        string.IsNullOrWhiteSpace(schemaUrl)
+            ? Array.Empty<KeyValuePair<string, object?>>()
+            : new[] { new KeyValuePair<string, object?>("otel.scope.schema_url", schemaUrl) };
+
+    private static object? CreateActivitySourceOptions(Type optionsType, string schemaUrl)
+    {
+        var optionsInstance = Activator.CreateInstance(optionsType);
+        if (optionsInstance is null)
+        {
+            return null;
+        }
+
+        var schemaProperty = optionsType.GetProperty("SchemaVersion", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                            ?? optionsType.GetProperty("SchemaUrl", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (schemaProperty is not null && schemaProperty.CanWrite && schemaProperty.PropertyType == typeof(string))
+        {
+            schemaProperty.SetValue(optionsInstance, schemaUrl);
+        }
+
+        var tagsProperty = optionsType.GetProperty("Tags", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                           ?? optionsType.GetProperty("Attributes", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+        if (tagsProperty is not null && tagsProperty.CanWrite)
+        {
+            var propertyType = tagsProperty.PropertyType;
+
+            if (propertyType == typeof(ActivityTagsCollection))
+            {
+                var tags = new ActivityTagsCollection
+                {
+                    { "otel.scope.schema_url", schemaUrl }
+                };
+                tagsProperty.SetValue(optionsInstance, tags);
+            }
+            else if (typeof(IEnumerable<KeyValuePair<string, object?>>).IsAssignableFrom(propertyType))
+            {
+                tagsProperty.SetValue(optionsInstance, CreateSchemaAttribute(schemaUrl));
+            }
+        }
+
+        return optionsInstance;
+    }
+
+    private sealed class RateLimitedSamplingSubscription : IDisposable
+    {
+        private readonly ActivityListener _listener;
+        private readonly int _maxPerInterval;
+        private readonly long _intervalTicks;
+        private readonly ActivitySamplingResult _fallbackResult;
+        private readonly object _gate = new();
+
+        private int _remaining;
+        private long _windowStart;
+
+        public RateLimitedSamplingSubscription(ActivitySource source, int maxPerInterval, TimeSpan interval, ActivitySamplingResult fallbackResult)
+        {
+            _maxPerInterval = maxPerInterval;
+            _intervalTicks = IntervalToStopwatchTicks(interval);
+            _fallbackResult = fallbackResult;
+            _remaining = maxPerInterval;
+            _windowStart = Stopwatch.GetTimestamp();
+
+            _listener = new ActivityListener
+            {
+                ShouldListenTo = s => string.Equals(s.Name, source.Name, StringComparison.Ordinal),
+                Sample = Sample,
+                SampleUsingParentId = SampleUsingParent,
+                ActivityStarted = static _ => { },
+                ActivityStopped = static _ => { }
+            };
+
+            ActivitySource.AddActivityListener(_listener);
+        }
+
+        public void Dispose()
+        {
+            _listener.Dispose();
+        }
+
+        private ActivitySamplingResult Sample(ref ActivityCreationOptions<ActivityContext> _) => AcquireSlot();
+
+        private ActivitySamplingResult SampleUsingParent(ref ActivityCreationOptions<string> _) => AcquireSlot();
+
+        private ActivitySamplingResult AcquireSlot()
+        {
+            lock (_gate)
+            {
+                var now = Stopwatch.GetTimestamp();
+                if (HasIntervalElapsed(now))
+                {
+                    _windowStart = now;
+                    _remaining = _maxPerInterval;
+                }
+
+                if (_remaining > 0)
+                {
+                    _remaining--;
+                    return ActivitySamplingResult.AllData;
+                }
+
+                return _fallbackResult;
+            }
+        }
+
+        private bool HasIntervalElapsed(long currentTimestamp) => currentTimestamp - _windowStart >= _intervalTicks;
+
+        private static long IntervalToStopwatchTicks(TimeSpan interval)
+        {
+            var ticks = interval.TotalSeconds * Stopwatch.Frequency;
+            return ticks <= 0 ? 1 : (long)Math.Ceiling(ticks);
+        }
     }
 
     /// <summary>

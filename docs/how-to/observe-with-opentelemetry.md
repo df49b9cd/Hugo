@@ -1,82 +1,135 @@
-# Publish Metrics to OpenTelemetry
+# Publish Metrics and Traces to OpenTelemetry
 
-Use this guide to expose `GoDiagnostics` counters and histograms through OpenTelemetry so you can inspect wait-group usage, select latency, and channel backlog.
+Use this guide to expose `GoDiagnostics` metrics and tracing spans through OpenTelemetry. The steps below adopt the library's default telemetry schema URL, apply rate-limited sampling, and show how to feed the Aspire dashboard while shipping data to an OTLP collector.
 
 ## Prerequisites
 
 - An application using Hugo 1.0.0 or later.
-- `OpenTelemetry.Extensions.Hosting` and `OpenTelemetry.Instrumentation.Runtime` NuGet packages.
+- NuGet packages:
+  - `OpenTelemetry.Extensions.Hosting`
+  - `OpenTelemetry.Instrumentation.Runtime`
+  - `OpenTelemetry.Trace`
+  - An exporter package such as `OpenTelemetry.Exporter.Otlp` (recommended) or `OpenTelemetry.Exporter.Console`.
+- Optional for Aspire samples: `Aspire.Hosting` 9.0 or later.
 
-## Steps
+## Configure OpenTelemetry with the Hugo schema
 
-1. **Install packages**
+```csharp
+using Hugo;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 
-   ```bash
-   dotnet add package OpenTelemetry.Extensions.Hosting
-   dotnet add package OpenTelemetry.Exporter.Console
-   ```
+var builder = Host.CreateApplicationBuilder(args);
 
-   Adjust the exporter to match your target (Console, OTLP, Prometheus, etc.).
+builder.Services.AddOpenTelemetry()
+   .ConfigureResource(resource => resource
+      .AddService("worker")
+      .AddTelemetrySdk()
+      .AddAttributes(new[]
+      {
+         new KeyValuePair<string, object?>("telemetry.schema.url", GoDiagnostics.TelemetrySchemaUrl)
+      }))
+   .WithMetrics(metrics =>
+   {
+      metrics.AddRuntimeInstrumentation();
+      metrics.AddMeter(GoDiagnostics.MeterName);
+      metrics.AddOtlpExporter();
+   })
+   .WithTracing(tracing =>
+   {
+      tracing.AddSource(GoDiagnostics.ActivitySourceName);
+      tracing.SetSampler(new TraceIdRatioBasedSampler(1.0));
+      tracing.AddOtlpExporter();
+   });
 
-2. **Register OpenTelemetry**
+var services = builder.Services.BuildServiceProvider();
 
-   ```csharp
-   using Hugo;
-   using Microsoft.Extensions.DependencyInjection;
-   using OpenTelemetry.Metrics;
+var meterFactory = services.GetRequiredService<IMeterFactory>();
+GoDiagnostics.Configure(meterFactory);
 
-   var builder = Host.CreateApplicationBuilder(args);
+var activitySource = GoDiagnostics.CreateActivitySource();
+GoDiagnostics.Configure(activitySource);
 
-   builder.Services.AddOpenTelemetry()
-       .WithMetrics(metrics =>
-       {
-           metrics.AddRuntimeInstrumentation();
-           metrics.AddMeter("Hugo.Go");
-           metrics.AddConsoleExporter();
-       });
-   ```
+using var limiter = GoDiagnostics.UseRateLimitedSampling(
+   activitySource,
+   maxActivitiesPerInterval: 50,
+   interval: TimeSpan.FromSeconds(1));
 
-3. **Configure `GoDiagnostics`**
+var app = builder.Build();
+app.Run();
+```
 
-   ```csharp
-   using System.Diagnostics.Metrics;
+- `GoDiagnostics.TelemetrySchemaUrl` keeps metrics and spans aligned with the latest OpenTelemetry semantic conventions.
+- `GoDiagnostics.CreateActivitySource` produces an `ActivitySource` using the same schema URL and library version as the default meter.
+- `UseRateLimitedSampling` throttles high-volume spans while still propagating context. Dispose the returned object on shutdown to remove the listener.
 
-   IMeterFactory meterFactory = builder.Services.BuildServiceProvider()
-       .GetRequiredService<IMeterFactory>();
+## Aspire dashboard integration
 
-   GoDiagnostics.Configure(meterFactory, meterName: "Hugo.Go");
-   ```
+When you host the application inside an Aspire distributed app, register the instrumentation before creating your app host and wire the dashboard exporters:
 
-   Call `Configure` once during startup before you create channels or results.
+```csharp
+var appHost = DistributedApplication.CreateBuilder(args);
 
-4. **Emit metrics**
+appHost.Services.AddOpenTelemetry()
+   .WithMetrics(metrics => metrics
+   // Configure your metric reader to prefer delta temporality so aggregations remain additive.
+      .AddOtlpExporter())
+   .WithTracing(tracing => tracing
 
-   Use Hugo as usual. For example:
+Most OpenTelemetry builders expose a `ConfigureMetricReader` or equivalent hook where you can set `reader.TemporalityPreference = MetricReaderTemporalityPreference.Delta` to meet the recommendation above.
+      .AddSource(GoDiagnostics.ActivitySourceName)
+      .SetSampler(new TraceIdRatioBasedSampler(1.0))
+      .AddOtlpExporter());
 
-   ```csharp
-   var wg = new WaitGroup();
-   wg.Go(async () => await Task.Delay(100));
-   await wg.WaitAsync(CancellationToken.None);
-   ```
+appHost.AddOpenTelemetryCollector("otel")
+   .WithEndpoint("http://localhost:4317")
+   .WithMetrics(m => m.WithTemporalityPreference(MetricReaderTemporalityPreference.Delta));
 
-   The wait-group counters increment automatically.
+appHost.AddAspireDashboard("dashboard")
+   .WithSubscription("otel");
 
-5. **Verify output**
+var app = appHost.Build();
+app.Run();
+```
 
-   Run the application; the console exporter prints metrics similar to:
+The dashboard automatically discovers the Hugo meter and activity source once the collector receives data.
 
-   ```text
-   Counter: waitgroup.additions 1
-   Histogram: channel.select.latency count=3 sum=4.1e-3
-   ```
+## Storage and OTLP exporter defaults
 
-   If you are using OTLP exporters, inspect your collector or backend (for example, the OpenTelemetry Collector or Azure Monitor) to confirm the data arrives.
+Adopt the following defaults when exporting enriched workflow metrics to an OTLP backend:
+
+- Prefer gRPC (`OtlpExportProtocol.Grpc`) for lower overhead and backpressure support.
+- Use batch processing with a 5-second export interval and batches of up to 512 points to balance freshness and throughput.
+- Keep histogram temporality to `Delta` so the collector can aggregate across instances without double-counting.
+- Persist workflow metadata (`workflow.namespace`, `workflow.task_queue`, etc.) as indexed dimensions in your backend; they originate from Hugo's structured tags.
+
+```csharp
+services.AddOpenTelemetry().WithMetrics(metrics =>
+{
+   metrics.AddMeter(GoDiagnostics.MeterName);
+   metrics.AddOtlpExporter(options =>
+   {
+      options.Endpoint = new Uri("http://collector:4317");
+      options.Protocol = OtlpExportProtocol.Grpc;
+      options.ExportProcessorType = ExportProcessorType.Batch;
+      options.BatchExportProcessorOptions = new BatchExportProcessorOptions<Activity>
+      {
+         MaxExportBatchSize = 512,
+         ScheduledDelayMilliseconds = 5000
+      };
+   });
+   metrics.SetTemporalityPreference(MetricReaderTemporalityPreference.Delta);
+});
+```
 
 ## Troubleshooting
 
-- **Duplicate meters**: Call `GoDiagnostics.Reset()` in test fixtures to avoid re-registering meters between test runs.
-- **Missing metrics**: Ensure your exporter subscribes to the `Hugo.Go` meter and your application remains alive long enough for the exporter to flush.
-- **Performance impact**: Configure histogram boundaries via `MeterProviderBuilder` when high-cardinality data causes storage pressure.
+- **Duplicate meters**: Call `GoDiagnostics.Reset()` in test fixtures to avoid re-registering meters between runs.
+- **Missing metrics or spans**: Confirm the OTLP exporter subscribes to `GoDiagnostics.MeterName` and `GoDiagnostics.ActivitySourceName` and that the collector accepts traffic from the configured endpoint.
+- **Aggressive sampling**: If `UseRateLimitedSampling` drops too many spans, increase `maxActivitiesPerInterval` or disable the helper for low-volume workloads.
+- **Schema mismatches**: Verify every resource attaches `GoDiagnostics.TelemetrySchemaUrl` so downstream systems interpret dimensions consistently.
 
 ## Related reference
 

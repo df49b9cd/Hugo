@@ -67,8 +67,9 @@ Each workflow measurement includes metric tags for `workflow.namespace`, `workfl
 
 ## Configuration options
 
-- Call `GoDiagnostics.Configure(IMeterFactory factory, string meterName)` during startup to bind instruments to an existing `MeterProvider`.
+- Call `GoDiagnostics.Configure(IMeterFactory factory, string meterName = GoDiagnostics.MeterName)` during startup to bind instruments to an existing `MeterProvider`. The helper applies the library version and telemetry schema URL automatically.
 - Use `GoDiagnostics.Configure(Meter meter)` when DI already exposes a pre-built `Meter`.
+- Create a schema-aware activity source with `GoDiagnostics.CreateActivitySource(string? name = GoDiagnostics.ActivitySourceName)` and optionally throttle spans via `GoDiagnostics.UseRateLimitedSampling(...)` when your workload emits high volumes of internal activities.
 - Invoke `GoDiagnostics.Reset()` (typically in unit tests) to dispose existing meters before registering new ones.
 
 ## Usage guidelines
