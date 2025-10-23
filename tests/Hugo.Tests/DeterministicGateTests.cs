@@ -130,8 +130,8 @@ public class DeterministicGateTests
             null,
             TestContext.Current.CancellationToken);
 
-    Assert.True(result.IsFailure);
-    Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
     }
 
     [Fact]
@@ -206,11 +206,11 @@ public class DeterministicGateTests
 
         var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
-    Assert.True(result.IsFailure);
-    Assert.Equal(ErrorCodes.VersionConflict, result.Error?.Code);
-    Assert.NotNull(result.Error);
-    Assert.True(result.Error!.Metadata.TryGetValue("version", out var metadataVersion));
-    Assert.Equal(2, Assert.IsType<int>(metadataVersion));
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.VersionConflict, result.Error?.Code);
+        Assert.NotNull(result.Error);
+        Assert.True(result.Error!.Metadata.TryGetValue("version", out var metadataVersion));
+        Assert.Equal(2, Assert.IsType<int>(metadataVersion));
     }
 
     [Fact]

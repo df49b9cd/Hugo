@@ -90,7 +90,7 @@ public class MutexBenchmarks
 
     private sealed class HugoMutexAsyncStrategy : IAsyncLockStrategy
     {
-    private readonly Mutex _mutex = new();
+        private readonly Mutex _mutex = new();
 
         public async ValueTask<IAsyncDisposable> EnterAsync()
         {
@@ -147,7 +147,7 @@ public class MutexBenchmarks
 
     private sealed class HugoMutexSyncStrategy : ISyncLockStrategy
     {
-    private readonly Mutex _mutex = new();
+        private readonly Mutex _mutex = new();
 
         public void Execute(Action criticalSection)
         {

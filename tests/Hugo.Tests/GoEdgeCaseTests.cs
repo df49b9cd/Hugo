@@ -28,7 +28,7 @@ public class GoEdgeCaseTests
     [Fact]
     public async Task Mutex_Contention_ShouldSerializeCriticalSection()
     {
-    var mutex = new Mutex();
+        var mutex = new Mutex();
         var concurrent = 0;
         var observedMax = 0;
 

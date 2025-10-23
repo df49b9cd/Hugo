@@ -63,7 +63,7 @@ internal sealed class TimerChannel : IAsyncDisposable, IDisposable
 
     private void Initialize()
     {
-    _cancellationRegistration = _cancellationToken.Register(static state => ((TimerChannel)state!).OnCanceled(), this);
+        _cancellationRegistration = _cancellationToken.Register(static state => ((TimerChannel)state!).OnCanceled(), this);
 
         if (_singleShot && _dueTime <= Immediate)
         {

@@ -207,7 +207,7 @@ public class RwMutexBenchmarks
         public async Task ExecuteAsync(int[] operations, CancellationToken cancellationToken)
         {
             using var context = new JoinableTaskContext();
-                var asyncLock = new AsyncReaderWriterLock(context);
+            var asyncLock = new AsyncReaderWriterLock(context);
             var tasks = new Task[operations.Length];
 
             for (var i = 0; i < operations.Length; i++)

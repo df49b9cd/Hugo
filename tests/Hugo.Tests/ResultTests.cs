@@ -61,7 +61,7 @@ public class ResultTests
     [Fact]
     public async Task TraverseAsync_ShouldAggregateSuccessfulValues()
     {
-    var result = await Result.TraverseAsync([1, 2], n => Task.FromResult(Result.Ok(n + 1)), TestContext.Current.CancellationToken);
+        var result = await Result.TraverseAsync([1, 2], n => Task.FromResult(Result.Ok(n + 1)), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal([2, 3], result.Value);
@@ -77,7 +77,7 @@ public class ResultTests
     public async Task TraverseAsync_ShouldReturnFailure()
     {
         var error = Error.From("fail");
-    var result = await Result.TraverseAsync([1, 2], n => Task.FromResult(n == 2 ? Result.Fail<int>(error) : Result.Ok(n)), TestContext.Current.CancellationToken);
+        var result = await Result.TraverseAsync([1, 2], n => Task.FromResult(n == 2 ? Result.Fail<int>(error) : Result.Ok(n)), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Same(error, result.Error);
@@ -151,7 +151,7 @@ public class ResultTests
             yield return Result.Ok(2);
         }
 
-    var result = await Result.SequenceAsync(Source(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
+        var result = await Result.SequenceAsync(Source(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal([1, 2], result.Value);
@@ -171,7 +171,7 @@ public class ResultTests
             yield return Result.Ok(3);
         }
 
-    var result = await Result.SequenceAsync(Source(TestContext.Current.CancellationToken, error, enumeratedAfterFailure), TestContext.Current.CancellationToken);
+        var result = await Result.SequenceAsync(Source(TestContext.Current.CancellationToken, error, enumeratedAfterFailure), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Same(error, result.Error);
@@ -190,7 +190,7 @@ public class ResultTests
             yield return Result.Ok(1);
         }
 
-    var result = await Result.SequenceAsync(Source(cts.Token), cts.Token);
+        var result = await Result.SequenceAsync(Source(cts.Token), cts.Token);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -201,7 +201,7 @@ public class ResultTests
     {
         var provider = new FakeTimeProvider();
         using var cts = new CancellationTokenSource();
-            using var timer = provider.CreateTimer(_ => cts.Cancel(), state: null, dueTime: TimeSpan.FromSeconds(1), period: Timeout.InfiniteTimeSpan);
+        using var timer = provider.CreateTimer(_ => cts.Cancel(), state: null, dueTime: TimeSpan.FromSeconds(1), period: Timeout.InfiniteTimeSpan);
 
         async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -213,9 +213,9 @@ public class ResultTests
 
         provider.Advance(TimeSpan.FromSeconds(1));
 
-    var result = await resultTask;
+        var result = await resultTask;
 
-    Assert.True(result.IsFailure);
+        Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
@@ -297,12 +297,12 @@ public class ResultTests
 
         var collected = new List<Result<int>>();
 
-    Func<int, CancellationToken, ValueTask<Result<int>>> selector = (value, _) => new ValueTask<Result<int>>(Result.Ok(value * 3));
+        Func<int, CancellationToken, ValueTask<Result<int>>> selector = (value, _) => new ValueTask<Result<int>>(Result.Ok(value * 3));
 
-    await foreach (var result in Result.MapStreamAsync(
-               Source(TestContext.Current.CancellationToken),
-               selector,
-               TestContext.Current.CancellationToken))
+        await foreach (var result in Result.MapStreamAsync(
+                   Source(TestContext.Current.CancellationToken),
+                   selector,
+                   TestContext.Current.CancellationToken))
         {
             collected.Add(result);
         }
@@ -478,12 +478,12 @@ public class ResultTests
 
         var collected = new List<Result<int>>();
 
-    Func<int, CancellationToken, ValueTask<Result<int>>> selector = (value, _) => new ValueTask<Result<int>>(Result.Ok(value));
+        Func<int, CancellationToken, ValueTask<Result<int>>> selector = (value, _) => new ValueTask<Result<int>>(Result.Ok(value));
 
-    await foreach (var result in Result.MapStreamAsync(
-               Source(cts.Token),
-               selector,
-               cts.Token))
+        await foreach (var result in Result.MapStreamAsync(
+                   Source(cts.Token),
+                   selector,
+                   cts.Token))
         {
             collected.Add(result);
         }

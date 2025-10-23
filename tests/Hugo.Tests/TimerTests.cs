@@ -10,7 +10,7 @@ public class TimerTests
     public async Task After_WithFakeTimeProvider_ShouldEmitOnce()
     {
         var provider = new FakeTimeProvider();
-    var reader = After(TimeSpan.FromSeconds(5), provider, TestContext.Current.CancellationToken);
+        var reader = After(TimeSpan.FromSeconds(5), provider, TestContext.Current.CancellationToken);
 
         var readTask = reader.ReadAsync(TestContext.Current.CancellationToken).AsTask();
         Assert.False(readTask.IsCompleted);

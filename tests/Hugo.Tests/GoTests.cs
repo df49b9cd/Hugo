@@ -60,7 +60,7 @@ public class GoTests
     [Fact]
     public async Task Mutex_ShouldThrow_WhenLockIsCancelled()
     {
-    var mutex = new Mutex();
+        var mutex = new Mutex();
         var cts = new CancellationTokenSource();
         using (await mutex.LockAsync(cts.Token))
         {
@@ -94,7 +94,7 @@ public class GoTests
     [Fact]
     public async Task Mutex_ShouldNotBeReentrant()
     {
-    var mutex = new Mutex();
+        var mutex = new Mutex();
         using (await mutex.LockAsync(TestContext.Current.CancellationToken))
         {
             var reentrantLockTask = mutex.LockAsync(TestContext.Current.CancellationToken).AsTask();
@@ -360,7 +360,7 @@ public class GoTests
     public async Task Mutex_ShouldPreventRaceConditions()
     {
         var wg = new WaitGroup();
-    var mutex = new Mutex();
+        var mutex = new Mutex();
         var counter = 0;
         const int numTasks = 5;
         const int incrementsPerTask = 10;
@@ -409,7 +409,7 @@ public class GoTests
     {
         var wg = new WaitGroup();
 
-    Assert.Throws<ArgumentNullException>(() => wg.Go((Func<Task>)null!, TestContext.Current.CancellationToken));
+        Assert.Throws<ArgumentNullException>(() => wg.Go((Func<Task>)null!, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -459,7 +459,7 @@ public class GoTests
     [Fact]
     public async Task Mutex_DisposeAsync_ShouldReleaseLock()
     {
-    var mutex = new Mutex();
+        var mutex = new Mutex();
         var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
 
         var pending = mutex.LockAsync(TestContext.Current.CancellationToken);
@@ -599,7 +599,7 @@ public class GoTests
         var channel = MakeChannel<int>();
         var @case = ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)));
 
-    await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => SelectAsync(TimeSpan.FromMilliseconds(-5), cancellationToken: TestContext.Current.CancellationToken, cases: [@case]));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => SelectAsync(TimeSpan.FromMilliseconds(-5), cancellationToken: TestContext.Current.CancellationToken, cases: [@case]));
     }
 
     [Fact]
@@ -608,10 +608,10 @@ public class GoTests
         var channel = MakeChannel<int>();
         channel.Writer.TryComplete();
 
-    var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))]);
+        var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))]);
 
-    Assert.True(result.IsFailure);
-    Assert.Equal(ErrorCodes.SelectDrained, result.Error?.Code);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.SelectDrained, result.Error?.Code);
     }
 
     [Fact]
@@ -621,7 +621,7 @@ public class GoTests
         channel.Writer.TryWrite(42);
         channel.Writer.TryComplete();
 
-    var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, (Action<int>)(_ => throw new InvalidOperationException("boom")))]);
+        var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, (Action<int>)(_ => throw new InvalidOperationException("boom")))]);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
@@ -1266,8 +1266,8 @@ public class GoTests
 
         Assert.True(result.IsSuccess);
 
-    var observed = new List<int>();
-    await foreach (var value in destination.Reader.ReadAllAsync(ct))
+        var observed = new List<int>();
+        await foreach (var value in destination.Reader.ReadAllAsync(ct))
         {
             observed.Add(value);
         }
@@ -1319,8 +1319,8 @@ public class GoTests
 
         await producers;
 
-    var values = new List<int>();
-    await foreach (var value in merged.ReadAllAsync(ct))
+        var values = new List<int>();
+        await foreach (var value in merged.ReadAllAsync(ct))
         {
             values.Add(value);
         }
@@ -1467,6 +1467,120 @@ public class GoTests
         Assert.True(result.IsFailure);
         Assert.Equal("message", result.Error?.Message);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task FanOutAsync_Delegates_ShouldReturnAllResults()
+    {
+        var operations = new List<Func<CancellationToken, Task<Result<int>>>>
+        {
+            _ => Task.FromResult(Ok(1)),
+            _ => Task.FromResult(Ok(2))
+        };
+
+        var result = await FanOutAsync(operations, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Count);
+        Assert.Equal(1, result.Value[0]);
+        Assert.Equal(2, result.Value[1]);
+    }
+
+    [Fact]
+    public async Task RaceAsync_ShouldReturnFirstSuccessfulResult()
+    {
+        var operations = new List<Func<CancellationToken, Task<Result<int>>>>
+        {
+            async ct =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(50), ct);
+                return Ok(1);
+            },
+            async ct =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(10), ct);
+                return Ok(2);
+            },
+            async ct =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(30), ct);
+                return Err<int>("failure", ErrorCodes.Validation);
+            }
+        };
+
+        var result = await RaceAsync(operations, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value);
+    }
+
+    [Fact]
+    public async Task WithTimeoutAsync_ShouldReturnTimeoutError()
+    {
+        var provider = new FakeTimeProvider();
+
+        var timeoutTask = WithTimeoutAsync(
+            async ct =>
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return Ok(42);
+            },
+            TimeSpan.FromSeconds(1),
+            provider,
+            TestContext.Current.CancellationToken);
+
+        provider.Advance(TimeSpan.FromSeconds(1));
+
+        var result = await timeoutTask;
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task RetryAsync_ShouldRetryUntilSuccess()
+    {
+        var attempts = new List<int>();
+
+        var result = await RetryAsync(
+            async (attempt, ct) =>
+            {
+                attempts.Add(attempt);
+
+                if (attempt < 3)
+                {
+                    return Err<int>("retry", ErrorCodes.Validation);
+                }
+
+                return Ok(99);
+            },
+            maxAttempts: 3,
+            initialDelay: TimeSpan.Zero,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(99, result.Value);
+        Assert.Equal(new[] { 1, 2, 3 }, attempts.ToArray());
+    }
+
+    [Fact]
+    public async Task RetryAsync_ShouldSurfaceFinalFailure()
+    {
+        var attempts = 0;
+
+        var result = await RetryAsync(
+            (attempt, ct) =>
+            {
+                attempts = attempt;
+                return Task.FromResult(Err<int>("still failing", ErrorCodes.Validation));
+            },
+            maxAttempts: 2,
+            initialDelay: TimeSpan.Zero,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        Assert.Equal(2, attempts);
     }
 
     private static ActivityListener CreateSelectActivityListener(string sourceName, List<Activity> stoppedActivities)

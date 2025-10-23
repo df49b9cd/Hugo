@@ -45,7 +45,7 @@ public class GoFunctionalTests
         },
         cts.Token);
 
-    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
     }
 
     [Fact]
@@ -78,14 +78,14 @@ public class GoFunctionalTests
         },
         cts.Token);
 
-    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wg.WaitAsync(cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wg.WaitAsync(cts.Token));
     }
 
     [Fact]
     public async Task Integration_Pipeline_ShouldComposeGoAndFunctionalHelpers()
     {
         var channel = MakeChannel<int>(capacity: 2);
-    var mutex = new Mutex();
+        var mutex = new Mutex();
         var wg = new WaitGroup();
 
         wg.Go(async () =>

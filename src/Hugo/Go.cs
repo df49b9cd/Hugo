@@ -1,4 +1,6 @@
 using System.Threading.Channels;
+using Hugo.Policies;
+using Microsoft.Extensions.Logging;
 
 namespace Hugo;
 
@@ -385,6 +387,205 @@ public static class Go
         }
     }
 
+
+    /// <summary>
+    /// Executes multiple operations concurrently using <see cref="Result.WhenAll{T}(IEnumerable{Func{ResultPipelineStepContext, CancellationToken, ValueTask{Result{T}}}}, ResultExecutionPolicy?, CancellationToken, TimeProvider?)"/> with an optional execution policy.
+    /// </summary>
+    public static Task<Result<IReadOnlyList<T>>> FanOutAsync<T>(
+        IEnumerable<Func<CancellationToken, Task<Result<T>>>> operations,
+        ResultExecutionPolicy? policy = null,
+        CancellationToken cancellationToken = default,
+        TimeProvider? timeProvider = null)
+    {
+        ArgumentNullException.ThrowIfNull(operations);
+
+        var adapted = operations.Select((operation, index) =>
+            operation is null
+                ? throw new ArgumentNullException(nameof(operations), $"Operation at index {index} cannot be null.")
+                : new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>(
+                    (_, ct) => new ValueTask<Result<T>>(operation(ct))));
+
+        return Result.WhenAll(adapted, policy, cancellationToken, timeProvider);
+    }
+
+    /// <summary>
+    /// Executes multiple operations concurrently and returns the first successful result via <see cref="Result.WhenAny{T}(IEnumerable{Func{ResultPipelineStepContext, CancellationToken, ValueTask{Result{T}}}}, ResultExecutionPolicy?, CancellationToken, TimeProvider?)"/>.
+    /// </summary>
+    public static Task<Result<T>> RaceAsync<T>(
+        IEnumerable<Func<CancellationToken, Task<Result<T>>>> operations,
+        ResultExecutionPolicy? policy = null,
+        CancellationToken cancellationToken = default,
+        TimeProvider? timeProvider = null)
+    {
+        ArgumentNullException.ThrowIfNull(operations);
+
+        var adapted = operations.Select((operation, index) =>
+            operation is null
+                ? throw new ArgumentNullException(nameof(operations), $"Operation at index {index} cannot be null.")
+                : new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>(
+                    (_, ct) => new ValueTask<Result<T>>(operation(ct))));
+
+        return Result.WhenAny(adapted, policy, cancellationToken, timeProvider);
+    }
+
+    /// <summary>
+    /// Creates a timeout result if the operation does not complete within the specified duration.
+    /// </summary>
+    public static async Task<Result<T>> WithTimeoutAsync<T>(
+        Func<CancellationToken, Task<Result<T>>> operation,
+        TimeSpan timeout,
+        TimeProvider? timeProvider = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+
+        var provider = timeProvider ?? TimeProvider.System;
+        static CancellationToken? ResolveCancellationToken(CancellationToken preferred, CancellationToken alternate) =>
+            preferred.CanBeCanceled ? preferred : alternate.CanBeCanceled ? alternate : null;
+
+        if (timeout == Timeout.InfiniteTimeSpan)
+        {
+            try
+            {
+                return await operation(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException oce)
+            {
+                return Result.Fail<T>(Error.Canceled(token: ResolveCancellationToken(cancellationToken, oce.CancellationToken)));
+            }
+        }
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task<Result<T>> operationTask;
+        try
+        {
+            operationTask = operation(linkedCts.Token);
+        }
+        catch
+        {
+            linkedCts.Cancel();
+            throw;
+        }
+
+        var delayTask = provider.DelayAsync(timeout, CancellationToken.None);
+
+        try
+        {
+            var completed = await Task.WhenAny(operationTask, delayTask).ConfigureAwait(false);
+            if (completed == delayTask)
+            {
+                linkedCts.Cancel();
+
+                try
+                {
+                    await operationTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch
+                {
+                    // Swallow exceptions from the operation when timeout wins; timeout result takes precedence.
+                }
+
+                return Result.Fail<T>(Error.Timeout(timeout));
+            }
+
+            return await operationTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException oce)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return Result.Fail<T>(Error.Canceled(token: ResolveCancellationToken(cancellationToken, oce.CancellationToken)));
+            }
+
+            return Result.Fail<T>(Error.Canceled(token: ResolveCancellationToken(oce.CancellationToken, CancellationToken.None)));
+        }
+    }
+
+    /// <summary>
+    /// Retries an operation with exponential backoff using <see cref="Result.RetryWithPolicyAsync{T}(Func{ResultPipelineStepContext, CancellationToken, ValueTask{Result{T}}}, ResultExecutionPolicy, CancellationToken, TimeProvider?)"/>.
+    /// </summary>
+    public static async Task<Result<T>> RetryAsync<T>(
+        Func<int, CancellationToken, Task<Result<T>>> operation,
+        int maxAttempts = 3,
+        TimeSpan? initialDelay = null,
+        TimeProvider? timeProvider = null,
+        ILogger? logger = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxAttempts);
+
+        var provider = timeProvider ?? TimeProvider.System;
+        var policy = ResultExecutionBuilders.ExponentialRetryPolicy(
+            maxAttempts,
+            initialDelay ?? TimeSpan.FromMilliseconds(100));
+
+        var attempt = 0;
+
+        var finalResult = await Result.RetryWithPolicyAsync(
+                async (_, ct) =>
+                {
+                    var currentAttempt = Interlocked.Increment(ref attempt);
+
+                    try
+                    {
+                        var result = await operation(currentAttempt, ct).ConfigureAwait(false);
+
+                        if (result.IsSuccess && currentAttempt > 1)
+                        {
+                            logger?.LogInformation(
+                                "Operation succeeded on attempt {Attempt} of {MaxAttempts}",
+                                currentAttempt,
+                                maxAttempts);
+                        }
+                        else if (result.IsFailure && currentAttempt < maxAttempts)
+                        {
+                            logger?.LogWarning(
+                                "Operation failed on attempt {Attempt} of {MaxAttempts}: {Error}",
+                                currentAttempt,
+                                maxAttempts,
+                                result.Error?.Message);
+                        }
+
+                        return result;
+                    }
+                    catch (OperationCanceledException oce) when (oce.CancellationToken == ct)
+                    {
+                        return Result.Fail<T>(Error.Canceled(token: ct.CanBeCanceled ? ct : null));
+                    }
+                    catch (Exception ex)
+                    {
+                        logger?.LogWarning(
+                            ex,
+                            "Operation threw on attempt {Attempt} of {MaxAttempts}",
+                            currentAttempt,
+                            maxAttempts);
+                        return Result.Fail<T>(Error.FromException(ex));
+                    }
+                },
+                policy,
+                cancellationToken,
+                provider)
+            .ConfigureAwait(false);
+
+        if (finalResult.IsFailure)
+        {
+            logger?.LogError(
+                "Operation failed after {MaxAttempts} attempts: {Error}",
+                maxAttempts,
+                finalResult.Error?.Message);
+        }
+
+        return finalResult;
+    }
 
     /// <summary>
     /// Drains the provided channel readers until each one completes, invoking <paramref name="onValue"/> for every observed value.

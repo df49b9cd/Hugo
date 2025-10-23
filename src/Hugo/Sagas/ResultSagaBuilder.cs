@@ -19,7 +19,7 @@ public sealed class ResultSagaBuilder
         ArgumentNullException.ThrowIfNull(operation);
 
         var key = string.IsNullOrWhiteSpace(resultKey) ? name : resultKey;
-    async ValueTask<Result<object?>> Execute(ResultSagaStepContext context, CancellationToken cancellationToken)
+        async ValueTask<Result<object?>> Execute(ResultSagaStepContext context, CancellationToken cancellationToken)
         {
             var result = await operation(context, cancellationToken).ConfigureAwait(false);
             if (result.IsSuccess)

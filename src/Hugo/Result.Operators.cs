@@ -96,7 +96,7 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(policy);
 
         var provider = timeProvider ?? TimeProvider.System;
-    var scope = new CompensationScope();
+        var scope = new CompensationScope();
         var result = await ExecuteWithPolicyAsync(operation, "retry", policy, provider, cancellationToken).ConfigureAwait(false);
         if (result.Result.IsSuccess)
         {

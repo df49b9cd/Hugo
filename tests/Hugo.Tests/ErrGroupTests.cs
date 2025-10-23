@@ -63,12 +63,12 @@ public class ErrGroupTests
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-    Assert.True(result.IsFailure);
-    Assert.Equal("boom", result.Error?.Message);
-    Assert.Equal(group.Error?.Message, result.Error?.Message);
-    Assert.True(group.Token.IsCancellationRequested);
-    Assert.True(result.Error?.Code == ErrorCodes.Exception);
-    Assert.True(await cancellationObserved.Task);
+        Assert.True(result.IsFailure);
+        Assert.Equal("boom", result.Error?.Message);
+        Assert.Equal(group.Error?.Message, result.Error?.Message);
+        Assert.True(group.Token.IsCancellationRequested);
+        Assert.True(result.Error?.Code == ErrorCodes.Exception);
+        Assert.True(await cancellationObserved.Task);
     }
 
     [Fact]

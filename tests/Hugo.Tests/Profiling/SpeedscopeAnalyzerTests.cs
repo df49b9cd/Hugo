@@ -40,21 +40,21 @@ public sealed class SpeedscopeAnalyzerTests
         Assert.Equal(5d, report.TotalDurationMilliseconds, 3);
         Assert.Empty(report.Warnings);
 
-  var profile = Assert.Single(report.Profiles);
-  Assert.Equal("Main", profile.Name);
-  Assert.Equal(5d, profile.DurationMilliseconds, 3);
-  Assert.Equal("milliseconds", profile.Unit);
-  Assert.Equal(4, profile.EventCount);
+        var profile = Assert.Single(report.Profiles);
+        Assert.Equal("Main", profile.Name);
+        Assert.Equal(5d, profile.DurationMilliseconds, 3);
+        Assert.Equal("milliseconds", profile.Unit);
+        Assert.Equal(4, profile.EventCount);
 
-  var loop = Assert.Single(report.Frames, frame => frame.Name == "MainLoop");
-  Assert.Equal(5d, loop.InclusiveMilliseconds, 3);
-  Assert.Equal(3d, loop.SelfMilliseconds, 3);
-  Assert.Equal(1, loop.CallCount);
+        var loop = Assert.Single(report.Frames, frame => frame.Name == "MainLoop");
+        Assert.Equal(5d, loop.InclusiveMilliseconds, 3);
+        Assert.Equal(3d, loop.SelfMilliseconds, 3);
+        Assert.Equal(1, loop.CallCount);
 
-  var worker = Assert.Single(report.Frames, frame => frame.Name == "Worker");
-  Assert.Equal(2d, worker.InclusiveMilliseconds, 3);
-  Assert.Equal(2d, worker.SelfMilliseconds, 3);
-  Assert.Equal(1, worker.CallCount);
+        var worker = Assert.Single(report.Frames, frame => frame.Name == "Worker");
+        Assert.Equal(2d, worker.InclusiveMilliseconds, 3);
+        Assert.Equal(2d, worker.SelfMilliseconds, 3);
+        Assert.Equal(1, worker.CallCount);
     }
 
     [Fact]
@@ -84,6 +84,6 @@ public sealed class SpeedscopeAnalyzerTests
         var report = SpeedscopeAnalyzer.Analyze(stream);
 
         Assert.NotEmpty(report.Warnings);
-  Assert.Contains(report.Warnings, warning => warning.Contains("unclosed", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(report.Warnings, warning => warning.Contains("unclosed", StringComparison.OrdinalIgnoreCase));
     }
 }

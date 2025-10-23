@@ -101,7 +101,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
     [Fact]
     public void TryGetMetadata_ShouldReturnExistingValue()
     {
-    var context = CreateContext(metadata: new Dictionary<string, string> { ["region"] = "eu-west" });
+        var context = CreateContext(metadata: new Dictionary<string, string> { ["region"] = "eu-west" });
 
         Assert.True(context.TryGetMetadata("region", out var value));
         Assert.Equal("eu-west", value);

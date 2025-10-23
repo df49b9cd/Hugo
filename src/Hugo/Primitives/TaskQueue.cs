@@ -299,7 +299,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             throw new InvalidOperationException("Failed to track lease state.");
         }
 
-    GoDiagnostics.RecordTaskQueueLeased(envelope.Attempt, PendingCount, _leases.Count);
+        GoDiagnostics.RecordTaskQueueLeased(envelope.Attempt, PendingCount, _leases.Count);
         return new TaskQueueLease<T>(this, leaseId, envelope.Value, envelope.Attempt, envelope.EnqueuedAt, envelope.LastError);
     }
 
@@ -314,7 +314,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
         _leases.TryRemove(leaseId, out _);
         var now = _timeProvider.GetUtcNow();
-    GoDiagnostics.RecordTaskQueueCompleted(state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
+        GoDiagnostics.RecordTaskQueueCompleted(state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
         return ValueTask.CompletedTask;
     }
 
@@ -342,8 +342,8 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             throw new InvalidOperationException("Lease is no longer active.");
         }
 
-    GoDiagnostics.RecordTaskQueueHeartbeat(state.Envelope.Attempt, newExpiration - now, _leases.Count);
-    return ValueTask.CompletedTask;
+        GoDiagnostics.RecordTaskQueueHeartbeat(state.Envelope.Attempt, newExpiration - now, _leases.Count);
+        return ValueTask.CompletedTask;
     }
 
     internal async ValueTask FailAsync(Guid leaseId, Error error, bool requeue, CancellationToken cancellationToken)
@@ -358,7 +358,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         _leases.TryRemove(leaseId, out _);
 
         var now = _timeProvider.GetUtcNow();
-    GoDiagnostics.RecordTaskQueueFailed(state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
+        GoDiagnostics.RecordTaskQueueFailed(state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
 
         if (!requeue)
         {

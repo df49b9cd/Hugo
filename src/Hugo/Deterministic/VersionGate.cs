@@ -47,11 +47,11 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
             return Result.Fail<VersionDecision>(Error.From(
                 $"Minimum supported version {minSupportedVersion} exceeds maximum {maxSupportedVersion}.",
                 ErrorCodes.Validation).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["changeId"] = changeId,
-                ["minVersion"] = minSupportedVersion,
-                ["maxVersion"] = maxSupportedVersion
-            }));
+                {
+                    ["changeId"] = changeId,
+                    ["minVersion"] = minSupportedVersion,
+                    ["maxVersion"] = maxSupportedVersion
+                }));
         }
 
         if (_store.TryGet(changeId, out var record))
@@ -61,10 +61,10 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
                 return Result.Fail<VersionDecision>(Error.From(
                     $"Deterministic record kind '{record.Kind}' does not match expected '{RecordKind}'.",
                     ErrorCodes.DeterministicReplay).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
-                {
-                    ["changeId"] = changeId,
-                    ["kind"] = record.Kind
-                }));
+                    {
+                        ["changeId"] = changeId,
+                        ["kind"] = record.Kind
+                    }));
             }
 
             var persistedVersion = DeserializeVersion(record.Payload.Span);
@@ -73,12 +73,12 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
                 return Result.Fail<VersionDecision>(Error.From(
                     $"Recorded version {persistedVersion} falls outside supported range {minSupportedVersion}..{maxSupportedVersion}.",
                     ErrorCodes.VersionConflict).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
-                {
-                    ["changeId"] = changeId,
-                    ["persistedVersion"] = persistedVersion,
-                    ["minVersion"] = minSupportedVersion,
-                    ["maxVersion"] = maxSupportedVersion
-                }));
+                    {
+                        ["changeId"] = changeId,
+                        ["persistedVersion"] = persistedVersion,
+                        ["minVersion"] = minSupportedVersion,
+                        ["maxVersion"] = maxSupportedVersion
+                    }));
             }
 
             return Result.Ok(new VersionDecision(persistedVersion, false, record.RecordedAt));
@@ -103,12 +103,12 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
             return Result.Fail<VersionDecision>(Error.From(
                 $"Initial version {decidedVersion} is outside the supported range {minSupportedVersion}..{maxSupportedVersion}.",
                 ErrorCodes.VersionConflict).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["changeId"] = changeId,
-                ["initialVersion"] = decidedVersion,
-                ["minVersion"] = minSupportedVersion,
-                ["maxVersion"] = maxSupportedVersion
-            }));
+                {
+                    ["changeId"] = changeId,
+                    ["initialVersion"] = decidedVersion,
+                    ["minVersion"] = minSupportedVersion,
+                    ["maxVersion"] = maxSupportedVersion
+                }));
         }
 
         var now = _timeProvider.GetUtcNow();

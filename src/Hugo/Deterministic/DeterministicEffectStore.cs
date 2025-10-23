@@ -97,10 +97,10 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
             return Result.Fail<T>(Error.From(
                 $"Deterministic record kind '{record.Kind}' does not match expected '{RecordKind}'.",
                 ErrorCodes.DeterministicReplay).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["effectId"] = effectId,
-                ["kind"] = record.Kind
-            }));
+                {
+                    ["effectId"] = effectId,
+                    ["kind"] = record.Kind
+                }));
         }
 
         var envelope = DeserializeEnvelope(record.Payload.Span);
@@ -109,11 +109,11 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
             return Result.Fail<T>(Error.From(
                 $"Stored effect type '{envelope.TypeName}' does not match requested type '{typeof(T).AssemblyQualifiedName}'.",
                 ErrorCodes.DeterministicReplay).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["effectId"] = effectId,
-                ["storedType"] = envelope.TypeName,
-                ["requestedType"] = typeof(T).AssemblyQualifiedName
-            }));
+                {
+                    ["effectId"] = effectId,
+                    ["storedType"] = envelope.TypeName,
+                    ["requestedType"] = typeof(T).AssemblyQualifiedName
+                }));
         }
 
         if (envelope.IsSuccess)

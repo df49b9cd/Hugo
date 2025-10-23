@@ -52,7 +52,7 @@ public class TaskQueueTests
         await using var queue = new TaskQueue<string>(options, provider);
 
         await queue.EnqueueAsync("beta", TestContext.Current.CancellationToken);
-    var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
         var error = Error.From("worker abandoned", ErrorCodes.TaskQueueAbandoned)
             .WithMetadata("worker", "A");
 
@@ -135,11 +135,11 @@ public class TaskQueueTests
         Assert.Equal(ErrorCodes.TaskQueueLeaseExpired, secondLease.LastError?.Code);
         Assert.True(secondLease.LastError!.TryGetMetadata<int>("attempt", out var attemptMetadata));
         Assert.Equal(1, attemptMetadata);
-    Assert.True(secondLease.LastError!.TryGetMetadata<DateTimeOffset>("expiredAt", out var expiredAt));
-    Assert.True(expiredAt >= firstLease.EnqueuedAt);
-    Assert.Equal(firstLease.EnqueuedAt, secondLease.EnqueuedAt);
-    Assert.True(secondLease.LastError!.TryGetMetadata<DateTimeOffset>("enqueuedAt", out var enqueuedAt));
-    Assert.Equal(firstLease.EnqueuedAt, enqueuedAt);
+        Assert.True(secondLease.LastError!.TryGetMetadata<DateTimeOffset>("expiredAt", out var expiredAt));
+        Assert.True(expiredAt >= firstLease.EnqueuedAt);
+        Assert.Equal(firstLease.EnqueuedAt, secondLease.EnqueuedAt);
+        Assert.True(secondLease.LastError!.TryGetMetadata<DateTimeOffset>("enqueuedAt", out var enqueuedAt));
+        Assert.Equal(firstLease.EnqueuedAt, enqueuedAt);
 
         await secondLease.CompleteAsync(TestContext.Current.CancellationToken);
     }
@@ -182,10 +182,10 @@ public class TaskQueueTests
         Assert.Single(contexts);
         Assert.Equal("epsilon", context.Value);
         Assert.Equal(2, context.Attempt);
-    Assert.Equal(ErrorCodes.TaskQueueLeaseExpired, context.Error.Code);
+        Assert.Equal(ErrorCodes.TaskQueueLeaseExpired, context.Error.Code);
         Assert.Equal(firstLease.EnqueuedAt, context.EnqueuedAt);
-    Assert.True(context.Error.TryGetMetadata<int>("attempt", out var attemptMetadata));
-    Assert.Equal(2, attemptMetadata);
+        Assert.True(context.Error.TryGetMetadata<int>("attempt", out var attemptMetadata));
+        Assert.Equal(2, attemptMetadata);
         Assert.Equal(0, queue.PendingCount);
         Assert.Equal(0, queue.ActiveLeaseCount);
     }

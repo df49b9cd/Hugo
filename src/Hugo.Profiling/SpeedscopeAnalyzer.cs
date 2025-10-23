@@ -63,7 +63,7 @@ public static class SpeedscopeAnalyzer
             return new SpeedscopeReport(Array.Empty<SpeedscopeFrameSummary>(), Array.Empty<SpeedscopeProfileSummary>(), Array.Empty<string>(), 0);
         }
 
-    foreach (var profile in profilesElement.EnumerateArray())
+        foreach (var profile in profilesElement.EnumerateArray())
         {
             var type = profile.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : null;
             if (!string.Equals(type, "evented", StringComparison.OrdinalIgnoreCase))

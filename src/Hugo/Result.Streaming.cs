@@ -46,8 +46,8 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(writer);
 
-    var tasks = sources.Select(source => Task.Run(async () => await source.ToChannelAsync(writer, cancellationToken), cancellationToken));
-    return new ValueTask(Task.WhenAll(tasks));
+        var tasks = sources.Select(source => Task.Run(async () => await source.ToChannelAsync(writer, cancellationToken), cancellationToken));
+        return new ValueTask(Task.WhenAll(tasks));
     }
 
     public static async ValueTask FanOutAsync<T>(this IAsyncEnumerable<Result<T>> source, IReadOnlyList<ChannelWriter<Result<T>>> writers, CancellationToken cancellationToken = default)
