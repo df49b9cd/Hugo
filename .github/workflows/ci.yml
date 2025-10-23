@@ -65,10 +65,12 @@ jobs:
         dotnet pack src/Hugo.Diagnostics.OpenTelemetry/Hugo.Diagnostics.OpenTelemetry.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
 
     - name: Upload Coverage Report
-      uses: actions/upload-artifact@v4
+      uses: codecov/codecov-action@v5
       with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false
         name: ${{ matrix.coverageArtifact }}
-        path: ${{ matrix.resultsDirectory }}/**/*coverage.cobertura.xml
+        files: ${{ matrix.resultsDirectory }}/**/*coverage.cobertura.xml
 
     - name: Upload NuGet Package
       if: matrix.targetFramework == 'net10.0'
