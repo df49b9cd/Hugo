@@ -153,6 +153,18 @@ public class FunctionalTests
     }
 
     [Fact]
+    public async Task RecoverAsync_Result_ShouldConvertFailure()
+    {
+        var recovered = await Err<int>("fail").RecoverAsync(
+            (error, _) => Task.FromResult(Ok(error.Message.Length)),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True(recovered.IsSuccess);
+        Assert.Equal(4, recovered.Value);
+    }
+
+    [Fact]
     public async Task RecoverAsync_ShouldConvertFailure()
     {
         var recovered = await Task.FromResult(Err<int>("fail"))
@@ -325,11 +337,92 @@ public class FunctionalTests
     }
 
     [Fact]
+    public async Task OnSuccessAsync_Result_ShouldInvokeAction()
+    {
+        var invoked = false;
+        var result = await Ok(2).OnSuccessAsync(
+            async (value, ct) =>
+            {
+                await Task.Delay(5, ct);
+                invoked = value == 2;
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True(result.IsSuccess);
+        Assert.True(invoked);
+    }
+
+    [Fact]
+    public async Task OnSuccessAsync_TaskResult_WithAsyncAction_ShouldInvoke()
+    {
+        var invoked = false;
+        var result = await Task.FromResult(Ok(3)).OnSuccessAsync(
+            async (value, ct) =>
+            {
+                await Task.Delay(5, ct);
+                invoked = value == 3;
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True(result.IsSuccess);
+        Assert.True(invoked);
+    }
+
+    [Fact]
     public void OnFailure_ShouldInvokeAction()
     {
         Error? captured = null;
         _ = Err<int>("fail").OnFailure(err => captured = err);
 
+        Assert.NotNull(captured);
+    }
+
+    [Fact]
+    public async Task OnFailureAsync_Result_ShouldInvokeAction()
+    {
+        Error? captured = null;
+        var result = await Err<int>("fail").OnFailureAsync(
+            async (error, ct) =>
+            {
+                await Task.Delay(5, ct);
+                captured = error;
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True(result.IsFailure);
+        Assert.NotNull(captured);
+    }
+
+    [Fact]
+    public async Task OnFailureAsync_TaskResult_WithAsyncAction_ShouldInvoke()
+    {
+        Error? captured = null;
+        var result = await Task.FromResult(Err<int>("fail")).OnFailureAsync(
+            async (error, ct) =>
+            {
+                await Task.Delay(5, ct);
+                captured = error;
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True(result.IsFailure);
+        Assert.NotNull(captured);
+    }
+
+    [Fact]
+    public async Task TapErrorAsync_TaskResult_WithAction_ShouldInvoke()
+    {
+        Error? captured = null;
+        var result = await Task.FromResult(Err<int>("fail")).TapErrorAsync(
+            error => captured = error,
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True(result.IsFailure);
         Assert.NotNull(captured);
     }
 
@@ -374,6 +467,23 @@ public class FunctionalTests
     {
         var resultTask = Task.FromResult(Ok(2));
         var mapped = await resultTask.MapAsync(v => v * 3, TestContext.Current.CancellationToken);
+
+        Assert.True(mapped.IsSuccess);
+        Assert.Equal(6, mapped.Value);
+    }
+
+    [Fact]
+    public async Task MapAsync_TaskResult_WithAsyncMapper_ShouldTransformValue()
+    {
+        var resultTask = Task.FromResult(Ok(3));
+        var mapped = await resultTask.MapAsync(
+            async (value, ct) =>
+            {
+                await Task.Delay(5, ct);
+                return value * 2;
+            },
+            TestContext.Current.CancellationToken
+        );
 
         Assert.True(mapped.IsSuccess);
         Assert.Equal(6, mapped.Value);

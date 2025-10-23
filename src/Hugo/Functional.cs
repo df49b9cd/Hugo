@@ -281,6 +281,38 @@ public static class Functional
     }
 
     /// <summary>
+    /// Maps the value of an asynchronous result using an asynchronous mapping function.
+    /// </summary>
+    public static async Task<Result<TOut>> MapAsync<TIn, TOut>(
+        this Task<Result<TIn>> resultTask,
+        Func<TIn, CancellationToken, Task<TOut>> mapper,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resultTask);
+
+        ArgumentNullException.ThrowIfNull(mapper);
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await resultTask.ConfigureAwait(false);
+            if (result.IsFailure)
+            {
+                return Result.Fail<TOut>(result.Error!);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var value = await mapper(result.Value, cancellationToken).ConfigureAwait(false);
+            return Result.Ok(value);
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Result.Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+        }
+    }
+
+    /// <summary>
     /// Maps the value of a result using an asynchronous mapping function.
     /// </summary>
     public static async Task<Result<TOut>> MapAsync<TIn, TOut>(
@@ -414,6 +446,176 @@ public static class Functional
     /// </summary>
     public static Task<Result<T>> TeeAsync<T>(this Task<Result<T>> resultTask, Action<T> tap, CancellationToken cancellationToken = default) =>
         resultTask.TapAsync(tap, cancellationToken);
+
+    /// <summary>
+    /// Executes an asynchronous side-effect when the result represents failure.
+    /// </summary>
+    public static async Task<Result<T>> TapErrorAsync<T>(
+        this Result<T> result,
+        Func<Error, CancellationToken, Task> tapAsync,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(tapAsync);
+
+        if (result.IsSuccess)
+        {
+            return result;
+        }
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await tapAsync(result.Error!, cancellationToken).ConfigureAwait(false);
+            return result;
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+        }
+    }
+
+    /// <summary>
+    /// Executes a side-effect when the asynchronous result represents failure.
+    /// </summary>
+    public static async Task<Result<T>> TapErrorAsync<T>(
+        this Task<Result<T>> resultTask,
+        Action<Error> tap,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resultTask);
+
+        ArgumentNullException.ThrowIfNull(tap);
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await resultTask.ConfigureAwait(false);
+            if (result.IsFailure)
+            {
+                tap(result.Error!);
+            }
+
+            return result;
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+        }
+    }
+
+    /// <summary>
+    /// Executes an asynchronous side-effect when the asynchronous result represents failure.
+    /// </summary>
+    public static async Task<Result<T>> TapErrorAsync<T>(
+        this Task<Result<T>> resultTask,
+        Func<Error, CancellationToken, Task> tapAsync,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resultTask);
+
+        ArgumentNullException.ThrowIfNull(tapAsync);
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = await resultTask.ConfigureAwait(false);
+            if (result.IsFailure)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await tapAsync(result.Error!, cancellationToken).ConfigureAwait(false);
+            }
+
+            return result;
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+        }
+    }
+
+    /// <summary>
+    /// Executes an asynchronous action when the result succeeds.
+    /// </summary>
+    public static Task<Result<T>> OnSuccessAsync<T>(
+        this Result<T> result,
+        Func<T, CancellationToken, Task> action,
+        CancellationToken cancellationToken = default
+    ) => result.TapAsync(action, cancellationToken);
+
+    /// <summary>
+    /// Executes a synchronous action when the asynchronous result succeeds.
+    /// </summary>
+    public static Task<Result<T>> OnSuccessAsync<T>(
+        this Task<Result<T>> resultTask,
+        Action<T> action,
+        CancellationToken cancellationToken = default
+    ) => resultTask.TapAsync(action, cancellationToken);
+
+    /// <summary>
+    /// Executes an asynchronous action when the asynchronous result succeeds.
+    /// </summary>
+    public static Task<Result<T>> OnSuccessAsync<T>(
+        this Task<Result<T>> resultTask,
+        Func<T, CancellationToken, Task> action,
+        CancellationToken cancellationToken = default
+    ) => resultTask.TapAsync(action, cancellationToken);
+
+    /// <summary>
+    /// Executes an asynchronous action when the result represents failure.
+    /// </summary>
+    public static Task<Result<T>> OnFailureAsync<T>(
+        this Result<T> result,
+        Func<Error, CancellationToken, Task> action,
+        CancellationToken cancellationToken = default
+    ) => result.TapErrorAsync(action, cancellationToken);
+
+    /// <summary>
+    /// Executes a synchronous action when the asynchronous result represents failure.
+    /// </summary>
+    public static Task<Result<T>> OnFailureAsync<T>(
+        this Task<Result<T>> resultTask,
+        Action<Error> action,
+        CancellationToken cancellationToken = default
+    ) => resultTask.TapErrorAsync(action, cancellationToken);
+
+    /// <summary>
+    /// Executes an asynchronous action when the asynchronous result represents failure.
+    /// </summary>
+    public static Task<Result<T>> OnFailureAsync<T>(
+        this Task<Result<T>> resultTask,
+        Func<Error, CancellationToken, Task> action,
+        CancellationToken cancellationToken = default
+    ) => resultTask.TapErrorAsync(action, cancellationToken);
+
+    /// <summary>
+    /// Recovers from a failed result with an asynchronous recovery function.
+    /// </summary>
+    public static async Task<Result<T>> RecoverAsync<T>(
+        this Result<T> result,
+        Func<Error, CancellationToken, Task<Result<T>>> recoverAsync,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(recoverAsync);
+
+        if (result.IsSuccess)
+        {
+            return result;
+        }
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return await recoverAsync(result.Error!, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException oce)
+        {
+            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+        }
+    }
 
     /// <summary>
     /// Recovers from a failed asynchronous result with a synchronous recovery function.
