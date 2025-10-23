@@ -6,14 +6,25 @@ on:
     tags: [ "v*.*.*" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
-  packages: write
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_NOLOGO: true
 
 jobs:
   build-test-pack:
-    runs-on: ubuntu-latest
+    name: Build, test, pack (${{ matrix.targetFramework }})
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -28,109 +39,122 @@ jobs:
             coverageArtifact: coverage-net10
             packageArtifact: nugetPackage-net10
             sdkVersion: 10.0.x
-
     steps:
-    - name: Checkout
-      uses: actions/checkout@v5
-      with:
-        fetch-depth: 0 # Necessary for GitVersion to work correctly
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # Necessary for GitVersion to work correctly
 
-    - name: Setup .NET SDK
-      uses: actions/setup-dotnet@v5
-      with:
-        dotnet-version: ${{ matrix.sdkVersion }}
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ matrix.sdkVersion }}
 
-    - name: Install GitVersion
-      uses: gittools/actions/gitversion/setup@v4.1.0
-      with:
-        versionSpec: '6.4.x'
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            ~/.local/share/NuGet/v3-cache
+          key: dotnet-${{ runner.os }}-${{ matrix.sdkVersion }}-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', '**/*.sln*') }}
+          restore-keys: |
+            dotnet-${{ runner.os }}-${{ matrix.sdkVersion }}-
+            dotnet-${{ runner.os }}-
 
-    - name: Determine Version
-      id: gitversion
-      uses: gittools/actions/gitversion/execute@v4.1.0
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v4.1.0
+        with:
+          versionSpec: '6.4.x'
 
-    - name: Restore
-      run: dotnet restore Hugo.slnx --nologo
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v4.1.0
 
-    - name: Build
-      run: dotnet build Hugo.slnx --configuration Release --no-restore /p:Version=${{ steps.gitversion.outputs.semVer }}
+      - name: Restore
+        run: dotnet restore Hugo.slnx --nologo
 
-    - name: Test ${{ matrix.targetFramework }} with coverage
-      run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory ${{ matrix.resultsDirectory }}
+      - name: Build
+        run: dotnet build Hugo.slnx --configuration Release --no-restore /p:Version=${{ steps.gitversion.outputs.semVer }}
 
-    - name: Pack
-      if: matrix.targetFramework == 'net10.0'
-      run: |
-        dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
-        dotnet pack src/Hugo.Diagnostics.OpenTelemetry/Hugo.Diagnostics.OpenTelemetry.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
+      - name: Test ${{ matrix.targetFramework }} with coverage
+        run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory ${{ matrix.resultsDirectory }}
 
-    - name: Upload Coverage Report
-      uses: codecov/codecov-action@v5
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        fail_ci_if_error: false
-        name: ${{ matrix.coverageArtifact }}
-        files: ${{ matrix.resultsDirectory }}/**/*coverage.cobertura.xml
+      - name: Pack
+        if: matrix.targetFramework == 'net10.0'
+        run: |
+          dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
+          dotnet pack src/Hugo.Diagnostics.OpenTelemetry/Hugo.Diagnostics.OpenTelemetry.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
 
-    - name: Upload NuGet Package
-      if: matrix.targetFramework == 'net10.0'
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.packageArtifact }}
-        path: ./artifacts/${{ matrix.targetFramework }}/*.nupkg
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.coverageArtifact }}
+          path: ${{ matrix.resultsDirectory }}/**/*coverage.cobertura.xml
+          if-no-files-found: error
+
+      - name: Upload NuGet Package
+        if: matrix.targetFramework == 'net10.0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.packageArtifact }}
+          path: ./artifacts/${{ matrix.targetFramework }}/*.nupkg
+          if-no-files-found: error
 
   coverage-report:
-    runs-on: ubuntu-latest
+    name: Coverage report
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
     needs: build-test-pack
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     steps:
-    - name: Checkout
-      uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@v5
 
-    - name: Download Coverage (net9.0)
-      uses: actions/download-artifact@v4
-      with:
-        name: coverage-net9
-        path: coverage/net9
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: coverage
+          merge-multiple: true
 
-    - name: Download Coverage (net10.0)
-      uses: actions/download-artifact@v4
-      with:
-        name: coverage-net10
-        path: coverage/net10
+      - name: Code Coverage Report
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage/**/coverage.cobertura.xml
+          badge: true
+          fail_below_min: false
+          format: markdown
+          hide_branch_rate: false
+          hide_complexity: false
+          indicators: true
+          output: both
+          thresholds: '60 80'
 
-    - name: Code Coverage Report
-      uses: irongut/CodeCoverageSummary@v1.3.0
-      with:
-        filename: coverage/**/coverage.cobertura.xml
-        badge: true
-        fail_below_min: false
-        format: markdown
-        hide_branch_rate: false
-        hide_complexity: false
-        indicators: true
-        output: both
-        thresholds: '60 80'
-
-    - name: Add Coverage PR Comment
-      uses: marocchino/sticky-pull-request-comment@v2
-      if: github.event_name == 'pull_request'
-      with:
-        recreate: true
-        path: code-coverage-results.md
+      - name: Add Coverage PR Comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          recreate: true
+          path: code-coverage-results.md
 
   publish-nuget:
-    runs-on: ubuntu-latest
+    name: Publish to NuGet
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
     needs: build-test-pack
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-    - name: Download NuGet Package
-      uses: actions/download-artifact@v4
-      with:
-        name: nugetPackage-net10
-        path: ./artifacts
+      - name: Download NuGet packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nugetPackage-*
+          path: ./artifacts
+          merge-multiple: true
 
-    - name: Publish to NuGet
-      env:
-        NUGET_AUTH_TOKEN: ${{ secrets.NUGET_TOKEN }}
-      run: dotnet nuget push ./artifacts/*.nupkg --api-key "$NUGET_AUTH_TOKEN" --source https://api.nuget.org/v3/index.json --skip-duplicate
+      - name: Publish to NuGet
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.NUGET_TOKEN }}
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key "$NUGET_AUTH_TOKEN" --source https://api.nuget.org/v3/index.json --skip-duplicate
