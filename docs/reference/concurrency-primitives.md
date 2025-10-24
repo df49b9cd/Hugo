@@ -238,7 +238,7 @@ See [Coordinate fan-in workflows](../how-to/fan-in-channels.md) for step-by-step
 
 - `Go.FanOutAsync(IEnumerable<Func<CancellationToken, Task<Result<T>>>> operations, ResultExecutionPolicy? policy = null, CancellationToken cancellationToken = default, TimeProvider? timeProvider = null)` executes delegates concurrently and aggregates values through `Result.WhenAll`.
 - `Go.RaceAsync(IEnumerable<Func<CancellationToken, Task<Result<T>>>> operations, ResultExecutionPolicy? policy = null, CancellationToken cancellationToken = default, TimeProvider? timeProvider = null)` returns the first successful result (`Result.WhenAny` under the covers) and compensates secondary successes.
-- `Go.WithTimeoutAsync(Func<CancellationToken, Task<Result<T>>> operation, TimeSpan timeout, TimeProvider? timeProvider = null, CancellationToken cancellationToken = default)` produces `Error.Timeout` when the deadline elapses, otherwise forwards the inner result.
+- `Go.WithTimeoutAsync(Func<CancellationToken, Task<Result<T>>> operation, TimeSpan timeout, TimeProvider? timeProvider = null, CancellationToken cancellationToken = default)` produces `Error.Timeout` when the deadline elapses, returns `Error.Canceled` if the supplied token fires first, otherwise forwards the inner result.
 - `Go.RetryAsync(Func<int, CancellationToken, Task<Result<T>>> operation, int maxAttempts = 3, TimeSpan? initialDelay = null, TimeProvider? timeProvider = null, ILogger? logger = null, CancellationToken cancellationToken = default)` applies exponential backoff using `Result.RetryWithPolicyAsync`, propagates structured retry metadata, and halts immediately when the delegate throws or returns an `Error.Canceled`, regardless of which linked token triggered it.
 
 ## Timers

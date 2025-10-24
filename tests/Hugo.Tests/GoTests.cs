@@ -1579,6 +1579,33 @@ public class GoTests
     }
 
     [Fact]
+    public async Task WithTimeoutAsync_ShouldReturnCanceled_WhenTokenCancelled()
+    {
+        using var cts = new CancellationTokenSource();
+        var provider = new FakeTimeProvider();
+        var operationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var timeoutTask = WithTimeoutAsync(
+            async ct =>
+            {
+                operationStarted.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return Ok(42);
+            },
+            TimeSpan.FromSeconds(5),
+            timeProvider: provider,
+            cancellationToken: cts.Token);
+
+        await operationStarted.Task;
+        cts.Cancel();
+
+        var result = await timeoutTask;
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+    }
+
+    [Fact]
     public async Task WithTimeoutAsync_ShouldReturnFailure_WhenOperationThrows()
     {
         var provider = new FakeTimeProvider();
