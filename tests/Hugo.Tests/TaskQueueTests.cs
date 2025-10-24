@@ -112,6 +112,7 @@ public class TaskQueueTests
     [Fact]
     public async Task LeaseExpiration_ShouldRequeueWithExpiredError()
     {
+        var provider = new FakeTimeProvider();
         var options = new TaskQueueOptions
         {
             LeaseDuration = TimeSpan.FromMilliseconds(50),
@@ -120,14 +121,14 @@ public class TaskQueueTests
             MaxDeliveryAttempts = 3
         };
 
-        await using var queue = new TaskQueue<string>(options);
+        await using var queue = new TaskQueue<string>(options, provider);
 
         await queue.EnqueueAsync("delta", TestContext.Current.CancellationToken);
         var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(70), TestContext.Current.CancellationToken);
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(70));
         var secondLeaseTask = queue.LeaseAsync(TestContext.Current.CancellationToken).AsTask();
-        await Task.Delay(TimeSpan.FromMilliseconds(40), TestContext.Current.CancellationToken);
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(40));
         var secondLease = await secondLeaseTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
         Assert.Equal(2, secondLease.Attempt);
         Assert.Equal("delta", secondLease.Value);
@@ -147,6 +148,7 @@ public class TaskQueueTests
     [Fact]
     public async Task LeaseExpiration_PastMaxAttempts_ShouldDeadLetter()
     {
+        var provider = new FakeTimeProvider();
         var contexts = new List<TaskQueueDeadLetterContext<string>>();
         var deadLetterSignal = new TaskCompletionSource<TaskQueueDeadLetterContext<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -165,18 +167,18 @@ public class TaskQueueTests
             MaxDeliveryAttempts = 2
         };
 
-        await using var queue = new TaskQueue<string>(options, deadLetter: DeadLetter);
+        await using var queue = new TaskQueue<string>(options, provider, DeadLetter);
 
         await queue.EnqueueAsync("epsilon", TestContext.Current.CancellationToken);
         var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(80), TestContext.Current.CancellationToken);
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(80));
         var secondLeaseTask = queue.LeaseAsync(TestContext.Current.CancellationToken).AsTask();
-        await Task.Delay(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken);
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(50));
         var secondLease = await secondLeaseTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(80), TestContext.Current.CancellationToken);
-        await Task.Delay(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken);
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(80));
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(50));
 
         var context = await deadLetterSignal.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
         Assert.Single(contexts);
@@ -245,6 +247,12 @@ public class TaskQueueTests
 
         Assert.Equal(0, queue.PendingCount);
         Assert.Equal(0, queue.ActiveLeaseCount);
+    }
+
+    private static async Task AdvanceAsync(FakeTimeProvider provider, TimeSpan interval)
+    {
+        provider.Advance(interval);
+        await Task.Yield();
     }
 
 }

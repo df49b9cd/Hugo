@@ -173,7 +173,6 @@ public static class Go
         if (immediateCandidates.Count > 0)
         {
             (int selectedIndex, object? selectedState) = SelectByPriority(immediateCandidates, caseList);
-            await linkedCts.CancelAsync().ConfigureAwait(false);
             TimeSpan completionDuration = provider.GetElapsedTime(startTimestamp);
 
             try
@@ -192,11 +191,14 @@ public static class Go
                 GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, error);
                 return Result.Fail<Unit>(error);
             }
+            finally
+            {
+                linkedCts.Cancel();
+            }
         }
 
         if (resolvedDefault.HasValue)
         {
-            await linkedCts.CancelAsync().ConfigureAwait(false);
             TimeSpan completionDuration = provider.GetElapsedTime(startTimestamp);
             try
             {
@@ -213,6 +215,10 @@ public static class Go
                 Error error = Error.FromException(ex);
                 GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, error);
                 return Result.Fail<Unit>(error);
+            }
+            finally
+            {
+                linkedCts.Cancel();
             }
         }
 
@@ -297,7 +303,6 @@ public static class Go
                 }
 
                 (int selectedIndex, object? selectedState) = SelectByPriority(ready, caseList);
-                        await linkedCts.CancelAsync().ConfigureAwait(false);
                 TimeSpan completionDuration = provider.GetElapsedTime(startTimestamp);
 
                 try
@@ -315,6 +320,10 @@ public static class Go
                     Error error = Error.FromException(ex);
                     GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, error);
                     return Result.Fail<Unit>(error);
+                }
+                finally
+                {
+                    linkedCts.Cancel();
                 }
             }
         }
@@ -674,10 +683,16 @@ public static class Go
         ChannelReader<T>[] readers = CollectSources(sources);
         if (readers.Length != 0)
         {
-            return readers.Any(_ => false)
-                ? throw new ArgumentException("Source readers cannot contain null entries.", nameof(sources))
-                : FanInAsyncCore(readers, destination, completeDestination, timeout ?? Timeout.InfiniteTimeSpan,
-                    provider, cancellationToken);
+            for (int i = 0; i < readers.Length; i++)
+            {
+                if (readers[i] is null)
+                {
+                    throw new ArgumentException("Source readers cannot contain null entries.", nameof(sources));
+                }
+            }
+
+            return FanInAsyncCore(readers, destination, completeDestination, timeout ?? Timeout.InfiniteTimeSpan,
+                provider, cancellationToken);
         }
 
         if (completeDestination)
@@ -879,7 +894,12 @@ public static class Go
 
             if (IsSelectDrained(iteration.Error))
             {
-                await WaitForCompletionsAsync(active).ConfigureAwait(false);
+                Error? completionError = await WaitForCompletionsAsync(active).ConfigureAwait(false);
+                if (completionError is not null)
+                {
+                    return Result.Fail<Unit>(completionError);
+                }
+
                 RemoveCompletedReaders(active);
                 if (active.Count == 0)
                 {
@@ -905,11 +925,11 @@ public static class Go
             }
         }
 
-        static Task WaitForCompletionsAsync(List<ChannelReader<T>> list)
+        static async Task<Error?> WaitForCompletionsAsync(List<ChannelReader<T>> list)
         {
             if (list.Count == 0)
             {
-                return Task.CompletedTask;
+                return null;
             }
 
             Task[] tasks = new Task[list.Count];
@@ -918,7 +938,19 @@ public static class Go
                 tasks[i] = list[i].Completion;
             }
 
-            return Task.WhenAll(tasks);
+            try
+            {
+                await Task.WhenAll(tasks).ConfigureAwait(false);
+                return null;
+            }
+            catch (OperationCanceledException oce)
+            {
+                return Error.Canceled(token: oce.CancellationToken);
+            }
+            catch (Exception ex)
+            {
+                return Error.FromException(ex);
+            }
         }
     }
 
