@@ -152,7 +152,7 @@ public sealed class WaitGroup
         var waitTask = WaitAsync(linkedCts.Token);
         if (waitTask.IsCompleted)
         {
-            linkedCts.Cancel();
+            await linkedCts.CancelAsync();
             await waitTask.ConfigureAwait(false);
             return true;
         }
@@ -161,12 +161,12 @@ public sealed class WaitGroup
         var completed = await Task.WhenAny(waitTask, delayTask).ConfigureAwait(false);
         if (completed == waitTask)
         {
-            linkedCts.Cancel();
+            await linkedCts.CancelAsync();
             await waitTask.ConfigureAwait(false);
             return true;
         }
 
-        linkedCts.Cancel();
+        await linkedCts.CancelAsync();
         return false;
     }
 }

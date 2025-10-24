@@ -151,7 +151,7 @@ public static partial class Result
                 if (winner is null)
                 {
                     winner = result;
-                    linkedCts.Cancel();
+                    await linkedCts.CancelAsync();
                     continue;
                 }
 

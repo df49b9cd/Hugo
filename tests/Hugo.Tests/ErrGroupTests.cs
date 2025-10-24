@@ -102,7 +102,7 @@ public class ErrGroupTests
             return Result.Ok(Unit.Value);
         });
 
-        externalCts.Cancel();
+        await externalCts.CancelAsync();
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 

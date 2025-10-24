@@ -215,7 +215,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         };
 
         _channel = Channel.CreateBounded<QueueEnvelope>(channelOptions);
-        _monitorTask = Task.Run(() => MonitorLeasesAsync(_monitorCts.Token));
+        _monitorTask = Go.Run(() => MonitorLeasesAsync(_monitorCts.Token));
     }
 
     /// <summary>

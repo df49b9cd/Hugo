@@ -74,7 +74,7 @@ public class ResultFallbackTests
     public async Task TieredFallbackAsync_ShouldPropagateCancellation()
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var tiers = new[]
         {

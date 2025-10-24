@@ -88,7 +88,7 @@ public class ResultTests
     public async Task TraverseAsync_ShouldRespectCancellation()
     {
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var result = await Result.TraverseAsync([1], _ => Task.FromResult(Result.Ok(1)), cts.Token);
 
@@ -124,7 +124,7 @@ public class ResultTests
     public async Task TraverseAsync_WithTokenAwareSelector_ShouldRespectCancellation()
     {
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var result = await Result.TraverseAsync(
             [1],
@@ -183,7 +183,7 @@ public class ResultTests
     public async Task SequenceAsync_Stream_ShouldReturnCanceledError()
     {
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -269,7 +269,7 @@ public class ResultTests
     public async Task TraverseAsync_Stream_ShouldReturnCanceledError()
     {
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -469,7 +469,7 @@ public class ResultTests
     public async Task MapStreamAsync_ShouldReturnCanceledResult()
     {
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
         {

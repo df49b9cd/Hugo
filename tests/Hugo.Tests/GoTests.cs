@@ -68,7 +68,7 @@ public class GoTests
         {
             var waitingTask = mutex.LockAsync(cts.Token);
             await Task.Delay(50, cts.Token);
-            cts.Cancel();
+            await cts.CancelAsync();
             await Assert.ThrowsAsync<OperationCanceledException>(async () => await waitingTask);
         }
     }
@@ -78,7 +78,7 @@ public class GoTests
     {
         var mutex = new Mutex();
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await mutex.LockAsync(cts.Token));
     }
@@ -114,8 +114,8 @@ public class GoTests
         var mutex = new Mutex();
         var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
 
-        releaser.Dispose();
-        releaser.Dispose();
+        await releaser.DisposeAsync();
+        await releaser.DisposeAsync();
 
         using (await mutex.LockAsync(TestContext.Current.CancellationToken))
         {
@@ -565,7 +565,7 @@ public class GoTests
         var provider = new FakeTimeProvider();
         var delayTask = Go.DelayAsync(TimeSpan.FromSeconds(5), provider, cts.Token);
 
-        cts.Cancel();
+        await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await delayTask);
     }
@@ -909,7 +909,7 @@ public class GoTests
         }
         finally
         {
-            advanceCts.Cancel();
+            await advanceCts.CancelAsync();
             await advanceLoop;
         }
 
@@ -987,7 +987,7 @@ public class GoTests
         }
         finally
         {
-            advanceCts.Cancel();
+            await advanceCts.CancelAsync();
             await advanceLoop;
         }
 
@@ -1009,7 +1009,7 @@ public class GoTests
             [destination.Writer],
             cancellationToken: cts.Token);
 
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var result = await fanOutTask;
 
@@ -1375,7 +1375,7 @@ public class GoTests
     {
         var source = MakeChannel<int>();
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var merged = FanIn([source.Reader], cancellationToken: cts.Token);
 
@@ -1597,7 +1597,7 @@ public class GoTests
             cancellationToken: cts.Token);
 
         await operationStarted.Task;
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var result = await timeoutTask;
 
@@ -1698,7 +1698,7 @@ public class GoTests
                     if (useLinkedToken)
                     {
                         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                        linked.Cancel();
+                        await linked.CancelAsync();
                         throw new OperationCanceledException(linked.Token);
                     }
 

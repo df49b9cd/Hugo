@@ -497,7 +497,7 @@ public static class Go
         Task completed = await Task.WhenAny(operationTask, delayTask).ConfigureAwait(false);
         if (completed == operationTask)
         {
-            delayCts.Cancel();
+            await delayCts.CancelAsync();
 
             try
             {
