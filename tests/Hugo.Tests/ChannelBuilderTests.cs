@@ -1,5 +1,7 @@
 using System.Threading.Channels;
+
 using Microsoft.Extensions.DependencyInjection;
+
 using static Hugo.Go;
 
 namespace Hugo.Tests;

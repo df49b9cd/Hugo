@@ -86,6 +86,7 @@ You receive metrics from one channel and jobs from another. You want to forward 
 
 - **Early cancellation**: Pass a linked token to `FanInAsync`. If cancellation fires, the task completes with `Error.Canceled` and the destination writer is completed with that error so consumers can respond.
 - **Backpressure**: Provide `BoundedChannelOptions` when calling `MakeChannel` to cap queue length and avoid unbounded growth.
+- **Global deadlines**: When you provide a `timeout` (or `deadline`) to `SelectFanInAsync`/`FanInAsync`, the helper records a single absolute deadline using the supplied `TimeProvider` and applies it to the entire fan-in loop. Once the deadline passes, the operation ends with `Error.Timeout` even if individual select iterations still have ready readers.
 - **Fan-in termination**: Set `completeDestination` to `false` when the destination is managed elsewhere; otherwise you risk completing a shared writer twice.
 
 ## Related topics

@@ -228,7 +228,7 @@ var result = await Go.SelectAsync(
 
 ## Fan-in utilities
 
-- `Go.SelectFanInAsync(...)` repeatedly selects until all cases complete, returning `Result<Unit>` so caller code can surface errors.
+- `Go.SelectFanInAsync(...)` repeatedly selects until all cases complete, returning `Result<Unit>` so caller code can surface errors. When you pass a timeout the helper captures a single absolute deadline (using the supplied `TimeProvider` when present) and enforces it across the entire fan-in session rather than per-iteration waits.
 - `Go.FanInAsync(IEnumerable<ChannelReader<T>>, ChannelWriter<T>, bool completeDestination, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)` merges multiple readers into an existing writer and returns `Result<Unit>`.
 - `Go.FanIn(IEnumerable<ChannelReader<T>>, TimeSpan? timeout = null, TimeProvider? provider = null, CancellationToken cancellationToken = default)` returns a new reader and internally manages the destination channel lifecycle.
 
@@ -239,7 +239,7 @@ See [Coordinate fan-in workflows](../how-to/fan-in-channels.md) for step-by-step
 - `Go.FanOutAsync(IEnumerable<Func<CancellationToken, Task<Result<T>>>> operations, ResultExecutionPolicy? policy = null, CancellationToken cancellationToken = default, TimeProvider? timeProvider = null)` executes delegates concurrently and aggregates values through `Result.WhenAll`.
 - `Go.RaceAsync(IEnumerable<Func<CancellationToken, Task<Result<T>>>> operations, ResultExecutionPolicy? policy = null, CancellationToken cancellationToken = default, TimeProvider? timeProvider = null)` returns the first successful result (`Result.WhenAny` under the covers) and compensates secondary successes.
 - `Go.WithTimeoutAsync(Func<CancellationToken, Task<Result<T>>> operation, TimeSpan timeout, TimeProvider? timeProvider = null, CancellationToken cancellationToken = default)` produces `Error.Timeout` when the deadline elapses, otherwise forwards the inner result.
-- `Go.RetryAsync(Func<int, CancellationToken, Task<Result<T>>> operation, int maxAttempts = 3, TimeSpan? initialDelay = null, TimeProvider? timeProvider = null, ILogger? logger = null, CancellationToken cancellationToken = default)` applies exponential backoff using `Result.RetryWithPolicyAsync` and propagates structured retry metadata.
+- `Go.RetryAsync(Func<int, CancellationToken, Task<Result<T>>> operation, int maxAttempts = 3, TimeSpan? initialDelay = null, TimeProvider? timeProvider = null, ILogger? logger = null, CancellationToken cancellationToken = default)` applies exponential backoff using `Result.RetryWithPolicyAsync`, propagates structured retry metadata, and halts immediately when the delegate throws or returns an `Error.Canceled`, regardless of which linked token triggered it.
 
 ## Timers
 

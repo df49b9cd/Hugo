@@ -270,6 +270,11 @@ public static partial class Result
             attemptScope.Clear();
 
             var error = result.Error ?? Error.Unspecified();
+            if (error.Code == ErrorCodes.Canceled)
+            {
+                return new PipelineOperationResult<T>(result, attemptScope);
+            }
+
             var decision = await retryPolicy.EvaluateAsync(retryState, error, cancellationToken).ConfigureAwait(false);
             if (!decision.ShouldRetry)
             {

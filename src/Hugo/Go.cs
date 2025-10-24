@@ -1,5 +1,7 @@
 using System.Threading.Channels;
+
 using Hugo.Policies;
+
 using Microsoft.Extensions.Logging;
 
 namespace Hugo;
@@ -557,9 +559,15 @@ public static class Go
 
                         return result;
                     }
-                    catch (OperationCanceledException oce) when (oce.CancellationToken == ct)
+                    catch (OperationCanceledException oce)
                     {
-                        return Result.Fail<T>(Error.Canceled(token: ct.CanBeCanceled ? ct : null));
+                        var token = oce.CancellationToken;
+                        if (!token.CanBeCanceled && ct.CanBeCanceled)
+                        {
+                            token = ct;
+                        }
+
+                        return Result.Fail<T>(Error.Canceled(token: token.CanBeCanceled ? token : (CancellationToken?)null));
                     }
                     catch (Exception ex)
                     {
@@ -833,6 +841,15 @@ public static class Go
             return Result.Ok(Unit.Value);
         }
 
+        var hasDeadline = timeout != Timeout.InfiniteTimeSpan;
+        var selectProvider = provider;
+        long startTimestamp = 0;
+        if (hasDeadline)
+        {
+            selectProvider ??= TimeProvider.System;
+            startTimestamp = selectProvider.GetTimestamp();
+        }
+
         while (active.Count > 0)
         {
             var cases = new ChannelCase[active.Count];
@@ -842,9 +859,22 @@ public static class Go
                 cases[i] = ChannelCase.Create(reader, onValue);
             }
 
-            var iteration = timeout == Timeout.InfiniteTimeSpan
-                ? await SelectAsync(provider, cancellationToken, cases).ConfigureAwait(false)
-                : await SelectAsync(timeout, provider, cancellationToken, cases).ConfigureAwait(false);
+            Result<Unit> iteration;
+            if (hasDeadline)
+            {
+                var elapsed = selectProvider!.GetElapsedTime(startTimestamp);
+                var remaining = timeout - elapsed;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    return Result.Fail<Unit>(Error.Timeout(timeout));
+                }
+
+                iteration = await SelectAsync(remaining, selectProvider, cancellationToken, cases).ConfigureAwait(false);
+            }
+            else
+            {
+                iteration = await SelectAsync(selectProvider, cancellationToken, cases).ConfigureAwait(false);
+            }
 
             if (iteration.IsSuccess)
             {

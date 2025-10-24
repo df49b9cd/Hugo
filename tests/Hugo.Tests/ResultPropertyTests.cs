@@ -1,6 +1,8 @@
 using FsCheck;
 using FsCheck.Fluent;
+
 using Hugo;
+
 using static Hugo.Go;
 
 namespace Hugo.Tests;

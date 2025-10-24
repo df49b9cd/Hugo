@@ -1,6 +1,7 @@
 namespace Hugo;
 
 using Hugo.Policies;
+
 using Unit = Hugo.Go.Unit;
 
 /// <summary>

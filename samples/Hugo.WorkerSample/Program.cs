@@ -1,8 +1,10 @@
 using Hugo;
 using Hugo.Diagnostics.OpenTelemetry;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
 using static Hugo.Go;
 
 var builder = Host.CreateApplicationBuilder(args);

@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+
 using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests;

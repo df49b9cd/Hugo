@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+
 using static Hugo.Go;
 
 namespace Hugo.Tests;

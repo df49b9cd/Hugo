@@ -1,4 +1,5 @@
 using BenchmarkDotNet.Attributes;
+
 using Microsoft.VisualStudio.Threading;
 
 namespace Hugo.Benchmarks;

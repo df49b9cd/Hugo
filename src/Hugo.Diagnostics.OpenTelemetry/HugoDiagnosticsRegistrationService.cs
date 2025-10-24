@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 

@@ -1,8 +1,11 @@
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Channels;
+
 using Microsoft.Extensions.Time.Testing;
+
 using static Hugo.Go;
 
 namespace Hugo.Tests;
@@ -877,6 +880,45 @@ public class GoTests
     }
 
     [Fact]
+    public async Task SelectFanInAsync_ShouldTimeoutAfterOverallDeadline()
+    {
+        var provider = new FakeTimeProvider();
+        var channel1 = MakeChannel<int>();
+        var channel2 = MakeChannel<int>();
+
+        var selectTask = SelectFanInAsync(
+            [channel1.Reader, channel2.Reader],
+            (int _, CancellationToken _) => Task.FromResult(Result.Ok(Unit.Value)),
+            timeout: TimeSpan.FromSeconds(1),
+            provider: provider,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        using var advanceCts = new CancellationTokenSource();
+        var advanceLoop = Task.Run(async () =>
+        {
+            while (!selectTask.IsCompleted && !advanceCts.IsCancellationRequested)
+            {
+                provider.Advance(TimeSpan.FromMilliseconds(100));
+                await Task.Yield();
+            }
+        }, CancellationToken.None);
+
+        Result<Unit> result;
+        try
+        {
+            result = await selectTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            advanceCts.Cancel();
+            await advanceLoop;
+        }
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
+    }
+
+    [Fact]
     public async Task FanOutAsync_ShouldBroadcastToAllDestinations()
     {
         var source = MakeChannel<int>();
@@ -1581,6 +1623,42 @@ public class GoTests
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
         Assert.Equal(2, attempts);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RetryAsync_ShouldPropagateCancellationWithoutRetrying(bool useLinkedToken)
+    {
+        var attempts = new List<int>();
+
+        var result = await RetryAsync(
+            async (attempt, ct) =>
+            {
+                attempts.Add(attempt);
+
+                if (attempt == 1)
+                {
+                    if (useLinkedToken)
+                    {
+                        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                        linked.Cancel();
+                        throw new OperationCanceledException(linked.Token);
+                    }
+
+                    throw new OperationCanceledException();
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(10), ct);
+                return Ok(1);
+            },
+            maxAttempts: 3,
+            initialDelay: TimeSpan.Zero,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        Assert.Equal(new[] { 1 }, attempts);
     }
 
     private static ActivityListener CreateSelectActivityListener(string sourceName, List<Activity> stoppedActivities)

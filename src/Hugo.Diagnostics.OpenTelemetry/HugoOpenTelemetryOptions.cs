@@ -1,4 +1,5 @@
 using System.Diagnostics;
+
 using OpenTelemetry.Exporter;
 
 namespace Hugo.Diagnostics.OpenTelemetry;
