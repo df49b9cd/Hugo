@@ -41,6 +41,9 @@ public sealed class ResultSagaBuilder
         return this;
     }
 
+    /// <summary>
+    /// Executes the configured saga, applying the optional execution policy and returning the aggregated saga state.
+    /// </summary>
     public Task<Result<ResultSagaState>> ExecuteAsync(
         ResultExecutionPolicy? policy = null,
         CancellationToken cancellationToken = default,

@@ -15,6 +15,7 @@ internal sealed class HugoDiagnosticsRegistrationService(
     private ActivitySource? _activitySource;
     private IDisposable? _samplingSubscription;
 
+    /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken)
     {
         if (_options.ConfigureMeter)
@@ -44,6 +45,7 @@ internal sealed class HugoDiagnosticsRegistrationService(
         return Task.CompletedTask;
     }
 
+    /// <inheritdoc />
     public Task StopAsync(CancellationToken cancellationToken)
     {
         _samplingSubscription?.Dispose();

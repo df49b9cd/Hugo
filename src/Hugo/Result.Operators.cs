@@ -90,6 +90,9 @@ public static partial class Result
         return Ok<IReadOnlyList<IReadOnlyList<T>>>(windows);
     }
 
+    /// <summary>
+    /// Executes <paramref name="operation"/> under the supplied execution <paramref name="policy"/>, applying retries and compensation as needed.
+    /// </summary>
     public static async ValueTask<Result<T>> RetryWithPolicyAsync<T>(Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>> operation, ResultExecutionPolicy policy, CancellationToken cancellationToken = default, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(operation);

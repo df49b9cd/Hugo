@@ -222,6 +222,9 @@ public sealed class SelectBuilder<TResult>
         }
     }
 
+    /// <summary>
+    /// Materializes the registered channel cases, awaits the select, and returns the resulting value or error.
+    /// </summary>
     public async Task<Result<TResult>> ExecuteAsync()
     {
         if (_caseFactories.Count == 0 && _defaultFactory is null)

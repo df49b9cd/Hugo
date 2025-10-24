@@ -4,12 +4,18 @@ namespace Hugo;
 
 public static partial class Result
 {
+    /// <summary>
+    /// Executes all pipeline operations, aggregating successful results or combining failures using the optional execution policy.
+    /// </summary>
     public static Task<Result<IReadOnlyList<T>>> WhenAll<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
         CancellationToken cancellationToken = default,
         TimeProvider? timeProvider = null) => WhenAllInternal(operations, policy, cancellationToken, timeProvider ?? TimeProvider.System);
 
+    /// <summary>
+    /// Executes the supplied operations until one succeeds, cancelling the remaining work and applying the optional execution policy.
+    /// </summary>
     public static Task<Result<T>> WhenAny<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,

@@ -62,6 +62,9 @@ public sealed class ResultFallbackTier<T>
 
 public static partial class Result
 {
+    /// <summary>
+    /// Executes the provided fallback tiers in order until one succeeds, using the optional execution policy for retries and compensation.
+    /// </summary>
     public static Task<Result<T>> TieredFallbackAsync<T>(
         IEnumerable<ResultFallbackTier<T>> tiers,
         ResultExecutionPolicy? policy = null,

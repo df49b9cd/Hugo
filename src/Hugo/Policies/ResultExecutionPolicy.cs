@@ -144,6 +144,9 @@ public sealed class ResultCompensationPolicy(Func<CompensationContext, ValueTask
 
     private readonly Func<CompensationContext, ValueTask> _executor = executor ?? throw new ArgumentNullException(nameof(executor));
 
+    /// <summary>
+    /// Executes the configured compensation strategy using the supplied <paramref name="context"/>.
+    /// </summary>
     public ValueTask ExecuteAsync(CompensationContext context) => _executor(context);
 
     public static ResultCompensationPolicy SequentialReverse => new(static context => context.ExecuteAsync());
@@ -234,6 +237,9 @@ public sealed class CompensationContext(Stack<CompensationAction> actions, Cance
 
     public CancellationToken CancellationToken { get; } = cancellationToken;
 
+    /// <summary>
+    /// Replays the registered compensation actions sequentially or in parallel.
+    /// </summary>
     public ValueTask ExecuteAsync(bool parallel = false)
     {
         if (!parallel)

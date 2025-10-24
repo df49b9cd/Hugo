@@ -25,6 +25,9 @@ public sealed class RwMutex : IDisposable
         return new WriteScope(_sync);
     }
 
+    /// <summary>
+    /// Asynchronously acquires a read lock, honoring <paramref name="cancellationToken"/>, and returns a releaser that must be disposed to exit the read scope.
+    /// </summary>
     public async ValueTask<AsyncReadReleaser> RLockAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -59,6 +62,9 @@ public sealed class RwMutex : IDisposable
         return new AsyncReadReleaser(this);
     }
 
+    /// <summary>
+    /// Asynchronously acquires the write lock, honoring <paramref name="cancellationToken"/>, and returns a releaser that must be disposed to exit the write scope.
+    /// </summary>
     public async ValueTask<AsyncWriteReleaser> LockAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();

@@ -8,6 +8,10 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
     private readonly VersionGate _versionGate = versionGate ?? throw new ArgumentNullException(nameof(versionGate));
     private readonly DeterministicEffectStore _effectStore = effectStore ?? throw new ArgumentNullException(nameof(effectStore));
 
+    /// <summary>
+    /// Executes the upgraded or legacy branch for the supplied change identifier based on the resolved version gate decision.
+    /// Captures the outcome deterministically so subsequent executions replay the same result.
+    /// </summary>
     public Task<Result<T>> ExecuteAsync<T>(
         string changeId,
         int minVersion,
@@ -29,6 +33,9 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             cancellationToken);
     }
 
+    /// <summary>
+    /// Executes the supplied workflow delegate for the resolved version gate decision and stores the outcome deterministically.
+    /// </summary>
     public async Task<Result<T>> ExecuteAsync<T>(
         string changeId,
         int minVersion,
