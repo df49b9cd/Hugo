@@ -206,21 +206,18 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
         }
     }
 
-    private static object? DeserializeMetadataValue(JsonElement element, JsonSerializerOptions options)
+    private static object? DeserializeMetadataValue(JsonElement element, JsonSerializerOptions options) => element.ValueKind switch
     {
-        return element.ValueKind switch
-        {
-            JsonValueKind.Null => null,
-            JsonValueKind.True => true,
-            JsonValueKind.False => false,
-            JsonValueKind.Number => TryDeserializeNumber(element),
-            JsonValueKind.String => ParseStringMetadata(element.GetString()),
-            JsonValueKind.Array => DeserializeArray(element, options),
-            JsonValueKind.Object when LooksLikeError(element) => JsonSerializer.Deserialize<Error>(element.GetRawText(), options),
-            JsonValueKind.Object => DeserializeObject(element, options),
-            _ => element.GetRawText()
-        };
-    }
+        JsonValueKind.Null => null,
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.Number => TryDeserializeNumber(element),
+        JsonValueKind.String => ParseStringMetadata(element.GetString()),
+        JsonValueKind.Array => DeserializeArray(element, options),
+        JsonValueKind.Object when LooksLikeError(element) => JsonSerializer.Deserialize<Error>(element.GetRawText(), options),
+        JsonValueKind.Object => DeserializeObject(element, options),
+        _ => element.GetRawText()
+    };
 
     private static object? TryDeserializeNumber(JsonElement element)
     {
@@ -307,12 +304,9 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
         return dictionary;
     }
 
-    private static bool LooksLikeError(JsonElement element)
-    {
-        return element.ValueKind == JsonValueKind.Object
+    private static bool LooksLikeError(JsonElement element) => element.ValueKind == JsonValueKind.Object
             && element.TryGetProperty("message", out var messageProperty)
             && messageProperty.ValueKind == JsonValueKind.String;
-    }
 
     private sealed class SerializedErrorException(string? typeName, string? message, string? stackTrace) : Exception(message ?? typeName ?? nameof(SerializedErrorException))
     {

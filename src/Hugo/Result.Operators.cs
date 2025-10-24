@@ -21,7 +21,7 @@ public static partial class Result
             var key = keySelector(result.Value);
             if (!groups.TryGetValue(key, out var list))
             {
-                list = new List<T>();
+                list = [];
                 groups[key] = list;
             }
 

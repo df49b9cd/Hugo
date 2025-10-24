@@ -97,7 +97,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         private readonly int _minVersion;
         private readonly int _maxVersion;
         private readonly Func<VersionGateContext, int>? _initialVersionProvider;
-        private readonly List<WorkflowBranch<TResult>> _branches = new();
+        private readonly List<WorkflowBranch<TResult>> _branches = [];
         private Func<DeterministicWorkflowContext, CancellationToken, Task<Result<TResult>>>? _fallback;
 
         internal DeterministicWorkflowBuilder(

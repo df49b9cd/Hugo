@@ -17,10 +17,7 @@ public sealed record CounterReport(
 
     public int SkippedRows => TotalRows - ParsedRows;
 
-    public CounterSummary? FindCounter(string provider, string nameContains)
-    {
-        return Counters.FirstOrDefault(summary =>
-            string.Equals(summary.Provider, provider, StringComparison.OrdinalIgnoreCase) &&
-            summary.Name.Contains(nameContains, StringComparison.OrdinalIgnoreCase));
-    }
+    public CounterSummary? FindCounter(string provider, string nameContains) => Counters.FirstOrDefault(summary =>
+                                                                                         string.Equals(summary.Provider, provider, StringComparison.OrdinalIgnoreCase) &&
+                                                                                         summary.Name.Contains(nameContains, StringComparison.OrdinalIgnoreCase));
 }

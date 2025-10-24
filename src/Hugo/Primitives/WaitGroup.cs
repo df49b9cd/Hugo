@@ -83,10 +83,7 @@ public sealed class WaitGroup
         ObserveTask(task);
     }
 
-    private void ObserveTask(Task task)
-    {
-        task.ContinueWith(static (_, state) => ((WaitGroup)state!).Done(), this, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-    }
+    private void ObserveTask(Task task) => task.ContinueWith(static (_, state) => ((WaitGroup)state!).Done(), this, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
 
     /// <summary>
     /// Signals that one of the registered operations has completed.

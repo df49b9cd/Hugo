@@ -330,10 +330,7 @@ public static class GoDiagnostics
             ActivitySource.AddActivityListener(_listener);
         }
 
-        public void Dispose()
-        {
-            _listener.Dispose();
-        }
+        public void Dispose() => _listener.Dispose();
 
         private ActivitySamplingResult Sample(ref ActivityCreationOptions<ActivityContext> _) => AcquireSlot();
 
@@ -554,11 +551,13 @@ public static class GoDiagnostics
 
     private static TagList CreateWorkflowTags(WorkflowExecutionContext context)
     {
-        var tags = new TagList();
-        tags.Add("workflow.namespace", context.Namespace);
-        tags.Add("workflow.id", context.WorkflowId);
-        tags.Add("workflow.run_id", context.RunId);
-        tags.Add("workflow.task_queue", context.TaskQueue);
+        var tags = new TagList
+        {
+            { "workflow.namespace", context.Namespace },
+            { "workflow.id", context.WorkflowId },
+            { "workflow.run_id", context.RunId },
+            { "workflow.task_queue", context.TaskQueue }
+        };
 
         if (context.ScheduleId is not null)
         {

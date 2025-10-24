@@ -91,17 +91,17 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
                     }
 
                     await _cts.CancelAsync().ConfigureAwait(false);
-                    Exception? completionError = await RequeueLeaseAsync(lease, Error.Canceled("Lease could not be delivered before completion.")).ConfigureAwait(false);
+                    Exception? completionError = await TaskQueueChannelAdapter<T>.RequeueLeaseAsync(lease, Error.Canceled("Lease could not be delivered before completion.")).ConfigureAwait(false);
                     return completionError;
                 }
                 catch (OperationCanceledException) when (_cts.IsCancellationRequested)
                 {
-                    Exception? cancellationError = await RequeueLeaseAsync(lease, Error.Canceled(token: _cts.Token)).ConfigureAwait(false);
+                    Exception? cancellationError = await TaskQueueChannelAdapter<T>.RequeueLeaseAsync(lease, Error.Canceled(token: _cts.Token)).ConfigureAwait(false);
                     return cancellationError;
                 }
                 catch (Exception ex)
                 {
-                    Exception? requeueError = await RequeueLeaseAsync(lease, Error.FromException(ex)).ConfigureAwait(false);
+                    Exception? requeueError = await TaskQueueChannelAdapter<T>.RequeueLeaseAsync(lease, Error.FromException(ex)).ConfigureAwait(false);
                     return requeueError ?? ex;
                 }
             }
@@ -131,7 +131,7 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
         return false;
     }
 
-    private async ValueTask<Exception?> RequeueLeaseAsync(TaskQueueLease<T> lease, Error reason)
+    private static async ValueTask<Exception?> RequeueLeaseAsync(TaskQueueLease<T> lease, Error reason)
     {
         try
         {

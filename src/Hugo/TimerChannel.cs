@@ -104,10 +104,7 @@ internal sealed class TimerChannel : IAsyncDisposable, IDisposable
         _channel.Writer.TryWrite(timestamp);
     }
 
-    private void OnCanceled()
-    {
-        Complete(new OperationCanceledException(_cancellationToken));
-    }
+    private void OnCanceled() => Complete(new OperationCanceledException(_cancellationToken));
 
     private void Complete(Exception? error = null)
     {

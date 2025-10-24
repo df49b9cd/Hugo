@@ -41,7 +41,7 @@ builder.Services.AddSingleton(sp =>
 
     TaskQueueOptions options = new()
     {
-        Capacity = 128,
+        Capacity = 28,
         LeaseDuration = TimeSpan.FromSeconds(8),
         HeartbeatInterval = TimeSpan.FromSeconds(1),
         LeaseSweepInterval = TimeSpan.FromMilliseconds(500),

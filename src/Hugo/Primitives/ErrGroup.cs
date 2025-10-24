@@ -240,8 +240,5 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     }
 
     /// <inheritdoc />
-    public void Dispose()
-    {
-        _cts.Dispose();
-    }
+    public void Dispose() => _cts.Dispose();
 }

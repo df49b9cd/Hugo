@@ -218,17 +218,14 @@ public static class SpeedscopeAnalyzer
         return aggregate;
     }
 
-    private static double UnitToMilliseconds(string unit)
+    private static double UnitToMilliseconds(string unit) => unit switch
     {
-        return unit switch
-        {
-            "seconds" => 1_000d,
-            "microseconds" => 0.001d,
-            "nanoseconds" => 0.000001d,
-            "milliseconds" => 1d,
-            _ => 1d
-        };
-    }
+        "seconds" => 1_000d,
+        "microseconds" => 0.001d,
+        "nanoseconds" => 0.000001d,
+        "milliseconds" => 1d,
+        _ => 1d
+    };
 
     private struct StackEntry(int frameIndex, double startTimestamp)
     {

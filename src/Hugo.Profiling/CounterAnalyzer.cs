@@ -110,7 +110,7 @@ public static class CounterAnalyzer
     private sealed class CounterSeriesCollection
     {
         private readonly Dictionary<string, CounterSeries> _series = new(StringComparer.OrdinalIgnoreCase);
-        private readonly List<string> _errors = new();
+        private readonly List<string> _errors = [];
         private DateTime? _firstTimestamp;
         private DateTime? _lastTimestamp;
         private int _totalRows;
@@ -172,8 +172,8 @@ public static class CounterAnalyzer
         private readonly string _provider = provider;
         private readonly string _name = name;
         private readonly string _type = type;
-        private readonly List<double> _values = new();
-        private readonly List<DateTime> _timestamps = new();
+        private readonly List<double> _values = [];
+        private readonly List<DateTime> _timestamps = [];
         private double _sum;
         private double _min = double.PositiveInfinity;
         private double _max = double.NegativeInfinity;

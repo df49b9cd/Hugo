@@ -7,7 +7,7 @@ namespace Hugo.Sagas;
 /// </summary>
 public sealed class ResultSagaBuilder
 {
-    private readonly List<ResultSagaStep> _steps = new();
+    private readonly List<ResultSagaStep> _steps = [];
 
     public ResultSagaBuilder AddStep<TState>(
         string name,

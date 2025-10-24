@@ -375,7 +375,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     private async ValueTask SweepExpiredLeasesAsync(CancellationToken cancellationToken)
     {
         DateTimeOffset now = _timeProvider.GetUtcNow();
-        List<(Guid Id, LeaseState State)> expired = new();
+        List<(Guid Id, LeaseState State)> expired = [];
 
         foreach (KeyValuePair<Guid, LeaseState> kvp in _leases)
         {
@@ -455,13 +455,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         await _deadLetter(context, cancellationToken).ConfigureAwait(false);
     }
 
-    private void ThrowIfDisposed()
-    {
-        if (IsDisposed)
-        {
-            throw new ObjectDisposedException(nameof(TaskQueue<T>));
-        }
-    }
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(IsDisposed, nameof(TaskQueue<T>));
 
     private bool IsDisposed => Volatile.Read(ref _disposed) == 1;
 

@@ -27,18 +27,12 @@ public sealed class ResultPipelineStepContext
     /// <summary>
     /// Registers a compensation action to be executed if the pipeline fails.
     /// </summary>
-    public void RegisterCompensation(Func<CancellationToken, ValueTask> compensation)
-    {
-        _compensationScope.Register(compensation);
-    }
+    public void RegisterCompensation(Func<CancellationToken, ValueTask> compensation) => _compensationScope.Register(compensation);
 
     /// <summary>
     /// Registers a compensation action that captures state.
     /// </summary>
-    public void RegisterCompensation<TState>(TState state, Func<TState, CancellationToken, ValueTask> compensation)
-    {
-        _compensationScope.Register(state, compensation);
-    }
+    public void RegisterCompensation<TState>(TState state, Func<TState, CancellationToken, ValueTask> compensation) => _compensationScope.Register(state, compensation);
 
     /// <summary>
     /// Attempts to register a compensation action when the provided predicate returns true.

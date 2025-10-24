@@ -106,10 +106,7 @@ public sealed class ChannelBuilderTests
     }
 
     [Fact]
-    public void PrioritizedChannelBuilder_WithInvalidPriorityLevels_ShouldThrow()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => PrioritizedChannel<int>(priorityLevels: 0));
-    }
+    public void PrioritizedChannelBuilder_WithInvalidPriorityLevels_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(() => PrioritizedChannel<int>(priorityLevels: 0));
 
     [Fact]
     public void PrioritizedChannelBuilder_WithInvalidDefaultPriority_ShouldThrow()
@@ -120,14 +117,8 @@ public sealed class ChannelBuilderTests
     }
 
     [Fact]
-    public void AddBoundedChannel_WithNullServices_ShouldThrow()
-    {
-        Assert.Throws<ArgumentNullException>(() => ChannelServiceCollectionExtensions.AddBoundedChannel<int>(null!, 1));
-    }
+    public void AddBoundedChannel_WithNullServices_ShouldThrow() => Assert.Throws<ArgumentNullException>(() => ChannelServiceCollectionExtensions.AddBoundedChannel<int>(null!, 1));
 
     [Fact]
-    public void AddPrioritizedChannel_WithNullServices_ShouldThrow()
-    {
-        Assert.Throws<ArgumentNullException>(() => ChannelServiceCollectionExtensions.AddPrioritizedChannel<int>(null!));
-    }
+    public void AddPrioritizedChannel_WithNullServices_ShouldThrow() => Assert.Throws<ArgumentNullException>(() => ChannelServiceCollectionExtensions.AddPrioritizedChannel<int>(null!));
 }

@@ -55,26 +55,17 @@ public sealed class WorkflowExecutionContextTests : IDisposable
     }
 
     [Fact]
-    public void Constructor_WithNegativeLogicalClock_ShouldThrow()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => CreateContext(initialLogicalClock: -1));
-    }
+    public void Constructor_WithNegativeLogicalClock_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(() => CreateContext(initialLogicalClock: -1));
 
     [Fact]
-    public void Constructor_WithNegativeReplayCount_ShouldThrow()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() => CreateContext(replayCount: -1));
-    }
+    public void Constructor_WithNegativeReplayCount_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(() => CreateContext(replayCount: -1));
 
     [Fact]
-    public void Constructor_WithEmptyNamespace_ShouldThrow()
-    {
-        Assert.Throws<ArgumentException>(() => new WorkflowExecutionContext(
-            string.Empty,
-            "workflow",
-            "run",
-            "queue"));
-    }
+    public void Constructor_WithEmptyNamespace_ShouldThrow() => Assert.Throws<ArgumentException>(() => new WorkflowExecutionContext(
+                                                                         string.Empty,
+                                                                         "workflow",
+                                                                         "run",
+                                                                         "queue"));
 
     [Fact]
     public void Constructor_WithInvalidMetadataKey_ShouldThrow()
@@ -238,16 +229,10 @@ public sealed class WorkflowExecutionContextTests : IDisposable
     }
 
     [Fact]
-    public void RequireCurrent_WhenMissing_ShouldThrow()
-    {
-        Assert.Throws<InvalidOperationException>(() => WorkflowExecution.RequireCurrent());
-    }
+    public void RequireCurrent_WhenMissing_ShouldThrow() => Assert.Throws<InvalidOperationException>(() => WorkflowExecution.RequireCurrent());
 
     [Fact]
-    public void Enter_WithNullContext_ShouldThrow()
-    {
-        Assert.Throws<ArgumentNullException>(() => WorkflowExecution.Enter(null!, TestContext.Current.CancellationToken));
-    }
+    public void Enter_WithNullContext_ShouldThrow() => Assert.Throws<ArgumentNullException>(() => WorkflowExecution.Enter(null!, TestContext.Current.CancellationToken));
 
     [Fact]
     public void CurrentCancellationToken_ShouldFlowThroughAmbientScope()
