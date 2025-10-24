@@ -23,7 +23,7 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
         _ownsQueue = ownsQueue;
 
         _pumps = new Task<Exception?>[concurrency];
-        for (var i = 0; i < concurrency; i++)
+        for (int i = 0; i < concurrency; i++)
         {
             _pumps[i] = Task.Run(PumpAsync);
             _pumps[i].ContinueWith(HandlePumpCompletion, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
@@ -43,7 +43,7 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
 
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(concurrency);
 
-        var leaseChannel = channel ?? Channel.CreateUnbounded<TaskQueueLease<T>>(new UnboundedChannelOptions
+        Channel<TaskQueueLease<T>> leaseChannel = channel ?? Channel.CreateUnbounded<TaskQueueLease<T>>(new UnboundedChannelOptions
         {
             SingleReader = false,
             SingleWriter = false
@@ -79,7 +79,7 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
                 }
                 catch (ObjectDisposedException)
                 {
-                    _cts.Cancel();
+                    await _cts.CancelAsync();
                     return null;
                 }
 
@@ -90,18 +90,18 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
                         continue;
                     }
 
-                    _cts.Cancel();
-                    var completionError = await RequeueLeaseAsync(lease, Error.Canceled("Lease could not be delivered before completion.")).ConfigureAwait(false);
+                    await _cts.CancelAsync();
+                    Exception? completionError = await RequeueLeaseAsync(lease, Error.Canceled("Lease could not be delivered before completion.")).ConfigureAwait(false);
                     return completionError;
                 }
                 catch (OperationCanceledException) when (_cts.IsCancellationRequested)
                 {
-                    var cancellationError = await RequeueLeaseAsync(lease, Error.Canceled(token: _cts.Token)).ConfigureAwait(false);
+                    Exception? cancellationError = await RequeueLeaseAsync(lease, Error.Canceled(token: _cts.Token)).ConfigureAwait(false);
                     return cancellationError;
                 }
                 catch (Exception ex)
                 {
-                    var requeueError = await RequeueLeaseAsync(lease, Error.FromException(ex)).ConfigureAwait(false);
+                    Exception? requeueError = await RequeueLeaseAsync(lease, Error.FromException(ex)).ConfigureAwait(false);
                     return requeueError ?? ex;
                 }
             }
@@ -201,16 +201,13 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        _cts.Cancel();
+        await _cts.CancelAsync();
 
         Exception? fault = null;
         try
         {
-            var results = await Task.WhenAll(_pumps).ConfigureAwait(false);
-            for (var i = 0; i < results.Length; i++)
-            {
-                fault ??= results[i];
-            }
+            Exception?[] results = await Task.WhenAll(_pumps).ConfigureAwait(false);
+            fault = results.Aggregate(fault, (current, t) => current ?? t);
         }
         catch (OperationCanceledException)
         {

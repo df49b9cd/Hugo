@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading.Channels;
 
 using Hugo.Policies;
@@ -41,7 +42,7 @@ public static class Go
         }
 
         provider ??= TimeProvider.System;
-        var timerChannel = TimerChannel.Start(provider, period, period, cancellationToken, singleShot: false);
+        TimerChannel timerChannel = TimerChannel.Start(provider, period, period, cancellationToken, singleShot: false);
         return new GoTicker(timerChannel);
     }
 
@@ -67,7 +68,7 @@ public static class Go
         }
 
         provider ??= TimeProvider.System;
-        var timerChannel = TimerChannel.Start(provider, delay, Timeout.InfiniteTimeSpan, cancellationToken, singleShot: true);
+        TimerChannel timerChannel = TimerChannel.Start(provider, delay, Timeout.InfiniteTimeSpan, cancellationToken, singleShot: true);
         return timerChannel.Reader;
     }
 
@@ -76,7 +77,7 @@ public static class Go
     /// </summary>
     public static Task<DateTimeOffset> AfterAsync(TimeSpan delay, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
-        var reader = After(delay, provider, cancellationToken);
+        ChannelReader<DateTimeOffset> reader = After(delay, provider, cancellationToken);
         return reader.ReadAsync(cancellationToken).AsTask();
     }
 
@@ -130,11 +131,10 @@ public static class Go
 
         provider ??= TimeProvider.System;
 
-        var resolvedDefault = defaultCase;
-        var caseList = new List<ChannelCase>(cases.Count);
-        for (var i = 0; i < cases.Count; i++)
+        ChannelCase? resolvedDefault = defaultCase;
+        List<ChannelCase> caseList = new(cases.Count);
+        foreach (ChannelCase channelCase in cases)
         {
-            var channelCase = cases[i];
             if (channelCase.IsDefault)
             {
                 if (resolvedDefault.HasValue)
@@ -154,17 +154,17 @@ public static class Go
             throw new ArgumentException("At least one channel case must be provided.", nameof(cases));
         }
 
-        using var activity = GoDiagnostics.StartSelectActivity(caseList.Count + (resolvedDefault.HasValue ? 1 : 0), timeout);
+        using Activity? activity = GoDiagnostics.StartSelectActivity(caseList.Count + (resolvedDefault.HasValue ? 1 : 0), timeout);
         GoDiagnostics.RecordChannelSelectAttempt(activity);
-        var startTimestamp = provider.GetTimestamp();
+        long startTimestamp = provider.GetTimestamp();
 
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         // Attempt immediate reads to honor priority without awaiting.
-        var immediateCandidates = new List<(int Index, object? State)>();
-        for (var i = 0; i < caseList.Count; i++)
+        List<(int Index, object? State)> immediateCandidates = [];
+        for (int i = 0; i < caseList.Count; i++)
         {
-            if (caseList[i].TryDequeueImmediately(out var state))
+            if (caseList[i].TryDequeueImmediately(out object? state))
             {
                 immediateCandidates.Add((i, state));
             }
@@ -172,13 +172,13 @@ public static class Go
 
         if (immediateCandidates.Count > 0)
         {
-            var (selectedIndex, selectedState) = SelectByPriority(immediateCandidates, caseList);
-            linkedCts.Cancel();
-            var completionDuration = provider.GetElapsedTime(startTimestamp);
+            (int selectedIndex, object? selectedState) = SelectByPriority(immediateCandidates, caseList);
+            await linkedCts.CancelAsync();
+            TimeSpan completionDuration = provider.GetElapsedTime(startTimestamp);
 
             try
             {
-                var continuationResult = await caseList[selectedIndex].ContinueWithAsync(selectedState, cancellationToken).ConfigureAwait(false);
+                Result<Unit> continuationResult = await caseList[selectedIndex].ContinueWithAsync(selectedState, linkedCts.Token).ConfigureAwait(false);
                 GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, continuationResult.IsSuccess ? null : continuationResult.Error);
                 return continuationResult;
             }
@@ -188,7 +188,7 @@ public static class Go
             }
             catch (Exception ex)
             {
-                var error = Error.FromException(ex);
+                Error error = Error.FromException(ex);
                 GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, error);
                 return Result.Fail<Unit>(error);
             }
@@ -196,11 +196,11 @@ public static class Go
 
         if (resolvedDefault.HasValue)
         {
-            linkedCts.Cancel();
-            var completionDuration = provider.GetElapsedTime(startTimestamp);
+            await linkedCts.CancelAsync();
+            TimeSpan completionDuration = provider.GetElapsedTime(startTimestamp);
             try
             {
-                var defaultResult = await resolvedDefault.Value.ContinueWithAsync(null, cancellationToken).ConfigureAwait(false);
+                Result<Unit> defaultResult = await resolvedDefault.Value.ContinueWithAsync(null, linkedCts.Token).ConfigureAwait(false);
                 GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, defaultResult.IsSuccess ? null : defaultResult.Error);
                 return defaultResult;
             }
@@ -210,14 +210,14 @@ public static class Go
             }
             catch (Exception ex)
             {
-                var error = Error.FromException(ex);
+                Error error = Error.FromException(ex);
                 GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, error);
                 return Result.Fail<Unit>(error);
             }
         }
 
-        var waitTasks = new List<Task<(bool HasValue, object? Value)>>(caseList.Count);
-        for (var i = 0; i < caseList.Count; i++)
+        List<Task<(bool HasValue, object? Value)>> waitTasks = new(caseList.Count);
+        for (int i = 0; i < caseList.Count; i++)
         {
             waitTasks.Add(caseList[i].WaitAsync(linkedCts.Token));
         }
@@ -232,9 +232,9 @@ public static class Go
             {
                 if (waitTasks.Count == 0)
                 {
-                    linkedCts.Cancel();
-                    var drainedDuration = provider.GetElapsedTime(startTimestamp);
-                    var drainedError = Error.From("All channel cases completed without yielding a value.", ErrorCodes.SelectDrained);
+                    await linkedCts.CancelAsync();
+                    TimeSpan drainedDuration = provider.GetElapsedTime(startTimestamp);
+                    Error drainedError = Error.From("All channel cases completed without yielding a value.", ErrorCodes.SelectDrained);
                     GoDiagnostics.RecordChannelSelectCompleted(drainedDuration, activity, drainedError);
                     return Result.Fail<Unit>(drainedError);
                 }
@@ -246,8 +246,8 @@ public static class Go
                 }
                 else
                 {
-                    var aggregate = new Task[waitTasks.Count + 1];
-                    for (var i = 0; i < waitTasks.Count; i++)
+                    Task[] aggregate = new Task[waitTasks.Count + 1];
+                    for (int i = 0; i < waitTasks.Count; i++)
                     {
                         aggregate[i] = waitTasks[i];
                     }
@@ -257,25 +257,25 @@ public static class Go
 
                     if (completedTask == timeoutTask)
                     {
-                        linkedCts.Cancel();
-                        var timeoutDuration = provider.GetElapsedTime(startTimestamp);
+                        await linkedCts.CancelAsync();
+                        TimeSpan timeoutDuration = provider.GetElapsedTime(startTimestamp);
                         GoDiagnostics.RecordChannelSelectTimeout(timeoutDuration, activity);
                         return Result.Fail<Unit>(Error.Timeout(timeout));
                     }
                 }
 
-                var completedIndices = CollectCompletedIndices(waitTasks);
+                List<int> completedIndices = CollectCompletedIndices(waitTasks);
                 if (completedIndices.Count == 0)
                 {
                     continue;
                 }
 
-                var drainedIndices = new List<int>();
-                var ready = new List<(int Index, object? State)>();
+                List<int> drainedIndices = [];
+                List<(int Index, object? State)> ready = [];
 
-                foreach (var idx in completedIndices)
+                foreach (int idx in completedIndices)
                 {
-                    var (hasValue, value) = await waitTasks[idx].ConfigureAwait(false);
+                    (bool hasValue, object? value) = await waitTasks[idx].ConfigureAwait(false);
                     if (hasValue)
                     {
                         ready.Add((idx, value));
@@ -296,13 +296,13 @@ public static class Go
                     continue;
                 }
 
-                var (selectedIndex, selectedState) = SelectByPriority(ready, caseList);
-                linkedCts.Cancel();
-                var completionDuration = provider.GetElapsedTime(startTimestamp);
+                (int selectedIndex, object? selectedState) = SelectByPriority(ready, caseList);
+                await linkedCts.CancelAsync();
+                TimeSpan completionDuration = provider.GetElapsedTime(startTimestamp);
 
                 try
                 {
-                    var continuationResult = await caseList[selectedIndex].ContinueWithAsync(selectedState, cancellationToken).ConfigureAwait(false);
+                    Result<Unit> continuationResult = await caseList[selectedIndex].ContinueWithAsync(selectedState, linkedCts.Token).ConfigureAwait(false);
                     GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, continuationResult.IsSuccess ? null : continuationResult.Error);
                     return continuationResult;
                 }
@@ -312,7 +312,7 @@ public static class Go
                 }
                 catch (Exception ex)
                 {
-                    var error = Error.FromException(ex);
+                    Error error = Error.FromException(ex);
                     GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, error);
                     return Result.Fail<Unit>(error);
                 }
@@ -320,17 +320,17 @@ public static class Go
         }
         catch (OperationCanceledException oce)
         {
-            var canceledDuration = provider.GetElapsedTime(startTimestamp);
-            var canceledByCaller = cancellationToken.CanBeCanceled && cancellationToken.IsCancellationRequested;
+            TimeSpan canceledDuration = provider.GetElapsedTime(startTimestamp);
+            bool canceledByCaller = cancellationToken is { CanBeCanceled: true, IsCancellationRequested: true };
             GoDiagnostics.RecordChannelSelectCanceled(canceledDuration, activity, canceledByCaller);
-            var token = cancellationToken.CanBeCanceled ? cancellationToken : oce.CancellationToken;
+            CancellationToken token = cancellationToken.CanBeCanceled ? cancellationToken : oce.CancellationToken;
             return Result.Fail<Unit>(Error.Canceled(token: token.CanBeCanceled ? token : null));
         }
 
         static Task[] ToTaskArray(List<Task<(bool HasValue, object? Value)>> source)
         {
-            var array = new Task[source.Count];
-            for (var i = 0; i < source.Count; i++)
+            Task[] array = new Task[source.Count];
+            for (int i = 0; i < source.Count; i++)
             {
                 array[i] = source[i];
             }
@@ -340,8 +340,8 @@ public static class Go
 
         static List<int> CollectCompletedIndices(List<Task<(bool HasValue, object? Value)>> tasks)
         {
-            var indices = new List<int>();
-            for (var i = 0; i < tasks.Count; i++)
+            List<int> indices = [];
+            for (int i = 0; i < tasks.Count; i++)
             {
                 if (tasks[i].IsCompleted)
                 {
@@ -354,13 +354,13 @@ public static class Go
 
         static (int Index, object? State) SelectByPriority(List<(int Index, object? State)> candidates, List<ChannelCase> cases)
         {
-            var (selectedIndex, selectedState) = candidates[0];
-            var bestPriority = cases[selectedIndex].Priority;
+            (int selectedIndex, object? selectedState) = candidates[0];
+            int bestPriority = cases[selectedIndex].Priority;
 
-            for (var i = 1; i < candidates.Count; i++)
+            for (int i = 1; i < candidates.Count; i++)
             {
-                var (candidateIndex, candidateState) = candidates[i];
-                var priority = cases[candidateIndex].Priority;
+                (int candidateIndex, object? candidateState) = candidates[i];
+                int priority = cases[candidateIndex].Priority;
                 if (priority < bestPriority || (priority == bestPriority && candidateIndex < selectedIndex))
                 {
                     selectedIndex = candidateIndex;
@@ -380,9 +380,9 @@ public static class Go
             }
 
             indices.Sort();
-            for (var i = indices.Count - 1; i >= 0; i--)
+            for (int i = indices.Count - 1; i >= 0; i--)
             {
-                var index = indices[i];
+                int index = indices[i];
                 cases.RemoveAt(index);
                 tasks.RemoveAt(index);
             }
@@ -401,7 +401,7 @@ public static class Go
     {
         ArgumentNullException.ThrowIfNull(operations);
 
-        var adapted = operations.Select((operation, index) =>
+        IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> adapted = operations.Select((operation, index) =>
             operation is null
                 ? throw new ArgumentNullException(nameof(operations), $"Operation at index {index} cannot be null.")
                 : new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>(
@@ -421,7 +421,7 @@ public static class Go
     {
         ArgumentNullException.ThrowIfNull(operations);
 
-        var adapted = operations.Select((operation, index) =>
+        IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> adapted = operations.Select((operation, index) =>
             operation is null
                 ? throw new ArgumentNullException(nameof(operations), $"Operation at index {index} cannot be null.")
                 : new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>(
@@ -446,7 +446,7 @@ public static class Go
             throw new ArgumentOutOfRangeException(nameof(timeout));
         }
 
-        var provider = timeProvider ?? TimeProvider.System;
+        TimeProvider provider = timeProvider ?? TimeProvider.System;
         static CancellationToken? ResolveCancellationToken(CancellationToken preferred, CancellationToken alternate) =>
             preferred.CanBeCanceled ? preferred : alternate.CanBeCanceled ? alternate : null;
 
@@ -462,7 +462,7 @@ public static class Go
             }
         }
 
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task<Result<T>> operationTask;
         try
         {
@@ -470,18 +470,18 @@ public static class Go
         }
         catch
         {
-            linkedCts.Cancel();
+            await linkedCts.CancelAsync();
             throw;
         }
 
-        var delayTask = provider.DelayAsync(timeout, CancellationToken.None);
+        Task delayTask = provider.DelayAsync(timeout, CancellationToken.None);
 
         try
         {
-            var completed = await Task.WhenAny(operationTask, delayTask).ConfigureAwait(false);
+            Task completed = await Task.WhenAny(operationTask, delayTask).ConfigureAwait(false);
             if (completed == delayTask)
             {
-                linkedCts.Cancel();
+                await linkedCts.CancelAsync();
 
                 try
                 {
@@ -525,21 +525,21 @@ public static class Go
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxAttempts);
 
-        var provider = timeProvider ?? TimeProvider.System;
-        var policy = ResultExecutionBuilders.ExponentialRetryPolicy(
+        TimeProvider provider = timeProvider ?? TimeProvider.System;
+        ResultExecutionPolicy policy = ResultExecutionBuilders.ExponentialRetryPolicy(
             maxAttempts,
             initialDelay ?? TimeSpan.FromMilliseconds(100));
 
-        var attempt = 0;
+        int attempt = 0;
 
-        var finalResult = await Result.RetryWithPolicyAsync(
+        Result<T> finalResult = await Result.RetryWithPolicyAsync(
                 async (_, ct) =>
                 {
-                    var currentAttempt = Interlocked.Increment(ref attempt);
+                    int currentAttempt = Interlocked.Increment(ref attempt);
 
                     try
                     {
-                        var result = await operation(currentAttempt, ct).ConfigureAwait(false);
+                        Result<T> result = await operation(currentAttempt, ct).ConfigureAwait(false);
 
                         if (result.IsSuccess && currentAttempt > 1)
                         {
@@ -561,13 +561,13 @@ public static class Go
                     }
                     catch (OperationCanceledException oce)
                     {
-                        var token = oce.CancellationToken;
+                        CancellationToken token = oce.CancellationToken;
                         if (!token.CanBeCanceled && ct.CanBeCanceled)
                         {
                             token = ct;
                         }
 
-                        return Result.Fail<T>(Error.Canceled(token: token.CanBeCanceled ? token : (CancellationToken?)null));
+                        return Result.Fail<T>(Error.Canceled(token: token.CanBeCanceled ? token : null));
                     }
                     catch (Exception ex)
                     {
@@ -604,13 +604,13 @@ public static class Go
 
         ArgumentNullException.ThrowIfNull(onValue);
 
-        var collected = CollectSources(readers);
+        ChannelReader<T>[] collected = CollectSources(readers);
         if (collected.Length == 0)
         {
             return Task.FromResult(Result.Ok(Unit.Value));
         }
 
-        for (var i = 0; i < collected.Length; i++)
+        for (int i = 0; i < collected.Length; i++)
         {
             if (collected[i] is null)
             {
@@ -618,7 +618,7 @@ public static class Go
             }
         }
 
-        var effectiveTimeout = timeout ?? Timeout.InfiniteTimeSpan;
+        TimeSpan effectiveTimeout = timeout ?? Timeout.InfiniteTimeSpan;
         return SelectFanInAsyncCore(collected, onValue, effectiveTimeout, provider, cancellationToken);
     }
 
@@ -671,26 +671,21 @@ public static class Go
 
         ArgumentNullException.ThrowIfNull(destination);
 
-        var readers = CollectSources(sources);
-        if (readers.Length == 0)
+        ChannelReader<T>[] readers = CollectSources(sources);
+        if (readers.Length != 0)
         {
-            if (completeDestination)
-            {
-                destination.TryComplete();
-            }
-
-            return Task.FromResult(Result.Ok(Unit.Value));
+            return readers.Any(_ => false)
+                ? throw new ArgumentException("Source readers cannot contain null entries.", nameof(sources))
+                : FanInAsyncCore(readers, destination, completeDestination, timeout ?? Timeout.InfiniteTimeSpan,
+                    provider, cancellationToken);
         }
 
-        for (var i = 0; i < readers.Length; i++)
+        if (completeDestination)
         {
-            if (readers[i] is null)
-            {
-                throw new ArgumentException("Source readers cannot contain null entries.", nameof(sources));
-            }
+            destination.TryComplete();
         }
 
-        return FanInAsyncCore(readers, destination, completeDestination, timeout ?? Timeout.InfiniteTimeSpan, provider, cancellationToken);
+        return Task.FromResult(Result.Ok(Unit.Value));
     }
 
     /// <summary>
@@ -700,14 +695,14 @@ public static class Go
     {
         ArgumentNullException.ThrowIfNull(sources);
 
-        var readers = CollectSources(sources);
-        var output = Channel.CreateUnbounded<T>();
+        ChannelReader<T>[] readers = CollectSources(sources);
+        Channel<T> output = Channel.CreateUnbounded<T>();
 
         _ = Task.Run(async () =>
         {
             try
             {
-                var result = await FanInAsync(readers, output.Writer, completeDestination: false, timeout: timeout, provider: provider, cancellationToken: cancellationToken).ConfigureAwait(false);
+                Result<Unit> result = await FanInAsync(readers, output.Writer, completeDestination: false, timeout: timeout, provider: provider, cancellationToken: cancellationToken).ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
                     output.Writer.TryComplete();
@@ -745,7 +740,7 @@ public static class Go
             return Task.FromResult(Result.Ok(Unit.Value));
         }
 
-        for (var i = 0; i < destinations.Count; i++)
+        for (int i = 0; i < destinations.Count; i++)
         {
             if (destinations[i] is null)
             {
@@ -753,7 +748,7 @@ public static class Go
             }
         }
 
-        var effectiveDeadline = deadline ?? Timeout.InfiniteTimeSpan;
+        TimeSpan effectiveDeadline = deadline ?? Timeout.InfiniteTimeSpan;
         provider ??= TimeProvider.System;
 
         return FanOutAsyncCore(source, destinations, completeDestinations, effectiveDeadline, provider, cancellationToken);
@@ -768,11 +763,11 @@ public static class Go
 
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(branchCount);
 
-        var channels = new Channel<T>[branchCount];
-        var writers = new ChannelWriter<T>[branchCount];
-        for (var i = 0; i < branchCount; i++)
+        Channel<T>[] channels = new Channel<T>[branchCount];
+        ChannelWriter<T>[] writers = new ChannelWriter<T>[branchCount];
+        for (int i = 0; i < branchCount; i++)
         {
-            var channel = Channel.CreateUnbounded<T>();
+            Channel<T> channel = Channel.CreateUnbounded<T>();
             channels[i] = channel;
             writers[i] = channel.Writer;
         }
@@ -793,8 +788,8 @@ public static class Go
             }
         }, CancellationToken.None);
 
-        var readers = new ChannelReader<T>[branchCount];
-        for (var i = 0; i < branchCount; i++)
+        ChannelReader<T>[] readers = new ChannelReader<T>[branchCount];
+        for (int i = 0; i < branchCount; i++)
         {
             readers[i] = channels[i].Reader;
         }
@@ -819,8 +814,8 @@ public static class Go
             return list.Count == 0 ? [] : [.. list];
         }
 
-        var collected = new List<ChannelReader<T>>();
-        foreach (var reader in sources)
+        List<ChannelReader<T>> collected = [];
+        foreach (ChannelReader<T> reader in sources)
         {
             collected.Add(reader);
         }
@@ -835,14 +830,14 @@ public static class Go
             throw new ArgumentOutOfRangeException(nameof(timeout));
         }
 
-        var active = new List<ChannelReader<T>>(readers);
+        List<ChannelReader<T>> active = new(readers);
         if (active.Count == 0)
         {
             return Result.Ok(Unit.Value);
         }
 
-        var hasDeadline = timeout != Timeout.InfiniteTimeSpan;
-        var selectProvider = provider;
+        bool hasDeadline = timeout != Timeout.InfiniteTimeSpan;
+        TimeProvider? selectProvider = provider;
         long startTimestamp = 0;
         if (hasDeadline)
         {
@@ -852,18 +847,18 @@ public static class Go
 
         while (active.Count > 0)
         {
-            var cases = new ChannelCase[active.Count];
-            for (var i = 0; i < active.Count; i++)
+            ChannelCase[] cases = new ChannelCase[active.Count];
+            for (int i = 0; i < active.Count; i++)
             {
-                var reader = active[i];
+                ChannelReader<T> reader = active[i];
                 cases[i] = ChannelCase.Create(reader, onValue);
             }
 
             Result<Unit> iteration;
             if (hasDeadline)
             {
-                var elapsed = selectProvider!.GetElapsedTime(startTimestamp);
-                var remaining = timeout - elapsed;
+                TimeSpan elapsed = selectProvider!.GetElapsedTime(startTimestamp);
+                TimeSpan remaining = timeout - elapsed;
                 if (remaining <= TimeSpan.Zero)
                 {
                     return Result.Fail<Unit>(Error.Timeout(timeout));
@@ -901,7 +896,7 @@ public static class Go
 
         static void RemoveCompletedReaders(List<ChannelReader<T>> list)
         {
-            for (var index = list.Count - 1; index >= 0; index--)
+            for (int index = list.Count - 1; index >= 0; index--)
             {
                 if (list[index].Completion.IsCompleted)
                 {
@@ -917,8 +912,8 @@ public static class Go
                 return Task.CompletedTask;
             }
 
-            var tasks = new Task[list.Count];
-            for (var i = 0; i < list.Count; i++)
+            Task[] tasks = new Task[list.Count];
+            for (int i = 0; i < list.Count; i++)
             {
                 tasks[i] = list[i].Completion;
             }
@@ -931,21 +926,23 @@ public static class Go
     {
         try
         {
-            var result = await SelectFanInAsyncCore(readers, async (value, ct) =>
+            Result<Unit> result = await SelectFanInAsyncCore(readers, async (value, ct) =>
             {
                 await destination.WriteAsync(value, ct).ConfigureAwait(false);
                 return Result.Ok(Unit.Value);
             }, timeout, provider, cancellationToken).ConfigureAwait(false);
-            if (completeDestination)
+            if (!completeDestination)
             {
-                if (result.IsSuccess)
-                {
-                    destination.TryComplete();
-                }
-                else
-                {
-                    destination.TryComplete(CreateChannelOperationException(result.Error ?? Error.Unspecified()));
-                }
+                return result;
+            }
+
+            if (result.IsSuccess)
+            {
+                destination.TryComplete();
+            }
+            else
+            {
+                destination.TryComplete(CreateChannelOperationException(result.Error ?? Error.Unspecified()));
             }
 
             return result;
@@ -967,29 +964,31 @@ public static class Go
         {
             while (await source.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                while (source.TryRead(out var item))
+                while (source.TryRead(out T? item))
                 {
-                    var itemTimestamp = deadline == Timeout.InfiniteTimeSpan ? 0 : provider.GetTimestamp();
+                    long itemTimestamp = deadline == Timeout.InfiniteTimeSpan ? 0 : provider.GetTimestamp();
 
-                    for (var i = 0; i < destinations.Count; i++)
+                    foreach (ChannelWriter<T> t in destinations)
                     {
-                        var writeResult = await WriteWithDeadlineAsync(destinations[i], item, deadline, provider, itemTimestamp, cancellationToken).ConfigureAwait(false);
-                        if (writeResult.IsFailure)
+                        Result<Unit> writeResult = await WriteWithDeadlineAsync(t, item, deadline, provider, itemTimestamp, cancellationToken).ConfigureAwait(false);
+                        if (!writeResult.IsFailure)
                         {
-                            if (completeDestinations)
-                            {
-                                CompleteWriters(destinations, CreateChannelOperationException(writeResult.Error ?? Error.Unspecified()));
-                            }
-
-                            return writeResult;
+                            continue;
                         }
+
+                        if (completeDestinations)
+                        {
+                            CompleteWriters(destinations, CreateChannelOperationException(writeResult.Error ?? Error.Unspecified()));
+                        }
+
+                        return writeResult;
                     }
                 }
             }
         }
         catch (OperationCanceledException)
         {
-            var canceled = Error.Canceled(token: cancellationToken.CanBeCanceled ? cancellationToken : null);
+            Error canceled = Error.Canceled(token: cancellationToken.CanBeCanceled ? cancellationToken : null);
             if (completeDestinations)
             {
                 CompleteWriters(destinations, CreateChannelOperationException(canceled));
@@ -1009,7 +1008,7 @@ public static class Go
 
         if (source.Completion.IsFaulted)
         {
-            var fault = source.Completion.Exception?.GetBaseException() ?? new InvalidOperationException("Source channel faulted.");
+            Exception fault = source.Completion.Exception?.GetBaseException() ?? new InvalidOperationException("Source channel faulted.");
             if (completeDestinations)
             {
                 CompleteWriters(destinations, fault);
@@ -1020,7 +1019,7 @@ public static class Go
 
         if (source.Completion.IsCanceled)
         {
-            var canceled = Error.Canceled();
+            Error canceled = Error.Canceled();
             if (completeDestinations)
             {
                 CompleteWriters(destinations, CreateChannelOperationException(canceled));
@@ -1050,7 +1049,7 @@ public static class Go
 
             if (deadline == Timeout.InfiniteTimeSpan)
             {
-                var canWrite = await writer.WaitToWriteAsync(cancellationToken).ConfigureAwait(false);
+                bool canWrite = await writer.WaitToWriteAsync(cancellationToken).ConfigureAwait(false);
                 if (!canWrite)
                 {
                     return Result.Fail<Unit>(Error.From("Destination channel has completed.", ErrorCodes.ChannelCompleted));
@@ -1058,32 +1057,32 @@ public static class Go
             }
             else
             {
-                var elapsed = provider.GetElapsedTime(startTimestamp);
-                var remaining = deadline - elapsed;
+                TimeSpan elapsed = provider.GetElapsedTime(startTimestamp);
+                TimeSpan remaining = deadline - elapsed;
                 if (remaining <= TimeSpan.Zero)
                 {
                     return Result.Fail<Unit>(Error.Timeout(deadline));
                 }
 
-                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                var waitTask = writer.WaitToWriteAsync(linkedCts.Token).AsTask();
-                var delayTask = provider.DelayAsync(remaining, linkedCts.Token);
+                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                Task<bool> waitTask = writer.WaitToWriteAsync(linkedCts.Token).AsTask();
+                Task delayTask = provider.DelayAsync(remaining, linkedCts.Token);
 
-                var completed = await Task.WhenAny(waitTask, delayTask).ConfigureAwait(false);
+                Task completed = await Task.WhenAny(waitTask, delayTask).ConfigureAwait(false);
                 if (completed == delayTask)
                 {
-                    linkedCts.Cancel();
+                    await linkedCts.CancelAsync();
                     return Result.Fail<Unit>(Error.Timeout(deadline));
                 }
 
-                var canWrite = await waitTask.ConfigureAwait(false);
+                bool canWrite = await waitTask.ConfigureAwait(false);
                 if (!canWrite)
                 {
-                    linkedCts.Cancel();
+                    await linkedCts.CancelAsync();
                     return Result.Fail<Unit>(Error.From("Destination channel has completed.", ErrorCodes.ChannelCompleted));
                 }
 
-                linkedCts.Cancel();
+                await linkedCts.CancelAsync();
             }
 
             if (writer.TryWrite(value))
@@ -1095,15 +1094,15 @@ public static class Go
 
     private static void CompleteWriters<T>(IReadOnlyList<ChannelWriter<T>> writers, Exception? exception)
     {
-        for (var i = 0; i < writers.Count; i++)
+        foreach (ChannelWriter<T> t in writers)
         {
             if (exception is null)
             {
-                writers[i].TryComplete();
+                t.TryComplete();
                 continue;
             }
 
-            writers[i].TryComplete(exception);
+            t.TryComplete(exception);
         }
     }
 
@@ -1113,7 +1112,7 @@ public static class Go
     {
         if (error.Code == ErrorCodes.Canceled)
         {
-            var message = error.Message ?? "Operation was canceled.";
+            string message = error.Message;
             if (error.TryGetMetadata("cancellationToken", out CancellationToken token) && token.CanBeCanceled)
             {
                 return new OperationCanceledException(message, error.Cause, token);
@@ -1175,7 +1174,7 @@ public static class Go
     {
         if (capacity is > 0)
         {
-            var options = new BoundedChannelOptions(capacity.Value)
+            BoundedChannelOptions options = new(capacity.Value)
             {
                 FullMode = fullMode,
                 SingleReader = singleReader,
@@ -1185,7 +1184,7 @@ public static class Go
             return Channel.CreateBounded<T>(options);
         }
 
-        var unboundedOptions = new UnboundedChannelOptions
+        UnboundedChannelOptions unboundedOptions = new()
         {
             SingleReader = singleReader,
             SingleWriter = singleWriter
@@ -1208,7 +1207,7 @@ public static class Go
         bool singleWriter = false,
         int? defaultPriority = null)
     {
-        var options = new PrioritizedChannelOptions
+        PrioritizedChannelOptions options = new()
         {
             PriorityLevels = priorityLevels,
             CapacityPerLevel = capacityPerLevel,

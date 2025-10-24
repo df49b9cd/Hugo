@@ -10,8 +10,6 @@ public readonly struct ChannelCase
     private readonly Func<CancellationToken, Task<(bool HasValue, object? Value)>> _waiter;
     private readonly Func<object?, CancellationToken, Task<Result<Go.Unit>>> _continuation;
     private readonly Func<(bool HasValue, object? Value)>? _readyProbe;
-    private readonly int _priority;
-    private readonly bool _isDefault;
 
     private ChannelCase(
         Func<CancellationToken, Task<(bool HasValue, object? Value)>> waiter,
@@ -23,17 +21,17 @@ public readonly struct ChannelCase
         _waiter = waiter ?? throw new ArgumentNullException(nameof(waiter));
         _continuation = continuation ?? throw new ArgumentNullException(nameof(continuation));
         _readyProbe = readyProbe;
-        _priority = priority;
-        _isDefault = isDefault;
+        Priority = priority;
+        IsDefault = isDefault;
     }
 
     internal Task<(bool HasValue, object? Value)> WaitAsync(CancellationToken cancellationToken) => _waiter(cancellationToken);
 
     internal Task<Result<Go.Unit>> ContinueWithAsync(object? value, CancellationToken cancellationToken) => _continuation(value, cancellationToken);
 
-    internal int Priority => _priority;
+    internal int Priority { get; }
 
-    internal bool IsDefault => _isDefault;
+    internal bool IsDefault { get; }
 
     internal bool TryDequeueImmediately(out object? state)
     {
@@ -48,7 +46,7 @@ public readonly struct ChannelCase
         return hasValue;
     }
 
-    internal ChannelCase WithPriority(int priority) => new(_waiter, _continuation, _readyProbe, priority, _isDefault);
+    internal ChannelCase WithPriority(int priority) => new(_waiter, _continuation, _readyProbe, priority, IsDefault);
 
     /// <summary>
     /// Creates a channel case that executes <paramref name="onValue"/> when <paramref name="reader"/> produces a value.
@@ -208,7 +206,7 @@ internal sealed class DeferredRead<T>(ChannelReader<T> reader)
     public ChannelReader<T> Reader { get; } = reader ?? throw new ArgumentNullException(nameof(reader));
 }
 
-internal sealed class ImmediateRead<T>(T value)
+internal abstract class ImmediateRead<T>(T value)
 {
     public T Value { get; } = value;
 }
@@ -313,11 +311,7 @@ public static class ChannelCaseTemplates
         var list = templates is ICollection<ChannelCaseTemplate<T>> collection
             ? new List<ChannelCase>(collection.Count)
             : [];
-
-        foreach (var template in templates)
-        {
-            list.Add(projector(template));
-        }
+        list.AddRange(templates.Select(projector));
 
         return [.. list];
     }

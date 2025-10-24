@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Threading.Channels;
 
 using Hugo;
@@ -10,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 using static Hugo.Go;
 
-var builder = Host.CreateApplicationBuilder(args);
+HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
 builder.AddHugoDiagnostics(options =>
 {
@@ -23,11 +22,11 @@ builder.AddHugoDiagnostics(options =>
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(sp =>
 {
-    var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-    var queueLogger = loggerFactory.CreateLogger("TelemetryQueue");
-    var timeProvider = sp.GetRequiredService<TimeProvider>();
+    ILoggerFactory loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+    ILogger queueLogger = loggerFactory.CreateLogger("TelemetryQueue");
+    TimeProvider timeProvider = sp.GetRequiredService<TimeProvider>();
 
-    var options = new TaskQueueOptions
+    TaskQueueOptions options = new()
     {
         Capacity = 128,
         LeaseDuration = TimeSpan.FromSeconds(8),
@@ -40,7 +39,7 @@ builder.Services.AddSingleton(sp =>
     return new TaskQueue<TelemetryWorkItem>(
         options,
         timeProvider,
-        (context, cancellationToken) =>
+        (context, _) =>
         {
             queueLogger.LogWarning(
                 "Dead-lettered {Kind} reading {Value} after {Attempts} attempts: {Error}",
@@ -55,20 +54,20 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddSingleton<IDeterministicStateStore, InMemoryDeterministicStateStore>();
 builder.Services.AddSingleton(sp =>
 {
-    var store = sp.GetRequiredService<IDeterministicStateStore>();
-    var timeProvider = sp.GetRequiredService<TimeProvider>();
+    IDeterministicStateStore store = sp.GetRequiredService<IDeterministicStateStore>();
+    TimeProvider timeProvider = sp.GetRequiredService<TimeProvider>();
     return new VersionGate(store, timeProvider);
 });
 builder.Services.AddSingleton(sp =>
 {
-    var store = sp.GetRequiredService<IDeterministicStateStore>();
-    var timeProvider = sp.GetRequiredService<TimeProvider>();
+    IDeterministicStateStore store = sp.GetRequiredService<IDeterministicStateStore>();
+    TimeProvider timeProvider = sp.GetRequiredService<TimeProvider>();
     return new DeterministicEffectStore(store, timeProvider);
 });
 builder.Services.AddSingleton(sp =>
 {
-    var versionGate = sp.GetRequiredService<VersionGate>();
-    var effectStore = sp.GetRequiredService<DeterministicEffectStore>();
+    VersionGate versionGate = sp.GetRequiredService<VersionGate>();
+    DeterministicEffectStore effectStore = sp.GetRequiredService<DeterministicEffectStore>();
     return new DeterministicGate(versionGate, effectStore);
 });
 builder.Services.AddSingleton<TelemetryCalibration>();
@@ -78,10 +77,11 @@ builder.Services.AddSingleton<TelemetryAlertChannel>();
 builder.Services.AddHostedService<TelemetryAggregationWorker>();
 builder.Services.AddHostedService<TelemetryAlertService>();
 
-var app = builder.Build();
+IHost app = builder.Build();
 await app.RunAsync();
+return;
 
-static Uri ResolveOtlpEndpoint(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var endpoint)
+static Uri ResolveOtlpEndpoint(string? value) => Uri.TryCreate(value, UriKind.Absolute, out Uri? endpoint)
     ? endpoint
     : new Uri("http://localhost:4317");
 
@@ -100,7 +100,7 @@ static bool ResolvePrometheusEnabled(string? value)
     };
 }
 
-sealed class TelemetryWorker(
+sealed partial class TelemetryWorker(
     ILogger<TelemetryWorker> logger,
     TelemetryCalibration calibration,
     TimeProvider timeProvider,
@@ -118,28 +118,25 @@ sealed class TelemetryWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var calibrationResult = await _calibration.RunAsync(stoppingToken).ConfigureAwait(false);
+        Result<CalibrationProfile> calibrationResult = await _calibration.RunAsync(stoppingToken).ConfigureAwait(false);
         if (calibrationResult.IsFailure)
         {
-            var error = calibrationResult.Error!;
-            _logger.LogError(
-                "Telemetry calibration failed ({Code}): {Message}",
-                error.Code ?? ErrorCodes.Unspecified,
-                error.Message);
+            Error error = calibrationResult.Error!;
+            LogTelemetryCalibrationFailedCodeMessage(error.Code ?? ErrorCodes.Unspecified, error.Message);
             throw new InvalidOperationException("Telemetry calibration failed – see logs for details.");
         }
 
         _calibrationProfile = calibrationResult.Value;
 
-        var wg = new WaitGroup();
+        WaitGroup wg = new();
 
         wg.Go(async ct =>
         {
-            var heartbeat = 0;
+            int heartbeat = 0;
             while (!ct.IsCancellationRequested)
             {
                 heartbeat++;
-                var heartbeatItem = new TelemetryWorkItem(TelemetryKind.Heartbeat, heartbeat, _timeProvider.GetUtcNow());
+                TelemetryWorkItem heartbeatItem = new(TelemetryKind.Heartbeat, heartbeat, _timeProvider.GetUtcNow());
                 await _queue.EnqueueAsync(heartbeatItem, ct).ConfigureAwait(false);
                 await _stream.Writer.WriteAsync(heartbeatItem, ct).ConfigureAwait(false);
                 await DelayAsync(TimeSpan.FromSeconds(1), _timeProvider, ct).ConfigureAwait(false);
@@ -150,11 +147,11 @@ sealed class TelemetryWorker(
         {
             while (!ct.IsCancellationRequested)
             {
-                var cpuReading = Random.Shared.NextDouble() * 150; // intentionally allow outliers
-                var workItem = new TelemetryWorkItem(TelemetryKind.Cpu, cpuReading, _timeProvider.GetUtcNow());
+                double cpuReading = Random.Shared.NextDouble() * 150; // intentionally allow outliers
+                TelemetryWorkItem workItem = new(TelemetryKind.Cpu, cpuReading, _timeProvider.GetUtcNow());
                 await _queue.EnqueueAsync(workItem, ct).ConfigureAwait(false);
                 await _stream.Writer.WriteAsync(workItem, ct).ConfigureAwait(false);
-                _logger.LogInformation("Queued cpu reading {Reading:F2}", cpuReading);
+                LogQueuedCpuReadingReadingF2(cpuReading);
                 await DelayAsync(TimeSpan.FromMilliseconds(350), _timeProvider, ct).ConfigureAwait(false);
             }
         }, stoppingToken);
@@ -205,27 +202,22 @@ sealed class TelemetryWorker(
     {
         try
         {
-            if (lease.Attempt > 1 && lease.LastError is not null)
+            if (lease is { Attempt: > 1, LastError: not null })
             {
-                _logger.LogWarning(
-                    "Retrying {Kind} observed at {ObservedAt:o}: attempt {Attempt} after {Error}",
-                    lease.Value.Kind,
-                    lease.Value.ObservedAt,
-                    lease.Attempt,
-                    lease.LastError.Message);
+                LogRetryingKindObservedAtObservedatOAttemptAttemptAfterError(lease.Value.Kind, lease.Value.ObservedAt, lease.Attempt, lease.LastError.Message);
             }
 
             switch (lease.Value.Kind)
             {
                 case TelemetryKind.Heartbeat:
-                    _logger.LogInformation("Processing heartbeat {Count}", lease.Value.Value);
+                    LogProcessingHeartbeatCount(lease.Value.Value);
                     await lease.CompleteAsync(stoppingToken).ConfigureAwait(false);
                     return;
                 case TelemetryKind.Cpu:
                     await HandleCpuReadingAsync(lease, stoppingToken).ConfigureAwait(false);
                     return;
                 default:
-                    var unsupported = Error.From("Unsupported telemetry kind.", ErrorCodes.Validation)
+                    Error unsupported = Error.From("Unsupported telemetry kind.", ErrorCodes.Validation)
                         .WithMetadata("kind", lease.Value.Kind.ToString());
                     await lease.FailAsync(unsupported, requeue: false, stoppingToken).ConfigureAwait(false);
                     return;
@@ -233,7 +225,7 @@ sealed class TelemetryWorker(
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            var canceled = Error.From("Processing canceled during shutdown.", ErrorCodes.TaskQueueAbandoned)
+            Error canceled = Error.From("Processing canceled during shutdown.", ErrorCodes.TaskQueueAbandoned)
                 .WithMetadata("kind", lease.Value.Kind.ToString())
                 .WithMetadata("attempt", lease.Attempt);
 
@@ -248,20 +240,20 @@ sealed class TelemetryWorker(
         }
         catch (Exception ex)
         {
-            var failure = Error.From("Telemetry processing encountered an unexpected error.", ErrorCodes.TaskQueueAbandoned)
+            Error failure = Error.From("Telemetry processing encountered an unexpected error.", ErrorCodes.TaskQueueAbandoned)
                 .WithMetadata("kind", lease.Value.Kind.ToString())
                 .WithMetadata("attempt", lease.Attempt)
                 .WithMetadata("exceptionType", ex.GetType().FullName);
 
-            _logger.LogError(ex, "Unexpected failure processing {Kind}", lease.Value.Kind);
+            LogUnexpectedFailureProcessingKind(lease.Value.Kind);
             await lease.FailAsync(failure, requeue: true, stoppingToken).ConfigureAwait(false);
         }
     }
 
     private async ValueTask HandleCpuReadingAsync(TaskQueueLease<TelemetryWorkItem> lease, CancellationToken stoppingToken)
     {
-        var message = lease.Value;
-        var profile = _calibrationProfile ?? throw new InvalidOperationException("Calibration profile has not been loaded.");
+        TelemetryWorkItem message = lease.Value;
+        CalibrationProfile profile = _calibrationProfile ?? throw new InvalidOperationException("Calibration profile has not been loaded.");
 
         // Simulate longer processing that requires periodic heartbeats to keep the lease alive.
         await DelayAsync(TimeSpan.FromSeconds(1.2), _timeProvider, stoppingToken).ConfigureAwait(false);
@@ -270,20 +262,11 @@ sealed class TelemetryWorker(
 
         if (message.Value >= 0d && message.Value <= profile.MaxCpuPercent)
         {
-            _logger.LogInformation(
-                "CPU reading {Value:F2}%% captured at {ObservedAt:o} processed on attempt {Attempt} within calibrated max {Max:F2}",
-                message.Value,
-                message.ObservedAt,
-                lease.Attempt,
-                profile.MaxCpuPercent);
+            LogCpuReadingValueF2CapturedAtObservedatOProcessedOnAttemptAttemptWithinCalibrated(message.Value, message.ObservedAt, lease.Attempt, profile.MaxCpuPercent);
 
             if (message.Value >= profile.WarningCpuPercent)
             {
-                _logger.LogWarning(
-                    "Reading {Value:F2}%% exceeded warning threshold {Warning:F2}%% (calibration v{Version})",
-                    message.Value,
-                    profile.WarningCpuPercent,
-                    profile.Version);
+                LogReadingValueF2ExceededWarningThresholdWarningF2CalibrationVVersion(message.Value, profile.WarningCpuPercent, profile.Version);
 
                 await _alerts.PublishAsync(
                         new TelemetryAlert(
@@ -298,25 +281,18 @@ sealed class TelemetryWorker(
             return;
         }
 
-        var error = Error.From("CPU reading out of range.", ErrorCodes.Validation)
+        Error error = Error.From("CPU reading out of range.", ErrorCodes.Validation)
             .WithMetadata("observed", message.Value)
             .WithMetadata("attempt", lease.Attempt)
             .WithMetadata("observedAt", message.ObservedAt);
 
-        var shouldRetry = lease.Attempt < 3;
+        bool shouldRetry = lease.Attempt < 3;
 
-        if (shouldRetry)
-        {
-            _logger.LogWarning(
-                "Retries remaining for out-of-range CPU reading {Value:F2} (attempt {Attempt})", message.Value, lease.Attempt);
-        }
-        else
-        {
-            _logger.LogWarning(
-                "Marking out-of-range CPU reading {Value:F2} as dead-letter candidate (attempt {Attempt})",
-                message.Value,
-                lease.Attempt);
-        }
+        _logger.LogWarning(
+            shouldRetry
+                ? "Retries remaining for out-of-range CPU reading {Value:F2} (attempt {Attempt})"
+                : "Marking out-of-range CPU reading {Value:F2} as dead-letter candidate (attempt {Attempt})",
+            message.Value, lease.Attempt);
 
         await _alerts.PublishAsync(
                 new TelemetryAlert(
@@ -328,6 +304,27 @@ sealed class TelemetryWorker(
 
         await lease.FailAsync(error, shouldRetry, stoppingToken).ConfigureAwait(false);
     }
+
+    [LoggerMessage(LogLevel.Error, "Telemetry calibration failed ({code}): {message}")]
+    partial void LogTelemetryCalibrationFailedCodeMessage(string code, string message);
+
+    [LoggerMessage(LogLevel.Information, "Queued cpu reading {reading:F2}")]
+    partial void LogQueuedCpuReadingReadingF2(double reading);
+
+    [LoggerMessage(LogLevel.Warning, "Retrying {kind} observed at {observedAt:o}: attempt {attempt} after {error}")]
+    partial void LogRetryingKindObservedAtObservedatOAttemptAttemptAfterError(TelemetryKind kind, DateTimeOffset observedAt, int attempt, string error);
+
+    [LoggerMessage(LogLevel.Information, "Processing heartbeat {count}")]
+    partial void LogProcessingHeartbeatCount(double count);
+
+    [LoggerMessage(LogLevel.Error, "Unexpected failure processing {kind}")]
+    partial void LogUnexpectedFailureProcessingKind(TelemetryKind kind);
+
+    [LoggerMessage(LogLevel.Information, "CPU reading {value:F2}%% captured at {observedAt:o} processed on attempt {attempt} within calibrated max {max:F2}")]
+    partial void LogCpuReadingValueF2CapturedAtObservedatOProcessedOnAttemptAttemptWithinCalibrated(double value, DateTimeOffset observedAt, int attempt, double max);
+
+    [LoggerMessage(LogLevel.Warning, "Reading {value:F2}%% exceeded warning threshold {warning:F2}%% (calibration v{version})")]
+    partial void LogReadingValueF2ExceededWarningThresholdWarningF2CalibrationVVersion(double value, double warning, int version);
 }
 
 enum TelemetryKind
@@ -349,7 +346,7 @@ sealed class TelemetryCalibration(
 
     public async Task<Result<CalibrationProfile>> RunAsync(CancellationToken cancellationToken)
     {
-        var result = await _gate.Workflow<CalibrationProfile>("telemetry.calibration", 1, 2, _ => 2)
+        Result<CalibrationProfile> result = await _gate.Workflow<CalibrationProfile>("telemetry.calibration", 1, 2, _ => 2)
             .ForVersion(1, (ctx, ct) => ctx.CaptureAsync(
                 "legacy-profile",
                 _ => Task.FromResult(Result.Ok(new CalibrationProfile(100, 90, ctx.Version, _timeProvider.GetUtcNow()))),
@@ -365,7 +362,7 @@ sealed class TelemetryCalibration(
 
                     await DelayAsync(TimeSpan.FromSeconds(1.5), _timeProvider, token).ConfigureAwait(false);
 
-                    var profile = new CalibrationProfile(97.5, 92.5, ctx.Version, _timeProvider.GetUtcNow());
+                    CalibrationProfile profile = new(97.5, 92.5, ctx.Version, _timeProvider.GetUtcNow());
                     return Result.Ok(profile);
                 },
                 ct))
@@ -399,7 +396,7 @@ sealed class TelemetryStream
     public ChannelReader<TelemetryWorkItem> Reader => _channel.Reader;
 }
 
-sealed class TelemetryAggregationWorker(
+sealed partial class TelemetryAggregationWorker(
     TelemetryStream stream,
     TimeProvider timeProvider,
     ILogger<TelemetryAggregationWorker> logger) : BackgroundService
@@ -411,11 +408,11 @@ sealed class TelemetryAggregationWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var buffer = new List<TelemetryWorkItem>();
+        List<TelemetryWorkItem> buffer = [];
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var decisionResult = await Select<AggregationDecision>(_timeProvider, stoppingToken)
+            Result<AggregationDecision> decisionResult = await Select<AggregationDecision>(_timeProvider, stoppingToken)
                 .Case(_stream.Reader, static (item, _) => Task.FromResult(Result.Ok(AggregationDecision.FromReading(item))))
                 .Deadline(FlushInterval, static () => Task.FromResult(Result.Ok(AggregationDecision.Flush())))
                 .ExecuteAsync()
@@ -423,7 +420,7 @@ sealed class TelemetryAggregationWorker(
 
             if (decisionResult.IsFailure)
             {
-                var error = decisionResult.Error;
+                Error? error = decisionResult.Error;
                 if (error is { Code: ErrorCodes.SelectDrained })
                 {
                     await FlushBufferAsync(buffer, stoppingToken).ConfigureAwait(false);
@@ -435,14 +432,11 @@ sealed class TelemetryAggregationWorker(
                     break;
                 }
 
-                _logger.LogWarning(
-                    "Aggregation loop encountered {Code}: {Message}",
-                    error?.Code ?? ErrorCodes.Unspecified,
-                    error?.Message ?? "Unknown failure.");
+                LogAggregationLoopEncounteredCodeMessage(error?.Code ?? ErrorCodes.Unspecified, error?.Message ?? "Unknown failure.");
                 continue;
             }
 
-            var decision = decisionResult.Value;
+            AggregationDecision decision = decisionResult.Value;
             if (decision.HasItem)
             {
                 buffer.Add(decision.Item);
@@ -467,26 +461,17 @@ sealed class TelemetryAggregationWorker(
             return;
         }
 
-        var summary = TelemetrySummary.From(buffer, _timeProvider.GetUtcNow());
-        var publishResult = await RetryAsync(
-                async (attempt, ct) =>
+        TelemetrySummary summary = TelemetrySummary.From(buffer, _timeProvider.GetUtcNow());
+        Result<Unit> publishResult = await RetryAsync((attempt, _) =>
                 {
                     if (summary.CpuSamples > 0 && Random.Shared.NextDouble() < 0.15)
                     {
-                        _logger.LogWarning(
-                            "Simulated sink back-pressure while publishing summary on attempt {Attempt}",
-                            attempt);
-                        return Result.Fail<Unit>(Error.Timeout(TimeSpan.FromSeconds(1)));
+                        LogSimulatedSinkBackPressureWhilePublishingSummaryOnAttemptAttempt(attempt);
+                        return Task.FromResult(Result.Fail<Unit>(Error.Timeout(TimeSpan.FromSeconds(1))));
                     }
 
-                    _logger.LogInformation(
-                        "Published telemetry summary: {CpuSamples} CPU samples (avg {CpuAverage:F2}%% max {CpuMax:F2}%%) across {Heartbeats} heartbeats ending {WindowEnd:o}",
-                        summary.CpuSamples,
-                        summary.CpuAverage,
-                        summary.CpuMax,
-                        summary.Heartbeats,
-                        summary.WindowEnd);
-                    return Result.Ok(Unit.Value);
+                    LogPublishedTelemetrySummaryCpusamplesCpuSamplesAvgCpuaverageF2MaxCpumaxF2(summary.CpuSamples, summary.CpuAverage, summary.CpuMax, summary.Heartbeats, summary.WindowEnd);
+                    return Task.FromResult(Result.Ok(Unit.Value));
                 },
                 maxAttempts: 3,
                 initialDelay: TimeSpan.FromMilliseconds(200),
@@ -497,15 +482,24 @@ sealed class TelemetryAggregationWorker(
 
         if (publishResult.IsFailure)
         {
-            var error = publishResult.Error ?? Error.Unspecified();
-            _logger.LogError(
-                "Failed to publish telemetry summary after retries: {Code} - {Message}",
-                error.Code ?? ErrorCodes.Unspecified,
-                error.Message);
+            Error error = publishResult.Error ?? Error.Unspecified();
+            LogFailedToPublishTelemetrySummaryAfterRetriesCodeMessage(error.Code ?? ErrorCodes.Unspecified, error.Message);
         }
 
         buffer.Clear();
     }
+
+    [LoggerMessage(LogLevel.Warning, "Aggregation loop encountered {code}: {message}")]
+    partial void LogAggregationLoopEncounteredCodeMessage(string code, string message);
+
+    [LoggerMessage(LogLevel.Warning, "Simulated sink back-pressure while publishing summary on attempt {attempt}")]
+    partial void LogSimulatedSinkBackPressureWhilePublishingSummaryOnAttemptAttempt(int attempt);
+
+    [LoggerMessage(LogLevel.Information, "Published telemetry summary: {cpuSamples} CPU samples (avg {cpuAverage:F2}%% max {cpuMax:F2}%%) across {heartbeats} heartbeats ending {windowEnd:o}")]
+    partial void LogPublishedTelemetrySummaryCpusamplesCpuSamplesAvgCpuaverageF2MaxCpumaxF2(int cpuSamples, double cpuAverage, double cpuMax, int heartbeats, DateTimeOffset windowEnd);
+
+    [LoggerMessage(LogLevel.Error, "Failed to publish telemetry summary after retries: {code} - {message}")]
+    partial void LogFailedToPublishTelemetrySummaryAfterRetriesCodeMessage(string code, string message);
 }
 
 readonly record struct AggregationDecision(bool ShouldFlush, TelemetryWorkItem Item, bool HasItem)
@@ -519,14 +513,13 @@ readonly record struct TelemetrySummary(int CpuSamples, double CpuAverage, doubl
 {
     public static TelemetrySummary From(IReadOnlyList<TelemetryWorkItem> items, DateTimeOffset windowEnd)
     {
-        var cpuSamples = 0;
-        var cpuSum = 0d;
-        var cpuMax = double.MinValue;
-        var heartbeats = 0;
+        int cpuSamples = 0;
+        double cpuSum = 0d;
+        double cpuMax = double.MinValue;
+        int heartbeats = 0;
 
-        for (var i = 0; i < items.Count; i++)
+        foreach (TelemetryWorkItem item in items)
         {
-            var item = items[i];
             switch (item.Kind)
             {
                 case TelemetryKind.Cpu:
@@ -540,8 +533,8 @@ readonly record struct TelemetrySummary(int CpuSamples, double CpuAverage, doubl
             }
         }
 
-        var average = cpuSamples > 0 ? cpuSum / cpuSamples : 0d;
-        var max = cpuSamples > 0 ? cpuMax : 0d;
+        double average = cpuSamples > 0 ? cpuSum / cpuSamples : 0d;
+        double max = cpuSamples > 0 ? cpuMax : 0d;
 
         return new TelemetrySummary(cpuSamples, average, max, heartbeats, windowEnd);
     }
@@ -557,17 +550,12 @@ readonly record struct TelemetryAlert(AlertSeverity Severity, TelemetryWorkItem 
 
 sealed class TelemetryAlertChannel
 {
-    private readonly PrioritizedChannel<TelemetryAlert> _channel;
-
-    public TelemetryAlertChannel()
-    {
-        _channel = PrioritizedChannel<TelemetryAlert>(priorityLevels: 2)
-            .WithCapacityPerLevel(32)
-            .WithDefaultPriority((int)AlertSeverity.Warning)
-            .SingleReader()
-            .SingleWriter()
-            .Build();
-    }
+    private readonly PrioritizedChannel<TelemetryAlert> _channel = PrioritizedChannel<TelemetryAlert>(priorityLevels: 2)
+        .WithCapacityPerLevel(32)
+        .WithDefaultPriority((int)AlertSeverity.Warning)
+        .SingleReader()
+        .SingleWriter()
+        .Build();
 
     public ChannelReader<TelemetryAlert> Reader => _channel.Reader;
 
@@ -584,7 +572,7 @@ sealed class TelemetryAlertService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var reader = _alerts.Reader;
+        ChannelReader<TelemetryAlert> reader = _alerts.Reader;
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -602,7 +590,7 @@ sealed class TelemetryAlertService(
                 break;
             }
 
-            var level = alert.Severity == AlertSeverity.Critical ? LogLevel.Error : LogLevel.Warning;
+            LogLevel level = alert.Severity == AlertSeverity.Critical ? LogLevel.Error : LogLevel.Warning;
             _logger.Log(
                 level,
                 "Telemetry alert [{Severity}] {Message} (value {Value:F2}%% observed {ObservedAt:o})",

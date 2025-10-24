@@ -8,12 +8,12 @@ namespace Hugo;
 /// </summary>
 public sealed class TaskQueueOptions
 {
-    private int _capacity = 512;
-    private TimeSpan _leaseDuration = TimeSpan.FromSeconds(30);
-    private TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(5);
-    private TimeSpan _leaseSweepInterval = TimeSpan.FromSeconds(1);
-    private TimeSpan _requeueDelay = TimeSpan.Zero;
-    private int _maxDeliveryAttempts = 5;
+    private readonly int _capacity = 512;
+    private readonly TimeSpan _leaseDuration = TimeSpan.FromSeconds(30);
+    private readonly TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(5);
+    private readonly TimeSpan _leaseSweepInterval = TimeSpan.FromSeconds(1);
+    private readonly TimeSpan _requeueDelay = TimeSpan.Zero;
+    private readonly int _maxDeliveryAttempts = 5;
 
     /// <summary>
     /// Gets or sets the channel capacity used to buffer queued work. Defaults to 512 items.
@@ -145,12 +145,7 @@ public sealed class TaskQueueLease<T>
     public ValueTask CompleteAsync(CancellationToken cancellationToken = default)
     {
         EnsureActive();
-        if (Interlocked.CompareExchange(ref _status, 1, 0) != 0)
-        {
-            throw new InvalidOperationException("Lease is no longer active.");
-        }
-
-        return _queue.CompleteAsync(_leaseId, cancellationToken);
+        return Interlocked.CompareExchange(ref _status, 1, 0) != 0 ? throw new InvalidOperationException("Lease is no longer active.") : _queue.CompleteAsync(_leaseId, cancellationToken);
     }
 
     /// <summary>
@@ -167,18 +162,10 @@ public sealed class TaskQueueLease<T>
     /// </summary>
     public ValueTask FailAsync(Error error, bool requeue = true, CancellationToken cancellationToken = default)
     {
-        if (error is null)
-        {
-            throw new ArgumentNullException(nameof(error));
-        }
+        ArgumentNullException.ThrowIfNull(error);
 
         EnsureActive();
-        if (Interlocked.CompareExchange(ref _status, 2, 0) != 0)
-        {
-            throw new InvalidOperationException("Lease is no longer active.");
-        }
-
-        return _queue.FailAsync(_leaseId, error, requeue, cancellationToken);
+        return Interlocked.CompareExchange(ref _status, 2, 0) != 0 ? throw new InvalidOperationException("Lease is no longer active.") : _queue.FailAsync(_leaseId, error, requeue, cancellationToken);
     }
 
     private void EnsureActive()
@@ -220,7 +207,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         _timeProvider = timeProvider ?? TimeProvider.System;
         _deadLetter = deadLetter;
 
-        var channelOptions = new BoundedChannelOptions(_options.Capacity)
+        BoundedChannelOptions channelOptions = new(_options.Capacity)
         {
             FullMode = BoundedChannelFullMode.Wait,
             SingleReader = false,
@@ -248,8 +235,8 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     {
         ThrowIfDisposed();
 
-        var envelope = new QueueEnvelope(value, 1, _timeProvider.GetUtcNow(), null);
-        var depth = Interlocked.Increment(ref _pendingCount);
+        QueueEnvelope envelope = new(value, 1, _timeProvider.GetUtcNow(), null);
+        long depth = Interlocked.Increment(ref _pendingCount);
 
         try
         {
@@ -271,7 +258,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         ThrowIfDisposed();
 
         QueueEnvelope envelope;
-        var readSucceeded = false;
+        bool readSucceeded = false;
         try
         {
             envelope = await _channel.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
@@ -289,10 +276,10 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             }
         }
 
-        var leaseId = Guid.NewGuid();
-        var now = _timeProvider.GetUtcNow();
-        var expiration = now + _options.LeaseDuration;
-        var state = new LeaseState(envelope, now, expiration);
+        Guid leaseId = Guid.NewGuid();
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        DateTimeOffset expiration = now + _options.LeaseDuration;
+        LeaseState state = new(envelope, now, expiration);
 
         if (!_leases.TryAdd(leaseId, state))
         {
@@ -307,13 +294,13 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     {
         ThrowIfDisposed();
 
-        if (!_leases.TryGetValue(leaseId, out var state) || !state.TryComplete())
+        if (!_leases.TryGetValue(leaseId, out LeaseState? state) || !state.TryComplete())
         {
             throw new InvalidOperationException("Lease is no longer active.");
         }
 
         _leases.TryRemove(leaseId, out _);
-        var now = _timeProvider.GetUtcNow();
+        DateTimeOffset now = _timeProvider.GetUtcNow();
         GoDiagnostics.RecordTaskQueueCompleted(state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
         return ValueTask.CompletedTask;
     }
@@ -322,22 +309,22 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     {
         ThrowIfDisposed();
 
-        if (!_leases.TryGetValue(leaseId, out var state))
+        if (!_leases.TryGetValue(leaseId, out LeaseState? state))
         {
             throw new InvalidOperationException("Lease is no longer active.");
         }
 
-        var now = _timeProvider.GetUtcNow();
+        DateTimeOffset now = _timeProvider.GetUtcNow();
         if (_options.HeartbeatInterval > TimeSpan.Zero)
         {
-            var elapsed = now - state.LastHeartbeat;
+            TimeSpan elapsed = now - state.LastHeartbeat;
             if (elapsed < _options.HeartbeatInterval)
             {
                 return ValueTask.CompletedTask;
             }
         }
 
-        if (!state.TryHeartbeat(now, _options.LeaseDuration, out var newExpiration))
+        if (!state.TryHeartbeat(now, _options.LeaseDuration, out DateTimeOffset newExpiration))
         {
             throw new InvalidOperationException("Lease is no longer active.");
         }
@@ -350,14 +337,14 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     {
         ThrowIfDisposed();
 
-        if (!_leases.TryGetValue(leaseId, out var state) || !state.TryFail())
+        if (!_leases.TryGetValue(leaseId, out LeaseState? state) || !state.TryFail())
         {
             throw new InvalidOperationException("Lease is no longer active.");
         }
 
         _leases.TryRemove(leaseId, out _);
 
-        var now = _timeProvider.GetUtcNow();
+        DateTimeOffset now = _timeProvider.GetUtcNow();
         GoDiagnostics.RecordTaskQueueFailed(state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
 
         if (!requeue)
@@ -387,10 +374,10 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
     private async ValueTask SweepExpiredLeasesAsync(CancellationToken cancellationToken)
     {
-        var now = _timeProvider.GetUtcNow();
-        var expired = new List<(Guid Id, LeaseState State)>();
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        List<(Guid Id, LeaseState State)> expired = new();
 
-        foreach (var kvp in _leases)
+        foreach (KeyValuePair<Guid, LeaseState> kvp in _leases)
         {
             if (kvp.Value.TryExpire(now))
             {
@@ -403,21 +390,21 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             return;
         }
 
-        foreach (var (id, state) in expired)
+        foreach ((Guid id, LeaseState state) in expired)
         {
             if (!_leases.TryRemove(new KeyValuePair<Guid, LeaseState>(id, state)))
             {
                 continue;
             }
 
-            var metadata = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            Dictionary<string, object?> metadata = new(StringComparer.OrdinalIgnoreCase)
             {
                 ["attempt"] = state.Envelope.Attempt,
                 ["enqueuedAt"] = state.Envelope.EnqueuedAt,
                 ["expiredAt"] = now
             };
 
-            var expiredError = Error.From("Lease expired without heartbeat.", ErrorCodes.TaskQueueLeaseExpired)
+            Error expiredError = Error.From("Lease expired without heartbeat.", ErrorCodes.TaskQueueLeaseExpired)
                 .WithMetadata(metadata);
 
             GoDiagnostics.RecordTaskQueueExpired(state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
@@ -427,21 +414,21 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
     private async ValueTask RequeueAsync(QueueEnvelope envelope, Error error, CancellationToken cancellationToken)
     {
-        var nextAttempt = envelope.Attempt + 1;
+        int nextAttempt = envelope.Attempt + 1;
         if (nextAttempt > _options.MaxDeliveryAttempts)
         {
             await DeadLetterAsync(envelope, error, cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        var requeued = new QueueEnvelope(envelope.Value, nextAttempt, envelope.EnqueuedAt, error);
+        QueueEnvelope requeued = new(envelope.Value, nextAttempt, envelope.EnqueuedAt, error);
 
         if (_options.RequeueDelay > TimeSpan.Zero)
         {
             await _timeProvider.DelayAsync(_options.RequeueDelay, cancellationToken).ConfigureAwait(false);
         }
 
-        var depth = Interlocked.Increment(ref _pendingCount);
+        long depth = Interlocked.Increment(ref _pendingCount);
 
         try
         {
@@ -464,7 +451,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             return;
         }
 
-        var context = new TaskQueueDeadLetterContext<T>(envelope.Value, error, envelope.Attempt, envelope.EnqueuedAt);
+        TaskQueueDeadLetterContext<T> context = new(envelope.Value, error, envelope.Attempt, envelope.EnqueuedAt);
         await _deadLetter(context, cancellationToken).ConfigureAwait(false);
     }
 
@@ -485,7 +472,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             return;
         }
 
-        _monitorCts.Cancel();
+        await _monitorCts.CancelAsync();
         _channel.Writer.TryComplete();
 
         try
@@ -504,7 +491,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
     private sealed class LeaseState
     {
-        private readonly object _sync = new();
+        private readonly Lock _sync = new();
         private int _status; // 0 = active, 1 = completed, 2 = failed, 3 = expired
 
         internal LeaseState(QueueEnvelope envelope, DateTimeOffset grantedAt, DateTimeOffset expiration)

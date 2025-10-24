@@ -226,7 +226,7 @@ public static partial class Result
             }
 
             var waitResult = await waitTask.ConfigureAwait(false);
-            if (waitResult.IsFailure && waitResult.Error is { } groupError)
+            if (waitResult is { IsFailure: true, Error: { } groupError })
             {
                 if (groupError.Code == ErrorCodes.Canceled && cancellationToken.IsCancellationRequested)
                 {

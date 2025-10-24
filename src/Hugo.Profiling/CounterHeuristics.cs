@@ -62,7 +62,7 @@ internal static class CounterHeuristics
     private static void AddThreadPoolFindings(CounterReport report, ICollection<AnalyzerFinding> findings)
     {
         var queueSeries = report.FindCounter("System.Runtime", "thread_pool.queue.length");
-        if (queueSeries != null && queueSeries.Max >= 1)
+        if (queueSeries is { Max: >= 1 })
         {
             var severity = queueSeries.Max >= 10 ? AnalyzerSeverity.Warning : AnalyzerSeverity.Info;
             var message = $"Thread pool queue length peaked at {queueSeries.Max:0.##}. Consider diagnosing blocked work or increasing parallelism.";

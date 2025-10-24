@@ -236,7 +236,7 @@ public sealed class SelectBuilder<TResult>
             cases[i] = _caseFactories[i].Factory(completion);
         }
 
-        ChannelCase? defaultCase = _defaultFactory is null ? null : _defaultFactory(completion);
+        ChannelCase? defaultCase = _defaultFactory?.Invoke(completion);
 
         var selectResult = await Go.SelectInternalAsync(cases, defaultCase, _timeout, _provider, _cancellationToken).ConfigureAwait(false);
 
@@ -253,9 +253,9 @@ public sealed class SelectBuilder<TResult>
         return await completion.Task.ConfigureAwait(false);
     }
 
-    private ChannelCase CreateCase<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue, TaskCompletionSource<Result<TResult>> completion, int priority)
+    private static ChannelCase CreateCase<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue, TaskCompletionSource<Result<TResult>> completion, int priority)
     {
-        var channelCase = ChannelCase.Create(reader, async (value, ct) =>
+        ChannelCase channelCase = ChannelCase.Create(reader, async (value, ct) =>
         {
             Result<TResult> caseResult;
             try
@@ -281,7 +281,7 @@ public sealed class SelectBuilder<TResult>
         return channelCase.WithPriority(priority);
     }
 
-    private ChannelCase CreateDefaultCase(Func<CancellationToken, Task<Result<TResult>>> onDefault, TaskCompletionSource<Result<TResult>> completion, int priority)
+    private static ChannelCase CreateDefaultCase(Func<CancellationToken, Task<Result<TResult>>> onDefault, TaskCompletionSource<Result<TResult>> completion, int priority)
     {
         var defaultCase = ChannelCase.CreateDefault(async ct =>
         {

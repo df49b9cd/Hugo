@@ -1,6 +1,5 @@
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Channels;
 

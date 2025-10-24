@@ -294,7 +294,7 @@ public sealed class PrioritizedChannel<T>
                 for (var priority = 0; priority < _readers.Length; priority++)
                 {
                     var task = waitTasks[priority];
-                    if (task.IsCompletedSuccessfully && task.Result)
+                    if (task is { IsCompletedSuccessfully: true, Result: true })
                     {
                         while (_readers[priority].TryRead(out var item))
                         {
@@ -319,7 +319,7 @@ public sealed class PrioritizedChannel<T>
                         break;
                     }
 
-                    if (task.IsCompletedSuccessfully && task.Result)
+                    if (task is { IsCompletedSuccessfully: true, Result: true })
                     {
                         allCompleted = false;
                         break;

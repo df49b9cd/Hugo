@@ -1,8 +1,6 @@
 using FsCheck;
 using FsCheck.Fluent;
 
-using Hugo;
-
 using static Hugo.Go;
 
 namespace Hugo.Tests;
@@ -34,9 +32,8 @@ public class ResultPropertyTests
                                                             var ensured = Ok(value).Ensure(v => v % 2 == 0, v => Error.From($"{v} is odd", ErrorCodes.Validation));
                                                             return value % 2 == 0
                                                                 ? ensured.IsSuccess && ensured.Value == value
-                                                                : ensured.IsFailure
-                                                                   && ensured.Error?.Code == ErrorCodes.Validation
-                                                                   && ensured.Error?.Message.Contains("odd", StringComparison.OrdinalIgnoreCase) == true;
+                                                                : ensured is { IsFailure: true, Error.Code: ErrorCodes.Validation }
+                                                                  && ensured.Error?.Message.Contains("odd", StringComparison.OrdinalIgnoreCase) == true;
                                                         }));
 
     [Fact]
