@@ -7,17 +7,30 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+
 using static Hugo.Go;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
-builder.AddHugoDiagnostics(options =>
-{
-    options.ServiceName = builder.Environment.ApplicationName;
-    options.OtlpEndpoint = ResolveOtlpEndpoint(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
-    options.AddPrometheusExporter = ResolvePrometheusEnabled(builder.Configuration["HUGO_PROMETHEUS_ENABLED"]);
-    options.MaxActivitiesPerInterval = 64;
-});
+builder.Services
+    .AddOpenTelemetry()
+    .AddHugoDiagnostics(options =>
+    {
+        options.ServiceName = builder.Environment.ApplicationName;
+        options.OtlpEndpoint = ResolveOtlpEndpoint(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+        options.AddPrometheusExporter = ResolvePrometheusEnabled(builder.Configuration["HUGO_PROMETHEUS_ENABLED"]);
+        options.MaxActivitiesPerInterval = 64;
+    })
+    .WithTracing(tracing =>
+    {
+        tracing.AddConsoleExporter();
+    })
+    .WithMetrics(metrics =>
+    {
+        metrics.AddConsoleExporter();
+    });
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(sp =>
