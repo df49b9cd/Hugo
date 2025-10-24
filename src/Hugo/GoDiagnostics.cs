@@ -125,7 +125,7 @@ public static class GoDiagnostics
 
         if (optionsType is not null)
         {
-            var optionsInstance = CreateActivitySourceOptions(optionsType, resolvedSchemaUrl);
+            var optionsInstance = CreateActivitySourceOptions(optionsType, resolvedName, resolvedVersion, resolvedSchemaUrl);
             if (optionsInstance is not null)
             {
                 var ctor = activitySourceType.GetConstructor([typeof(string), typeof(string), optionsType]);
@@ -213,12 +213,59 @@ public static class GoDiagnostics
             ? Array.Empty<KeyValuePair<string, object?>>()
             : [new KeyValuePair<string, object?>("otel.scope.schema_url", schemaUrl)];
 
-    private static object? CreateActivitySourceOptions(Type optionsType, string schemaUrl)
+    private static object? CreateActivitySourceOptions(Type optionsType, string name, string version, string schemaUrl)
     {
-        var optionsInstance = Activator.CreateInstance(optionsType);
+        object? optionsInstance = null;
+
+        try
+        {
+            var nameCtor = optionsType.GetConstructor([typeof(string)]);
+            if (nameCtor is not null)
+            {
+                optionsInstance = nameCtor.Invoke([name]);
+            }
+            else
+            {
+                var parameterlessCtor = optionsType.GetConstructor(
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    binder: null,
+                    Type.EmptyTypes,
+                    modifiers: null);
+
+                if (parameterlessCtor is null)
+                {
+                    return null;
+                }
+
+                optionsInstance = parameterlessCtor.Invoke(null);
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
         if (optionsInstance is null)
         {
             return null;
+        }
+
+        var nameProperty = optionsType.GetProperty("Name", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (nameProperty is not null && nameProperty.CanWrite && nameProperty.PropertyType == typeof(string))
+        {
+            nameProperty.SetValue(optionsInstance, name);
+        }
+
+        var versionProperty = optionsType.GetProperty("Version", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (versionProperty is not null && versionProperty.CanWrite && versionProperty.PropertyType == typeof(string))
+        {
+            versionProperty.SetValue(optionsInstance, version);
+        }
+
+        var telemetrySchemaProperty = optionsType.GetProperty("TelemetrySchemaUrl", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (telemetrySchemaProperty is not null && telemetrySchemaProperty.CanWrite && telemetrySchemaProperty.PropertyType == typeof(string))
+        {
+            telemetrySchemaProperty.SetValue(optionsInstance, schemaUrl);
         }
 
         var schemaProperty = optionsType.GetProperty("SchemaVersion", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)

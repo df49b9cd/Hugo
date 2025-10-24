@@ -390,14 +390,9 @@ readonly record struct CalibrationProfile(double MaxCpuPercent, double WarningCp
 
 sealed class TelemetryStream
 {
-    private readonly Channel<TelemetryWorkItem> _channel;
-
-    public TelemetryStream()
-    {
-        _channel = BoundedChannel<TelemetryWorkItem>(capacity: 256)
-            .SingleReader()
-            .Build();
-    }
+    private readonly Channel<TelemetryWorkItem> _channel = BoundedChannel<TelemetryWorkItem>(capacity: 256)
+        .SingleReader()
+        .Build();
 
     public ChannelWriter<TelemetryWorkItem> Writer => _channel.Writer;
 
