@@ -193,7 +193,7 @@ public static class Go
             }
             finally
             {
-                linkedCts.Cancel();
+                await linkedCts.CancelAsync().ConfigureAwait(false);
             }
         }
 
@@ -218,7 +218,7 @@ public static class Go
             }
             finally
             {
-                linkedCts.Cancel();
+                await linkedCts.CancelAsync().ConfigureAwait(false);
             }
         }
 
@@ -323,7 +323,7 @@ public static class Go
                 }
                 finally
                 {
-                    linkedCts.Cancel();
+                    await linkedCts.CancelAsync().ConfigureAwait(false);
                 }
             }
         }
