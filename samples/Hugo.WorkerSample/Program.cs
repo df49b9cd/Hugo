@@ -14,23 +14,23 @@ using static Hugo.Go;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
-builder.Services
-    .AddOpenTelemetry()
-    .AddHugoDiagnostics(options =>
-    {
-        options.ServiceName = builder.Environment.ApplicationName;
-        options.OtlpEndpoint = ResolveOtlpEndpoint(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
-        options.AddPrometheusExporter = ResolvePrometheusEnabled(builder.Configuration["HUGO_PROMETHEUS_ENABLED"]);
-        options.MaxActivitiesPerInterval = 64;
-    })
-    .WithTracing(tracing =>
-    {
-        tracing.AddConsoleExporter();
-    })
-    .WithMetrics(metrics =>
-    {
-        metrics.AddConsoleExporter();
-    });
+// builder.Services
+//     .AddOpenTelemetry()
+//     .AddHugoDiagnostics(options =>
+//     {
+//         options.ServiceName = builder.Environment.ApplicationName;
+//         options.OtlpEndpoint = ResolveOtlpEndpoint(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+//         options.AddPrometheusExporter = ResolvePrometheusEnabled(builder.Configuration["HUGO_PROMETHEUS_ENABLED"]);
+//         options.MaxActivitiesPerInterval = 64;
+//     })
+//     .WithTracing(tracing =>
+//     {
+//         tracing.AddConsoleExporter();
+//     })
+//     .WithMetrics(metrics =>
+//     {
+//         metrics.AddConsoleExporter();
+//     });
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(sp =>
@@ -41,7 +41,7 @@ builder.Services.AddSingleton(sp =>
 
     TaskQueueOptions options = new()
     {
-        Capacity = 128,
+        Capacity = 1024,
         LeaseDuration = TimeSpan.FromSeconds(8),
         HeartbeatInterval = TimeSpan.FromSeconds(1),
         LeaseSweepInterval = TimeSpan.FromMilliseconds(500),
@@ -94,24 +94,24 @@ IHost app = builder.Build();
 await app.RunAsync();
 return;
 
-static Uri ResolveOtlpEndpoint(string? value) => Uri.TryCreate(value, UriKind.Absolute, out Uri? endpoint)
-    ? endpoint
-    : new Uri("http://localhost:4317");
+// static Uri ResolveOtlpEndpoint(string? value) => Uri.TryCreate(value, UriKind.Absolute, out Uri? endpoint)
+//     ? endpoint
+//     : new Uri("http://localhost:4317");
 
-static bool ResolvePrometheusEnabled(string? value)
-{
-    if (string.IsNullOrWhiteSpace(value))
-    {
-        return true;
-    }
+// static bool ResolvePrometheusEnabled(string? value)
+// {
+//     if (string.IsNullOrWhiteSpace(value))
+//     {
+//         return true;
+//     }
 
-    return value.Trim() switch
-    {
-        "0" => false,
-        "false" or "False" or "FALSE" => false,
-        _ => true
-    };
-}
+//     return value.Trim() switch
+//     {
+//         "0" => false,
+//         "false" or "False" or "FALSE" => false,
+//         _ => true
+//     };
+// }
 
 sealed partial class TelemetryWorker(
     ILogger<TelemetryWorker> logger,

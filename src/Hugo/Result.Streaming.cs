@@ -46,7 +46,7 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(writer);
 
-        var tasks = sources.Select(source => Task.Run(async () => await source.ToChannelAsync(writer, cancellationToken), cancellationToken));
+        var tasks = sources.Select(source => Go.Run(async _ => await source.ToChannelAsync(writer, cancellationToken).ConfigureAwait(false), cancellationToken));
         return new ValueTask(Task.WhenAll(tasks));
     }
 

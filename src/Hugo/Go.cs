@@ -173,7 +173,7 @@ public static class Go
         if (immediateCandidates.Count > 0)
         {
             (int selectedIndex, object? selectedState) = SelectByPriority(immediateCandidates, caseList);
-            await linkedCts.CancelAsync();
+            await linkedCts.CancelAsync().ConfigureAwait(false);
             TimeSpan completionDuration = provider.GetElapsedTime(startTimestamp);
 
             try
@@ -196,7 +196,7 @@ public static class Go
 
         if (resolvedDefault.HasValue)
         {
-            await linkedCts.CancelAsync();
+            await linkedCts.CancelAsync().ConfigureAwait(false);
             TimeSpan completionDuration = provider.GetElapsedTime(startTimestamp);
             try
             {
@@ -232,7 +232,7 @@ public static class Go
             {
                 if (waitTasks.Count == 0)
                 {
-                    await linkedCts.CancelAsync();
+                    await linkedCts.CancelAsync().ConfigureAwait(false);
                     TimeSpan drainedDuration = provider.GetElapsedTime(startTimestamp);
                     Error drainedError = Error.From("All channel cases completed without yielding a value.", ErrorCodes.SelectDrained);
                     GoDiagnostics.RecordChannelSelectCompleted(drainedDuration, activity, drainedError);
@@ -257,7 +257,7 @@ public static class Go
 
                     if (completedTask == timeoutTask)
                     {
-                        await linkedCts.CancelAsync();
+                        await linkedCts.CancelAsync().ConfigureAwait(false);
                         TimeSpan timeoutDuration = provider.GetElapsedTime(startTimestamp);
                         GoDiagnostics.RecordChannelSelectTimeout(timeoutDuration, activity);
                         return Result.Fail<Unit>(Error.Timeout(timeout));
@@ -297,7 +297,7 @@ public static class Go
                 }
 
                 (int selectedIndex, object? selectedState) = SelectByPriority(ready, caseList);
-                await linkedCts.CancelAsync();
+                        await linkedCts.CancelAsync().ConfigureAwait(false);
                 TimeSpan completionDuration = provider.GetElapsedTime(startTimestamp);
 
                 try
@@ -470,7 +470,7 @@ public static class Go
         }
         catch
         {
-            await linkedCts.CancelAsync();
+            await linkedCts.CancelAsync().ConfigureAwait(false);
             throw;
         }
 
@@ -481,7 +481,7 @@ public static class Go
             Task completed = await Task.WhenAny(operationTask, delayTask).ConfigureAwait(false);
             if (completed == delayTask)
             {
-                await linkedCts.CancelAsync();
+                await linkedCts.CancelAsync().ConfigureAwait(false);
 
                 try
                 {
@@ -1071,18 +1071,18 @@ public static class Go
                 Task completed = await Task.WhenAny(waitTask, delayTask).ConfigureAwait(false);
                 if (completed == delayTask)
                 {
-                    await linkedCts.CancelAsync();
+                    await linkedCts.CancelAsync().ConfigureAwait(false);
                     return Result.Fail<Unit>(Error.Timeout(deadline));
                 }
 
                 bool canWrite = await waitTask.ConfigureAwait(false);
                 if (!canWrite)
                 {
-                    await linkedCts.CancelAsync();
+                    await linkedCts.CancelAsync().ConfigureAwait(false);
                     return Result.Fail<Unit>(Error.From("Destination channel has completed.", ErrorCodes.ChannelCompleted));
                 }
 
-                await linkedCts.CancelAsync();
+                await linkedCts.CancelAsync().ConfigureAwait(false);
             }
 
             if (writer.TryWrite(value))

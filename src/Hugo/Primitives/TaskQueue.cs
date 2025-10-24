@@ -472,7 +472,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             return;
         }
 
-        await _monitorCts.CancelAsync();
+        await _monitorCts.CancelAsync().ConfigureAwait(false);
         _channel.Writer.TryComplete();
 
         try

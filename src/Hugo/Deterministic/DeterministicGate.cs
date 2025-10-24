@@ -201,7 +201,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
                 _changeId,
                 _minVersion,
                 _maxVersion,
-                (decision, ct) => ExecuteBranchAsync(decision, ct),
+                ExecuteBranchAsync,
                 _initialVersionProvider,
                 cancellationToken);
 

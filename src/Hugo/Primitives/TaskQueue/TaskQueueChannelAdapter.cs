@@ -79,7 +79,7 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
                 }
                 catch (ObjectDisposedException)
                 {
-                    await _cts.CancelAsync();
+                    await _cts.CancelAsync().ConfigureAwait(false);
                     return null;
                 }
 
@@ -90,7 +90,7 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
                         continue;
                     }
 
-                    await _cts.CancelAsync();
+                    await _cts.CancelAsync().ConfigureAwait(false);
                     Exception? completionError = await RequeueLeaseAsync(lease, Error.Canceled("Lease could not be delivered before completion.")).ConfigureAwait(false);
                     return completionError;
                 }
@@ -201,7 +201,7 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        await _cts.CancelAsync();
+        await _cts.CancelAsync().ConfigureAwait(false);
 
         Exception? fault = null;
         try
