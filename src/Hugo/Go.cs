@@ -469,55 +469,90 @@ public static class Go
             {
                 return Result.Fail<T>(Error.Canceled(token: ResolveCancellationToken(cancellationToken, oce.CancellationToken)));
             }
+            catch (Exception ex)
+            {
+                return Result.Fail<T>(Error.FromException(ex));
+            }
         }
 
-        using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using CancellationTokenSource operationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using CancellationTokenSource delayCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
         Task<Result<T>> operationTask;
         try
         {
-            operationTask = operation(linkedCts.Token);
-        }
-        catch
-        {
-            await linkedCts.CancelAsync().ConfigureAwait(false);
-            throw;
-        }
-
-        Task delayTask = provider.DelayAsync(timeout, CancellationToken.None);
-
-        try
-        {
-            Task completed = await Task.WhenAny(operationTask, delayTask).ConfigureAwait(false);
-            if (completed == delayTask)
-            {
-                await linkedCts.CancelAsync().ConfigureAwait(false);
-
-                try
-                {
-                    await operationTask.ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                }
-                catch
-                {
-                    // Swallow exceptions from the operation when timeout wins; timeout result takes precedence.
-                }
-
-                return Result.Fail<T>(Error.Timeout(timeout));
-            }
-
-            return await operationTask.ConfigureAwait(false);
+            operationTask = operation(operationCts.Token);
         }
         catch (OperationCanceledException oce)
         {
-            if (cancellationToken.IsCancellationRequested)
+            return Result.Fail<T>(Error.Canceled(token: ResolveCancellationToken(cancellationToken, oce.CancellationToken)));
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail<T>(Error.FromException(ex));
+        }
+
+        Task delayTask = provider.DelayAsync(timeout, delayCts.Token);
+
+        Task completed = await Task.WhenAny(operationTask, delayTask).ConfigureAwait(false);
+        if (completed == operationTask)
+        {
+            delayCts.Cancel();
+
+            try
+            {
+                return await operationTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException oce)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return Result.Fail<T>(Error.Canceled(token: ResolveCancellationToken(cancellationToken, oce.CancellationToken)));
+                }
+
+                return Result.Fail<T>(Error.Canceled(token: ResolveCancellationToken(oce.CancellationToken, CancellationToken.None)));
+            }
+            catch (Exception ex)
+            {
+                return Result.Fail<T>(Error.FromException(ex));
+            }
+        }
+
+        if (delayTask.IsCanceled && cancellationToken.IsCancellationRequested)
+        {
+            await operationCts.CancelAsync().ConfigureAwait(false);
+
+            try
+            {
+                await operationTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException oce)
             {
                 return Result.Fail<T>(Error.Canceled(token: ResolveCancellationToken(cancellationToken, oce.CancellationToken)));
             }
+            catch (Exception ex)
+            {
+                return Result.Fail<T>(Error.FromException(ex));
+            }
 
-            return Result.Fail<T>(Error.Canceled(token: ResolveCancellationToken(oce.CancellationToken, CancellationToken.None)));
+            return Result.Fail<T>(Error.Canceled(token: ResolveCancellationToken(cancellationToken, operationCts.Token)));
         }
+
+        await operationCts.CancelAsync().ConfigureAwait(false);
+
+        try
+        {
+            await operationTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail<T>(Error.FromException(ex));
+        }
+
+        return Result.Fail<T>(Error.Timeout(timeout));
     }
 
     /// <summary>

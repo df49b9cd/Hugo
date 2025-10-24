@@ -1579,6 +1579,36 @@ public class GoTests
     }
 
     [Fact]
+    public async Task WithTimeoutAsync_ShouldReturnFailure_WhenOperationThrows()
+    {
+        var provider = new FakeTimeProvider();
+
+        var result = await WithTimeoutAsync<int>(
+            _ => throw new InvalidOperationException("boom"),
+            TimeSpan.FromSeconds(5),
+            timeProvider: provider,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+        Assert.Contains("boom", result.Error?.Message);
+    }
+
+    [Fact]
+    public async Task WithTimeoutAsync_ShouldReturnFailure_WhenOperationThrows_WithInfiniteTimeout()
+    {
+        var result = await WithTimeoutAsync<int>(
+            _ => throw new InvalidOperationException("boom infinite"),
+            Timeout.InfiniteTimeSpan,
+            timeProvider: null,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+        Assert.Contains("boom infinite", result.Error?.Message);
+    }
+
+    [Fact]
     public async Task RetryAsync_ShouldRetryUntilSuccess()
     {
         var attempts = new List<int>();
