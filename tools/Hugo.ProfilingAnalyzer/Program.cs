@@ -362,7 +362,7 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine("Profiles:");
 
-        int nameWidth = Math.Min(48, Math.Max("Name".Length, profiles.Select(profile => profile.Name.Length).DefaultIfEmpty(0).Max()));
+        int nameWidth = Math.Min(48, Math.Max("Name".Length, profiles.Select(static profile => profile.Name.Length).DefaultIfEmpty(0).Max()));
 
         Console.WriteLine($"  {PadRight("Name", nameWidth)} {PadLeft("Duration", 12)} {PadLeft("Events", 8)} {PadRight("Unit", 12)}");
 
@@ -389,7 +389,7 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine("Frames:");
 
-        int nameWidth = Math.Min(60, Math.Max("Name".Length, topFrames.Select(frame => frame.Name.Length).DefaultIfEmpty(0).Max()));
+        int nameWidth = Math.Min(60, Math.Max("Name".Length, topFrames.Select(static frame => frame.Name.Length).DefaultIfEmpty(0).Max()));
 
         Console.WriteLine(
             $"  {PadRight("Name", nameWidth)} {PadLeft("Inclusive", 12)} {PadLeft("Self", 12)} {PadLeft("Calls", 8)}");

@@ -11,7 +11,7 @@ public class ResultFallbackTests
     [Fact]
     public void ResultFallbackTier_ShouldThrow_WhenOperationsEmpty()
     {
-        Assert.Throws<ArgumentException>(() => new ResultFallbackTier<int>("empty", Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>()));
+        Assert.Throws<ArgumentException>(static () => new ResultFallbackTier<int>("empty", Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>()));
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class ResultFallbackTests
     {
         var tiers = new[]
         {
-            ResultFallbackTier<int>.From("primary", _ => ValueTask.FromResult(Result.Ok(42)))
+            ResultFallbackTier<int>.From("primary", static _ => ValueTask.FromResult(Result.Ok(42)))
         };
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
@@ -45,8 +45,8 @@ public class ResultFallbackTests
         {
             ResultFallbackTier<int>.From(
                 "primary",
-                _ => ValueTask.FromResult(Result.Fail<int>(Error.From("primary failed", ErrorCodes.Validation)))),
-            ResultFallbackTier<int>.From("secondary", _ => ValueTask.FromResult(Result.Ok(100)))
+                static _ => ValueTask.FromResult(Result.Fail<int>(Error.From("primary failed", ErrorCodes.Validation)))),
+            ResultFallbackTier<int>.From("secondary", static _ => ValueTask.FromResult(Result.Ok(100)))
         };
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
@@ -62,10 +62,10 @@ public class ResultFallbackTests
         {
             ResultFallbackTier<int>.From(
                 "primary",
-                _ => ValueTask.FromResult(Result.Fail<int>(Error.From("primary failed", ErrorCodes.Validation)))),
+                static _ => ValueTask.FromResult(Result.Fail<int>(Error.From("primary failed", ErrorCodes.Validation)))),
             ResultFallbackTier<int>.From(
                 "secondary",
-                _ => ValueTask.FromResult(Result.Fail<int>(Error.From("secondary failed", "error.secondary"))))
+                static _ => ValueTask.FromResult(Result.Fail<int>(Error.From("secondary failed", "error.secondary"))))
         };
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
@@ -76,15 +76,15 @@ public class ResultFallbackTests
         Assert.True(result.Error!.Metadata.TryGetValue("errors", out var nestedObj));
         var nestedErrors = Assert.IsType<Error[]>(nestedObj);
         Assert.Equal(2, nestedErrors.Length);
-        Assert.Contains(nestedErrors, error =>
+        Assert.Contains(nestedErrors, static error =>
         {
             return error.Metadata.TryGetValue("fallbackTier", out var value) && string.Equals("primary", value?.ToString(), StringComparison.Ordinal);
         });
-        Assert.Contains(nestedErrors, error =>
+        Assert.Contains(nestedErrors, static error =>
         {
             return error.Metadata.TryGetValue("fallbackTier", out var value) && string.Equals("secondary", value?.ToString(), StringComparison.Ordinal);
         });
-        Assert.All(nestedErrors, error => Assert.True(error.Metadata.ContainsKey("strategyIndex")));
+        Assert.All(nestedErrors, static error => Assert.True(error.Metadata.ContainsKey("strategyIndex")));
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class ResultFallbackTests
 
         var tiers = new[]
         {
-            ResultFallbackTier<int>.From("primary", _ => ValueTask.FromResult(Result.Ok(1)))
+            ResultFallbackTier<int>.From("primary", static _ => ValueTask.FromResult(Result.Ok(1)))
         };
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: cts.Token);
@@ -177,7 +177,7 @@ public class ResultFallbackTests
             .WithRetry(ResultRetryPolicy.FixedDelay(1, TimeSpan.Zero))
             .WithCompensation(ResultCompensationPolicy.SequentialReverse);
 
-        group.Go((ctx, ct) =>
+        group.Go(static (ctx, ct) =>
         {
             return ValueTask.FromResult(Result.Fail<Unit>(Error.From("fatal", ErrorCodes.Validation)));
         }, policy: policy, timeProvider: provider);

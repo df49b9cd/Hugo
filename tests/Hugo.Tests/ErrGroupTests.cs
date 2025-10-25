@@ -76,7 +76,7 @@ public class ErrGroupTests
     {
         using var group = new ErrGroup();
 
-        group.Go(async ct =>
+        group.Go(static async ct =>
         {
             await Task.Yield();
             throw new InvalidOperationException("explode");
@@ -96,7 +96,7 @@ public class ErrGroupTests
         using var externalCts = new CancellationTokenSource();
         using var group = new ErrGroup(externalCts.Token);
 
-        group.Go(async ct =>
+        group.Go(static async ct =>
         {
             await Task.Delay(TimeSpan.FromSeconds(5), ct);
             return Result.Ok(Unit.Value);
@@ -154,7 +154,7 @@ public class ErrGroupTests
     {
         using var group = new ErrGroup();
 
-        group.Go(() => throw new InvalidOperationException("action failed"));
+        group.Go(static () => throw new InvalidOperationException("action failed"));
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -191,7 +191,7 @@ public class ErrGroupTests
         using var group = new ErrGroup();
         using var cts = new CancellationTokenSource();
 
-        group.Go(async ct =>
+        group.Go(static async ct =>
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, ct);
             return Result.Ok(Unit.Value);

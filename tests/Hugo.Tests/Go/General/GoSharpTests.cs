@@ -31,7 +31,7 @@ public class GoSharpTests
     {
         var wg = new WaitGroup();
 
-        wg.Go(async () =>
+        wg.Go(static async () =>
         {
             await Task.Delay(5, TestContext.Current.CancellationToken);
             throw new InvalidOperationException("boom");
@@ -60,7 +60,7 @@ public class GoSharpTests
 
     [Fact]
     public void Defer_ShouldThrow_WhenActionNull() =>
-        Assert.Throws<ArgumentNullException>(() => new Defer(null!));
+        Assert.Throws<ArgumentNullException>(static () => new Defer(null!));
 
     [Fact]
     public void Err_WithExceptionAndCode_ShouldCaptureMetadata()

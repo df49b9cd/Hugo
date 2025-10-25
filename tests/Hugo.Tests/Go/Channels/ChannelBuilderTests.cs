@@ -34,7 +34,7 @@ public sealed class ChannelBuilderTests
     public void AddBoundedChannel_ShouldRegisterDependencies()
     {
         var services = new ServiceCollection();
-        services.AddBoundedChannel<int>(capacity: 8, builder => builder.SingleReader().SingleWriter());
+        services.AddBoundedChannel<int>(capacity: 8, static builder => builder.SingleReader().SingleWriter());
 
         using var provider = services.BuildServiceProvider();
 
@@ -89,7 +89,7 @@ public sealed class ChannelBuilderTests
     public void AddPrioritizedChannel_ShouldRegisterComponents()
     {
         var services = new ServiceCollection();
-        services.AddPrioritizedChannel<int>(priorityLevels: 2, builder => builder.WithDefaultPriority(0));
+        services.AddPrioritizedChannel<int>(priorityLevels: 2, static builder => builder.WithDefaultPriority(0));
 
         using var provider = services.BuildServiceProvider();
 
@@ -106,7 +106,7 @@ public sealed class ChannelBuilderTests
     }
 
     [Fact]
-    public void PrioritizedChannelBuilder_WithInvalidPriorityLevels_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(() => PrioritizedChannel<int>(priorityLevels: 0));
+    public void PrioritizedChannelBuilder_WithInvalidPriorityLevels_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => PrioritizedChannel<int>(priorityLevels: 0));
 
     [Fact]
     public void PrioritizedChannelBuilder_WithInvalidDefaultPriority_ShouldThrow()
@@ -117,8 +117,8 @@ public sealed class ChannelBuilderTests
     }
 
     [Fact]
-    public void AddBoundedChannel_WithNullServices_ShouldThrow() => Assert.Throws<ArgumentNullException>(() => ChannelServiceCollectionExtensions.AddBoundedChannel<int>(null!, 1));
+    public void AddBoundedChannel_WithNullServices_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => ChannelServiceCollectionExtensions.AddBoundedChannel<int>(null!, 1));
 
     [Fact]
-    public void AddPrioritizedChannel_WithNullServices_ShouldThrow() => Assert.Throws<ArgumentNullException>(() => ChannelServiceCollectionExtensions.AddPrioritizedChannel<int>(null!));
+    public void AddPrioritizedChannel_WithNullServices_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => ChannelServiceCollectionExtensions.AddPrioritizedChannel<int>(null!));
 }

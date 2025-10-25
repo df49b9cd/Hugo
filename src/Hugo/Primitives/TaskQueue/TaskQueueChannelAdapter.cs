@@ -207,7 +207,7 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
         try
         {
             Exception?[] results = await Task.WhenAll(_pumps).ConfigureAwait(false);
-            fault = results.Aggregate(fault, (current, t) => current ?? t);
+            fault = results.Aggregate(fault, static (current, t) => current ?? t);
         }
         catch (OperationCanceledException)
         {

@@ -38,11 +38,11 @@ public class TimerTests
 
     [Fact]
     public void After_ShouldThrow_WhenDelayIsInfinite() =>
-        Assert.Throws<ArgumentOutOfRangeException>(() => After(Timeout.InfiniteTimeSpan, provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Throws<ArgumentOutOfRangeException>(static () => After(Timeout.InfiniteTimeSpan, provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact]
     public void After_ShouldThrow_WhenDelayIsNegative() =>
-        Assert.Throws<ArgumentOutOfRangeException>(() => After(TimeSpan.FromMilliseconds(-1), provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Throws<ArgumentOutOfRangeException>(static () => After(TimeSpan.FromMilliseconds(-1), provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact]
     public async Task AfterAsync_ShouldRespectCancellation()

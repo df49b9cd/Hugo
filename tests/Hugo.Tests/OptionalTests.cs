@@ -60,8 +60,8 @@ public class OptionalTests
         var some = Optional.Some("value");
         var none = Optional<string>.None();
 
-        Assert.Equal("value", some.Match(v => v, () => "none"));
-        Assert.Equal("none", none.Match(v => v, () => "none"));
+        Assert.Equal("value", some.Match(static v => v, static () => "none"));
+        Assert.Equal("none", none.Match(static v => v, static () => "none"));
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class OptionalTests
     [Fact]
     public void Map_ShouldTransformValue()
     {
-        var mapped = Optional.Some(5).Map(n => n * 2);
+        var mapped = Optional.Some(5).Map(static n => n * 2);
 
         Assert.True(mapped.HasValue);
         Assert.Equal(10, mapped.Value);
@@ -89,7 +89,7 @@ public class OptionalTests
     [Fact]
     public void Bind_ShouldFlattenOptionals()
     {
-        var bound = Optional.Some(2).Bind(n => Optional.Some(n * 3));
+        var bound = Optional.Some(2).Bind(static n => Optional.Some(n * 3));
 
         Assert.True(bound.HasValue);
         Assert.Equal(6, bound.Value);
@@ -98,7 +98,7 @@ public class OptionalTests
     [Fact]
     public void Filter_ShouldDiscardValue_WhenPredicateFails()
     {
-        var filtered = Optional.Some(4).Filter(n => n % 2 == 1);
+        var filtered = Optional.Some(4).Filter(static n => n % 2 == 1);
 
         Assert.False(filtered.HasValue);
     }
@@ -118,7 +118,7 @@ public class OptionalTests
     {
         var optional = Optional.Some("value");
 
-        var result = optional.ToResult(() => Error.From("missing", ErrorCodes.Validation));
+        var result = optional.ToResult(static () => Error.From("missing", ErrorCodes.Validation));
 
         Assert.True(result.IsSuccess);
         Assert.Equal("value", result.Value);
@@ -129,7 +129,7 @@ public class OptionalTests
     {
         var optional = Optional<int>.None();
 
-        var result = optional.ToResult(() => Error.From("missing", ErrorCodes.Validation));
+        var result = optional.ToResult(static () => Error.From("missing", ErrorCodes.Validation));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
@@ -161,7 +161,7 @@ public class OptionalTests
     {
         var optional = Optional.Some(10);
 
-        var result = Result.FromOptional(optional, () => Error.From("missing"));
+        var result = Result.FromOptional(optional, static () => Error.From("missing"));
 
         Assert.True(result.IsSuccess);
         Assert.Equal(10, result.Value);
@@ -172,7 +172,7 @@ public class OptionalTests
     {
         var optional = Optional<int>.None();
 
-        var result = Result.FromOptional(optional, () => Error.From("missing", ErrorCodes.Validation));
+        var result = Result.FromOptional(optional, static () => Error.From("missing", ErrorCodes.Validation));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);

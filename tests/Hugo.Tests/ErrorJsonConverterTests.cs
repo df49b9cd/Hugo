@@ -84,8 +84,8 @@ public class ErrorJsonConverterTests
         Assert.True(error!.Metadata.TryGetValue("errors", out var errors));
         var items = Assert.IsType<object?[]>(errors);
         Assert.Collection(items,
-            item => Assert.Equal("first", Assert.IsType<Error>(item).Message),
-            item => Assert.Equal("second", Assert.IsType<Error>(item).Message));
+            static item => Assert.Equal("first", Assert.IsType<Error>(item).Message),
+            static item => Assert.Equal("second", Assert.IsType<Error>(item).Message));
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class ErrorJsonConverterTests
     {
         const string json = """["not", "an", "object"]""";
 
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Error>(json));
+        Assert.Throws<JsonException>(static () => JsonSerializer.Deserialize<Error>(json));
     }
 
     [Theory]
@@ -237,8 +237,8 @@ public class ErrorJsonConverterTests
         Assert.Equal(7, jsonElement.GetProperty("number").GetInt32());
         Assert.Equal(5, meta.GetProperty("readOnlyDictionary").GetProperty("nested").GetInt32());
         Assert.Equal("value", meta.GetProperty("dictionary").GetProperty("hash").GetString());
-        Assert.Equal(new[] { 1, 2, 3 }, meta.GetProperty("enumerable").EnumerateArray().Select(e => e.GetInt32()).ToArray());
-        var serializedErrors = meta.GetProperty("errorEnumerable").EnumerateArray().Select(e => e.GetProperty("message").GetString()).ToArray();
+        Assert.Equal(new[] { 1, 2, 3 }, meta.GetProperty("enumerable").EnumerateArray().Select(static e => e.GetInt32()).ToArray());
+        var serializedErrors = meta.GetProperty("errorEnumerable").EnumerateArray().Select(static e => e.GetProperty("message").GetString()).ToArray();
         Assert.Equal(new[] { "first", "second" }, serializedErrors);
         Assert.Equal(unsupportedDescription, meta.GetProperty("unsupported").GetString());
         Assert.Equal("2024-05-01T10:15:30Z", meta.GetProperty("date").GetString());

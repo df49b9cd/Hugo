@@ -9,8 +9,8 @@ public class ResultEdgeCaseTests
     {
         var result = Ok(5)
             .Ensure(
-                value => value > 10,
-                value => Error.From("value too small", ErrorCodes.Validation)
+                static value => value > 10,
+                static value => Error.From("value too small", ErrorCodes.Validation)
                     .WithMetadata("actual", value)
                     .WithMetadata("threshold", 10));
 
@@ -27,7 +27,7 @@ public class ResultEdgeCaseTests
             .WithMetadata("field", "email")
             .WithMetadata("code", "user-input");
 
-        var recovered = Result.Fail<int>(originalError).Recover(err =>
+        var recovered = Result.Fail<int>(originalError).Recover(static err =>
         {
             Assert.True(err.TryGetMetadata<string>("field", out var field));
             Assert.Equal("email", field);

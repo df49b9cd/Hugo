@@ -10,11 +10,11 @@ public class GoWaitGroupExtensionsTests
 {
     [Fact]
     public void Go_ShouldThrow_WhenWaitGroupNull() =>
-        Assert.Throws<ArgumentNullException>(() => GoWaitGroupExtensions.Go(null!, () => Task.CompletedTask));
+        Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static () => Task.CompletedTask));
 
     [Fact]
     public void Go_ShouldThrow_WhenFuncNull() =>
-        Assert.Throws<ArgumentNullException>(() => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<Task>)null!));
+        Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<Task>)null!));
 
     [Fact]
     public async Task Go_ShouldRunFunctionAndTrackWaitGroup()
@@ -36,11 +36,11 @@ public class GoWaitGroupExtensionsTests
 
     [Fact]
     public void Go_WithCancellationToken_ShouldThrow_WhenWaitGroupNull() =>
-        Assert.Throws<ArgumentNullException>(() => GoWaitGroupExtensions.Go(null!, _ => Task.CompletedTask, CancellationToken.None));
+        Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static _ => Task.CompletedTask, CancellationToken.None));
 
     [Fact]
     public void Go_WithCancellationToken_ShouldThrow_WhenFuncNull() =>
-        Assert.Throws<ArgumentNullException>(() => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<CancellationToken, Task>)null!, CancellationToken.None));
+        Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<CancellationToken, Task>)null!, CancellationToken.None));
 
     [Fact]
     public async Task Go_WithCancellationToken_ShouldPassTokenAndComplete()

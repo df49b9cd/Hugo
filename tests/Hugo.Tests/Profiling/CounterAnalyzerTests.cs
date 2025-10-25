@@ -24,16 +24,16 @@ public sealed class CounterAnalyzerTests
         Assert.Equal(5, report.ParsedRows);
         Assert.Empty(report.ParseErrors);
 
-        var waitGroup = Assert.Single(report.Counters, summary => summary.Provider == "Hugo.Go");
+        var waitGroup = Assert.Single(report.Counters, static summary => summary.Provider == "Hugo.Go");
         Assert.Equal(2, waitGroup.Samples);
         Assert.Equal(2, waitGroup.Max);
         Assert.Equal(1, waitGroup.Mean);
 
-        Assert.Contains(report.Findings, finding =>
+        Assert.Contains(report.Findings, static finding =>
             finding.Severity == AnalyzerSeverity.Warning &&
             finding.Counter.Contains("waitgroup", StringComparison.OrdinalIgnoreCase));
 
-        Assert.Contains(report.Findings, finding =>
+        Assert.Contains(report.Findings, static finding =>
             finding.Counter.Contains("gc.pause.time", StringComparison.OrdinalIgnoreCase));
     }
 

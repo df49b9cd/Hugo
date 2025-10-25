@@ -15,7 +15,7 @@ public partial class GoTests
     // This helper is used by tests but is not a test itself.
     private static Result<string> ReadFileContent(string path)
     {
-        using (Defer(() => Console.WriteLine("[ReadFileContent] Cleanup finished.")))
+        using (Defer(static () => Console.WriteLine("[ReadFileContent] Cleanup finished.")))
         {
             if (string.IsNullOrWhiteSpace(path))
             {
@@ -169,7 +169,7 @@ public partial class GoTests
     [Fact]
     public void Pool_ShouldRecycleObjects()
     {
-        var pool = new Pool<object> { New = () => new object() };
+        var pool = new Pool<object> { New = static () => new object() };
         var obj1 = pool.Get();
         pool.Put(obj1);
         var obj2 = pool.Get();
@@ -527,8 +527,8 @@ public partial class GoTests
     [Fact]
     public async Task Run_ShouldThrowWhenFuncIsNull()
     {
-        await Assert.ThrowsAsync<ArgumentNullException>(() => Go.Run((Func<Task>)null!));
-        await Assert.ThrowsAsync<ArgumentNullException>(() => Go.Run((Func<CancellationToken, Task>)null!, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(static () => Go.Run((Func<Task>)null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(static () => Go.Run((Func<CancellationToken, Task>)null!, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -555,7 +555,7 @@ public partial class GoTests
     }
 
     [Fact]
-    public async Task DelayAsync_ShouldThrow_WhenDelayIsNegative() => await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+    public async Task DelayAsync_ShouldThrow_WhenDelayIsNegative() => await Assert.ThrowsAsync<ArgumentOutOfRangeException>(static () =>
                                                                                Go.DelayAsync(TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact]
@@ -571,7 +571,7 @@ public partial class GoTests
     }
 
     [Fact]
-    public void ChannelCase_Create_ShouldThrow_WhenReaderIsNull() => Assert.Throws<ArgumentNullException>(() => ChannelCase.Create<int>(null!, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value))));
+    public void ChannelCase_Create_ShouldThrow_WhenReaderIsNull() => Assert.Throws<ArgumentNullException>(static () => ChannelCase.Create<int>(null!, static (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value))));
 
     [Fact]
     public void ChannelCase_Create_ShouldThrow_WhenContinuationIsNull()
@@ -590,10 +590,10 @@ public partial class GoTests
     }
 
     [Fact]
-    public async Task SelectAsync_ShouldThrow_WhenCasesNull() => await Assert.ThrowsAsync<ArgumentNullException>(() => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: null!));
+    public async Task SelectAsync_ShouldThrow_WhenCasesNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: null!));
 
     [Fact]
-    public async Task SelectAsync_ShouldThrow_WhenCasesEmpty() => await Assert.ThrowsAsync<ArgumentException>(() => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: []));
+    public async Task SelectAsync_ShouldThrow_WhenCasesEmpty() => await Assert.ThrowsAsync<ArgumentException>(static () => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: []));
 
     [Fact]
     public async Task SelectAsync_ShouldThrow_WhenTimeoutIsNegative()
@@ -610,7 +610,7 @@ public partial class GoTests
         var channel = MakeChannel<int>();
         channel.Writer.TryComplete();
 
-        var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))]);
+        var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, static (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))]);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.SelectDrained, result.Error?.Code);
@@ -644,7 +644,7 @@ public partial class GoTests
             cancellationToken: TestContext.Current.CancellationToken,
             cases:
             [
-                ChannelCase.CreateDefault(() => Result.Fail<Unit>(Error.From("default failure", ErrorCodes.Validation)))
+                ChannelCase.CreateDefault(static () => Result.Fail<Unit>(Error.From("default failure", ErrorCodes.Validation)))
             ]);
 
         Assert.True(result.IsFailure);
@@ -683,13 +683,13 @@ public partial class GoTests
     [Fact]
     public async Task SelectAsync_ShouldThrow_WhenMultipleDefaultCasesSupplied()
     {
-        await Assert.ThrowsAsync<ArgumentException>(() =>
+        await Assert.ThrowsAsync<ArgumentException>(static () =>
             SelectAsync(
                 cancellationToken: TestContext.Current.CancellationToken,
                 cases:
                 [
-                    ChannelCase.CreateDefault(() => Result.Ok(Unit.Value)),
-                    ChannelCase.CreateDefault(() => Result.Ok(Unit.Value))
+                    ChannelCase.CreateDefault(static () => Result.Ok(Unit.Value)),
+                    ChannelCase.CreateDefault(static () => Result.Ok(Unit.Value))
                 ]));
     }
 
@@ -700,7 +700,7 @@ public partial class GoTests
         channel.Writer.TryWrite(42);
         channel.Writer.TryComplete();
 
-        var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, (Action<int>)(_ => throw new InvalidOperationException("boom")))]);
+        var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, (Action<int>)(static _ => throw new InvalidOperationException("boom")))]);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
@@ -759,7 +759,7 @@ public partial class GoTests
             cancellationToken: cts.Token,
             cases:
             [
-                ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))
+                ChannelCase.Create(channel.Reader, static (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))
             ]);
 
         Assert.False(selectTask.IsCompleted);
@@ -782,7 +782,7 @@ public partial class GoTests
 
         var selectTask = SelectAsync(
             cancellationToken: cts.Token,
-            cases: [ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))]);
+            cases: [ChannelCase.Create(channel.Reader, static (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))]);
 
         cts.CancelAfter(20);
 
@@ -815,7 +815,7 @@ public partial class GoTests
                 cancellationToken: TestContext.Current.CancellationToken,
                 cases:
                 [
-                    ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Unit.Value)))
+                    ChannelCase.Create(channel.Reader, static (_, _) => Task.FromResult(Result.Ok(Unit.Value)))
                 ]);
 
             Assert.True(result.IsSuccess);
@@ -859,7 +859,7 @@ public partial class GoTests
                 cancellationToken: TestContext.Current.CancellationToken,
                 cases:
                 [
-                    ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Fail<Unit>(Error.From("failure", "error.activity"))))
+                    ChannelCase.Create(channel.Reader, static (_, _) => Task.FromResult(Result.Fail<Unit>(Error.From("failure", "error.activity"))))
                 ]);
 
             Assert.True(result.IsFailure);
@@ -962,7 +962,7 @@ public partial class GoTests
         var template = ChannelCaseTemplates.From(channel.Reader);
 
         var selectTask = Select<string>(cancellationToken: TestContext.Current.CancellationToken)
-            .Case(template, value => $"value:{value}")
+            .Case(template, static value => $"value:{value}")
             .ExecuteAsync();
 
         await channel.Writer.WriteAsync(7, TestContext.Current.CancellationToken);
@@ -980,7 +980,7 @@ public partial class GoTests
         var channel = MakeChannel<int>();
 
         var selectTask = Select<int>(cancellationToken: TestContext.Current.CancellationToken)
-            .Case(channel.Reader, (_, _) => Task.FromResult(Result.Fail<int>(Error.From("boom", ErrorCodes.Validation))))
+            .Case(channel.Reader, static (_, _) => Task.FromResult(Result.Fail<int>(Error.From("boom", ErrorCodes.Validation))))
             .ExecuteAsync();
 
         await channel.Writer.WriteAsync(5, TestContext.Current.CancellationToken);
@@ -1000,7 +1000,7 @@ public partial class GoTests
         var channel = MakeChannel<int>();
 
         var selectTask = Select<string>(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken)
-            .Case(channel.Reader, value => value.ToString())
+            .Case(channel.Reader, static value => value.ToString())
             .ExecuteAsync();
 
         provider.Advance(TimeSpan.FromSeconds(1));
@@ -1023,7 +1023,7 @@ public partial class GoTests
     public async Task SelectBuilder_ShouldReturnDefaultResult_WhenNoCasesConfigured()
     {
         var result = await Select<string>(cancellationToken: TestContext.Current.CancellationToken)
-            .Default(() => "fallback")
+            .Default(static () => "fallback")
             .ExecuteAsync();
 
         Assert.True(result.IsSuccess);
@@ -1038,8 +1038,8 @@ public partial class GoTests
         channel.Writer.TryComplete();
 
         var result = await Select<int>(cancellationToken: TestContext.Current.CancellationToken)
-            .Case(channel.Reader, value => value)
-            .Default(() => 5)
+            .Case(channel.Reader, static value => value)
+            .Default(static () => 5)
             .ExecuteAsync();
 
         Assert.True(result.IsSuccess);
@@ -1058,8 +1058,8 @@ public partial class GoTests
         lowPriority.Writer.TryComplete();
 
         var result = await Select<int>(cancellationToken: TestContext.Current.CancellationToken)
-            .Case(lowPriority.Reader, value => value)
-            .Case(highPriority.Reader, priority: -1, value => value)
+            .Case(lowPriority.Reader, static value => value)
+            .Case(highPriority.Reader, priority: -1, static value => value)
             .ExecuteAsync();
 
         Assert.True(result.IsSuccess);
@@ -1078,8 +1078,8 @@ public partial class GoTests
         second.Writer.TryComplete();
 
         var result = await Select<int>(cancellationToken: TestContext.Current.CancellationToken)
-            .Case(first.Reader, value => value)
-            .Case(second.Reader, value => value)
+            .Case(first.Reader, static value => value)
+            .Case(second.Reader, static value => value)
             .ExecuteAsync();
 
         Assert.True(result.IsSuccess);
@@ -1093,8 +1093,8 @@ public partial class GoTests
         channel.Writer.TryComplete();
 
         var result = await Select<string>(cancellationToken: TestContext.Current.CancellationToken)
-            .Case(channel.Reader, value => value.ToString())
-            .Default(() => "fallback")
+            .Case(channel.Reader, static value => value.ToString())
+            .Default(static () => "fallback")
             .ExecuteAsync();
 
         Assert.True(result.IsSuccess);
@@ -1116,7 +1116,7 @@ public partial class GoTests
         var provider = new FakeTimeProvider();
 
         var selectTask = Select<string>(provider: provider, cancellationToken: TestContext.Current.CancellationToken)
-            .Deadline(TimeSpan.FromSeconds(1), () => "expired")
+            .Deadline(TimeSpan.FromSeconds(1), static () => "expired")
             .ExecuteAsync();
 
         provider.Advance(TimeSpan.FromSeconds(1));
@@ -1179,19 +1179,19 @@ public partial class GoTests
     }
 
     [Fact]
-    public void MakeChannel_WithNullBoundedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((BoundedChannelOptions)null!));
+    public void MakeChannel_WithNullBoundedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((BoundedChannelOptions)null!));
 
     [Fact]
-    public void MakeChannel_WithNullUnboundedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((UnboundedChannelOptions)null!));
+    public void MakeChannel_WithNullUnboundedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((UnboundedChannelOptions)null!));
 
     [Fact]
-    public void MakeChannel_WithNullPrioritizedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((PrioritizedChannelOptions)null!));
+    public void MakeChannel_WithNullPrioritizedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((PrioritizedChannelOptions)null!));
 
     [Fact]
-    public void MakePrioritizedChannel_ShouldThrow_WhenPriorityLevelsInvalid() => Assert.Throws<ArgumentOutOfRangeException>(() => MakePrioritizedChannel<int>(0));
+    public void MakePrioritizedChannel_ShouldThrow_WhenPriorityLevelsInvalid() => Assert.Throws<ArgumentOutOfRangeException>(static () => MakePrioritizedChannel<int>(0));
 
     [Fact]
-    public void MakePrioritizedChannel_ShouldThrow_WhenDefaultPriorityTooHigh() => Assert.Throws<ArgumentOutOfRangeException>(() => MakePrioritizedChannel<int>(priorityLevels: 2, defaultPriority: 2));
+    public void MakePrioritizedChannel_ShouldThrow_WhenDefaultPriorityTooHigh() => Assert.Throws<ArgumentOutOfRangeException>(static () => MakePrioritizedChannel<int>(priorityLevels: 2, defaultPriority: 2));
 
     private static readonly int[] expected = [2, 3, 1];
 

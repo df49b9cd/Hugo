@@ -47,12 +47,12 @@ public sealed class SpeedscopeAnalyzerTests
         Assert.Equal("milliseconds", profile.Unit);
         Assert.Equal(4, profile.EventCount);
 
-        var loop = Assert.Single(report.Frames, frame => frame.Name == "MainLoop");
+        var loop = Assert.Single(report.Frames, static frame => frame.Name == "MainLoop");
         Assert.Equal(5d, loop.InclusiveMilliseconds, 3);
         Assert.Equal(3d, loop.SelfMilliseconds, 3);
         Assert.Equal(1, loop.CallCount);
 
-        var worker = Assert.Single(report.Frames, frame => frame.Name == "Worker");
+        var worker = Assert.Single(report.Frames, static frame => frame.Name == "Worker");
         Assert.Equal(2d, worker.InclusiveMilliseconds, 3);
         Assert.Equal(2d, worker.SelfMilliseconds, 3);
         Assert.Equal(1, worker.CallCount);
@@ -85,6 +85,6 @@ public sealed class SpeedscopeAnalyzerTests
         var report = SpeedscopeAnalyzer.Analyze(stream);
 
         Assert.NotEmpty(report.Warnings);
-        Assert.Contains(report.Warnings, warning => warning.Contains("unclosed", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(report.Warnings, static warning => warning.Contains("unclosed", StringComparison.OrdinalIgnoreCase));
     }
 }

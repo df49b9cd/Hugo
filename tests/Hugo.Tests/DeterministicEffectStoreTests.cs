@@ -127,7 +127,7 @@ public class DeterministicEffectStoreTests
 
         var mismatch = await effectStore.CaptureAsync<int>(
             "effect.kind",
-            () => Result.Ok(7));
+            static () => Result.Ok(7));
 
         Assert.True(mismatch.IsFailure);
         Assert.Equal(ErrorCodes.DeterministicReplay, mismatch.Error?.Code);

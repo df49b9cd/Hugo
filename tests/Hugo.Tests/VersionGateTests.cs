@@ -58,7 +58,7 @@ public class VersionGateTests
             "feature.step4",
             VersionGate.DefaultVersion,
             2,
-            context => context.MinVersion);
+            static context => context.MinVersion);
 
         Assert.True(decision.IsSuccess);
         Assert.Equal(VersionGate.DefaultVersion, decision.Value.Version);
@@ -100,7 +100,7 @@ public class VersionGateTests
             "feature.initial.exception",
             VersionGate.DefaultVersion,
             3,
-            _ => throw new InvalidOperationException("boom"));
+            static _ => throw new InvalidOperationException("boom"));
 
         Assert.True(decision.IsFailure);
         Assert.Equal(ErrorCodes.Exception, decision.Error?.Code);
@@ -118,7 +118,7 @@ public class VersionGateTests
             "feature.initial.outside",
             1,
             3,
-            _ => 5);
+            static _ => 5);
 
         Assert.True(decision.IsFailure);
         Assert.Equal(ErrorCodes.VersionConflict, decision.Error?.Code);

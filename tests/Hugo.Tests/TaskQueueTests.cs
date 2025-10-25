@@ -6,13 +6,13 @@ namespace Hugo.Tests;
 public class TaskQueueTests
 {
     [Fact]
-    public void TaskQueueOptions_InvalidCapacity_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(() => new TaskQueueOptions { Capacity = 0 });
+    public void TaskQueueOptions_InvalidCapacity_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { Capacity = 0 });
 
     [Fact]
-    public void TaskQueueOptions_InvalidLeaseDuration_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(() => new TaskQueueOptions { LeaseDuration = TimeSpan.Zero });
+    public void TaskQueueOptions_InvalidLeaseDuration_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { LeaseDuration = TimeSpan.Zero });
 
     [Fact]
-    public void TaskQueueOptions_NegativeRequeueDelay_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(() => new TaskQueueOptions { RequeueDelay = TimeSpan.FromMilliseconds(-1) });
+    public void TaskQueueOptions_NegativeRequeueDelay_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { RequeueDelay = TimeSpan.FromMilliseconds(-1) });
 
     [Fact]
     public async Task EnqueueLeaseComplete_ShouldClearCounts()

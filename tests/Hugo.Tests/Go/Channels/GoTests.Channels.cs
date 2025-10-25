@@ -66,7 +66,7 @@ public partial class GoTests
 
     [Fact]
     public void MakeChannel_WithBoundedOptionsNull_Throws() =>
-        Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((BoundedChannelOptions)null!));
+        Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((BoundedChannelOptions)null!));
 
     [Fact]
     public void MakeChannel_WithUnboundedOptions_CreatesChannel()
@@ -93,7 +93,7 @@ public partial class GoTests
 
     [Fact]
     public void MakeChannel_WithUnboundedOptionsNull_Throws() =>
-        Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((UnboundedChannelOptions)null!));
+        Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((UnboundedChannelOptions)null!));
 
     [Fact]
     public async Task MakeChannel_WithPrioritizedOptions_UsesDefaultPriority()
@@ -119,7 +119,7 @@ public partial class GoTests
 
     [Fact]
     public void MakeChannel_WithPrioritizedOptionsNull_Throws() =>
-        Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((PrioritizedChannelOptions)null!));
+        Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((PrioritizedChannelOptions)null!));
 
     [Fact]
     public async Task MakePrioritizedChannel_ConfiguresOptions()
@@ -187,7 +187,7 @@ public partial class GoTests
         var channel = MakeChannel<int>();
         var fanInTask = SelectFanInAsync(
             [channel.Reader],
-            (int _, CancellationToken _) => Task.FromResult(Result.Fail<Unit>(Error.From("boom", ErrorCodes.Validation))),
+            static (int _, CancellationToken _) => Task.FromResult(Result.Fail<Unit>(Error.From("boom", ErrorCodes.Validation))),
             cancellationToken: TestContext.Current.CancellationToken);
 
         await channel.Writer.WriteAsync(5, TestContext.Current.CancellationToken);
@@ -208,7 +208,7 @@ public partial class GoTests
 
         var result = await SelectFanInAsync(
             [channel.Reader],
-            (int _, CancellationToken _) => Task.FromResult(Result.Ok(Unit.Value)),
+            static (int _, CancellationToken _) => Task.FromResult(Result.Ok(Unit.Value)),
             cancellationToken: cts.Token);
 
         Assert.True(result.IsFailure);
@@ -258,7 +258,7 @@ public partial class GoTests
     [Fact]
     public async Task SelectFanInAsync_WithNullReaders_Throws()
     {
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync<object>(null!, (_, _) => Task.FromResult(Result.Ok(Unit.Value)), cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(static async () => await SelectFanInAsync<object>(null!, static (_, _) => Task.FromResult(Result.Ok(Unit.Value)), cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -394,7 +394,7 @@ public partial class GoTests
 
     [Fact]
     public void FanIn_WithNullSources_Throws() =>
-        Assert.Throws<ArgumentNullException>(() => FanIn<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Throws<ArgumentNullException>(static () => FanIn<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact]
     public async Task FanOutAsync_WithNullSource_Throws()
@@ -439,11 +439,11 @@ public partial class GoTests
 
     [Fact]
     public void FanOut_WithNullSource_Throws() =>
-        Assert.Throws<ArgumentNullException>(() => FanOut<int>(null!, 1, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Throws<ArgumentNullException>(static () => FanOut<int>(null!, 1, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact]
     public void FanOut_WithInvalidBranchCount_Throws() =>
-        Assert.Throws<ArgumentOutOfRangeException>(() => FanOut(MakeChannel<int>().Reader, 0, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Throws<ArgumentOutOfRangeException>(static () => FanOut(MakeChannel<int>().Reader, 0, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact]
     public async Task FanOut_WithCompleteBranchesFalse_DoesNotCompleteBranches()

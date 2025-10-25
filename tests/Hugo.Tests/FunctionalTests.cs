@@ -15,16 +15,16 @@ public class FunctionalTests
     }
 
     [Fact]
-    public void Then_ShouldThrow_WhenNextIsNull() => Assert.Throws<ArgumentNullException>(() => Ok(1).Then((Func<int, Result<int>>)null!));
+    public void Then_ShouldThrow_WhenNextIsNull() => Assert.Throws<ArgumentNullException>(static () => Ok(1).Then((Func<int, Result<int>>)null!));
 
     [Fact]
-    public void Map_ShouldThrow_WhenMapperIsNull() => Assert.Throws<ArgumentNullException>(() => Ok(1).Map((Func<int, int>)null!));
+    public void Map_ShouldThrow_WhenMapperIsNull() => Assert.Throws<ArgumentNullException>(static () => Ok(1).Map((Func<int, int>)null!));
 
     [Fact]
-    public void Tap_ShouldThrow_WhenActionIsNull() => Assert.Throws<ArgumentNullException>(() => Ok(1).Tap(null!));
+    public void Tap_ShouldThrow_WhenActionIsNull() => Assert.Throws<ArgumentNullException>(static () => Ok(1).Tap(null!));
 
     [Fact]
-    public void Error_From_ShouldThrow_WhenMessageIsNull() => Assert.Throws<ArgumentNullException>(() => Error.From(null!));
+    public void Error_From_ShouldThrow_WhenMessageIsNull() => Assert.Throws<ArgumentNullException>(static () => Error.From(null!));
 
     [Fact]
     public void Error_ShouldImplicitlyConvert_FromString()
@@ -47,8 +47,8 @@ public class FunctionalTests
     public void Then_ShouldExecuteNext_OnSuccess()
     {
         var result = Ok(2)
-            .Then(v => Ok(v * 5))
-            .Then(v => Ok(v.ToString()));
+            .Then(static v => Ok(v * 5))
+            .Then(static v => Ok(v.ToString()));
 
         Assert.True(result.IsSuccess);
         Assert.Equal("10", result.Value);
@@ -58,7 +58,7 @@ public class FunctionalTests
     public void Then_ShouldBypassNext_OnFailure()
     {
         var error = Error.From("oops");
-        var result = Err<int>(error).Then(v => Ok(v * 2));
+        var result = Err<int>(error).Then(static v => Ok(v * 2));
 
         Assert.True(result.IsFailure);
         Assert.Same(error, result.Error);
@@ -68,7 +68,7 @@ public class FunctionalTests
     public async Task ThenAsync_ShouldComposeSyncBinder_WithAsyncResult()
     {
         var result = await Task.FromResult(Ok("start"))
-            .ThenAsync(value => Ok(value + "-next"), TestContext.Current.CancellationToken);
+            .ThenAsync(static value => Ok(value + "-next"), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("start-next", result.Value);
@@ -79,7 +79,7 @@ public class FunctionalTests
     {
         var result = await Ok("start")
             .ThenAsync(
-                (value, _) => Task.FromResult(Ok(value + "-async")),
+                static (value, _) => Task.FromResult(Ok(value + "-async")),
                 TestContext.Current.CancellationToken
             );
 
@@ -90,7 +90,7 @@ public class FunctionalTests
     [Fact]
     public void Map_ShouldTransformValue()
     {
-        var result = Ok(5).Map(v => v * 2);
+        var result = Ok(5).Map(static v => v * 2);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(10, result.Value);
@@ -100,7 +100,7 @@ public class FunctionalTests
     public async Task MapAsync_ShouldTransformAsync()
     {
         var result = await Ok(5)
-            .MapAsync((value, _) => Task.FromResult(value * 3), TestContext.Current.CancellationToken);
+            .MapAsync(static (value, _) => Task.FromResult(value * 3), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(15, result.Value);
@@ -147,7 +147,7 @@ public class FunctionalTests
     [Fact]
     public void Recover_ShouldConvertFailure()
     {
-        var recovered = Err<int>("whoops").Recover(err => Ok(err.Message.Length));
+        var recovered = Err<int>("whoops").Recover(static err => Ok(err.Message.Length));
 
         Assert.True(recovered.IsSuccess);
         Assert.Equal(6, recovered.Value);
@@ -157,7 +157,7 @@ public class FunctionalTests
     public async Task RecoverAsync_Result_ShouldConvertFailure()
     {
         var recovered = await Err<int>("fail").RecoverAsync(
-            (error, _) => Task.FromResult(Ok(error.Message.Length)),
+            static (error, _) => Task.FromResult(Ok(error.Message.Length)),
             TestContext.Current.CancellationToken
         );
 
@@ -170,7 +170,7 @@ public class FunctionalTests
     {
         var recovered = await Task.FromResult(Err<int>("fail"))
             .RecoverAsync(
-                (err, _) => Task.FromResult(Ok(err.Message.Length)),
+                static (err, _) => Task.FromResult(Ok(err.Message.Length)),
                 TestContext.Current.CancellationToken
             );
 
@@ -181,7 +181,7 @@ public class FunctionalTests
     [Fact]
     public void Ensure_ShouldFail_WhenPredicateIsFalse()
     {
-        var result = Ok(5).Ensure(v => v > 10);
+        var result = Ok(5).Ensure(static v => v > 10);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
@@ -191,7 +191,7 @@ public class FunctionalTests
     public async Task EnsureAsync_ShouldFail_WhenPredicateIsFalse()
     {
         var result = await Ok(5).EnsureAsync(
-            (v, _) => Task.FromResult(v > 10),
+            static (v, _) => Task.FromResult(v > 10),
             TestContext.Current.CancellationToken
         );
 
@@ -213,8 +213,8 @@ public class FunctionalTests
     [Fact]
     public void Finally_ShouldSelectBranch()
     {
-        var success = Ok("value").Finally(v => v.ToUpperInvariant(), err => err.Message);
-        var failure = Err<string>("fail").Finally(v => v, err => err.Message);
+        var success = Ok("value").Finally(static v => v.ToUpperInvariant(), static err => err.Message);
+        var failure = Err<string>("fail").Finally(static v => v, static err => err.Message);
 
         Assert.Equal("VALUE", success);
         Assert.Equal("fail", failure);
@@ -225,15 +225,15 @@ public class FunctionalTests
     {
         var success = await Task.FromResult(Ok(1))
             .FinallyAsync(
-                v => $"{v}-success",
-                err => err.Message,
+                static v => $"{v}-success",
+                static err => err.Message,
                 TestContext.Current.CancellationToken
             );
 
         var failure = await Task.FromResult(Err<int>("fail"))
             .FinallyAsync(
-                v => v.ToString(CultureInfo.InvariantCulture),
-                err => err.Message,
+                static v => v.ToString(CultureInfo.InvariantCulture),
+                static err => err.Message,
                 TestContext.Current.CancellationToken
             );
 
@@ -258,12 +258,12 @@ public class FunctionalTests
     {
         var result = await Ok(1)
             .ThenAsync(
-                (v, _) => Task.FromResult(Ok(v + 1)),
+                static (v, _) => Task.FromResult(Ok(v + 1)),
                 TestContext.Current.CancellationToken
             )
-            .MapAsync(v => v * 5, TestContext.Current.CancellationToken)
+            .MapAsync(static v => v * 5, TestContext.Current.CancellationToken)
             .TapAsync(
-                (value, _) =>
+                static (value, _) =>
                 {
                     Assert.Equal(10, value);
                     return Task.CompletedTask;
@@ -271,11 +271,11 @@ public class FunctionalTests
                 TestContext.Current.CancellationToken
             )
             .EnsureAsync(
-                (value, _) => Task.FromResult(value == 10),
+                static (value, _) => Task.FromResult(value == 10),
                 TestContext.Current.CancellationToken
             )
             .RecoverAsync(
-                _ => Ok(42),
+                static _ => Ok(42),
                 TestContext.Current.CancellationToken
             );
 
@@ -290,7 +290,7 @@ public class FunctionalTests
 
         var result = await Ok("start")
             .ThenAsync(
-                async (_, ct) =>
+                static async (_, ct) =>
                 {
                     await Task.Delay(TimeSpan.FromSeconds(5), ct);
                     return Ok("never");
@@ -309,7 +309,7 @@ public class FunctionalTests
         await cts.CancelAsync();
 
         var task = Task.FromCanceled<Result<int>>(cts.Token);
-        var result = await task.MapAsync(v => v, TestContext.Current.CancellationToken);
+        var result = await task.MapAsync(static v => v, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -322,7 +322,7 @@ public class FunctionalTests
         await cts.CancelAsync();
 
         var task = Task.FromCanceled<Result<int>>(cts.Token);
-        var result = await task.RecoverAsync(_ => Ok(5), TestContext.Current.CancellationToken);
+        var result = await task.RecoverAsync(static _ => Ok(5), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -467,7 +467,7 @@ public class FunctionalTests
     public async Task MapAsync_TaskResult_ShouldTransformValue()
     {
         var resultTask = Task.FromResult(Ok(2));
-        var mapped = await resultTask.MapAsync(v => v * 3, TestContext.Current.CancellationToken);
+        var mapped = await resultTask.MapAsync(static v => v * 3, TestContext.Current.CancellationToken);
 
         Assert.True(mapped.IsSuccess);
         Assert.Equal(6, mapped.Value);
@@ -478,7 +478,7 @@ public class FunctionalTests
     {
         var resultTask = Task.FromResult(Ok(3));
         var mapped = await resultTask.MapAsync(
-            async (value, ct) =>
+            static async (value, ct) =>
             {
                 await Task.Delay(5, ct);
                 return value * 2;
@@ -494,7 +494,7 @@ public class FunctionalTests
     public async Task RecoverAsync_TaskResultWithAsyncRecover_ShouldReturnRecoveredResult()
     {
         var task = Task.FromResult(Err<int>("fail"));
-        var recovered = await task.RecoverAsync(async (_, ct) =>
+        var recovered = await task.RecoverAsync(static async (_, ct) =>
         {
             await Task.Delay(5, ct);
             return Ok(9);
@@ -508,7 +508,7 @@ public class FunctionalTests
     public async Task EnsureAsync_TaskResult_ShouldFailWhenPredicateFalse()
     {
         var task = Task.FromResult(Ok(1));
-        var ensured = await task.EnsureAsync(async (_, ct) =>
+        var ensured = await task.EnsureAsync(static async (_, ct) =>
         {
             await Task.Delay(5, ct);
             return false;
@@ -522,12 +522,12 @@ public class FunctionalTests
     public async Task FinallyAsync_Result_ShouldInvokeAsyncHandlers()
     {
         var result = await Ok(1).FinallyAsync(
-            async (value, ct) =>
+            static async (value, ct) =>
             {
                 await Task.Delay(5, ct);
                 return value + 1;
             },
-            async (_, ct) =>
+            static async (_, ct) =>
             {
                 await Task.Delay(5, ct);
                 return -1;
@@ -542,12 +542,12 @@ public class FunctionalTests
     public async Task FinallyAsync_TaskResult_ShouldInvokeAsyncHandlers()
     {
         var outcome = await Task.FromResult(Ok("value")).FinallyAsync(
-            async (value, ct) =>
+            static async (value, ct) =>
             {
                 await Task.Delay(5, ct);
                 return value.ToUpperInvariant();
             },
-            async (_, ct) =>
+            static async (_, ct) =>
             {
                 await Task.Delay(5, ct);
                 return string.Empty;
@@ -566,12 +566,12 @@ public class FunctionalTests
 
         var task = Task.FromCanceled<Result<int>>(cts.Token);
         var result = await task.FinallyAsync(
-            async (value, ct) =>
+            static async (value, ct) =>
             {
                 await Task.Delay(1, ct);
                 return value.ToString(CultureInfo.InvariantCulture);
             },
-            async (error, ct) =>
+            static async (error, ct) =>
             {
                 await Task.Delay(1, ct);
                 return error.Code ?? string.Empty;
@@ -585,7 +585,7 @@ public class FunctionalTests
     [Fact]
     public void Where_ShouldFailWhenPredicateFalse()
     {
-        var result = Ok(1).Where(v => v > 5);
+        var result = Ok(1).Where(static v => v > 5);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);

@@ -59,7 +59,7 @@ public class ErrorTests
     }
 
     [Fact]
-    public void FromException_ShouldThrow_WhenExceptionIsNull() => Assert.Throws<ArgumentNullException>(() => Error.FromException(null!));
+    public void FromException_ShouldThrow_WhenExceptionIsNull() => Assert.Throws<ArgumentNullException>(static () => Error.FromException(null!));
 
     [Fact]
     public void TryGetMetadata_ShouldReturnValue()

@@ -11,12 +11,12 @@ public partial class GoTests
     {
         var operations = new List<Func<CancellationToken, Task<Result<int>>>>
         {
-            async ct =>
+            static async ct =>
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(10), ct);
                 return Ok(1);
             },
-            async ct =>
+            static async ct =>
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(20), ct);
                 return Ok(2);
@@ -34,17 +34,17 @@ public partial class GoTests
     {
         var operations = new List<Func<CancellationToken, Task<Result<int>>>>
         {
-            async ct =>
+            static async ct =>
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(20), ct);
                 return Err<int>("slow failure", ErrorCodes.Validation);
             },
-            async ct =>
+            static async ct =>
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(10), ct);
                 return Ok(2);
             },
-            async ct =>
+            static async ct =>
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(30), ct);
                 return Err<int>("failure", ErrorCodes.Validation);
@@ -63,7 +63,7 @@ public partial class GoTests
         var provider = new FakeTimeProvider();
 
         var timeoutTask = WithTimeoutAsync(
-            async ct =>
+            static async ct =>
             {
                 await Task.Delay(Timeout.InfiniteTimeSpan, ct);
                 return Ok(42);
@@ -113,7 +113,7 @@ public partial class GoTests
         var provider = new FakeTimeProvider();
 
         var result = await WithTimeoutAsync<int>(
-            _ => throw new InvalidOperationException("boom"),
+            static _ => throw new InvalidOperationException("boom"),
             TimeSpan.FromSeconds(5),
             timeProvider: provider,
             TestContext.Current.CancellationToken);
@@ -127,7 +127,7 @@ public partial class GoTests
     public async Task WithTimeoutAsync_ShouldReturnFailure_WhenOperationThrows_WithInfiniteTimeout()
     {
         var result = await WithTimeoutAsync<int>(
-            _ => throw new InvalidOperationException("boom infinite"),
+            static _ => throw new InvalidOperationException("boom infinite"),
             Timeout.InfiniteTimeSpan,
             timeProvider: null,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -222,7 +222,7 @@ public partial class GoTests
     [Fact]
     public async Task FanOutAsync_ShouldThrowWhenOperationsNull()
     {
-        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+        await Assert.ThrowsAsync<ArgumentNullException>(static async () =>
             await FanOutAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
@@ -255,8 +255,8 @@ public partial class GoTests
     {
         var operations = new List<Func<CancellationToken, Task<Result<int>>>>
         {
-            _ => Task.FromResult(Ok(1)),
-            _ => Task.FromResult(Err<int>("failed", ErrorCodes.Validation))
+            static _ => Task.FromResult(Ok(1)),
+            static _ => Task.FromResult(Err<int>("failed", ErrorCodes.Validation))
         };
 
         var result = await FanOutAsync(operations, cancellationToken: TestContext.Current.CancellationToken);
@@ -307,7 +307,7 @@ public partial class GoTests
     [Fact]
     public async Task RaceAsync_ShouldThrowWhenOperationsNull()
     {
-        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+        await Assert.ThrowsAsync<ArgumentNullException>(static async () =>
             await RaceAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
@@ -331,8 +331,8 @@ public partial class GoTests
     {
         var operations = new List<Func<CancellationToken, Task<Result<int>>>>
         {
-            _ => Task.FromResult(Err<int>("first failure", ErrorCodes.Validation)),
-            _ => Task.FromResult(Err<int>("second failure", ErrorCodes.Validation))
+            static _ => Task.FromResult(Err<int>("first failure", ErrorCodes.Validation)),
+            static _ => Task.FromResult(Err<int>("second failure", ErrorCodes.Validation))
         };
 
         var result = await RaceAsync(operations, cancellationToken: TestContext.Current.CancellationToken);
@@ -381,7 +381,7 @@ public partial class GoTests
     public async Task WithTimeoutAsync_ShouldReturnSuccessWhenOperationCompletes()
     {
         var result = await WithTimeoutAsync(
-            _ => Task.FromResult(Ok(5)),
+            static _ => Task.FromResult(Ok(5)),
             TimeSpan.FromSeconds(5),
             timeProvider: new FakeTimeProvider(),
             cancellationToken: TestContext.Current.CancellationToken);
@@ -394,7 +394,7 @@ public partial class GoTests
     public async Task WithTimeoutAsync_ShouldReturnSuccessWithInfiniteTimeout()
     {
         var result = await WithTimeoutAsync(
-            _ => Task.FromResult(Ok(7)),
+            static _ => Task.FromResult(Ok(7)),
             Timeout.InfiniteTimeSpan,
             cancellationToken: TestContext.Current.CancellationToken);
 
@@ -405,15 +405,15 @@ public partial class GoTests
     [Fact]
     public async Task WithTimeoutAsync_ShouldThrowWhenTimeoutNegative()
     {
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-            await WithTimeoutAsync(_ => Task.FromResult(Ok(1)), TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(static async () =>
+            await WithTimeoutAsync(static _ => Task.FromResult(Ok(1)), TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task WithTimeoutAsync_ShouldPropagateOperationFailure()
     {
         var result = await WithTimeoutAsync(
-            _ => Task.FromResult(Err<int>("failure", ErrorCodes.Validation)),
+            static _ => Task.FromResult(Err<int>("failure", ErrorCodes.Validation)),
             TimeSpan.FromSeconds(5),
             timeProvider: new FakeTimeProvider(),
             cancellationToken: TestContext.Current.CancellationToken);
@@ -426,7 +426,7 @@ public partial class GoTests
     public async Task WithTimeoutAsync_ShouldReturnCanceledWhenOperationThrowsWithoutToken()
     {
         var result = await WithTimeoutAsync<int>(
-            _ => throw new OperationCanceledException(),
+            static _ => throw new OperationCanceledException(),
             TimeSpan.FromSeconds(5),
             timeProvider: new FakeTimeProvider(),
             cancellationToken: CancellationToken.None);
@@ -439,7 +439,7 @@ public partial class GoTests
     [Fact]
     public async Task RetryAsync_ShouldThrowWhenOperationNull()
     {
-        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+        await Assert.ThrowsAsync<ArgumentNullException>(static async () =>
             await RetryAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
@@ -456,7 +456,7 @@ public partial class GoTests
     public async Task RetryAsync_ShouldReturnFailureWhenOperationThrows()
     {
         var result = await RetryAsync<int>(
-            (_, _) => throw new InvalidOperationException("boom"),
+            static (_, _) => throw new InvalidOperationException("boom"),
             maxAttempts: 2,
             initialDelay: TimeSpan.Zero,
             cancellationToken: TestContext.Current.CancellationToken);

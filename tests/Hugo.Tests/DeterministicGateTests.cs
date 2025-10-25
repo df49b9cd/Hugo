@@ -125,8 +125,8 @@ public class DeterministicGateTests
             "change.invalid",
             5,
             3,
-            ct => Task.FromResult(Result.Ok(1)),
-            ct => Task.FromResult(Result.Ok(0)),
+            static ct => Task.FromResult(Result.Ok(1)),
+            static ct => Task.FromResult(Result.Ok(0)),
             null,
             TestContext.Current.CancellationToken);
 
@@ -181,10 +181,10 @@ public class DeterministicGateTests
         var effectStore = new DeterministicEffectStore(store, provider);
         var gate = new DeterministicGate(versionGate, effectStore);
 
-        var workflow = gate.Workflow<string>("change.workflow.fallback", 1, 3, _ => 3)
-            .ForVersion(1, (ctx, ct) => Task.FromResult(Result.Ok("legacy")))
-            .ForRange(1, 2, (ctx, ct) => Task.FromResult(Result.Ok("range")))
-            .WithFallback((ctx, ct) => Task.FromResult(Result.Ok("fallback")));
+        var workflow = gate.Workflow<string>("change.workflow.fallback", 1, 3, static _ => 3)
+            .ForVersion(1, static (ctx, ct) => Task.FromResult(Result.Ok("legacy")))
+            .ForRange(1, 2, static (ctx, ct) => Task.FromResult(Result.Ok("range")))
+            .WithFallback(static (ctx, ct) => Task.FromResult(Result.Ok("fallback")));
 
         var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
@@ -201,8 +201,8 @@ public class DeterministicGateTests
         var effectStore = new DeterministicEffectStore(store, provider);
         var gate = new DeterministicGate(versionGate, effectStore);
 
-        var workflow = gate.Workflow<int>("change.workflow.missing", 1, 2, _ => 2)
-            .ForVersion(1, (ctx, ct) => Task.FromResult(Result.Ok(10)));
+        var workflow = gate.Workflow<int>("change.workflow.missing", 1, 2, static _ => 2)
+            .ForVersion(1, static (ctx, ct) => Task.FromResult(Result.Ok(10)));
 
         var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
@@ -329,8 +329,8 @@ public class DeterministicGateTests
     {
         var (gate, _, _) = CreateGate();
 
-        var workflow = gate.Workflow<int>("change.workflow.invalidstep", 1, 1, _ => 1)
-            .ForVersion(1, (ctx, ct) => ctx.CaptureAsync(string.Empty, () => Result.Ok(1), ct));
+        var workflow = gate.Workflow<int>("change.workflow.invalidstep", 1, 1, static _ => 1)
+            .ForVersion(1, static (ctx, ct) => ctx.CaptureAsync(string.Empty, static () => Result.Ok(1), ct));
 
         var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 

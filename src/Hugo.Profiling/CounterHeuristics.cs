@@ -20,8 +20,8 @@ internal static class CounterHeuristics
         AddAllocationFinding(report, findings);
 
         return findings
-            .OrderByDescending(finding => finding.Severity)
-            .ThenBy(finding => finding.Counter, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(static finding => finding.Severity)
+            .ThenBy(static finding => finding.Counter, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
@@ -111,7 +111,7 @@ internal static class CounterHeuristics
             return;
         }
 
-        var cpuCounters = report.Counters.Where(series =>
+        var cpuCounters = report.Counters.Where(static series =>
             string.Equals(series.Provider, "System.Runtime", StringComparison.OrdinalIgnoreCase) &&
             series.Name.StartsWith("dotnet.process.cpu.time", StringComparison.OrdinalIgnoreCase)).ToList();
 
@@ -120,7 +120,7 @@ internal static class CounterHeuristics
             return;
         }
 
-        var cpuSeconds = cpuCounters.Sum(series => series.Sum);
+        var cpuSeconds = cpuCounters.Sum(static series => series.Sum);
         if (cpuSeconds <= 0)
         {
             return;

@@ -152,9 +152,9 @@ public static class CounterAnalyzer
         public CounterReport BuildReport()
         {
             var summaries = _series.Values
-                .Select(series => series.ToSummary())
-                .OrderBy(summary => summary.Provider, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(summary => summary.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(static series => series.ToSummary())
+                .OrderBy(static summary => summary.Provider, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(static summary => summary.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             return new CounterReport(

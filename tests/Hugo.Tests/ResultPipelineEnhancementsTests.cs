@@ -135,9 +135,9 @@ public class ResultPipelineEnhancementsTests
     {
         var operations = new[]
         {
-            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((_, _) =>
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>(static (_, _) =>
                 ValueTask.FromResult(Result.Fail<int>(Error.From("first failure", ErrorCodes.Validation)))),
-            (_, _) => ValueTask.FromResult(Result.Fail<int>(Error.From("second failure", ErrorCodes.Exception)))
+            static (_, _) => ValueTask.FromResult(Result.Fail<int>(Error.From("second failure", ErrorCodes.Exception)))
         };
 
         var result = await Result.WhenAny(operations, cancellationToken: TestContext.Current.CancellationToken);
@@ -154,9 +154,9 @@ public class ResultPipelineEnhancementsTests
     {
         var operations = new[]
         {
-            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((_, _) =>
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>(static (_, _) =>
                 ValueTask.FromResult(Result.Fail<int>(Error.Canceled()))),
-            (_, _) => ValueTask.FromResult(Result.Fail<int>(Error.Canceled()))
+            static (_, _) => ValueTask.FromResult(Result.Fail<int>(Error.Canceled()))
         };
 
         var result = await Result.WhenAny(operations, cancellationToken: TestContext.Current.CancellationToken);
@@ -194,8 +194,8 @@ public class ResultPipelineEnhancementsTests
     public async Task ResultSaga_ShouldReturnState_OnSuccess()
     {
         var saga = new ResultSagaBuilder()
-            .AddStep("reserve", (_, _) => ValueTask.FromResult(Result.Ok("reserveId")))
-            .AddStep("charge", (context, _) =>
+            .AddStep("reserve", static (_, _) => ValueTask.FromResult(Result.Ok("reserveId")))
+            .AddStep("charge", static (context, _) =>
             {
                 var reserveId = context.State.TryGet("reserve", out string? id) ? id : string.Empty;
                 return ValueTask.FromResult(Result.Ok(reserveId + "-charged"));
@@ -324,13 +324,13 @@ public class ResultPipelineEnhancementsTests
         var evenWriter = Channel.CreateUnbounded<Result<int>>();
         var oddWriter = Channel.CreateUnbounded<Result<int>>();
 
-        await source.PartitionAsync(value => value % 2 == 0, evenWriter.Writer, oddWriter.Writer, TestContext.Current.CancellationToken);
+        await source.PartitionAsync(static value => value % 2 == 0, evenWriter.Writer, oddWriter.Writer, TestContext.Current.CancellationToken);
 
         var evenResults = await ReadAllResultsAsync(evenWriter.Reader);
         var oddResults = await ReadAllResultsAsync(oddWriter.Reader);
 
-        Assert.All(evenResults, result => Assert.True(result.IsSuccess));
-        Assert.Equal([2], evenResults.Select(result => result.Value).ToArray());
+        Assert.All(evenResults, static result => Assert.True(result.IsSuccess));
+        Assert.Equal([2], evenResults.Select(static result => result.Value).ToArray());
 
         Assert.Equal(2, oddResults.Count);
         Assert.True(oddResults[0].IsSuccess);
@@ -409,11 +409,11 @@ public class ResultPipelineEnhancementsTests
             Result.Ok(4)
         };
 
-        var grouped = Result.Group(data, value => value % 2);
+        var grouped = Result.Group(data, static value => value % 2);
         Assert.True(grouped.IsSuccess);
         Assert.Equal(2, grouped.Value.Count);
 
-        var partitioned = Result.Partition(data, value => value % 2 == 0);
+        var partitioned = Result.Partition(data, static value => value % 2 == 0);
         Assert.True(partitioned.IsSuccess);
         Assert.Equal([2, 4], partitioned.Value.True);
         Assert.Equal([1, 3], partitioned.Value.False);
