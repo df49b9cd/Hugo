@@ -246,4 +246,19 @@ public class ErrorJsonConverterTests
         Assert.True(meta.GetProperty("boolean").GetBoolean());
         Assert.Equal(JsonValueKind.Null, meta.GetProperty("null").ValueKind);
     }
+
+    [Fact]
+    public void Serialize_ShouldSanitizeCancellationTokenMetadata()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var error = Error.Canceled(token: cts.Token);
+
+        var json = JsonSerializer.Serialize(error);
+        using var document = JsonDocument.Parse(json);
+        var metadata = document.RootElement.GetProperty("metadata");
+        Assert.True(metadata.TryGetProperty("cancellationToken", out var tokenMetadata));
+        Assert.True(tokenMetadata.GetProperty("canBeCanceled").GetBoolean());
+        Assert.True(tokenMetadata.GetProperty("isCancellationRequested").GetBoolean());
+    }
 }

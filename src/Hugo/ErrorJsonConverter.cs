@@ -96,6 +96,8 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
 
     private static void WriteMetadataValue(Utf8JsonWriter writer, object? value, JsonSerializerOptions options)
     {
+        value = DeterministicErrorSanitizer.SanitizeMetadataValue(value);
+
         switch (value)
         {
             case null:

@@ -15,11 +15,13 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
 {
     private const string RecordKind = "hugo.version";
 
-    private static readonly JsonSerializerOptions DefaultSerializerOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions DefaultSerializerOptions = DeterministicJsonSerializerOptions.Create();
 
     private readonly IDeterministicStateStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-    private readonly JsonSerializerOptions _serializerOptions = serializerOptions ?? DefaultSerializerOptions;
+    private readonly JsonSerializerOptions _serializerOptions = serializerOptions is null
+        ? DefaultSerializerOptions
+        : DeterministicJsonSerializerOptions.Create(serializerOptions);
 
     /// <summary>
     /// Sentinel value that mirrors Temporal's <c>DefaultVersion</c> and indicates the absence of a recorded version.

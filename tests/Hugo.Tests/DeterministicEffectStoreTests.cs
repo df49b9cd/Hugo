@@ -183,4 +183,34 @@ public class DeterministicEffectStoreTests
         Assert.Equal("value", second.Value);
         Assert.Equal(1, executions);
     }
+
+    [Fact]
+    public async Task CaptureAsync_ShouldSanitizeCancellationTokenMetadata()
+    {
+        var store = new InMemoryDeterministicStateStore();
+        var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var initial = await effectStore.CaptureAsync<int>(
+            "effect.cancellation",
+            () => Result.Fail<int>(Error.Canceled(token: cts.Token)));
+
+        Assert.True(initial.IsFailure);
+        Assert.True(store.TryGet("effect.cancellation", out _));
+
+        var replay = await effectStore.CaptureAsync<int>(
+            "effect.cancellation",
+            () => Result.Ok(1));
+
+        Assert.True(replay.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, replay.Error?.Code);
+        Assert.NotNull(replay.Error);
+        Assert.True(replay.Error!.Metadata.TryGetValue("cancellationToken", out var metadata));
+        var tokenMetadata = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(metadata);
+        Assert.True(tokenMetadata.TryGetValue("isCancellationRequested", out var requested));
+        Assert.Equal(true, requested);
+        Assert.True(tokenMetadata.TryGetValue("canBeCanceled", out var canBeCanceled));
+        Assert.Equal(cts.Token.CanBeCanceled, canBeCanceled);
+    }
 }

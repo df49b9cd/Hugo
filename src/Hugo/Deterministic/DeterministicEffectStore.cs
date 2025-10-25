@@ -4,6 +4,7 @@ namespace Hugo;
 
 /// <summary>
 /// Records side-effect results so that replayed workflow executions observe deterministic outcomes.
+/// Error metadata is sanitized to ensure persisted payloads remain stable and JSON-serializable.
 /// </summary>
 /// <remarks>
 /// Initializes a new instance of the <see cref="DeterministicEffectStore"/> class.
@@ -15,11 +16,13 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
 {
     private const string RecordKind = "hugo.effect";
 
-    private static readonly JsonSerializerOptions DefaultSerializerOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions DefaultSerializerOptions = DeterministicJsonSerializerOptions.Create();
 
     private readonly IDeterministicStateStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-    private readonly JsonSerializerOptions _serializerOptions = serializerOptions ?? DefaultSerializerOptions;
+    private readonly JsonSerializerOptions _serializerOptions = serializerOptions is null
+        ? DefaultSerializerOptions
+        : DeterministicJsonSerializerOptions.Create(serializerOptions);
 
     /// <summary>
     /// Executes the provided side-effect once and replays the persisted outcome on subsequent invocations.
@@ -135,11 +138,13 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
             valuePayload = JsonSerializer.SerializeToUtf8Bytes(outcome.Value, typeof(T), _serializerOptions);
         }
 
+        var sanitizedError = DeterministicErrorSanitizer.Sanitize(outcome.Error);
+
         var envelope = new EffectEnvelope(
             outcome.IsSuccess,
             typeof(T).AssemblyQualifiedName ?? typeof(T).FullName ?? typeof(T).Name,
             valuePayload,
-            outcome.Error,
+            sanitizedError,
             now);
 
         var payload = JsonSerializer.SerializeToUtf8Bytes(envelope, _serializerOptions);
