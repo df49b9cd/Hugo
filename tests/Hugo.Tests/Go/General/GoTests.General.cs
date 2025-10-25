@@ -197,7 +197,7 @@ public partial class GoTests
             var task = Task.Run(
                 async () =>
                 {
-                    startSignal.Wait();
+                    Assert.True(startSignal.Wait(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken), "Timed out waiting to start RWMutex readers.");
                     using (await rwMutex.RLockAsync())
                     {
                         var currentReaders = Interlocked.Increment(ref activeReaders);
@@ -205,7 +205,7 @@ public partial class GoTests
                             ref maxConcurrentReaders,
                             Math.Max(maxConcurrentReaders, currentReaders)
                         );
-                        await Task.Delay(50);
+                        await Task.Delay(50, TestContext.Current.CancellationToken);
                         Interlocked.Decrement(ref activeReaders);
                     }
                 },
@@ -233,7 +233,7 @@ public partial class GoTests
                 using (await rwMutex.LockAsync())
                 {
                     writeLockHeld = true;
-                    await Task.Delay(100);
+                    await Task.Delay(100, TestContext.Current.CancellationToken);
                     writeLockHeld = false;
                 }
             },
@@ -298,8 +298,8 @@ public partial class GoTests
         var channel = MakeChannel<string>();
         _ = Run(async () =>
         {
-            await Task.Delay(100);
-            await channel.Writer.WriteAsync("Work complete!");
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            await channel.Writer.WriteAsync("Work complete!", TestContext.Current.CancellationToken);
         });
         var message = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
         Assert.Equal("Work complete!", message);
@@ -314,7 +314,7 @@ public partial class GoTests
         var writerTask = Task.Run(
             async () =>
             {
-                await channel.Writer.WriteAsync(2);
+                await channel.Writer.WriteAsync(2, TestContext.Current.CancellationToken);
                 writerTaskCompleted = true;
             },
             TestContext.Current.CancellationToken
@@ -339,7 +339,7 @@ public partial class GoTests
             var task = Task.Run(
                 async () =>
                 {
-                    await Task.Delay(20);
+                    await Task.Delay(20, TestContext.Current.CancellationToken);
                     Interlocked.Increment(ref counter);
                 },
                 TestContext.Current.CancellationToken

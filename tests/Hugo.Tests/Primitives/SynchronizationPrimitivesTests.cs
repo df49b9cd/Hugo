@@ -9,13 +9,38 @@ namespace Hugo.Tests.Primitives;
 
 public class SynchronizationPrimitivesTests
 {
+    private static readonly TimeSpan ShortDelay = TimeSpan.FromMilliseconds(50);
+    private static readonly TimeSpan WriterDelay = TimeSpan.FromMilliseconds(10);
+    private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(2);
+
+    private static void AssertIncomplete(Task task, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        Assert.False(task.Wait(timeout, cancellationToken), "Task completed before expected.");
+    }
+
+    private static void AssertWait(ManualResetEventSlim gate, string message, CancellationToken cancellationToken)
+    {
+        Assert.True(gate.Wait(WaitTimeout, cancellationToken), message);
+    }
+
+    private static void BusyWait(TimeSpan duration, CancellationToken cancellationToken)
+    {
+        var sw = Stopwatch.StartNew();
+        var spinner = new SpinWait();
+        while (sw.Elapsed < duration)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            spinner.SpinOnce();
+        }
+    }
+
     [Fact]
     public async Task Mutex_EnterScope_ShouldProvideExclusiveAccess()
     {
+        var cancellation = TestContext.Current.CancellationToken;
         var mutex = new Mutex();
         var secondEntered = 0;
         using ManualResetEventSlim secondStarted = new(false);
-        var sw = new System.Diagnostics.Stopwatch();
 
         var scope = mutex.EnterScope();
         Task second;
@@ -28,20 +53,10 @@ public class SynchronizationPrimitivesTests
                 {
                     Interlocked.Exchange(ref secondEntered, 1);
                 }
-            }, TestContext.Current.CancellationToken);
+            }, cancellation);
 
-            secondStarted.Wait(TestContext.Current.CancellationToken);
-            sw.Start();
-            var spinner = new SpinWait();
-            while (sw.Elapsed < TimeSpan.FromMilliseconds(50))
-            {
-                if (Volatile.Read(ref secondEntered) != 0)
-                {
-                    break;
-                }
-
-                spinner.SpinOnce();
-            }
+            AssertWait(secondStarted, "Timed out waiting for second mutex waiter to start.", cancellation);
+            AssertIncomplete(second, ShortDelay, cancellation);
             Assert.Equal(0, Volatile.Read(ref secondEntered));
         }
         finally
@@ -49,13 +64,14 @@ public class SynchronizationPrimitivesTests
             scope.Dispose();
         }
 
-        await second.WaitAsync(TestContext.Current.CancellationToken);
+        await second.WaitAsync(cancellation);
         Assert.Equal(1, secondEntered);
     }
 
     [Fact]
     public async Task RwMutex_EnterReadScope_ShouldAllowConcurrentReadersAndBlockWriter()
     {
+        var cancellation = TestContext.Current.CancellationToken;
         var rwMutex = new RwMutex();
         using ManualResetEventSlim startReaders = new(false);
         object gate = new();
@@ -64,7 +80,7 @@ public class SynchronizationPrimitivesTests
 
         void ReaderAction()
         {
-            startReaders.Wait(TestContext.Current.CancellationToken);
+            Assert.True(startReaders.Wait(WaitTimeout, cancellation), "Timed out waiting to start readers.");
             using (rwMutex.EnterReadScope())
             {
                 int current = Interlocked.Increment(ref inside);
@@ -73,15 +89,15 @@ public class SynchronizationPrimitivesTests
                     maxInside = Math.Max(maxInside, current);
                 }
 
-                Thread.Sleep(50);
+                BusyWait(ShortDelay, cancellation);
                 Interlocked.Decrement(ref inside);
             }
         }
 
         Task StartReader() => Task.Factory.StartNew(
             ReaderAction,
-            TestContext.Current.CancellationToken,
-            TaskCreationOptions.LongRunning,
+            cancellation,
+            TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach,
             TaskScheduler.Default);
 
         Task reader1 = StartReader();
@@ -100,20 +116,21 @@ public class SynchronizationPrimitivesTests
             {
                 Interlocked.Exchange(ref writerEntered, 1);
             }
-            Thread.Sleep(10);
-        }, TestContext.Current.CancellationToken);
+            BusyWait(WriterDelay, cancellation);
+        }, cancellation);
 
-        writerStarted.Wait(TestContext.Current.CancellationToken);
-        Thread.Sleep(50);
+        AssertWait(writerStarted, "Timed out waiting for writer to start.", cancellation);
+        AssertIncomplete(writer, ShortDelay, cancellation);
         Assert.Equal(0, Volatile.Read(ref writerEntered));
         readScope.Dispose();
-        await writer.WaitAsync(TestContext.Current.CancellationToken);
+        await writer.WaitAsync(cancellation);
         Assert.Equal(1, writerEntered);
     }
 
     [Fact]
     public async Task RwMutex_EnterWriteScope_ShouldBlockReadersUntilReleased()
     {
+        var cancellation = TestContext.Current.CancellationToken;
         var rwMutex = new RwMutex();
         var writeScope = rwMutex.EnterWriteScope();
         using ManualResetEventSlim readerStarted = new(false);
@@ -125,16 +142,16 @@ public class SynchronizationPrimitivesTests
             using (rwMutex.EnterReadScope())
             {
                 Interlocked.Exchange(ref readerEntered, 1);
-                Thread.Sleep(10);
+                BusyWait(WriterDelay, cancellation);
             }
-        }, TestContext.Current.CancellationToken);
+        }, cancellation);
 
-        readerStarted.Wait(TestContext.Current.CancellationToken);
-        Thread.Sleep(50);
+        AssertWait(readerStarted, "Timed out waiting for reader to start.", cancellation);
+        AssertIncomplete(reader, ShortDelay, cancellation);
         Assert.Equal(0, Volatile.Read(ref readerEntered));
 
         writeScope.Dispose();
-        await reader.WaitAsync(TestContext.Current.CancellationToken);
+        await reader.WaitAsync(cancellation);
         Assert.Equal(1, readerEntered);
     }
 

@@ -97,7 +97,7 @@ public class ResultPipelineEnhancementsTests
                 Interlocked.Increment(ref compensation);
                 return ValueTask.CompletedTask;
             });
-            await Task.Delay(1);
+            await Task.Delay(1, token);
             return Result.Ok("fast");
         });
 
@@ -212,7 +212,7 @@ public class ResultPipelineEnhancementsTests
     public async Task StreamingExtensions_ShouldBridgeChannelsAndEnumerables()
     {
         var channel = Channel.CreateUnbounded<Result<int>>();
-        var data = GetSequence();
+        var data = GetSequence(TestContext.Current.CancellationToken);
 
         await data.ToChannelAsync(channel.Writer, TestContext.Current.CancellationToken);
 
@@ -225,10 +225,10 @@ public class ResultPipelineEnhancementsTests
 
         Assert.Equal(new[] { 1, 2, 3 }, collected);
 
-        static async IAsyncEnumerable<Result<int>> GetSequence()
+        static async IAsyncEnumerable<Result<int>> GetSequence([EnumeratorCancellation] CancellationToken ct = default)
         {
             yield return Result.Ok(1);
-            await Task.Delay(10);
+            await Task.Delay(10, ct);
             yield return Result.Ok(2);
             yield return Result.Ok(3);
         }
@@ -301,14 +301,14 @@ public class ResultPipelineEnhancementsTests
         var first = Channel.CreateUnbounded<Result<int>>();
         var second = Channel.CreateUnbounded<Result<int>>();
 
-        static async IAsyncEnumerable<Result<int>> Source()
+        static async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct = default)
         {
             yield return Result.Ok(3);
-            await Task.Delay(5);
+            await Task.Delay(5, ct);
             yield return Result.Ok(4);
         }
 
-        await Result.FanOutAsync(Source(), [first.Writer, second.Writer], TestContext.Current.CancellationToken);
+        await Result.FanOutAsync(Source(TestContext.Current.CancellationToken), [first.Writer, second.Writer], TestContext.Current.CancellationToken);
 
         var firstValues = await ReadAllValuesAsync(first.Reader);
         var secondValues = await ReadAllValuesAsync(second.Reader);
@@ -377,7 +377,7 @@ public class ResultPipelineEnhancementsTests
     [Fact]
     public async Task WindowAsync_ShouldBatchValues()
     {
-        var source = GetSequence();
+        var source = GetSequence(TestContext.Current.CancellationToken);
         var batches = new List<IReadOnlyList<int>>();
         await foreach (var batch in source.WindowAsync(2, TestContext.Current.CancellationToken))
         {
@@ -389,10 +389,10 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal([1, 2], batches[0]);
         Assert.Equal([3], batches[1]);
 
-        static async IAsyncEnumerable<Result<int>> GetSequence()
+        static async IAsyncEnumerable<Result<int>> GetSequence([EnumeratorCancellation] CancellationToken ct = default)
         {
             yield return Result.Ok(1);
-            await Task.Delay(5);
+            await Task.Delay(5, ct);
             yield return Result.Ok(2);
             yield return Result.Ok(3);
         }
