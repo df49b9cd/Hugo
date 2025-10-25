@@ -78,8 +78,14 @@ public class SynchronizationPrimitivesTests
             }
         }
 
-        Task reader1 = Task.Run(ReaderAction, TestContext.Current.CancellationToken);
-        Task reader2 = Task.Run(ReaderAction, TestContext.Current.CancellationToken);
+        Task StartReader() => Task.Factory.StartNew(
+            ReaderAction,
+            TestContext.Current.CancellationToken,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
+
+        Task reader1 = StartReader();
+        Task reader2 = StartReader();
         startReaders.Set();
         await Task.WhenAll(reader1, reader2);
         Assert.Equal(2, maxInside);
