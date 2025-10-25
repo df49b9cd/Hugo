@@ -63,4 +63,64 @@ public class VersionGateTests
         Assert.True(decision.IsSuccess);
         Assert.Equal(VersionGate.DefaultVersion, decision.Value.Version);
     }
+
+    [Fact]
+    public void Require_ShouldFail_WhenMinExceedsMax()
+    {
+        var store = new InMemoryDeterministicStateStore();
+        var gate = new VersionGate(store, timeProvider: new FakeTimeProvider());
+
+        var decision = gate.Require("feature.invalid.range", 5, 4);
+
+        Assert.True(decision.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, decision.Error?.Code);
+    }
+
+    [Fact]
+    public void Require_ShouldFail_WhenRecordKindMismatch()
+    {
+        var store = new InMemoryDeterministicStateStore();
+        var record = new DeterministicRecord("other.kind", 1, Array.Empty<byte>(), DateTimeOffset.UtcNow);
+        store.Set("feature.kind.mismatch", record);
+        var gate = new VersionGate(store, timeProvider: new FakeTimeProvider());
+
+        var decision = gate.Require("feature.kind.mismatch", VersionGate.DefaultVersion, 3);
+
+        Assert.True(decision.IsFailure);
+        Assert.Equal(ErrorCodes.DeterministicReplay, decision.Error?.Code);
+    }
+
+    [Fact]
+    public void Require_ShouldFail_WhenInitialProviderThrows()
+    {
+        var store = new InMemoryDeterministicStateStore();
+        var gate = new VersionGate(store, timeProvider: new FakeTimeProvider());
+
+        var decision = gate.Require(
+            "feature.initial.exception",
+            VersionGate.DefaultVersion,
+            3,
+            _ => throw new InvalidOperationException("boom"));
+
+        Assert.True(decision.IsFailure);
+        Assert.Equal(ErrorCodes.Exception, decision.Error?.Code);
+        Assert.True(decision.Error!.Metadata.ContainsKey("changeId"));
+        Assert.Equal("feature.initial.exception", decision.Error.Metadata["changeId"]);
+    }
+
+    [Fact]
+    public void Require_ShouldFail_WhenInitialVersionOutsideRange()
+    {
+        var store = new InMemoryDeterministicStateStore();
+        var gate = new VersionGate(store, timeProvider: new FakeTimeProvider());
+
+        var decision = gate.Require(
+            "feature.initial.outside",
+            1,
+            3,
+            _ => 5);
+
+        Assert.True(decision.IsFailure);
+        Assert.Equal(ErrorCodes.VersionConflict, decision.Error?.Code);
+    }
 }

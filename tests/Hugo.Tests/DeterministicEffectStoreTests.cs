@@ -116,4 +116,71 @@ public class DeterministicEffectStoreTests
         Assert.Equal(ErrorCodes.Exception, second.Error?.Code);
         Assert.False(exceptionExecuted);
     }
+
+    [Fact]
+    public async Task CaptureAsync_ShouldFail_WhenRecordKindMismatch()
+    {
+        var store = new InMemoryDeterministicStateStore();
+        var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
+        var record = new DeterministicRecord("hugo.version", 0, Array.Empty<byte>(), DateTimeOffset.UtcNow);
+        store.Set("effect.kind", record);
+
+        var mismatch = await effectStore.CaptureAsync<int>(
+            "effect.kind",
+            () => Result.Ok(7));
+
+        Assert.True(mismatch.IsFailure);
+        Assert.Equal(ErrorCodes.DeterministicReplay, mismatch.Error?.Code);
+    }
+
+    [Fact]
+    public async Task CaptureAsync_ShouldRethrowCancellationWithoutRecording()
+    {
+        var store = new InMemoryDeterministicStateStore();
+        var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
+        using var cts = new CancellationTokenSource();
+
+        cts.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => effectStore.CaptureAsync<int>(
+            "effect.canceled",
+            async ct =>
+            {
+                await Task.Yield();
+                throw new OperationCanceledException(ct);
+            },
+            cts.Token));
+
+        Assert.False(store.TryGet("effect.canceled", out _));
+    }
+
+    [Fact]
+    public async Task CaptureAsync_SynchronousOverload_ShouldPersistAndReplayValue()
+    {
+        var store = new InMemoryDeterministicStateStore();
+        var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
+        var executions = 0;
+
+        var first = await effectStore.CaptureAsync(
+            "effect.sync",
+            () =>
+            {
+                executions++;
+                return Result.Ok("value");
+            });
+
+        var second = await effectStore.CaptureAsync(
+            "effect.sync",
+            () =>
+            {
+                executions++;
+                return Result.Ok("other");
+            });
+
+        Assert.True(first.IsSuccess);
+        Assert.True(second.IsSuccess);
+        Assert.Equal("value", first.Value);
+        Assert.Equal("value", second.Value);
+        Assert.Equal(1, executions);
+    }
 }

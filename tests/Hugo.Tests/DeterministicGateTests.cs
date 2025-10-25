@@ -278,4 +278,74 @@ public class DeterministicGateTests
         Assert.Equal(0, newBranchHits);
         Assert.Equal(1, versionBranchHits);
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    public void Workflow_ForVersion_ShouldThrow_WhenVersionOutsideBounds(int version)
+    {
+        var (gate, _, _) = CreateGate();
+        var builder = gate.Workflow<int>("change.workflow.bounds.version", 1, 2);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            builder.ForVersion(version, (ctx, ct) => Task.FromResult(Result.Ok(1))));
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 4)]
+    [InlineData(3, 2)]
+    public void Workflow_ForRange_ShouldThrow_WhenRangeOutsideBounds(int minVersion, int maxVersion)
+    {
+        var (gate, _, _) = CreateGate();
+        var builder = gate.Workflow<int>("change.workflow.bounds.range", 1, 3);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            builder.ForRange(minVersion, maxVersion, (ctx, ct) => Task.FromResult(Result.Ok(1))));
+    }
+
+    [Fact]
+    public async Task WorkflowContext_CreateEffectId_ShouldNormalizeScope()
+    {
+        var (gate, store, _) = CreateGate();
+        string? effectId = null;
+
+        var workflow = gate.Workflow<int>("change.workflow.scope", 1, 1, _ => 1)
+            .ForVersion(1, (ctx, ct) =>
+            {
+                effectId = ctx.CreateEffectId("  step  ");
+                return ctx.CaptureAsync("  step  ", () => Result.Ok(5), ct);
+            });
+
+        var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("change.workflow.scope::v1::step", effectId);
+        Assert.True(store.TryGet("change.workflow.scope::v1::step", out _));
+    }
+
+    [Fact]
+    public async Task Workflow_ShouldFail_WhenStepIdentifierMissing()
+    {
+        var (gate, _, _) = CreateGate();
+
+        var workflow = gate.Workflow<int>("change.workflow.invalidstep", 1, 1, _ => 1)
+            .ForVersion(1, (ctx, ct) => ctx.CaptureAsync(string.Empty, () => Result.Ok(1), ct));
+
+        var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+    }
+
+    private static (DeterministicGate Gate, InMemoryDeterministicStateStore Store, FakeTimeProvider TimeProvider) CreateGate()
+    {
+        var store = new InMemoryDeterministicStateStore();
+        var provider = new FakeTimeProvider();
+        var versionGate = new VersionGate(store, provider);
+        var effectStore = new DeterministicEffectStore(store, provider);
+        var gate = new DeterministicGate(versionGate, effectStore);
+
+        return (gate, store, provider);
+    }
 }
