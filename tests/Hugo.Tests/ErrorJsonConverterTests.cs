@@ -1,3 +1,7 @@
+using System.Collections;
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Linq;
 using System.Text.Json;
 
 namespace Hugo.Tests;
@@ -106,5 +110,140 @@ public class ErrorJsonConverterTests
         Assert.True(roundTripped.Metadata.TryGetValue("large", out var largeValue));
         var largeUnsigned = Assert.IsType<ulong>(largeValue);
         Assert.Equal(large, largeUnsigned);
+    }
+
+    [Fact]
+    public void Deserialize_ShouldThrowWhenRootIsNotObject()
+    {
+        const string json = """["not", "an", "object"]""";
+
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Error>(json));
+    }
+
+    [Theory]
+    [InlineData("""{"code": "oops"}""")]
+    [InlineData("""{"message": null}""")]
+    [InlineData("""{"message": 42}""")]
+    public void Deserialize_ShouldRequireStringMessage(string json)
+    {
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Error>(json));
+    }
+
+    [Fact]
+    public void Deserialize_ShouldHydrateCauseExceptionDetails()
+    {
+        const string json = """
+        {
+            "message": "outer",
+            "cause": {
+                "type": "System.InvalidOperationException",
+                "message": "boom",
+                "stackTrace": "at Some.Method()\n   at Other.Method()"
+            }
+        }
+        """;
+
+        var error = JsonSerializer.Deserialize<Error>(json);
+
+        Assert.NotNull(error);
+        var cause = error!.Cause;
+        Assert.NotNull(cause);
+        Assert.Equal("boom", cause!.Message);
+        Assert.Equal("SerializedErrorException", cause.GetType().Name);
+        var typeNameProperty = cause.GetType().GetProperty("TypeName");
+        Assert.NotNull(typeNameProperty);
+        Assert.Equal("System.InvalidOperationException", typeNameProperty!.GetValue(cause));
+        Assert.Equal("at Some.Method()\n   at Other.Method()", cause.StackTrace);
+    }
+
+    [Fact]
+    public void Deserialize_ShouldInterpretWellKnownStringMetadataTypes()
+    {
+        var guid = Guid.NewGuid();
+        var offset = DateTimeOffset.Parse("2024-05-01T10:15:30+02:00", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+        var utc = DateTimeOffset.Parse("2024-05-01T10:15:30Z", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
+        var json = $$"""
+        {
+            "message": "formatted",
+            "metadata": {
+                "guid": "{{guid}}",
+                "timespan": "1.02:03:04",
+                "offset": "2024-05-01T10:15:30+02:00",
+                "utcDate": "2024-05-01T10:15:30Z",
+                "plain": "value"
+            }
+        }
+        """;
+
+        var error = JsonSerializer.Deserialize<Error>(json);
+
+        Assert.NotNull(error);
+        Assert.True(error!.Metadata.TryGetValue("guid", out var guidValue));
+        Assert.Equal(guid, Assert.IsType<Guid>(guidValue));
+        Assert.True(error.Metadata.TryGetValue("timespan", out var timeSpanValue));
+        Assert.Equal(TimeSpan.Parse("1.02:03:04", CultureInfo.InvariantCulture), Assert.IsType<TimeSpan>(timeSpanValue));
+        Assert.True(error.Metadata.TryGetValue("offset", out var offsetValue));
+        Assert.Equal(offset, Assert.IsType<DateTimeOffset>(offsetValue));
+        Assert.True(error.Metadata.TryGetValue("utcDate", out var utcValue));
+        Assert.Equal(utc, Assert.IsType<DateTimeOffset>(utcValue));
+        Assert.True(error.Metadata.TryGetValue("plain", out var plainValue));
+        Assert.Equal("value", Assert.IsType<string>(plainValue));
+    }
+
+
+    [Fact]
+    public void Serialize_ShouldHandleComplexMetadataShapes()
+    {
+        using var jsonDoc = JsonDocument.Parse("""{"flag": true, "number": 7}""");
+        var unsupported = typeof(System.IO.Stream);
+        var unsupportedDescription = unsupported.ToString();
+        var errors = new List<Error> { Error.From("first"), Error.From("second") };
+        InvalidOperationException invalidOperation;
+        try
+        {
+            throw new InvalidOperationException("fails here");
+        }
+        catch (InvalidOperationException ex)
+        {
+            invalidOperation = ex;
+        }
+        var metadata = new Dictionary<string, object?>
+        {
+            ["jsonElement"] = jsonDoc.RootElement.Clone(),
+            ["readOnlyDictionary"] = new ReadOnlyDictionary<string, object?>(new Dictionary<string, object?> { ["nested"] = 5 }),
+            ["dictionary"] = new Hashtable { ["hash"] = "value" },
+            ["enumerable"] = new List<int> { 1, 2, 3 },
+            ["errorEnumerable"] = errors,
+            ["unsupported"] = unsupported,
+            ["date"] = new DateTime(2024, 05, 01, 10, 15, 30, DateTimeKind.Utc),
+            ["guid"] = Guid.Parse("d742c49b-bb76-4a0f-9ef0-2f9f11bef0df"),
+            ["boolean"] = true,
+            ["null"] = null
+        };
+        var error = Error.From("meta", metadata: metadata).WithCause(invalidOperation);
+
+        var json = JsonSerializer.Serialize(error, new JsonSerializerOptions { WriteIndented = false });
+
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        var causeElement = root.GetProperty("cause");
+        Assert.Equal(typeof(InvalidOperationException).FullName, causeElement.GetProperty("type").GetString());
+        Assert.Equal("fails here", causeElement.GetProperty("message").GetString());
+        Assert.False(string.IsNullOrEmpty(causeElement.GetProperty("stackTrace").GetString()));
+
+        var meta = root.GetProperty("metadata");
+        Assert.True(meta.TryGetProperty("jsonElement", out var jsonElement));
+        Assert.True(jsonElement.GetProperty("flag").GetBoolean());
+        Assert.Equal(7, jsonElement.GetProperty("number").GetInt32());
+        Assert.Equal(5, meta.GetProperty("readOnlyDictionary").GetProperty("nested").GetInt32());
+        Assert.Equal("value", meta.GetProperty("dictionary").GetProperty("hash").GetString());
+        Assert.Equal(new[] { 1, 2, 3 }, meta.GetProperty("enumerable").EnumerateArray().Select(e => e.GetInt32()).ToArray());
+        var serializedErrors = meta.GetProperty("errorEnumerable").EnumerateArray().Select(e => e.GetProperty("message").GetString()).ToArray();
+        Assert.Equal(new[] { "first", "second" }, serializedErrors);
+        Assert.Equal(unsupportedDescription, meta.GetProperty("unsupported").GetString());
+        Assert.Equal("2024-05-01T10:15:30Z", meta.GetProperty("date").GetString());
+        Assert.Equal("d742c49b-bb76-4a0f-9ef0-2f9f11bef0df", meta.GetProperty("guid").GetString());
+        Assert.True(meta.GetProperty("boolean").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, meta.GetProperty("null").ValueKind);
     }
 }
