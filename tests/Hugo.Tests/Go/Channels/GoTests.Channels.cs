@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Channels;
 
@@ -10,6 +11,138 @@ namespace Hugo.Tests;
 
 public partial class GoTests
 {
+    [Fact]
+    public void MakeChannel_WithCapacity_UsesBoundedConfiguration()
+    {
+        var channel = MakeChannel<int>(
+            capacity: 2,
+            fullMode: BoundedChannelFullMode.DropOldest,
+            singleReader: true,
+            singleWriter: true);
+
+        Assert.True(channel.Writer.TryWrite(1));
+        Assert.True(channel.Writer.TryWrite(2));
+        Assert.True(channel.Writer.TryWrite(3));
+
+        Assert.True(channel.Reader.TryRead(out var first));
+        Assert.Equal(2, first);
+        Assert.True(channel.Reader.TryRead(out var second));
+        Assert.Equal(3, second);
+        Assert.False(channel.Reader.TryRead(out _));
+    }
+
+    [Fact]
+    public void MakeChannel_WithZeroCapacity_UsesUnboundedConfiguration()
+    {
+        var channel = MakeChannel<int>(capacity: 0, singleReader: true, singleWriter: true);
+
+        for (var i = 0; i < 64; i++)
+        {
+            Assert.True(channel.Writer.TryWrite(i));
+        }
+
+        for (var i = 0; i < 64; i++)
+        {
+            Assert.True(channel.Reader.TryRead(out var value));
+            Assert.Equal(i, value);
+        }
+    }
+
+    [Fact]
+    public void MakeChannel_WithBoundedOptions_AppliesSettings()
+    {
+        var options = new BoundedChannelOptions(1)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest
+        };
+
+        var channel = MakeChannel<int>(options);
+
+        Assert.True(channel.Writer.TryWrite(10));
+        Assert.True(channel.Writer.TryWrite(20));
+        Assert.True(channel.Reader.TryRead(out var value));
+        Assert.Equal(20, value);
+    }
+
+    [Fact]
+    public void MakeChannel_WithBoundedOptionsNull_Throws() =>
+        Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((BoundedChannelOptions)null!));
+
+    [Fact]
+    public void MakeChannel_WithUnboundedOptions_CreatesChannel()
+    {
+        var options = new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = true
+        };
+
+        var channel = MakeChannel<int>(options);
+
+        for (var i = 0; i < 32; i++)
+        {
+            Assert.True(channel.Writer.TryWrite(i));
+        }
+
+        for (var i = 0; i < 32; i++)
+        {
+            Assert.True(channel.Reader.TryRead(out var value));
+            Assert.Equal(i, value);
+        }
+    }
+
+    [Fact]
+    public void MakeChannel_WithUnboundedOptionsNull_Throws() =>
+        Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((UnboundedChannelOptions)null!));
+
+    [Fact]
+    public async Task MakeChannel_WithPrioritizedOptions_UsesDefaultPriority()
+    {
+        var options = new PrioritizedChannelOptions
+        {
+            PriorityLevels = 3,
+            DefaultPriority = 2
+        };
+
+        var channel = MakeChannel<int>(options);
+
+        await channel.PrioritizedWriter.WriteAsync(99, TestContext.Current.CancellationToken);
+        await channel.PrioritizedWriter.WriteAsync(42, priority: 0, TestContext.Current.CancellationToken);
+        channel.PrioritizedWriter.TryComplete();
+
+        var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+        var second = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(42, first);
+        Assert.Equal(99, second);
+    }
+
+    [Fact]
+    public void MakeChannel_WithPrioritizedOptionsNull_Throws() =>
+        Assert.Throws<ArgumentNullException>(() => MakeChannel<int>((PrioritizedChannelOptions)null!));
+
+    [Fact]
+    public async Task MakePrioritizedChannel_ConfiguresOptions()
+    {
+        var channel = MakePrioritizedChannel<int>(
+            priorityLevels: 3,
+            capacityPerLevel: 2,
+            fullMode: BoundedChannelFullMode.Wait,
+            singleReader: true,
+            singleWriter: true,
+            defaultPriority: 1);
+
+        await channel.PrioritizedWriter.WriteAsync(100, TestContext.Current.CancellationToken);
+        await channel.PrioritizedWriter.WriteAsync(200, priority: 0, TestContext.Current.CancellationToken);
+        channel.PrioritizedWriter.TryComplete();
+
+        var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+        var second = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(200, first);
+        Assert.Equal(100, second);
+    }
+
     [Fact]
     public async Task SelectFanInAsync_ShouldDrainAllCases()
     {
@@ -122,6 +255,24 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
     }
 
+    [Fact]
+    public async Task SelectFanInAsync_WithNullReaders_Throws()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync<object>(null!, (_, _) => Task.FromResult(Result.Ok(Unit.Value)), cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task SelectFanInAsync_WithNullDelegate_Throws()
+    {
+        var channel = MakeChannel<int>();
+
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, CancellationToken, Task<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, Task<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, CancellationToken, Task>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, Task>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Action<int>)null!, cancellationToken: TestContext.Current.CancellationToken));
+    }
+
     [Theory]
     [InlineData(new[] { 1, 2 })]
     public async Task FanInAsync_ShouldMergeIntoDestination(int[] expected)
@@ -179,6 +330,42 @@ public partial class GoTests
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await destination.Reader.Completion);
     }
 
+    [Fact]
+    public async Task FanInAsync_WithEmptySources_CompletesDestinationWhenRequested()
+    {
+        var destination = MakeChannel<int>();
+
+        var result = await FanInAsync(Array.Empty<ChannelReader<int>>(), destination.Writer, completeDestination: true);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(destination.Reader.Completion.IsCompleted);
+    }
+
+    [Fact]
+    public async Task FanInAsync_WithEmptySources_DoesNotCompleteWhenRequested()
+    {
+        var destination = MakeChannel<int>();
+
+        var result = await FanInAsync(Array.Empty<ChannelReader<int>>(), destination.Writer, completeDestination: false);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(destination.Reader.Completion.IsCompleted);
+    }
+
+    [Fact]
+    public async Task FanInAsync_WithNullSources_Throws()
+    {
+        var destination = MakeChannel<int>();
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanInAsync<int>(null!, destination.Writer));
+    }
+
+    [Fact]
+    public async Task FanInAsync_WithNullDestination_Throws()
+    {
+        var source = MakeChannel<int>();
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanInAsync([source.Reader], null!));
+    }
+
     [Theory]
     [InlineData(new[] { 7, 9 })]
     public async Task FanIn_ShouldMergeSources(int[] expected)
@@ -211,6 +398,87 @@ public partial class GoTests
 
         values.Sort();
         Assert.Equal(expected, values);
+    }
+
+    [Fact]
+    public void FanIn_WithNullSources_Throws() =>
+        Assert.Throws<ArgumentNullException>(() => FanIn<int>(null!));
+
+    [Fact]
+    public async Task FanOutAsync_WithNullSource_Throws()
+    {
+        var destination = MakeChannel<int>();
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync<int>(null!, [destination.Writer]));
+    }
+
+    [Fact]
+    public async Task FanOutAsync_WithNullDestinations_Throws()
+    {
+        var source = MakeChannel<int>();
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync(source.Reader, null!));
+    }
+
+    [Fact]
+    public async Task FanOutAsync_WithNullDestinationEntry_Throws()
+    {
+        var source = MakeChannel<int>();
+        IReadOnlyList<ChannelWriter<int>> destinations = [null!];
+
+        await Assert.ThrowsAsync<ArgumentException>(async () => await FanOutAsync(source.Reader, destinations));
+    }
+
+    [Fact]
+    public async Task FanOutAsync_WithNegativeDeadline_Throws()
+    {
+        var source = MakeChannel<int>();
+        var destination = MakeChannel<int>();
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await FanOutAsync(source.Reader, [destination.Writer], deadline: TimeSpan.FromSeconds(-1)));
+    }
+
+    [Fact]
+    public async Task FanOutAsync_WithNoDestinations_ReturnsSuccess()
+    {
+        var source = MakeChannel<int>();
+        var result = await FanOutAsync(source.Reader, Array.Empty<ChannelWriter<int>>());
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void FanOut_WithNullSource_Throws() =>
+        Assert.Throws<ArgumentNullException>(() => FanOut<int>(null!, 1));
+
+    [Fact]
+    public void FanOut_WithInvalidBranchCount_Throws() =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => FanOut(MakeChannel<int>().Reader, 0));
+
+    [Fact]
+    public async Task FanOut_WithCompleteBranchesFalse_DoesNotCompleteBranches()
+    {
+        var source = MakeChannel<int>();
+        var branches = FanOut(source.Reader, branchCount: 1, completeBranches: false);
+
+        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
+        source.Writer.TryComplete();
+
+        var value = await branches[0].ReadAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(1, value);
+        Assert.False(branches[0].Completion.IsCompleted);
+    }
+
+    [Fact]
+    public async Task FanOut_WithCompleteBranchesTrue_CompletesReaders()
+    {
+        var source = MakeChannel<int>();
+        var branches = FanOut(source.Reader, branchCount: 1, completeBranches: true);
+
+        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
+        source.Writer.TryComplete();
+
+        var value = await branches[0].ReadAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(1, value);
+        await branches[0].Completion;
     }
 
     [Fact]
