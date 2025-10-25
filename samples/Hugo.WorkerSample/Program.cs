@@ -67,8 +67,13 @@ builder.Services.AddSingleton(sp =>
             return ValueTask.CompletedTask;
         });
 });
+builder.Services.AddSingleton(sp => new SafeTaskQueue<TelemetryWorkItem>(sp.GetRequiredService<TaskQueue<TelemetryWorkItem>>()));
 builder.Services.AddSingleton<IDeterministicStateStore, InMemoryDeterministicStateStore>();
-builder.Services.AddSingleton(sp => TaskQueueChannelAdapter<TelemetryWorkItem>.Create(sp.GetRequiredService<TaskQueue<TelemetryWorkItem>>(), concurrency: 1));
+builder.Services.AddSingleton(sp =>
+{
+    SafeTaskQueue<TelemetryWorkItem> safeQueue = sp.GetRequiredService<SafeTaskQueue<TelemetryWorkItem>>();
+    return TaskQueueChannelAdapter<TelemetryWorkItem>.Create(safeQueue.UnsafeQueue, concurrency: 1);
+});
 builder.Services.AddSingleton(sp =>
 {
     IDeterministicStateStore store = sp.GetRequiredService<IDeterministicStateStore>();
@@ -121,7 +126,7 @@ sealed partial class TelemetryWorker(
     ILogger<TelemetryWorker> logger,
     TelemetryCalibration calibration,
     TimeProvider timeProvider,
-    TaskQueue<TelemetryWorkItem> queue,
+    SafeTaskQueue<TelemetryWorkItem> queue,
     TaskQueueChannelAdapter<TelemetryWorkItem> adapter,
     TelemetryStream stream,
     TelemetryAlertChannel alerts) : BackgroundService
@@ -129,7 +134,7 @@ sealed partial class TelemetryWorker(
     private readonly ILogger<TelemetryWorker> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly TelemetryCalibration _calibration = calibration ?? throw new ArgumentNullException(nameof(calibration));
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
-    private readonly TaskQueue<TelemetryWorkItem> _queue = queue ?? throw new ArgumentNullException(nameof(queue));
+    private readonly SafeTaskQueue<TelemetryWorkItem> _queue = queue ?? throw new ArgumentNullException(nameof(queue));
     private readonly TaskQueueChannelAdapter<TelemetryWorkItem> _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
     private readonly TelemetryStream _stream = stream ?? throw new ArgumentNullException(nameof(stream));
     private readonly TelemetryAlertChannel _alerts = alerts ?? throw new ArgumentNullException(nameof(alerts));
@@ -156,7 +161,17 @@ sealed partial class TelemetryWorker(
             {
                 heartbeat++;
                 TelemetryWorkItem heartbeatItem = new(TelemetryKind.Heartbeat, heartbeat, _timeProvider.GetUtcNow());
-                await _queue.EnqueueAsync(heartbeatItem, ct).ConfigureAwait(false);
+                Result<Go.Unit> enqueueResult = await _queue.EnqueueAsync(heartbeatItem, ct).ConfigureAwait(false);
+                if (enqueueResult.IsFailure)
+                {
+                    bool terminate = HandleQueueFailure("enqueue", enqueueResult.Error);
+                    if (terminate)
+                    {
+                        break;
+                    }
+
+                    continue;
+                }
                 await _stream.Writer.WriteAsync(heartbeatItem, ct).ConfigureAwait(false);
                 await DelayAsync(TimeSpan.FromSeconds(1), _timeProvider, ct).ConfigureAwait(false);
             }
@@ -168,7 +183,17 @@ sealed partial class TelemetryWorker(
             {
                 double cpuReading = Random.Shared.NextDouble() * 150; // intentionally allow outliers
                 TelemetryWorkItem workItem = new(TelemetryKind.Cpu, cpuReading, _timeProvider.GetUtcNow());
-                await _queue.EnqueueAsync(workItem, ct).ConfigureAwait(false);
+                Result<Go.Unit> enqueueResult = await _queue.EnqueueAsync(workItem, ct).ConfigureAwait(false);
+                if (enqueueResult.IsFailure)
+                {
+                    bool terminate = HandleQueueFailure("enqueue", enqueueResult.Error);
+                    if (terminate)
+                    {
+                        break;
+                    }
+
+                    continue;
+                }
                 await _stream.Writer.WriteAsync(workItem, ct).ConfigureAwait(false);
                 LogQueuedCpuReadingReadingF2(cpuReading);
                 await DelayAsync(TimeSpan.FromMilliseconds(350), _timeProvider, ct).ConfigureAwait(false);
@@ -198,11 +223,12 @@ sealed partial class TelemetryWorker(
     {
         await foreach (TaskQueueLease<TelemetryWorkItem> lease in _adapter.Reader.ReadAllAsync(stoppingToken))
         {
-            await ProcessLeaseAsync(lease, stoppingToken).ConfigureAwait(false);
+            SafeTaskQueueLease<TelemetryWorkItem> safeLease = SafeTaskQueueLease<TelemetryWorkItem>.From(lease);
+            await ProcessLeaseAsync(safeLease, stoppingToken).ConfigureAwait(false);
         }
     }
 
-    private async ValueTask ProcessLeaseAsync(TaskQueueLease<TelemetryWorkItem> lease, CancellationToken stoppingToken)
+    private async ValueTask ProcessLeaseAsync(SafeTaskQueueLease<TelemetryWorkItem> lease, CancellationToken stoppingToken)
     {
         try
         {
@@ -215,7 +241,11 @@ sealed partial class TelemetryWorker(
             {
                 case TelemetryKind.Heartbeat:
                     LogProcessingHeartbeatCount(lease.Value.Value);
-                    await lease.CompleteAsync(stoppingToken).ConfigureAwait(false);
+                    Result<Go.Unit> completion = await lease.CompleteAsync(stoppingToken).ConfigureAwait(false);
+                    if (completion.IsFailure)
+                    {
+                        HandleLeaseFailure("complete", lease, completion.Error);
+                    }
                     return;
                 case TelemetryKind.Cpu:
                     await HandleCpuReadingAsync(lease, stoppingToken).ConfigureAwait(false);
@@ -223,7 +253,11 @@ sealed partial class TelemetryWorker(
                 default:
                     Error unsupported = Error.From("Unsupported telemetry kind.", ErrorCodes.Validation)
                         .WithMetadata("kind", lease.Value.Kind.ToString());
-                    await lease.FailAsync(unsupported, requeue: false, stoppingToken).ConfigureAwait(false);
+                    Result<Go.Unit> failUnsupported = await lease.FailAsync(unsupported, requeue: false, stoppingToken).ConfigureAwait(false);
+                    if (failUnsupported.IsFailure)
+                    {
+                        HandleLeaseFailure("fail", lease, failUnsupported.Error);
+                    }
                     return;
             }
         }
@@ -233,17 +267,10 @@ sealed partial class TelemetryWorker(
                 .WithMetadata("kind", lease.Value.Kind.ToString())
                 .WithMetadata("attempt", lease.Attempt);
 
-            try
+            Result<Go.Unit> failResult = await lease.FailAsync(canceled, requeue: false, CancellationToken.None).ConfigureAwait(false);
+            if (failResult.IsFailure)
             {
-                await lease.FailAsync(canceled, requeue: false, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (ObjectDisposedException)
-            {
-                // queue already disposed during shutdown
-            }
-            catch (InvalidOperationException)
-            {
-                // lease already completed or expired
+                HandleLeaseFailure("fail", lease, failResult.Error);
             }
         }
         catch (Exception ex)
@@ -254,25 +281,27 @@ sealed partial class TelemetryWorker(
                 .WithMetadata("exceptionType", ex.GetType().FullName);
 
             LogUnexpectedFailureProcessingKind(lease.Value.Kind);
-            try
+            Result<Go.Unit> failResult = await lease.FailAsync(failure, requeue: true, stoppingToken).ConfigureAwait(false);
+            if (failResult.IsFailure)
             {
-                await lease.FailAsync(failure, requeue: true, stoppingToken).ConfigureAwait(false);
-            }
-            catch (InvalidOperationException)
-            {
-                _logger.LogDebug("Lease already concluded while handling unexpected failure for {Kind}", lease.Value.Kind);
+                HandleLeaseFailure("fail", lease, failResult.Error);
             }
         }
     }
-
-    private async ValueTask HandleCpuReadingAsync(TaskQueueLease<TelemetryWorkItem> lease, CancellationToken stoppingToken)
+    private async ValueTask HandleCpuReadingAsync(SafeTaskQueueLease<TelemetryWorkItem> lease, CancellationToken stoppingToken)
     {
         TelemetryWorkItem message = lease.Value;
         CalibrationProfile profile = _calibrationProfile ?? throw new InvalidOperationException("Calibration profile has not been loaded.");
 
         // Simulate longer processing that requires periodic heartbeats to keep the lease alive.
         await DelayAsync(TimeSpan.FromSeconds(1.2), _timeProvider, stoppingToken).ConfigureAwait(false);
-        await lease.HeartbeatAsync(stoppingToken).ConfigureAwait(false);
+        Result<Go.Unit> heartbeat = await lease.HeartbeatAsync(stoppingToken).ConfigureAwait(false);
+        if (heartbeat.IsFailure)
+        {
+            HandleLeaseFailure("heartbeat", lease, heartbeat.Error);
+            return;
+        }
+
         await DelayAsync(TimeSpan.FromSeconds(0.8), _timeProvider, stoppingToken).ConfigureAwait(false);
 
         if (message.Value >= 0d && message.Value <= profile.MaxCpuPercent)
@@ -292,7 +321,11 @@ sealed partial class TelemetryWorker(
                     .ConfigureAwait(false);
             }
 
-            await lease.CompleteAsync(stoppingToken).ConfigureAwait(false);
+            Result<Go.Unit> completion = await lease.CompleteAsync(stoppingToken).ConfigureAwait(false);
+            if (completion.IsFailure)
+            {
+                HandleLeaseFailure("complete", lease, completion.Error);
+            }
             return;
         }
 
@@ -317,14 +350,26 @@ sealed partial class TelemetryWorker(
                 stoppingToken)
             .ConfigureAwait(false);
 
-        try
+        Result<Go.Unit> failResult = await lease.FailAsync(error, shouldRetry, stoppingToken).ConfigureAwait(false);
+        if (failResult.IsFailure)
         {
-            await lease.FailAsync(error, shouldRetry, stoppingToken).ConfigureAwait(false);
+            HandleLeaseFailure("fail", lease, failResult.Error);
         }
-        catch (InvalidOperationException)
-        {
-            _logger.LogDebug("Lease already concluded while handling out-of-range CPU reading {Value:F2}", message.Value);
-        }
+    }
+
+    private bool HandleQueueFailure(string operation, Error? error)
+    {
+        string code = error?.Code ?? ErrorCodes.Unspecified;
+        string message = error?.Message ?? "Unknown error";
+        LogQueueOperationFailed(operation, code, message);
+        return code is ErrorCodes.TaskQueueDisposed or ErrorCodes.Canceled;
+    }
+
+    private void HandleLeaseFailure(string operation, SafeTaskQueueLease<TelemetryWorkItem> lease, Error? error)
+    {
+        string code = error?.Code ?? ErrorCodes.Unspecified;
+        string message = error?.Message ?? "Unknown error";
+        LogLeaseOperationFailed(operation, lease.Value.Kind, code, message);
     }
 
     [LoggerMessage(LogLevel.Error, "Telemetry calibration failed ({code}): {message}")]
@@ -347,6 +392,12 @@ sealed partial class TelemetryWorker(
 
     [LoggerMessage(LogLevel.Warning, "Reading {value:F2}%% exceeded warning threshold {warning:F2}%% (calibration v{version})")]
     partial void LogReadingValueF2ExceededWarningThresholdWarningF2CalibrationVVersion(double value, double warning, int version);
+
+    [LoggerMessage(LogLevel.Warning, "Task queue operation '{operation}' failed ({code}): {message}")]
+    partial void LogQueueOperationFailed(string operation, string code, string message);
+
+    [LoggerMessage(LogLevel.Warning, "Lease operation '{operation}' for {kind} failed ({code}): {message}")]
+    partial void LogLeaseOperationFailed(string operation, TelemetryKind kind, string code, string message);
 }
 
 enum TelemetryKind
