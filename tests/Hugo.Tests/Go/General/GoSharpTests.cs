@@ -59,6 +59,10 @@ public class GoSharpTests
     }
 
     [Fact]
+    public void Defer_ShouldThrow_WhenActionNull() =>
+        Assert.Throws<ArgumentNullException>(() => new Defer(null!));
+
+    [Fact]
     public void Err_WithExceptionAndCode_ShouldCaptureMetadata()
     {
         var ex = new InvalidOperationException("boom");

@@ -238,7 +238,7 @@ public partial class GoTests
                 provider.Advance(TimeSpan.FromMilliseconds(100));
                 await Task.Yield();
             }
-        }, CancellationToken.None);
+        }, TestContext.Current.CancellationToken);
 
         Result<Unit> result;
         try
@@ -284,25 +284,21 @@ public partial class GoTests
         var ct = TestContext.Current.CancellationToken;
         var fanInTask = FanInAsync([source1.Reader, source2.Reader], destination.Writer, cancellationToken: ct);
 
-        var producers = Task.WhenAll(
-            Task.Run(async () =>
-            {
-                await source1.Writer.WriteAsync(expected[0], ct);
-                source1.Writer.TryComplete();
-            }, ct),
-            Task.Run(async () =>
-            {
-                await source2.Writer.WriteAsync(expected[^1], ct);
-                source2.Writer.TryComplete();
-            }, ct));
+        async Task ProduceAsync(ChannelWriter<int> writer, int value)
+        {
+            await writer.WriteAsync(value, TestContext.Current.CancellationToken);
+            writer.TryComplete();
+        }
 
-        await producers;
+        await Task.WhenAll(
+            ProduceAsync(source1.Writer, expected[0]),
+            ProduceAsync(source2.Writer, expected[^1]));
         var result = await fanInTask;
 
         Assert.True(result.IsSuccess);
 
         var observed = new List<int>();
-        await foreach (var value in destination.Reader.ReadAllAsync(ct))
+        await foreach (var value in destination.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
         {
             observed.Add(value);
         }
@@ -335,7 +331,7 @@ public partial class GoTests
     {
         var destination = MakeChannel<int>();
 
-        var result = await FanInAsync(Array.Empty<ChannelReader<int>>(), destination.Writer, completeDestination: true);
+        var result = await FanInAsync(Array.Empty<ChannelReader<int>>(), destination.Writer, completeDestination: true, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.True(destination.Reader.Completion.IsCompleted);
@@ -346,7 +342,7 @@ public partial class GoTests
     {
         var destination = MakeChannel<int>();
 
-        var result = await FanInAsync(Array.Empty<ChannelReader<int>>(), destination.Writer, completeDestination: false);
+        var result = await FanInAsync(Array.Empty<ChannelReader<int>>(), destination.Writer, completeDestination: false, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.False(destination.Reader.Completion.IsCompleted);
@@ -356,14 +352,14 @@ public partial class GoTests
     public async Task FanInAsync_WithNullSources_Throws()
     {
         var destination = MakeChannel<int>();
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanInAsync<int>(null!, destination.Writer));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanInAsync<int>(null!, destination.Writer, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task FanInAsync_WithNullDestination_Throws()
     {
         var source = MakeChannel<int>();
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanInAsync([source.Reader], null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanInAsync([source.Reader], null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -376,22 +372,18 @@ public partial class GoTests
         var ct = TestContext.Current.CancellationToken;
         var merged = FanIn([source1.Reader, source2.Reader], cancellationToken: ct);
 
-        var producers = Task.WhenAll(
-            Task.Run(async () =>
-            {
-                await source1.Writer.WriteAsync(expected[0], ct);
-                source1.Writer.TryComplete();
-            }, ct),
-            Task.Run(async () =>
-            {
-                await source2.Writer.WriteAsync(expected[^1], ct);
-                source2.Writer.TryComplete();
-            }, ct));
+        async Task ProduceAsync(ChannelWriter<int> writer, int value)
+        {
+            await writer.WriteAsync(value, TestContext.Current.CancellationToken);
+            writer.TryComplete();
+        }
 
-        await producers;
+        await Task.WhenAll(
+            ProduceAsync(source1.Writer, expected[0]),
+            ProduceAsync(source2.Writer, expected[^1]));
 
         var values = new List<int>();
-        await foreach (var value in merged.ReadAllAsync(ct))
+        await foreach (var value in merged.ReadAllAsync(TestContext.Current.CancellationToken))
         {
             values.Add(value);
         }
@@ -402,20 +394,20 @@ public partial class GoTests
 
     [Fact]
     public void FanIn_WithNullSources_Throws() =>
-        Assert.Throws<ArgumentNullException>(() => FanIn<int>(null!));
+        Assert.Throws<ArgumentNullException>(() => FanIn<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact]
     public async Task FanOutAsync_WithNullSource_Throws()
     {
         var destination = MakeChannel<int>();
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync<int>(null!, [destination.Writer]));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync<int>(null!, [destination.Writer], cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task FanOutAsync_WithNullDestinations_Throws()
     {
         var source = MakeChannel<int>();
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync(source.Reader, null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync(source.Reader, null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -424,7 +416,7 @@ public partial class GoTests
         var source = MakeChannel<int>();
         IReadOnlyList<ChannelWriter<int>> destinations = [null!];
 
-        await Assert.ThrowsAsync<ArgumentException>(async () => await FanOutAsync(source.Reader, destinations));
+        await Assert.ThrowsAsync<ArgumentException>(async () => await FanOutAsync(source.Reader, destinations, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -433,31 +425,31 @@ public partial class GoTests
         var source = MakeChannel<int>();
         var destination = MakeChannel<int>();
 
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await FanOutAsync(source.Reader, [destination.Writer], deadline: TimeSpan.FromSeconds(-1)));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await FanOutAsync(source.Reader, [destination.Writer], deadline: TimeSpan.FromSeconds(-1), cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task FanOutAsync_WithNoDestinations_ReturnsSuccess()
     {
         var source = MakeChannel<int>();
-        var result = await FanOutAsync(source.Reader, Array.Empty<ChannelWriter<int>>());
+        var result = await FanOutAsync(source.Reader, Array.Empty<ChannelWriter<int>>(), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
     }
 
     [Fact]
     public void FanOut_WithNullSource_Throws() =>
-        Assert.Throws<ArgumentNullException>(() => FanOut<int>(null!, 1));
+        Assert.Throws<ArgumentNullException>(() => FanOut<int>(null!, 1, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact]
     public void FanOut_WithInvalidBranchCount_Throws() =>
-        Assert.Throws<ArgumentOutOfRangeException>(() => FanOut(MakeChannel<int>().Reader, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => FanOut(MakeChannel<int>().Reader, 0, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact]
     public async Task FanOut_WithCompleteBranchesFalse_DoesNotCompleteBranches()
     {
         var source = MakeChannel<int>();
-        var branches = FanOut(source.Reader, branchCount: 1, completeBranches: false);
+        var branches = FanOut(source.Reader, branchCount: 1, completeBranches: false, cancellationToken: TestContext.Current.CancellationToken);
 
         await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
         source.Writer.TryComplete();
@@ -471,7 +463,7 @@ public partial class GoTests
     public async Task FanOut_WithCompleteBranchesTrue_CompletesReaders()
     {
         var source = MakeChannel<int>();
-        var branches = FanOut(source.Reader, branchCount: 1, completeBranches: true);
+        var branches = FanOut(source.Reader, branchCount: 1, completeBranches: true, cancellationToken: TestContext.Current.CancellationToken);
 
         await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
         source.Writer.TryComplete();
@@ -550,7 +542,7 @@ public partial class GoTests
                 provider.Advance(step);
                 await Task.Yield();
             }
-        }, CancellationToken.None);
+        }, TestContext.Current.CancellationToken);
 
         Result<Unit> result;
         try
