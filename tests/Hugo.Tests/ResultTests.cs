@@ -16,6 +16,151 @@ public class ResultTests
     }
 
     [Fact]
+    public void Try_ShouldReturnOperationValue()
+    {
+        var result = Result.Try(() => 42);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(42, result.Value);
+    }
+
+    [Fact]
+    public void Try_ShouldCaptureExceptionWhenOperationFails()
+    {
+        var exception = new InvalidOperationException("boom");
+
+        var result = Result.Try<int>(() => throw exception);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+        Assert.Same(exception, result.Error?.Cause);
+    }
+
+    [Fact]
+    public void Try_ShouldUseErrorFactory()
+    {
+        var custom = Error.From("custom", ErrorCodes.Validation);
+
+        var result = Result.Try(() => throw new InvalidOperationException("fail"), _ => custom);
+
+        Assert.True(result.IsFailure);
+        Assert.Same(custom, result.Error);
+    }
+
+    [Fact]
+    public void Try_ShouldFallbackToUnspecifiedWhenFactoryReturnsNull()
+    {
+        var result = Result.Try<int>(() => throw new InvalidOperationException("fail"), _ => null);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Unspecified, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task TryAsync_ShouldReturnOperationValue()
+    {
+        var result = await Result.TryAsync(_ => Task.FromResult(21), TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(21, result.Value);
+    }
+
+    [Fact]
+    public async Task TryAsync_ShouldCaptureExceptionWhenOperationFails()
+    {
+        var exception = new InvalidOperationException("boom");
+
+        var result = await Result.TryAsync<int>(_ => Task.FromException<int>(exception), TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+        Assert.Same(exception, result.Error?.Cause);
+    }
+
+    [Fact]
+    public async Task TryAsync_ShouldRespectErrorFactory()
+    {
+        var custom = Error.From("async", ErrorCodes.Validation);
+
+        var result = await Result.TryAsync<int>(
+            _ => Task.FromException<int>(new InvalidOperationException("fail")),
+            TestContext.Current.CancellationToken,
+            _ => custom);
+
+        Assert.True(result.IsFailure);
+        Assert.Same(custom, result.Error);
+    }
+
+    [Fact]
+    public async Task TryAsync_ShouldReturnCanceledResult()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var result = await Result.TryAsync(
+            async token =>
+            {
+                await Task.Delay(10, token);
+                return 1;
+            },
+            cts.Token);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        Assert.True(result.Error!.TryGetMetadata("cancellationToken", out CancellationToken recorded));
+        Assert.Equal(cts.Token, recorded);
+    }
+
+    [Fact]
+    public async Task TryAsync_ShouldFallbackToUnspecifiedWhenFactoryReturnsNull()
+    {
+        var result = await Result.TryAsync<int>(
+            _ => Task.FromException<int>(new InvalidOperationException("fail")),
+            TestContext.Current.CancellationToken,
+            _ => null);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Unspecified, result.Error?.Code);
+    }
+
+    [Fact]
+    public void FromOptional_ShouldReturnSuccessWhenValuePresent()
+    {
+        var optional = Optional<int>.Some(5);
+
+        var result = Result.FromOptional(optional, () => Error.From("missing"));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(5, result.Value);
+    }
+
+    [Fact]
+    public void FromOptional_ShouldInvokeErrorFactoryWhenValueMissing()
+    {
+        var optional = Optional<int>.None();
+        var custom = Error.From("missing", ErrorCodes.Validation);
+
+        var result = Result.FromOptional(optional, () => custom);
+
+        Assert.True(result.IsFailure);
+        Assert.Same(custom, result.Error);
+    }
+
+    [Fact]
+    public void FromOptional_ShouldFallbackToUnspecifiedWhenFactoryReturnsNull()
+    {
+        var optional = Optional<int>.None();
+
+        var result = Result.FromOptional(optional, () => null);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Unspecified, result.Error?.Code);
+    }
+
+    [Fact]
+    public void FromOptional_ShouldThrowWhenFactoryIsNull() => Assert.Throws<ArgumentNullException>(() => Result.FromOptional(Optional<int>.Some(1), null!));
+
+    [Fact]
     public void Traverse_ShouldThrow_WhenSourceIsNull() => Assert.Throws<ArgumentNullException>(() => Result.Traverse<int, int>(null!, x => Result.Ok(x)));
 
     [Fact]
