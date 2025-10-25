@@ -1,3 +1,5 @@
+using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
 using Hugo.Policies;
@@ -39,6 +41,23 @@ public class ResultPipelineEnhancementsTests
         Assert.True(result.IsSuccess);
         Assert.Equal([1, 2], result.Value);
         Assert.Equal(0, compensations);
+    }
+
+    [Fact]
+    public async Task WhenAll_ShouldReturnEmptyResult_WhenNoOperations()
+    {
+        var result = await Result.WhenAll(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
+    }
+
+    [Fact]
+    public async Task WhenAll_ShouldThrow_WhenOperationNull()
+    {
+        var operations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>?[] { null };
+
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await Result.WhenAll(operations!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -99,6 +118,52 @@ public class ResultPipelineEnhancementsTests
         Assert.True(result.IsSuccess);
         Assert.Equal("fast", result.Value);
         Assert.Equal(1, compensation); // slow compensation should fire.
+    }
+
+    [Fact]
+    public async Task WhenAny_ShouldReturnValidationError_WhenNoOperations()
+    {
+        var result = await Result.WhenAny(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        Assert.Equal("No operations provided for WhenAny.", result.Error?.Message);
+    }
+
+    [Fact]
+    public async Task WhenAny_ShouldAggregateFailures_WhenNoSuccess()
+    {
+        var operations = new[]
+        {
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((_, _) =>
+                ValueTask.FromResult(Result.Fail<int>(Error.From("first failure", ErrorCodes.Validation)))),
+            (_, _) => ValueTask.FromResult(Result.Fail<int>(Error.From("second failure", ErrorCodes.Exception)))
+        };
+
+        var result = await Result.WhenAny(operations, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("All operations failed.", result.Error?.Message);
+        Assert.True(result.Error!.Metadata.TryGetValue("errors", out var nested));
+        var errors = Assert.IsType<Error[]>(nested);
+        Assert.Equal(2, errors.Length);
+    }
+
+    [Fact]
+    public async Task WhenAny_ShouldReturnCanceledError_WhenAllOperationsCanceled()
+    {
+        var operations = new[]
+        {
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((_, _) =>
+                ValueTask.FromResult(Result.Fail<int>(Error.Canceled()))),
+            (_, _) => ValueTask.FromResult(Result.Fail<int>(Error.Canceled()))
+        };
+
+        var result = await Result.WhenAny(operations, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        Assert.Equal("All operations were canceled.", result.Error?.Message);
     }
 
     [Fact]
@@ -170,6 +235,146 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact]
+    public async Task FanInAsync_ShouldMergeSourcesAndCompleteWriter()
+    {
+        var channel = Channel.CreateUnbounded<Result<int>>();
+
+        static async IAsyncEnumerable<Result<int>> Source(int start, [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            for (var i = start; i < start + 2; i++)
+            {
+                await Task.Delay(5, ct);
+                yield return Result.Ok(i);
+            }
+        }
+
+        await Result.FanInAsync(new[] { Source(0, TestContext.Current.CancellationToken), Source(2, TestContext.Current.CancellationToken) }, channel.Writer, TestContext.Current.CancellationToken);
+
+        var collected = new List<int>();
+        await foreach (var result in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        {
+            Assert.True(result.IsSuccess);
+            collected.Add(result.Value);
+        }
+
+        collected.Sort();
+        Assert.Equal([0, 1, 2, 3], collected);
+    }
+
+    [Fact]
+    public async Task FanInAsync_ShouldPropagateSourceFailure()
+    {
+        var channel = Channel.CreateUnbounded<Result<int>>();
+
+        static async IAsyncEnumerable<Result<int>> Faulty([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return Result.Ok(1);
+            await Task.Delay(5, ct);
+            throw new InvalidOperationException("fan-in failure");
+        }
+
+        static async IAsyncEnumerable<Result<int>> Healthy([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return Result.Ok(10);
+            await Task.Delay(5, ct);
+            yield return Result.Ok(11);
+        }
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Result.FanInAsync(new[] { Faulty(TestContext.Current.CancellationToken), Healthy(TestContext.Current.CancellationToken) }, channel.Writer, TestContext.Current.CancellationToken));
+
+        var buffered = new List<Result<int>>();
+        while (channel.Reader.TryRead(out var item))
+        {
+            buffered.Add(item);
+        }
+
+        Assert.Contains(buffered, result => result.IsSuccess && result.Value == 1);
+        Assert.True(channel.Reader.Completion.IsFaulted);
+        var completionException = await Assert.ThrowsAsync<InvalidOperationException>(async () => await channel.Reader.Completion);
+        Assert.Same(exception, completionException);
+    }
+
+    [Fact]
+    public async Task FanOutAsync_ShouldBroadcastResultsToAllWriters()
+    {
+        var first = Channel.CreateUnbounded<Result<int>>();
+        var second = Channel.CreateUnbounded<Result<int>>();
+
+        static async IAsyncEnumerable<Result<int>> Source()
+        {
+            yield return Result.Ok(3);
+            await Task.Delay(5);
+            yield return Result.Ok(4);
+        }
+
+        await Result.FanOutAsync(Source(), [first.Writer, second.Writer], TestContext.Current.CancellationToken);
+
+        var firstValues = await ReadAllValuesAsync(first.Reader);
+        var secondValues = await ReadAllValuesAsync(second.Reader);
+
+        Assert.Equal([3, 4], firstValues);
+        Assert.Equal([3, 4], secondValues);
+    }
+
+    [Fact]
+    public async Task PartitionAsync_ShouldSplitResultsAndCompleteWriters()
+    {
+        var source = GetSequence();
+        var evenWriter = Channel.CreateUnbounded<Result<int>>();
+        var oddWriter = Channel.CreateUnbounded<Result<int>>();
+
+        await source.PartitionAsync(value => value % 2 == 0, evenWriter.Writer, oddWriter.Writer, TestContext.Current.CancellationToken);
+
+        var evenResults = await ReadAllResultsAsync(evenWriter.Reader);
+        var oddResults = await ReadAllResultsAsync(oddWriter.Reader);
+
+        Assert.All(evenResults, result => Assert.True(result.IsSuccess));
+        Assert.Equal([2], evenResults.Select(result => result.Value).ToArray());
+
+        Assert.Equal(2, oddResults.Count);
+        Assert.True(oddResults[0].IsSuccess);
+        Assert.Equal(1, oddResults[0].Value);
+        Assert.True(oddResults[1].IsFailure);
+
+        static async IAsyncEnumerable<Result<int>> GetSequence()
+        {
+            yield return Result.Ok(1);
+            yield return Result.Ok(2);
+            yield return Result.Fail<int>(Error.From("failure"));
+        }
+    }
+
+    [Fact]
+    public async Task ToChannelAsync_ShouldEmitCanceledSentinelWhenEnumerationCanceled()
+    {
+        var channel = Channel.CreateUnbounded<Result<int>>();
+        using var cts = new CancellationTokenSource();
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, TestContext.Current.CancellationToken);
+
+        var toChannelTask = Sequence(linkedCts.Token).ToChannelAsync(channel.Writer, linkedCts.Token).AsTask();
+
+        var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+        Assert.True(first.IsSuccess);
+
+        cts.Cancel();
+
+        await toChannelTask;
+
+        var sentinel = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+        Assert.True(sentinel.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, sentinel.Error?.Code);
+        await channel.Reader.Completion;
+
+        static async IAsyncEnumerable<Result<int>> Sequence([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return Result.Ok(1);
+            await Task.Delay(TimeSpan.FromSeconds(1), ct);
+            yield return Result.Ok(2);
+        }
+    }
+
+    [Fact]
     public async Task WindowAsync_ShouldBatchValues()
     {
         var source = GetSequence();
@@ -219,6 +424,31 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact]
+    public void HigherOrderOperators_ShouldSurfaceFailure()
+    {
+        var error = Error.From("fail");
+        var data = new[]
+        {
+            Result.Ok(1),
+            Result.Fail<int>(error)
+        };
+
+        var grouped = Result.Group(data, value => value);
+        Assert.True(grouped.IsFailure);
+        Assert.Same(error, grouped.Error);
+
+        var partitioned = Result.Partition(data, value => value > 0);
+        Assert.True(partitioned.IsFailure);
+        Assert.Same(error, partitioned.Error);
+
+        var windowed = Result.Window(data, 2);
+        Assert.True(windowed.IsFailure);
+        Assert.Same(error, windowed.Error);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => Result.Window(data, 0));
+    }
+
+    [Fact]
     public async Task RetryWithPolicyAsync_ShouldRetryUntilSuccess()
     {
         var attempts = 0;
@@ -239,5 +469,45 @@ public class ResultPipelineEnhancementsTests
         Assert.True(result.IsSuccess);
         Assert.Equal(42, result.Value);
         Assert.Equal(3, attempts);
+    }
+
+    [Fact]
+    public async Task RetryWithPolicyAsync_ShouldReturnFailureAfterExhaustingRetries()
+    {
+        var attempts = 0;
+        var policy = new ResultExecutionPolicy(ResultRetryPolicy.FixedDelay(3, TimeSpan.Zero), Compensation: ResultCompensationPolicy.SequentialReverse);
+
+        var result = await Result.RetryWithPolicyAsync<int>((_, _) =>
+        {
+            attempts++;
+            return ValueTask.FromResult(Result.Fail<int>(Error.From("still failing", ErrorCodes.Exception)));
+        }, policy, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(3, attempts);
+        Assert.Equal("still failing", result.Error?.Message);
+    }
+
+    private static async Task<int[]> ReadAllValuesAsync(ChannelReader<Result<int>> reader)
+    {
+        var values = new List<int>();
+        await foreach (var result in reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        {
+            Assert.True(result.IsSuccess);
+            values.Add(result.Value);
+        }
+
+        return values.ToArray();
+    }
+
+    private static async Task<List<Result<int>>> ReadAllResultsAsync(ChannelReader<Result<int>> reader)
+    {
+        var results = new List<Result<int>>();
+        await foreach (var result in reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        {
+            results.Add(result);
+        }
+
+        return results;
     }
 }

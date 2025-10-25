@@ -41,19 +41,19 @@ public class ResultTests
     {
         var custom = Error.From("custom", ErrorCodes.Validation);
 
-        var result = Result.Try(() => throw new InvalidOperationException("fail"), _ => custom);
+        var result = Result.Try<int>(() => throw new InvalidOperationException("fail"), _ => custom);
 
         Assert.True(result.IsFailure);
         Assert.Same(custom, result.Error);
     }
 
     [Fact]
-    public void Try_ShouldFallbackToUnspecifiedWhenFactoryReturnsNull()
+    public void Try_ShouldFallbackToExceptionWhenFactoryReturnsNull()
     {
         var result = Result.Try<int>(() => throw new InvalidOperationException("fail"), _ => null);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Unspecified, result.Error?.Code);
+        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class ResultTests
     }
 
     [Fact]
-    public async Task TryAsync_ShouldFallbackToUnspecifiedWhenFactoryReturnsNull()
+    public async Task TryAsync_ShouldFallbackToExceptionWhenFactoryReturnsNull()
     {
         var result = await Result.TryAsync<int>(
             _ => Task.FromException<int>(new InvalidOperationException("fail")),
@@ -120,7 +120,7 @@ public class ResultTests
             _ => null);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Unspecified, result.Error?.Code);
+        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
     }
 
     [Fact]
@@ -689,6 +689,17 @@ public class ResultTests
         Assert.True(roundTrip.IsSuccess);
         Assert.Equal(20, value);
         Assert.Null(error);
+    }
+
+    [Fact]
+    public void ToOptional_ShouldReflectResultState()
+    {
+        var success = Result.Ok(7).ToOptional();
+        Assert.True(success.TryGetValue(out var value));
+        Assert.Equal(7, value);
+
+        var failure = Result.Fail<int>(Error.From("boom")).ToOptional();
+        Assert.False(failure.TryGetValue(out _));
     }
 
     [Fact]

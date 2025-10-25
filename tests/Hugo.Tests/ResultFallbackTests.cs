@@ -9,6 +9,22 @@ namespace Hugo.Tests;
 public class ResultFallbackTests
 {
     [Fact]
+    public void ResultFallbackTier_ShouldThrow_WhenOperationsEmpty()
+    {
+        Assert.Throws<ArgumentException>(() => new ResultFallbackTier<int>("empty", Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>()));
+    }
+
+    [Fact]
+    public async Task TieredFallbackAsync_ShouldReturnValidationError_WhenNoTiersProvided()
+    {
+        var result = await Result.TieredFallbackAsync(Array.Empty<ResultFallbackTier<int>>(), cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        Assert.Equal("No fallback tiers were provided.", result.Error?.Message);
+    }
+
+    [Fact]
     public async Task TieredFallbackAsync_ShouldReturnPrimaryResult()
     {
         var tiers = new[]
@@ -68,6 +84,7 @@ public class ResultFallbackTests
         {
             return error.Metadata.TryGetValue("fallbackTier", out var value) && string.Equals("secondary", value?.ToString(), StringComparison.Ordinal);
         });
+        Assert.All(nestedErrors, error => Assert.True(error.Metadata.ContainsKey("strategyIndex")));
     }
 
     [Fact]
