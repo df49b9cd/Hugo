@@ -37,6 +37,27 @@ public class TimerTests
     }
 
     [Fact]
+    public void After_ShouldThrow_WhenDelayIsInfinite() =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => After(Timeout.InfiniteTimeSpan, provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
+
+    [Fact]
+    public void After_ShouldThrow_WhenDelayIsNegative() =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => After(TimeSpan.FromMilliseconds(-1), provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
+
+    [Fact]
+    public async Task AfterAsync_ShouldRespectCancellation()
+    {
+        var provider = new FakeTimeProvider();
+        using var cts = new CancellationTokenSource();
+
+        Task<DateTimeOffset> task = AfterAsync(TimeSpan.FromSeconds(5), provider, cts.Token);
+
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task);
+    }
+
+    [Fact]
     public async Task NewTicker_ShouldProduceTicksUntilStopped()
     {
         var provider = new FakeTimeProvider();
@@ -56,5 +77,83 @@ public class TimerTests
         await ticker.StopAsync();
 
         await Assert.ThrowsAsync<ChannelClosedException>(() => ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void NewTicker_ShouldThrow_WhenPeriodNonPositive(double seconds)
+    {
+        TimeSpan period = TimeSpan.FromSeconds(seconds);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => NewTicker(period, provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Tick_ShouldProduceTicks_AndRespectCancellation()
+    {
+        var provider = new FakeTimeProvider();
+        using var cts = new CancellationTokenSource();
+
+        ChannelReader<DateTimeOffset> reader = Tick(TimeSpan.FromSeconds(1), provider, cts.Token);
+
+        var firstTask = reader.ReadAsync(TestContext.Current.CancellationToken).AsTask();
+        provider.Advance(TimeSpan.FromSeconds(1));
+        DateTimeOffset first = await firstTask;
+
+        var secondTask = reader.ReadAsync(TestContext.Current.CancellationToken).AsTask();
+        provider.Advance(TimeSpan.FromSeconds(1));
+        DateTimeOffset second = await secondTask;
+
+        Assert.Equal(TimeSpan.FromSeconds(1), second - first);
+
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await reader.Completion);
+    }
+
+    [Fact]
+    public async Task GoTicker_TryRead_ShouldReflectAvailability()
+    {
+        var provider = new FakeTimeProvider();
+        await using var ticker = NewTicker(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken);
+
+        Assert.False(ticker.TryRead(out _));
+
+        var firstTask = ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask();
+        provider.Advance(TimeSpan.FromSeconds(1));
+        DateTimeOffset first = await firstTask;
+
+        provider.Advance(TimeSpan.FromSeconds(1));
+
+        DateTimeOffset second = default;
+        var available = false;
+        for (var attempt = 0; attempt < 5 && !available; attempt++)
+        {
+            available = ticker.TryRead(out second);
+            if (!available)
+            {
+                await Task.Yield();
+            }
+        }
+
+        Assert.True(available);
+        Assert.Equal(TimeSpan.FromSeconds(1), second - first);
+
+        await ticker.StopAsync();
+    }
+
+    [Fact]
+    public void GoTicker_Stop_ShouldCompleteReader()
+    {
+        var provider = new FakeTimeProvider();
+        var ticker = NewTicker(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken);
+
+        ticker.Stop();
+
+        Assert.True(ticker.Reader.Completion.IsCompleted);
+
+        ticker.Dispose();
     }
 }

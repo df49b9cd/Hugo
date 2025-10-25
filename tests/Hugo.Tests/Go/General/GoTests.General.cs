@@ -617,6 +617,83 @@ public partial class GoTests
     }
 
     [Fact]
+    public async Task SelectAsync_ShouldInvokeDefaultCase()
+    {
+        var invoked = false;
+
+        var result = await SelectAsync(
+            cancellationToken: TestContext.Current.CancellationToken,
+            cases:
+            [
+                ChannelCase.CreateDefault(ct =>
+                {
+                    invoked = true;
+                    Assert.True(ct.CanBeCanceled);
+                    return Task.FromResult(Result.Ok(Unit.Value));
+                })
+            ]);
+
+        Assert.True(invoked);
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task SelectAsync_ShouldPropagateDefaultFailure()
+    {
+        var result = await SelectAsync(
+            cancellationToken: TestContext.Current.CancellationToken,
+            cases:
+            [
+                ChannelCase.CreateDefault(() => Result.Fail<Unit>(Error.From("default failure", ErrorCodes.Validation)))
+            ]);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        Assert.Equal("default failure", result.Error?.Message);
+    }
+
+    [Fact]
+    public async Task SelectAsync_ShouldPreferReadyCaseOverDefault()
+    {
+        var channel = MakeChannel<int>();
+        channel.Writer.TryWrite(42);
+        channel.Writer.TryComplete();
+        var defaultInvoked = false;
+
+        var result = await SelectAsync(
+            cancellationToken: TestContext.Current.CancellationToken,
+            cases:
+            [
+                ChannelCase.CreateDefault(() =>
+                {
+                    defaultInvoked = true;
+                    return Result.Ok(Unit.Value);
+                }),
+                ChannelCase.Create(channel.Reader, value =>
+                {
+                    Assert.Equal(42, value);
+                    return Task.FromResult(Result.Ok(Unit.Value));
+                })
+            ]);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(defaultInvoked);
+    }
+
+    [Fact]
+    public async Task SelectAsync_ShouldThrow_WhenMultipleDefaultCasesSupplied()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            SelectAsync(
+                cancellationToken: TestContext.Current.CancellationToken,
+                cases:
+                [
+                    ChannelCase.CreateDefault(() => Result.Ok(Unit.Value)),
+                    ChannelCase.CreateDefault(() => Result.Ok(Unit.Value))
+                ]));
+    }
+
+    [Fact]
     public async Task SelectAsync_ShouldWrapContinuationExceptions()
     {
         var channel = MakeChannel<int>();
