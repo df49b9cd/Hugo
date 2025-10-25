@@ -199,6 +199,76 @@ public class TaskQueueTests
     }
 
     [Fact]
+    public async Task FailAsync_WithCanceledToken_ShouldStillRequeue()
+    {
+        var provider = new FakeTimeProvider();
+        var options = new TaskQueueOptions
+        {
+            LeaseDuration = TimeSpan.FromMilliseconds(50),
+            LeaseSweepInterval = TimeSpan.FromMilliseconds(10),
+            HeartbeatInterval = TimeSpan.Zero,
+            MaxDeliveryAttempts = 3
+        };
+
+        await using var queue = new TaskQueue<string>(options, provider);
+
+        await queue.EnqueueAsync("omega", TestContext.Current.CancellationToken);
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+
+        var error = Error.From("canceled-fail", ErrorCodes.TaskQueueAbandoned);
+        using var canceledCts = new CancellationTokenSource();
+        canceledCts.Cancel();
+
+        await lease.FailAsync(error, requeue: true, canceledCts.Token);
+
+        var requeuedTask = queue.LeaseAsync(TestContext.Current.CancellationToken).AsTask();
+        var requeued = await requeuedTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, requeued.Attempt);
+        Assert.Equal("omega", requeued.Value);
+        Assert.Same(error, requeued.LastError);
+    }
+
+    [Fact]
+    public async Task LeaseExpiration_DuringDispose_ShouldSurfaceDeadLetter()
+    {
+        var provider = new FakeTimeProvider();
+        var contexts = new List<TaskQueueDeadLetterContext<string>>();
+
+        ValueTask DeadLetter(TaskQueueDeadLetterContext<string> context, CancellationToken cancellationToken)
+        {
+            contexts.Add(context);
+            return ValueTask.CompletedTask;
+        }
+
+        var options = new TaskQueueOptions
+        {
+            LeaseDuration = TimeSpan.FromMilliseconds(50),
+            LeaseSweepInterval = TimeSpan.FromMilliseconds(10),
+            HeartbeatInterval = TimeSpan.Zero,
+            MaxDeliveryAttempts = 2
+        };
+
+        await using var queue = new TaskQueue<string>(options, provider, DeadLetter);
+
+        await queue.EnqueueAsync("sigma", TestContext.Current.CancellationToken);
+        _ = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(75));
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(75));
+
+        using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        waitCts.CancelAfter(TimeSpan.FromSeconds(2));
+        await WaitForConditionAsync(() => queue.ActiveLeaseCount == 0, waitCts.Token);
+
+        await queue.DisposeAsync();
+
+        var context = Assert.Single(contexts);
+        Assert.Equal("sigma", context.Value);
+        Assert.True(context.Attempt >= 2);
+    }
+
+    [Fact]
     public async Task TaskQueue_Disposed_ShouldThrowOnEnqueueAndLease()
     {
         await using var queue = new TaskQueue<string>();
@@ -244,6 +314,29 @@ public class TaskQueueTests
     {
         provider.Advance(interval);
         await Task.Yield();
+    }
+
+    private static async Task WaitForConditionAsync(Func<bool> condition, CancellationToken cancellationToken, TimeSpan? pollInterval = null)
+    {
+        var interval = pollInterval ?? TimeSpan.FromMilliseconds(10);
+        var spin = new System.Threading.SpinWait();
+
+        for (var i = 0; i < 128; i++)
+        {
+            if (condition())
+            {
+                return;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            spin.SpinOnce();
+        }
+
+        while (!condition())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.Delay(interval, cancellationToken);
+        }
     }
 
 }

@@ -6,6 +6,7 @@ using Hugo.Diagnostics.OpenTelemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -33,20 +34,22 @@ HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 //     });
 
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.Configure<TelemetryQueueOptions>(builder.Configuration.GetSection("TelemetryQueue"));
 builder.Services.AddSingleton(sp =>
 {
     ILoggerFactory loggerFactory = sp.GetRequiredService<ILoggerFactory>();
     ILogger queueLogger = loggerFactory.CreateLogger("TelemetryQueue");
     TimeProvider timeProvider = sp.GetRequiredService<TimeProvider>();
+    TelemetryQueueOptions telemetryOptions = sp.GetRequiredService<IOptions<TelemetryQueueOptions>>().Value;
 
     TaskQueueOptions options = new()
     {
-        Capacity = 512,
-        LeaseDuration = TimeSpan.FromSeconds(8),
-        HeartbeatInterval = TimeSpan.FromSeconds(1),
-        LeaseSweepInterval = TimeSpan.FromMilliseconds(500),
-        RequeueDelay = TimeSpan.FromMilliseconds(750),
-        MaxDeliveryAttempts = 3
+        Capacity = telemetryOptions.Capacity,
+        LeaseDuration = TimeSpan.FromMilliseconds(telemetryOptions.LeaseDurationMs),
+        HeartbeatInterval = TimeSpan.FromMilliseconds(telemetryOptions.HeartbeatIntervalMs),
+        LeaseSweepInterval = TimeSpan.FromMilliseconds(telemetryOptions.LeaseSweepIntervalMs),
+        RequeueDelay = TimeSpan.FromMilliseconds(telemetryOptions.RequeueDelayMs),
+        MaxDeliveryAttempts = telemetryOptions.MaxDeliveryAttempts
     };
 
     return new TaskQueue<TelemetryWorkItem>(
@@ -65,6 +68,7 @@ builder.Services.AddSingleton(sp =>
         });
 });
 builder.Services.AddSingleton<IDeterministicStateStore, InMemoryDeterministicStateStore>();
+builder.Services.AddSingleton(sp => TaskQueueChannelAdapter<TelemetryWorkItem>.Create(sp.GetRequiredService<TaskQueue<TelemetryWorkItem>>(), concurrency: 1));
 builder.Services.AddSingleton(sp =>
 {
     IDeterministicStateStore store = sp.GetRequiredService<IDeterministicStateStore>();
@@ -118,6 +122,7 @@ sealed partial class TelemetryWorker(
     TelemetryCalibration calibration,
     TimeProvider timeProvider,
     TaskQueue<TelemetryWorkItem> queue,
+    TaskQueueChannelAdapter<TelemetryWorkItem> adapter,
     TelemetryStream stream,
     TelemetryAlertChannel alerts) : BackgroundService
 {
@@ -125,6 +130,7 @@ sealed partial class TelemetryWorker(
     private readonly TelemetryCalibration _calibration = calibration ?? throw new ArgumentNullException(nameof(calibration));
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
     private readonly TaskQueue<TelemetryWorkItem> _queue = queue ?? throw new ArgumentNullException(nameof(queue));
+    private readonly TaskQueueChannelAdapter<TelemetryWorkItem> _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
     private readonly TelemetryStream _stream = stream ?? throw new ArgumentNullException(nameof(stream));
     private readonly TelemetryAlertChannel _alerts = alerts ?? throw new ArgumentNullException(nameof(alerts));
     private CalibrationProfile? _calibrationProfile;
@@ -190,23 +196,8 @@ sealed partial class TelemetryWorker(
 
     private async Task ProcessQueueAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        await foreach (TaskQueueLease<TelemetryWorkItem> lease in _adapter.Reader.ReadAllAsync(stoppingToken))
         {
-            TaskQueueLease<TelemetryWorkItem> lease;
-
-            try
-            {
-                lease = await _queue.LeaseAsync(stoppingToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (ObjectDisposedException)
-            {
-                break;
-            }
-
             await ProcessLeaseAsync(lease, stoppingToken).ConfigureAwait(false);
         }
     }
@@ -250,6 +241,10 @@ sealed partial class TelemetryWorker(
             {
                 // queue already disposed during shutdown
             }
+            catch (InvalidOperationException)
+            {
+                // lease already completed or expired
+            }
         }
         catch (Exception ex)
         {
@@ -259,7 +254,14 @@ sealed partial class TelemetryWorker(
                 .WithMetadata("exceptionType", ex.GetType().FullName);
 
             LogUnexpectedFailureProcessingKind(lease.Value.Kind);
-            await lease.FailAsync(failure, requeue: true, stoppingToken).ConfigureAwait(false);
+            try
+            {
+                await lease.FailAsync(failure, requeue: true, stoppingToken).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException)
+            {
+                _logger.LogDebug("Lease already concluded while handling unexpected failure for {Kind}", lease.Value.Kind);
+            }
         }
     }
 
@@ -315,7 +317,14 @@ sealed partial class TelemetryWorker(
                 stoppingToken)
             .ConfigureAwait(false);
 
-        await lease.FailAsync(error, shouldRetry, stoppingToken).ConfigureAwait(false);
+        try
+        {
+            await lease.FailAsync(error, shouldRetry, stoppingToken).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+            _logger.LogDebug("Lease already concluded while handling out-of-range CPU reading {Value:F2}", message.Value);
+        }
     }
 
     [LoggerMessage(LogLevel.Error, "Telemetry calibration failed ({code}): {message}")]
@@ -613,4 +622,14 @@ sealed class TelemetryAlertService(
                 alert.WorkItem.ObservedAt);
         }
     }
+}
+
+sealed class TelemetryQueueOptions
+{
+    public int Capacity { get; set; } = 512;
+    public double LeaseDurationMs { get; set; } = TimeSpan.FromSeconds(8).TotalMilliseconds;
+    public double HeartbeatIntervalMs { get; set; } = TimeSpan.FromSeconds(1).TotalMilliseconds;
+    public double LeaseSweepIntervalMs { get; set; } = TimeSpan.FromMilliseconds(500).TotalMilliseconds;
+    public double RequeueDelayMs { get; set; } = TimeSpan.FromMilliseconds(750).TotalMilliseconds;
+    public int MaxDeliveryAttempts { get; set; } = 3;
 }

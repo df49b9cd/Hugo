@@ -425,15 +425,35 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
         if (_options.RequeueDelay > TimeSpan.Zero)
         {
-            await _timeProvider.DelayAsync(_options.RequeueDelay, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await _timeProvider.DelayAsync(_options.RequeueDelay, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Skip the delay when cancellation is requested but continue requeueing to avoid data loss.
+            }
         }
 
         long depth = Interlocked.Increment(ref _pendingCount);
 
         try
         {
-            await _channel.Writer.WriteAsync(requeued, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await _channel.Writer.WriteAsync(requeued, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                await _channel.Writer.WriteAsync(requeued, CancellationToken.None).ConfigureAwait(false);
+            }
+
             GoDiagnostics.RecordTaskQueueRequeued(nextAttempt, depth, _leases.Count);
+        }
+        catch (ChannelClosedException)
+        {
+            Interlocked.Decrement(ref _pendingCount);
+            await DeadLetterAsync(requeued, error, cancellationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -452,7 +472,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         }
 
         TaskQueueDeadLetterContext<T> context = new(envelope.Value, error, envelope.Attempt, envelope.EnqueuedAt);
-        await _deadLetter(context, cancellationToken).ConfigureAwait(false);
+        await _deadLetter(context, CancellationToken.None).ConfigureAwait(false);
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(IsDisposed, nameof(TaskQueue<T>));
@@ -479,6 +499,21 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         }
 
         _monitorCts.Dispose();
+        await DrainPendingAsync().ConfigureAwait(false);
+    }
+
+    private async ValueTask DrainPendingAsync()
+    {
+        while (await _channel.Reader.WaitToReadAsync().ConfigureAwait(false))
+        {
+            while (_channel.Reader.TryRead(out QueueEnvelope? envelope))
+            {
+                Interlocked.Decrement(ref _pendingCount);
+
+                Error reason = envelope.LastError ?? Error.From("Queue disposed before delivery.", ErrorCodes.TaskQueueDeadLettered);
+                await DeadLetterAsync(envelope, reason, CancellationToken.None).ConfigureAwait(false);
+            }
+        }
     }
 
     private sealed record QueueEnvelope(T Value, int Attempt, DateTimeOffset EnqueuedAt, Error? LastError);
