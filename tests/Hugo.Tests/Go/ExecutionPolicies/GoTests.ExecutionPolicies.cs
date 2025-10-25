@@ -218,4 +218,251 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
         Assert.Equal(new[] { 1 }, attempts);
     }
+
+    [Fact]
+    public async Task FanOutAsync_ShouldThrowWhenOperationsNull()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await FanOutAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task FanOutAsync_ShouldThrowWhenOperationEntryNull()
+    {
+        var operations = new Func<CancellationToken, Task<Result<int>>>?[]
+        {
+            ct => Task.FromResult(Ok(1)),
+            null
+        };
+
+        var exception = await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await FanOutAsync(operations!, cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Equal("operations", exception.ParamName);
+    }
+
+    [Fact]
+    public async Task FanOutAsync_ShouldReturnEmptyWhenNoOperations()
+    {
+        var result = await FanOutAsync(Array.Empty<Func<CancellationToken, Task<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
+    }
+
+    [Fact]
+    public async Task FanOutAsync_ShouldPropagateFailure()
+    {
+        var operations = new List<Func<CancellationToken, Task<Result<int>>>>
+        {
+            _ => Task.FromResult(Ok(1)),
+            _ => Task.FromResult(Err<int>("failed", ErrorCodes.Validation))
+        };
+
+        var result = await FanOutAsync(operations, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task FanOutAsync_WithExecutionPolicy_ShouldRespectCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        TaskCompletionSource[] started =
+        {
+            new(TaskCreationOptions.RunContinuationsAsynchronously),
+            new(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+
+        var operations = new List<Func<CancellationToken, Task<Result<int>>>>
+        {
+            async ct =>
+            {
+                started[0].TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return Ok(1);
+            },
+            async ct =>
+            {
+                started[1].TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return Ok(2);
+            }
+        };
+
+        Task<Result<IReadOnlyList<int>>> task = FanOutAsync(operations, cancellationToken: cts.Token);
+        await Task.WhenAll(started.Select(tcs => tcs.Task));
+
+        await cts.CancelAsync();
+        Result<IReadOnlyList<int>> result = await task;
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Aggregate, result.Error?.Code);
+        Assert.True(result.Error!.TryGetMetadata("errors", out Error[]? errors));
+        Assert.NotNull(errors);
+        Assert.All(errors!, error => Assert.Equal(ErrorCodes.Canceled, error.Code));
+    }
+
+    [Fact]
+    public async Task RaceAsync_ShouldThrowWhenOperationsNull()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await RaceAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RaceAsync_ShouldThrowWhenOperationEntryNull()
+    {
+        var operations = new Func<CancellationToken, Task<Result<int>>>?[]
+        {
+            _ => Task.FromResult(Ok(1)),
+            null
+        };
+
+        var exception = await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await RaceAsync(operations!, cancellationToken: TestContext.Current.CancellationToken));
+
+        Assert.Equal("operations", exception.ParamName);
+    }
+
+    [Fact]
+    public async Task RaceAsync_ShouldReturnFailureWhenAllFail()
+    {
+        var operations = new List<Func<CancellationToken, Task<Result<int>>>>
+        {
+            _ => Task.FromResult(Err<int>("first failure", ErrorCodes.Validation)),
+            _ => Task.FromResult(Err<int>("second failure", ErrorCodes.Validation))
+        };
+
+        var result = await RaceAsync(operations, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Aggregate, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task RaceAsync_ShouldReturnCanceledWhenOperationsCanceled()
+    {
+        using var cts = new CancellationTokenSource();
+        TaskCompletionSource[] started =
+        {
+            new(TaskCreationOptions.RunContinuationsAsynchronously),
+            new(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+
+        var operations = new List<Func<CancellationToken, Task<Result<int>>>>
+        {
+            async ct =>
+            {
+                started[0].TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return Ok(1);
+            },
+            async ct =>
+            {
+                started[1].TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return Ok(2);
+            }
+        };
+
+        Task<Result<int>> task = RaceAsync(operations, cancellationToken: cts.Token);
+        await Task.WhenAll(started.Select(tcs => tcs.Task));
+
+        await cts.CancelAsync();
+        Result<int> result = await task;
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task WithTimeoutAsync_ShouldReturnSuccessWhenOperationCompletes()
+    {
+        var result = await WithTimeoutAsync(
+            _ => Task.FromResult(Ok(5)),
+            TimeSpan.FromSeconds(5),
+            timeProvider: new FakeTimeProvider(),
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(5, result.Value);
+    }
+
+    [Fact]
+    public async Task WithTimeoutAsync_ShouldReturnSuccessWithInfiniteTimeout()
+    {
+        var result = await WithTimeoutAsync(
+            _ => Task.FromResult(Ok(7)),
+            Timeout.InfiniteTimeSpan,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(7, result.Value);
+    }
+
+    [Fact]
+    public async Task WithTimeoutAsync_ShouldThrowWhenTimeoutNegative()
+    {
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+            await WithTimeoutAsync(_ => Task.FromResult(Ok(1)), TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task WithTimeoutAsync_ShouldPropagateOperationFailure()
+    {
+        var result = await WithTimeoutAsync(
+            _ => Task.FromResult(Err<int>("failure", ErrorCodes.Validation)),
+            TimeSpan.FromSeconds(5),
+            timeProvider: new FakeTimeProvider(),
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task WithTimeoutAsync_ShouldReturnCanceledWhenOperationThrowsWithoutToken()
+    {
+        var result = await WithTimeoutAsync<int>(
+            _ => throw new OperationCanceledException(),
+            TimeSpan.FromSeconds(5),
+            timeProvider: new FakeTimeProvider(),
+            cancellationToken: CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        Assert.False(result.Error!.TryGetMetadata("cancellationToken", out CancellationToken _));
+    }
+
+    [Fact]
+    public async Task RetryAsync_ShouldThrowWhenOperationNull()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await RetryAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task RetryAsync_ShouldThrowWhenMaxAttemptsInvalid(int maxAttempts)
+    {
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+            await RetryAsync<int>((_, _) => Task.FromResult(Ok(1)), maxAttempts, initialDelay: TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RetryAsync_ShouldReturnFailureWhenOperationThrows()
+    {
+        var result = await RetryAsync<int>(
+            (_, _) => throw new InvalidOperationException("boom"),
+            maxAttempts: 2,
+            initialDelay: TimeSpan.Zero,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+        Assert.Contains("boom", result.Error?.Message);
+    }
 }
