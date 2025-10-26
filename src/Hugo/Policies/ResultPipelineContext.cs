@@ -14,29 +14,34 @@ public sealed class ResultPipelineStepContext
         TimeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
     }
 
-    /// <summary>
-    /// Gets the name associated with the current step for diagnostics.
-    /// </summary>
+    /// <summary>Gets the name associated with the current step for diagnostics.</summary>
     public string StepName { get; }
 
-    /// <summary>
-    /// Provides access to the time provider used by the pipeline.
-    /// </summary>
+    /// <summary>Provides access to the time provider used by the pipeline.</summary>
     public TimeProvider TimeProvider { get; }
 
     /// <summary>
     /// Registers a compensation action to be executed if the pipeline fails.
     /// </summary>
+    /// <param name="compensation">The compensation delegate to enqueue.</param>
     public void RegisterCompensation(Func<CancellationToken, ValueTask> compensation) => _compensationScope.Register(compensation);
 
     /// <summary>
     /// Registers a compensation action that captures state.
     /// </summary>
+    /// <typeparam name="TState">The type of state captured by the compensation.</typeparam>
+    /// <param name="state">The state passed to the compensation delegate.</param>
+    /// <param name="compensation">The compensation delegate to enqueue.</param>
     public void RegisterCompensation<TState>(TState state, Func<TState, CancellationToken, ValueTask> compensation) => _compensationScope.Register(state, compensation);
 
     /// <summary>
     /// Attempts to register a compensation action when the provided predicate returns true.
     /// </summary>
+    /// <typeparam name="TState">The type of state captured by the compensation.</typeparam>
+    /// <param name="state">The state passed to the compensation delegate.</param>
+    /// <param name="compensation">The compensation delegate to enqueue.</param>
+    /// <param name="condition">Indicates whether the compensation should be registered.</param>
+    /// <returns><see langword="true"/> when the compensation was registered; otherwise <see langword="false"/>.</returns>
     public bool TryRegisterCompensation<TState>(TState state, Func<TState, CancellationToken, ValueTask> compensation, bool condition)
     {
         if (!condition)

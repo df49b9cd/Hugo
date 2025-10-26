@@ -10,6 +10,11 @@ public static partial class Result
     /// Writes every result emitted by <paramref name="source"/> to <paramref name="writer"/> and completes the writer when the sequence ends.
     /// Emits a canceled result if the enumeration is canceled.
     /// </summary>
+    /// <typeparam name="T">The type of the result value.</typeparam>
+    /// <param name="source">The sequence to forward.</param>
+    /// <param name="writer">The channel writer that receives forwarded results.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A task that completes when the forwarding finishes.</returns>
     public static async ValueTask ToChannelAsync<T>(this IAsyncEnumerable<Result<T>> source, ChannelWriter<Result<T>> writer, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -21,6 +26,10 @@ public static partial class Result
     /// <summary>
     /// Asynchronously yields every result available from the reader until it completes or cancellation is requested.
     /// </summary>
+    /// <typeparam name="T">The type of the result value.</typeparam>
+    /// <param name="reader">The channel reader to enumerate.</param>
+    /// <param name="cancellationToken">The token used to cancel the enumeration.</param>
+    /// <returns>An asynchronous sequence of results.</returns>
     public static async IAsyncEnumerable<Result<T>> ReadAllAsync<T>(this ChannelReader<Result<T>> reader, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -37,6 +46,11 @@ public static partial class Result
     /// <summary>
     /// Merges multiple result sequences into a single channel writer and completes the writer when all sources finish.
     /// </summary>
+    /// <typeparam name="T">The type of the result value.</typeparam>
+    /// <param name="sources">The result sequences to merge.</param>
+    /// <param name="writer">The channel writer that receives merged results.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A task that completes when the merge finishes.</returns>
     public static async ValueTask FanInAsync<T>(IEnumerable<IAsyncEnumerable<Result<T>>> sources, ChannelWriter<Result<T>> writer, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sources);
@@ -70,6 +84,11 @@ public static partial class Result
     /// <summary>
     /// Broadcasts every result from the source sequence to each writer, completing all writers when the sequence ends.
     /// </summary>
+    /// <typeparam name="T">The type of the result value.</typeparam>
+    /// <param name="source">The sequence to broadcast.</param>
+    /// <param name="writers">The writers that receive each result.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A task that completes when broadcasting finishes.</returns>
     public static async ValueTask FanOutAsync<T>(this IAsyncEnumerable<Result<T>> source, IReadOnlyList<ChannelWriter<Result<T>>> writers, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -98,6 +117,11 @@ public static partial class Result
     /// <summary>
     /// Batches successful results into fixed-size windows and yields them as aggregated results.
     /// </summary>
+    /// <typeparam name="T">The type of the result value.</typeparam>
+    /// <param name="source">The sequence to window.</param>
+    /// <param name="size">The number of items per window.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>An asynchronous sequence of windowed results.</returns>
     public static async IAsyncEnumerable<Result<IReadOnlyList<T>>> WindowAsync<T>(this IAsyncEnumerable<Result<T>> source, int size, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -131,6 +155,13 @@ public static partial class Result
     /// <summary>
     /// Partitions results into <paramref name="trueWriter"/> and <paramref name="falseWriter"/> according to <paramref name="predicate"/>, completing both writers when the sequence ends.
     /// </summary>
+    /// <typeparam name="T">The type of the result value.</typeparam>
+    /// <param name="source">The sequence to partition.</param>
+    /// <param name="predicate">The predicate that determines the target writer.</param>
+    /// <param name="trueWriter">The writer that receives results satisfying the predicate.</param>
+    /// <param name="falseWriter">The writer that receives results that do not satisfy the predicate.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A task that completes when partitioning finishes.</returns>
     public static ValueTask PartitionAsync<T>(this IAsyncEnumerable<Result<T>> source, Func<T, bool> predicate, ChannelWriter<Result<T>> trueWriter, ChannelWriter<Result<T>> falseWriter, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);

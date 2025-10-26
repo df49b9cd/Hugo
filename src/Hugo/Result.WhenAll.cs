@@ -7,6 +7,12 @@ public static partial class Result
     /// <summary>
     /// Executes all pipeline operations, aggregating successful results or combining failures using the optional execution policy.
     /// </summary>
+    /// <typeparam name="T">The type of the result value.</typeparam>
+    /// <param name="operations">The operations to execute.</param>
+    /// <param name="policy">The optional execution policy applied to each operation.</param>
+    /// <param name="cancellationToken">The token used to cancel execution.</param>
+    /// <param name="timeProvider">The optional time provider used for policy timing.</param>
+    /// <returns>A task that resolves to the aggregated operation results.</returns>
     public static Task<Result<IReadOnlyList<T>>> WhenAll<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
@@ -16,6 +22,12 @@ public static partial class Result
     /// <summary>
     /// Executes the supplied operations until one succeeds, cancelling the remaining work and applying the optional execution policy.
     /// </summary>
+    /// <typeparam name="T">The type of the result value.</typeparam>
+    /// <param name="operations">The operations to execute.</param>
+    /// <param name="policy">The optional execution policy applied to each operation.</param>
+    /// <param name="cancellationToken">The token used to cancel execution.</param>
+    /// <param name="timeProvider">The optional time provider used for policy timing.</param>
+    /// <returns>A task that resolves to the first successful operation result, or an aggregate failure.</returns>
     public static Task<Result<T>> WhenAny<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,

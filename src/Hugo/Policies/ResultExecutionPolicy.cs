@@ -9,14 +9,21 @@ public sealed record ResultExecutionPolicy(
     ResultRetryPolicy? Retry = null,
     ResultCompensationPolicy? Compensation = null)
 {
+    /// <summary>Gets an execution policy that performs no retries or compensation.</summary>
     public static ResultExecutionPolicy None { get; } = new();
 
+    /// <summary>Creates a copy of the policy with the supplied retry strategy.</summary>
+    /// <param name="retry">The retry strategy to attach.</param>
+    /// <returns>A new policy containing the provided retry settings.</returns>
     public ResultExecutionPolicy WithRetry(ResultRetryPolicy retry)
     {
         ArgumentNullException.ThrowIfNull(retry);
         return this with { Retry = retry };
     }
 
+    /// <summary>Creates a copy of the policy with the supplied compensation strategy.</summary>
+    /// <param name="compensation">The compensation strategy to attach.</param>
+    /// <returns>A new policy containing the provided compensation settings.</returns>
     public ResultExecutionPolicy WithCompensation(ResultCompensationPolicy compensation)
     {
         ArgumentNullException.ThrowIfNull(compensation);
@@ -42,11 +49,16 @@ public sealed class ResultRetryPolicy
         _stateFactory = stateFactory ?? throw new ArgumentNullException(nameof(stateFactory));
     }
 
+    /// <summary>Gets a retry policy that never schedules retries.</summary>
     public static ResultRetryPolicy None { get; } = new(
         static (_, _) => ValueTask.FromResult(RetryDecision.Stop),
         static provider => new RetryState(provider, 0, TimeSpan.Zero, 1.0, null)
     );
 
+    /// <summary>Creates a retry policy that delays each attempt by a fixed amount.</summary>
+    /// <param name="maxAttempts">The maximum number of attempts, including the initial execution.</param>
+    /// <param name="delay">The delay applied between consecutive attempts.</param>
+    /// <returns>A configured retry policy.</returns>
     public static ResultRetryPolicy FixedDelay(int maxAttempts, TimeSpan delay)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxAttempts, 1);
@@ -67,6 +79,12 @@ public sealed class ResultRetryPolicy
         );
     }
 
+    /// <summary>Creates a retry policy that increases delays exponentially between attempts.</summary>
+    /// <param name="maxAttempts">The maximum number of attempts, including the initial execution.</param>
+    /// <param name="initialDelay">The delay applied before the second attempt.</param>
+    /// <param name="multiplier">The growth factor applied to each subsequent delay.</param>
+    /// <param name="maxDelay">An optional upper bound for calculated delays.</param>
+    /// <returns>A configured retry policy.</returns>
     public static ResultRetryPolicy Exponential(int maxAttempts, TimeSpan initialDelay, double multiplier = 2.0, TimeSpan? maxDelay = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxAttempts, 1);
@@ -104,6 +122,10 @@ public sealed class ResultRetryPolicy
         );
     }
 
+    /// <summary>Creates a retry policy driven by a cron schedule.</summary>
+    /// <param name="expression">The cron expression describing retry times.</param>
+    /// <param name="timeZone">The time zone used to evaluate the expression.</param>
+    /// <returns>A configured retry policy.</returns>
     public static ResultRetryPolicy Cron(string expression, TimeZoneInfo? timeZone = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(expression);
@@ -121,12 +143,20 @@ public sealed class ResultRetryPolicy
         );
     }
 
+    /// <summary>Creates a fresh retry state aligned with the supplied <see cref="TimeProvider"/>.</summary>
+    /// <param name="timeProvider">The time provider used for scheduling.</param>
+    /// <returns>A state object used to track retry attempts.</returns>
     public RetryState CreateState(TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
         return _stateFactory(timeProvider);
     }
 
+    /// <summary>Evaluates the retry policy for the given failure.</summary>
+    /// <param name="state">The mutable state that tracks retry progress.</param>
+    /// <param name="error">The error that triggered the evaluation.</param>
+    /// <param name="cancellationToken">The token used to cancel the evaluation.</param>
+    /// <returns>A decision describing whether to retry and when.</returns>
     public ValueTask<RetryDecision> EvaluateAsync(RetryState state, Error error, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(state);
@@ -140,6 +170,7 @@ public sealed class ResultRetryPolicy
 /// </summary>
 public sealed class ResultCompensationPolicy(Func<CompensationContext, ValueTask> executor)
 {
+    /// <summary>Gets a compensation policy that performs no work.</summary>
     public static ResultCompensationPolicy None { get; } = new(static _ => ValueTask.CompletedTask);
 
     private readonly Func<CompensationContext, ValueTask> _executor = executor ?? throw new ArgumentNullException(nameof(executor));
@@ -147,10 +178,14 @@ public sealed class ResultCompensationPolicy(Func<CompensationContext, ValueTask
     /// <summary>
     /// Executes the configured compensation strategy using the supplied <paramref name="context"/>.
     /// </summary>
+    /// <param name="context">The context containing registered compensation actions.</param>
+    /// <returns>A task representing the asynchronous execution.</returns>
     public ValueTask ExecuteAsync(CompensationContext context) => _executor(context);
 
+    /// <summary>Gets a compensation policy that replays actions sequentially in reverse order.</summary>
     public static ResultCompensationPolicy SequentialReverse => new(static context => context.ExecuteAsync());
 
+    /// <summary>Gets a compensation policy that replays actions in parallel.</summary>
     public static ResultCompensationPolicy Parallel => new(static context => context.ExecuteAsync(parallel: true));
 }
 
@@ -172,10 +207,17 @@ public readonly record struct RetryDecision
 
     public DateTimeOffset? ScheduledAt { get; }
 
+    /// <summary>Creates a decision indicating that retries should stop.</summary>
     public static RetryDecision Stop => new(false, null, null);
 
+    /// <summary>Creates a decision that retries after the specified delay.</summary>
+    /// <param name="delay">The delay before the next attempt.</param>
+    /// <returns>A retry decision.</returns>
     public static RetryDecision RetryAfter(TimeSpan delay) => new(true, delay, null);
 
+    /// <summary>Creates a decision that retries at a specific instant.</summary>
+    /// <param name="scheduledAt">The time at which to retry.</param>
+    /// <returns>A retry decision.</returns>
     public static RetryDecision RetryAt(DateTimeOffset scheduledAt) => new(true, null, scheduledAt);
 }
 
@@ -206,6 +248,8 @@ public sealed class RetryState(TimeProvider timeProvider, int maxAttempts, TimeS
 
     public IReadOnlyList<Error> Errors => _errors ?? (IReadOnlyList<Error>)Array.Empty<Error>();
 
+    /// <summary>Records a failure and updates attempt metadata.</summary>
+    /// <param name="error">The error returned by the failed attempt.</param>
     public void RegisterFailure(Error error)
     {
         ArgumentNullException.ThrowIfNull(error);
@@ -217,8 +261,11 @@ public sealed class RetryState(TimeProvider timeProvider, int maxAttempts, TimeS
         (_errors ??= new List<Error>(capacity: 4)).Add(error);
     }
 
+    /// <summary>Associates the current retry scope with an activity identifier.</summary>
+    /// <param name="activityId">The activity identifier to set.</param>
     public void SetActivityId(string? activityId) => ActivityId = activityId ?? string.Empty;
 
+    /// <summary>Resets the retry state so it can be reused.</summary>
     public void Reset()
     {
         Attempt = 0;
@@ -235,11 +282,14 @@ public sealed class CompensationContext(Stack<CompensationAction> actions, Cance
 {
     private readonly Stack<CompensationAction> _actions = actions;
 
+    /// <summary>Gets the token used to cancel compensation playback.</summary>
     public CancellationToken CancellationToken { get; } = cancellationToken;
 
     /// <summary>
     /// Replays the registered compensation actions sequentially or in parallel.
     /// </summary>
+    /// <param name="parallel"><see langword="true"/> to execute compensation in parallel.</param>
+    /// <returns>A task representing the compensation playback.</returns>
     public ValueTask ExecuteAsync(bool parallel = false)
     {
         if (!parallel)
@@ -292,6 +342,7 @@ public sealed class CompensationScope
     private readonly Stack<CompensationAction> _actions = new();
     private readonly Lock _sync = new();
 
+    /// <summary>Gets a value indicating whether any compensation actions are registered.</summary>
     public bool HasActions
     {
         get
@@ -303,6 +354,8 @@ public sealed class CompensationScope
         }
     }
 
+    /// <summary>Registers a compensation action that does not capture state.</summary>
+    /// <param name="compensation">The compensation delegate to enqueue.</param>
     public void Register(Func<CancellationToken, ValueTask> compensation)
     {
         ArgumentNullException.ThrowIfNull(compensation);
@@ -316,6 +369,10 @@ public sealed class CompensationScope
         }
     }
 
+    /// <summary>Registers a compensation action that captures state.</summary>
+    /// <typeparam name="TState">The type of state captured by the compensation.</typeparam>
+    /// <param name="state">The state passed to the compensation delegate.</param>
+    /// <param name="compensation">The compensation delegate to enqueue.</param>
     public void Register<TState>(TState state, Func<TState, CancellationToken, ValueTask> compensation)
     {
         ArgumentNullException.ThrowIfNull(compensation);
@@ -375,6 +432,7 @@ public sealed class CompensationScope
         }
     }
 
+    /// <summary>Removes all registered compensation actions.</summary>
     public void Clear()
     {
         lock (_sync)

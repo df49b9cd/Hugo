@@ -12,6 +12,9 @@ public sealed class ResultFallbackTier<T>
 {
     private readonly IReadOnlyList<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> _operations;
 
+    /// <summary>Initializes a new fallback tier using pipeline-aware operations.</summary>
+    /// <param name="name">The name assigned to the fallback tier.</param>
+    /// <param name="operations">The operations evaluated within the tier.</param>
     public ResultFallbackTier(
         string name,
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations)
@@ -29,10 +32,15 @@ public sealed class ResultFallbackTier<T>
         _operations = new List<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>>(list);
     }
 
+    /// <summary>Gets the name assigned to the fallback tier.</summary>
     public string Name { get; }
 
     internal IReadOnlyList<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> Operations => _operations;
 
+    /// <summary>Creates a tier from operations that accept a cancellation token.</summary>
+    /// <param name="name">The name assigned to the fallback tier.</param>
+    /// <param name="operations">The operations evaluated within the tier.</param>
+    /// <returns>A configured fallback tier.</returns>
     public static ResultFallbackTier<T> From(
         string name,
         params Func<CancellationToken, ValueTask<Result<T>>>[] operations)
@@ -46,6 +54,10 @@ public sealed class ResultFallbackTier<T>
         return new ResultFallbackTier<T>(name, pipelineOperations);
     }
 
+    /// <summary>Creates a tier from synchronous operations.</summary>
+    /// <param name="name">The name assigned to the fallback tier.</param>
+    /// <param name="operations">The operations evaluated within the tier.</param>
+    /// <returns>A configured fallback tier.</returns>
     public static ResultFallbackTier<T> From(
         string name,
         params Func<Result<T>>[] operations)
@@ -65,6 +77,12 @@ public static partial class Result
     /// <summary>
     /// Executes the provided fallback tiers in order until one succeeds, using the optional execution policy for retries and compensation.
     /// </summary>
+    /// <typeparam name="T">The type of the result value.</typeparam>
+    /// <param name="tiers">The ordered collection of fallback tiers.</param>
+    /// <param name="policy">The optional execution policy applied to each tier.</param>
+    /// <param name="cancellationToken">The token used to cancel the fallback execution.</param>
+    /// <param name="timeProvider">The optional time provider used for policy timing.</param>
+    /// <returns>A result describing the outcome of the fallback orchestration.</returns>
     public static Task<Result<T>> TieredFallbackAsync<T>(
         IEnumerable<ResultFallbackTier<T>> tiers,
         ResultExecutionPolicy? policy = null,
