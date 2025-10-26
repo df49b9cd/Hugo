@@ -4,7 +4,7 @@ This tutorial walks you through building a minimal console app that coordinates 
 
 ## Prerequisites
 
-- .NET 9 or 10 SDK installed (`dotnet --version` should return `9.*` or `10.*`).
+- .NET 10 SDK installed (`dotnet --version` should return `10.*`).
 - An empty folder for your sample project.
 
 ## 1. Create the project

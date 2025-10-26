@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 
@@ -204,7 +205,7 @@ public static class GoDiagnostics
 
     private static void TryApplySchema(MeterOptions options, string schemaUrl)
     {
-        var type = options.GetType();
+        var type = typeof(MeterOptions);
         var keyValueArray = CreateSchemaAttribute(schemaUrl);
 
         var scopeProperty = type.GetProperty("ScopeAttributes", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -226,7 +227,15 @@ public static class GoDiagnostics
             ? Array.Empty<KeyValuePair<string, object?>>()
             : [new KeyValuePair<string, object?>("otel.scope.schema_url", schemaUrl)];
 
-    private static object? CreateActivitySourceOptions(Type optionsType, string name, string version, string schemaUrl)
+    private static object? CreateActivitySourceOptions(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors
+            | DynamicallyAccessedMemberTypes.NonPublicConstructors
+            | DynamicallyAccessedMemberTypes.PublicProperties
+            | DynamicallyAccessedMemberTypes.NonPublicProperties)]
+        Type optionsType,
+        string name,
+        string version,
+        string schemaUrl)
     {
         object? optionsInstance = null;
 

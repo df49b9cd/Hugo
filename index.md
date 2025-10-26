@@ -1,6 +1,6 @@
 # Hugo Documentation
 
-Welcome to Hugo, a library bringing Go-style concurrency primitives and functional result pipelines to .NET 9/10.
+Welcome to Hugo, a library bringing Go-style concurrency primitives and functional result pipelines to .NET 10.
 
 ## Quick Links
 

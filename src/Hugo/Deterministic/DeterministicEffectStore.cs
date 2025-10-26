@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Hugo;
 
@@ -135,7 +136,8 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
 
         if (outcome.IsSuccess)
         {
-            valuePayload = JsonSerializer.SerializeToUtf8Bytes(outcome.Value, typeof(T), _serializerOptions);
+            var typeInfo = ResolveTypeInfo<T>();
+            valuePayload = JsonSerializer.SerializeToUtf8Bytes(outcome.Value, typeInfo);
         }
 
         var sanitizedError = DeterministicErrorSanitizer.Sanitize(outcome.Error);
@@ -147,7 +149,7 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
             sanitizedError,
             now);
 
-        var payload = JsonSerializer.SerializeToUtf8Bytes(envelope, _serializerOptions);
+        var payload = JsonSerializer.SerializeToUtf8Bytes(envelope, ResolveTypeInfo<EffectEnvelope>());
         var record = new DeterministicRecord(RecordKind, version: 0, payload, now);
         _store.Set(effectId, record);
         return Task.CompletedTask;
@@ -155,7 +157,7 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
 
     private EffectEnvelope DeserializeEnvelope(ReadOnlySpan<byte> payload)
     {
-        var envelope = JsonSerializer.Deserialize<EffectEnvelope>(payload, _serializerOptions);
+        var envelope = JsonSerializer.Deserialize(payload, ResolveTypeInfo<EffectEnvelope>());
         if (envelope is null)
         {
             throw new InvalidOperationException("Unable to deserialize deterministic effect envelope.");
@@ -171,8 +173,22 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
             return default!;
         }
 
-        return JsonSerializer.Deserialize<T>(payload, _serializerOptions)!;
+        return JsonSerializer.Deserialize(payload, ResolveTypeInfo<T>())!;
     }
 
-    private sealed record EffectEnvelope(bool IsSuccess, string TypeName, byte[]? SerializedValue, Error? Error, DateTimeOffset RecordedAt);
+    private JsonTypeInfo<T> ResolveTypeInfo<T>()
+    {
+        if (_serializerOptions.GetTypeInfo(typeof(T)) is JsonTypeInfo typeInfo)
+        {
+            if (typeInfo is JsonTypeInfo<T> typed)
+            {
+                return typed;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"JSON serialization metadata for type '{typeof(T)}' is missing. Provide a JsonSerializerContext via DeterministicEffectStore or configure JsonSerializerOptions.TypeInfoResolver.");
+    }
+
+    internal sealed record EffectEnvelope(bool IsSuccess, string TypeName, byte[]? SerializedValue, Error? Error, DateTimeOffset RecordedAt);
 }

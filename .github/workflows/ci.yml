@@ -30,11 +30,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - targetFramework: net9.0
-            resultsDirectory: tests/Hugo.Tests/TestResults/net9
-            coverageArtifact: coverage-net9
-            packageArtifact: nugetPackage-net9
-            sdkVersion: 10.0.x
           - targetFramework: net10.0
             resultsDirectory: tests/Hugo.Tests/TestResults/net10
             coverageArtifact: coverage-net10
@@ -80,8 +75,11 @@ jobs:
       - name: Test ${{ matrix.targetFramework }} with coverage
         run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory ${{ matrix.resultsDirectory }}
 
-      - name: Pack
+      - name: Native AOT smoke test
         if: matrix.targetFramework == 'net10.0'
+        run: dotnet publish samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj --configuration Release -r linux-x64 -p:PublishAot=true -p:TrimmerShowAllWarnings=true
+
+      - name: Pack
         run: |
           dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
           dotnet pack src/Hugo.Diagnostics.OpenTelemetry/Hugo.Diagnostics.OpenTelemetry.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
@@ -94,7 +92,6 @@ jobs:
           if-no-files-found: error
 
       - name: Upload NuGet Package
-        if: matrix.targetFramework == 'net10.0'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.packageArtifact }}
@@ -132,7 +129,7 @@ jobs:
           thresholds: '60 80'
 
       - name: Add Coverage PR Comment
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           recreate: true

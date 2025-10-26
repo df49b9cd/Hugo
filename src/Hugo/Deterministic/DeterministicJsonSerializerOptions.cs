@@ -7,6 +7,15 @@ namespace Hugo;
 /// </summary>
 internal static class DeterministicJsonSerializerOptions
 {
-    public static JsonSerializerOptions Create(JsonSerializerOptions? template = null) =>
-        template is null ? new JsonSerializerOptions(JsonSerializerDefaults.Web) : new JsonSerializerOptions(template);
+    public static JsonSerializerOptions Create(JsonSerializerOptions? template = null)
+    {
+        var options = template is null ? new JsonSerializerOptions(JsonSerializerDefaults.Web) : new JsonSerializerOptions(template);
+
+        if (!options.TypeInfoResolverChain.Contains(DeterministicJsonSerializerContext.Default))
+        {
+            options.TypeInfoResolverChain.Add(DeterministicJsonSerializerContext.Default);
+        }
+
+        return options;
+    }
 }
