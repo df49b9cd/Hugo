@@ -145,7 +145,7 @@ public sealed class SafeTaskQueueLease<T>
     /// <param name="requeue"><see langword="true"/> to re-queue the work item; otherwise <see langword="false"/>.</param>
     /// <param name="cancellationToken">The token used to cancel the failure operation.</param>
     /// <returns>A result indicating failure success or failure.</returns>
-    public ValueTask<Result<Unit>> FailAsync(Error? error, bool requeue = true, CancellationToken cancellationToken = default) 
+    public ValueTask<Result<Unit>> FailAsync(Error? error, bool requeue = true, CancellationToken cancellationToken = default)
         => error is null
             ? ValueTask.FromResult(Result.Fail<Unit>(Error.From("Error must be provided when failing a lease.", ErrorCodes.Validation)))
             : ExecuteAsync(() => _lease.FailAsync(error, requeue, cancellationToken));
