@@ -1,3 +1,6 @@
+using System.Buffers;
+using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace Hugo;
@@ -11,17 +14,28 @@ namespace Hugo;
 /// <param name="store">Backing store used to persist version markers.</param>
 /// <param name="timeProvider">Optional <see cref="TimeProvider"/> for deterministic timestamps.</param>
 /// <param name="serializerOptions">Serializer options used for payload persistence.</param>
-public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? timeProvider = null, JsonSerializerOptions? serializerOptions = null)
+public sealed class VersionGate
 {
     private const string RecordKind = "hugo.version";
 
-    private static readonly JsonSerializerOptions DefaultSerializerOptions = DeterministicJsonSerializerOptions.Create();
+    private readonly IDeterministicStateStore _store;
+    private readonly TimeProvider _timeProvider;
+    private readonly JsonSerializerOptions _serializerOptions;
+    private readonly JsonEncodedText _versionPropertyName;
+    private readonly byte[] _versionPropertyNameUtf8;
 
-    private readonly IDeterministicStateStore _store = store ?? throw new ArgumentNullException(nameof(store));
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-    private readonly JsonSerializerOptions _serializerOptions = serializerOptions is null
-        ? DefaultSerializerOptions
-        : DeterministicJsonSerializerOptions.Create(serializerOptions);
+    public VersionGate(IDeterministicStateStore store, TimeProvider? timeProvider = null, JsonSerializerOptions? serializerOptions = null)
+    {
+        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _serializerOptions = serializerOptions is null
+            ? DeterministicJsonSerializerOptions.Create()
+            : DeterministicJsonSerializerOptions.Create(serializerOptions);
+
+        var propertyName = _serializerOptions.PropertyNamingPolicy?.ConvertName(nameof(VersionMarker.Version)) ?? nameof(VersionMarker.Version);
+        _versionPropertyName = JsonEncodedText.Encode(propertyName, _serializerOptions.Encoder);
+        _versionPropertyNameUtf8 = Encoding.UTF8.GetBytes(propertyName);
+    }
 
     /// <summary>
     /// Sentinel value that mirrors Temporal's <c>DefaultVersion</c> and indicates the absence of a recorded version.
@@ -121,17 +135,90 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
         return Result.Ok(new VersionDecision(decidedVersion, true, now));
     }
 
-    private byte[] SerializeVersion(int version) => JsonSerializer.SerializeToUtf8Bytes(new VersionMarker(version), _serializerOptions);
+    private byte[] SerializeVersion(int version)
+    {
+        var buffer = new ArrayBufferWriter<byte>(16);
+        var writerOptions = new JsonWriterOptions
+        {
+            Encoder = _serializerOptions.Encoder
+        };
+
+        using (var writer = new Utf8JsonWriter(buffer, writerOptions))
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber(_versionPropertyName, version);
+            writer.WriteEndObject();
+        }
+
+        return buffer.WrittenSpan.ToArray();
+    }
 
     private int DeserializeVersion(ReadOnlySpan<byte> payload)
     {
-        var marker = JsonSerializer.Deserialize<VersionMarker>(payload, _serializerOptions);
-        if (marker is null)
+        var reader = new Utf8JsonReader(payload, isFinalBlock: true, state: default);
+        if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
         {
             throw new InvalidOperationException("Unable to deserialize persisted version marker.");
         }
 
-        return marker.Version;
+        int? version = null;
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.PropertyName)
+            {
+                if (reader.ValueTextEquals(_versionPropertyNameUtf8) || reader.ValueTextEquals(_versionPropertyName.EncodedUtf8Bytes))
+                {
+                    if (!reader.Read() || reader.TokenType != JsonTokenType.Number || !reader.TryGetInt32(out var parsed))
+                    {
+                        throw new InvalidOperationException("Persisted version marker payload is invalid.");
+                    }
+
+                    version = parsed;
+                }
+                else
+                {
+                    SkipValue(ref reader);
+                }
+            }
+            else if (reader.TokenType == JsonTokenType.EndObject)
+            {
+                break;
+            }
+        }
+
+        if (version is null)
+        {
+            throw new InvalidOperationException("Persisted version marker payload did not contain a version.");
+        }
+
+        return version.Value;
+    }
+
+    private static void SkipValue(ref Utf8JsonReader reader)
+    {
+        if (!reader.Read())
+        {
+            return;
+        }
+
+        if (reader.TokenType is JsonTokenType.StartObject or JsonTokenType.StartArray)
+        {
+            var depth = 1;
+            while (depth > 0 && reader.Read())
+            {
+                switch (reader.TokenType)
+                {
+                    case JsonTokenType.StartObject:
+                    case JsonTokenType.StartArray:
+                        depth++;
+                        break;
+                    case JsonTokenType.EndObject:
+                    case JsonTokenType.EndArray:
+                        depth--;
+                        break;
+                }
+            }
+        }
     }
 
     private sealed record VersionMarker(int Version);

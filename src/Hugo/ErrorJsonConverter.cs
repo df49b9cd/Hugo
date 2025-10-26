@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -94,7 +95,7 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
         writer.WriteEndObject();
     }
 
-    private static void WriteMetadataValue(Utf8JsonWriter writer, object? value, JsonSerializerOptions options)
+    private void WriteMetadataValue(Utf8JsonWriter writer, object? value, JsonSerializerOptions options)
     {
         value = DeterministicErrorSanitizer.SanitizeMetadataValue(value);
 
@@ -158,13 +159,13 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
                 writer.WriteStringValue(timeSpan.ToString("c", CultureInfo.InvariantCulture));
                 return;
             case Error error:
-                JsonSerializer.Serialize(writer, error, options);
+                Write(writer, error, options);
                 return;
             case IEnumerable<Error> errorEnumerable:
                 writer.WriteStartArray();
                 foreach (var err in errorEnumerable)
                 {
-                    JsonSerializer.Serialize(writer, err, options);
+                    Write(writer, err, options);
                 }
                 writer.WriteEndArray();
                 return;
@@ -195,20 +196,12 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
                 writer.WriteEndArray();
                 return;
             default:
-                try
-                {
-                    JsonSerializer.Serialize(writer, value, value.GetType(), options);
-                }
-                catch (NotSupportedException)
-                {
-                    writer.WriteStringValue(value.ToString());
-                }
-
+                writer.WriteStringValue(value.ToString());
                 return;
         }
     }
 
-    private static object? DeserializeMetadataValue(JsonElement element, JsonSerializerOptions options) => element.ValueKind switch
+    private object? DeserializeMetadataValue(JsonElement element, JsonSerializerOptions options) => element.ValueKind switch
     {
         JsonValueKind.Null => null,
         JsonValueKind.True => true,
@@ -216,7 +209,7 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
         JsonValueKind.Number => TryDeserializeNumber(element),
         JsonValueKind.String => ParseStringMetadata(element.GetString()),
         JsonValueKind.Array => DeserializeArray(element, options),
-        JsonValueKind.Object when LooksLikeError(element) => JsonSerializer.Deserialize<Error>(element.GetRawText(), options),
+        JsonValueKind.Object when LooksLikeError(element) => DeserializeErrorElement(element, options),
         JsonValueKind.Object => DeserializeObject(element, options),
         _ => element.GetRawText()
     };
@@ -276,26 +269,18 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
         return value;
     }
 
-    private static object? DeserializeArray(JsonElement element, JsonSerializerOptions options)
+    private object? DeserializeArray(JsonElement element, JsonSerializerOptions options)
     {
         var list = new List<object?>(element.GetArrayLength());
         foreach (var item in element.EnumerateArray())
         {
-            if (item.ValueKind == JsonValueKind.Object && LooksLikeError(item))
-            {
-                var nested = JsonSerializer.Deserialize<Error>(item.GetRawText(), options);
-                list.Add(nested);
-            }
-            else
-            {
-                list.Add(DeserializeMetadataValue(item, options));
-            }
+            list.Add(DeserializeMetadataValue(item, options));
         }
 
         return list.ToArray();
     }
 
-    private static object DeserializeObject(JsonElement element, JsonSerializerOptions options)
+    private object DeserializeObject(JsonElement element, JsonSerializerOptions options)
     {
         var dictionary = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var property in element.EnumerateObject())
@@ -309,6 +294,14 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
     private static bool LooksLikeError(JsonElement element) => element.ValueKind == JsonValueKind.Object
             && element.TryGetProperty("message", out var messageProperty)
             && messageProperty.ValueKind == JsonValueKind.String;
+
+    private Error? DeserializeErrorElement(JsonElement element, JsonSerializerOptions options)
+    {
+        var raw = element.GetRawText();
+        var bytes = Encoding.UTF8.GetBytes(raw);
+        var reader = new Utf8JsonReader(bytes);
+        return Read(ref reader, typeof(Error), options);
+    }
 
     private sealed class SerializedErrorException(string? typeName, string? message, string? stackTrace) : Exception(message ?? typeName ?? nameof(SerializedErrorException))
     {

@@ -21,6 +21,7 @@ Hugo brings Go-inspired building blocks—channels, wait groups, mutexes, timers
 - Targets `net10.0`.
 - Plays nicely with host builders, ASP.NET background services, and worker services.
 - Tested with the .NET 10 SDK.
+- Native AOT ready: libraries run under trimming, and the worker sample publishes with `dotnet publish -p:PublishAot=true`.
 
 ## Installation
 
@@ -157,6 +158,11 @@ dotnet run --project benchmarks/Hugo.Benchmarks/Hugo.Benchmarks.csproj -c Releas
 ```
 
 Generated reports are available in `BenchmarkDotNet.Artifacts/results/`. Hugo primitives demonstrate competitive performance with native .NET types while providing additional safety guarantees and observability hooks.
+
+## Native AOT
+
+- Publish the sample worker to a native binary with `dotnet publish samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj -c Release -p:PublishAot=true`.
+- When persisting deterministic effects with custom payload types, register them with `JsonSerializerContext` / `JsonTypeInfoResolver` before publishing to trimming/AOT environments.
 
 ## Support & policies
 

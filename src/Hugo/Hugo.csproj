@@ -4,6 +4,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <IsAotCompatible>true</IsAotCompatible>
         <PackageId>Hugo</PackageId>
         <Version>1.0.0</Version>
         <Authors>Soeren Magnus Olesen</Authors>
