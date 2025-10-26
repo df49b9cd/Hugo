@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
-using System.Linq;
 
 using Hugo;
 using Hugo.Diagnostics.OpenTelemetry;
