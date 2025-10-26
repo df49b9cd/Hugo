@@ -10,6 +10,13 @@ public static partial class Go
     /// <summary>
     /// Drains the provided channel readers until each one completes, invoking <paramref name="onValue"/> for every observed value.
     /// </summary>
+    /// <typeparam name="T">The payload type emitted by the readers.</typeparam>
+    /// <param name="readers">The channel readers to drain.</param>
+    /// <param name="onValue">The continuation invoked for each value.</param>
+    /// <param name="timeout">The optional timeout applied to the fan-in operation.</param>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A result indicating whether the operation completed successfully.</returns>
     public static Task<Result<Unit>> SelectFanInAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Func<T, CancellationToken, Task<Result<Unit>>> onValue,
@@ -38,6 +45,14 @@ public static partial class Go
         return GoChannelHelpers.SelectFanInAsyncCore(collected, onValue, effectiveTimeout, provider, cancellationToken);
     }
 
+    /// <summary>Drains the provided readers using a continuation without a cancellation token.</summary>
+    /// <typeparam name="T">The payload type emitted by the readers.</typeparam>
+    /// <param name="readers">The channel readers to drain.</param>
+    /// <param name="onValue">The continuation invoked for each value.</param>
+    /// <param name="timeout">The optional timeout applied to the fan-in operation.</param>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A result indicating whether the operation completed successfully.</returns>
     public static Task<Result<Unit>> SelectFanInAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Func<T, Task<Result<Unit>>> onValue,
@@ -50,6 +65,14 @@ public static partial class Go
         return SelectFanInAsync(readers, (value, _) => onValue(value), timeout, provider, cancellationToken);
     }
 
+    /// <summary>Drains the provided readers invoking a task-returning continuation.</summary>
+    /// <typeparam name="T">The payload type emitted by the readers.</typeparam>
+    /// <param name="readers">The channel readers to drain.</param>
+    /// <param name="onValue">The continuation invoked for each value.</param>
+    /// <param name="timeout">The optional timeout applied to the fan-in operation.</param>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A result indicating whether the operation completed successfully.</returns>
     public static Task<Result<Unit>> SelectFanInAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Func<T, CancellationToken, Task> onValue,
@@ -66,6 +89,14 @@ public static partial class Go
         }, timeout, provider, cancellationToken);
     }
 
+    /// <summary>Drains the provided readers invoking a task-returning continuation without a cancellation token.</summary>
+    /// <typeparam name="T">The payload type emitted by the readers.</typeparam>
+    /// <param name="readers">The channel readers to drain.</param>
+    /// <param name="onValue">The continuation invoked for each value.</param>
+    /// <param name="timeout">The optional timeout applied to the fan-in operation.</param>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A result indicating whether the operation completed successfully.</returns>
     public static Task<Result<Unit>> SelectFanInAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Func<T, Task> onValue,
@@ -82,6 +113,14 @@ public static partial class Go
         }, timeout, provider, cancellationToken);
     }
 
+    /// <summary>Drains the provided readers invoking a synchronous callback.</summary>
+    /// <typeparam name="T">The payload type emitted by the readers.</typeparam>
+    /// <param name="readers">The channel readers to drain.</param>
+    /// <param name="onValue">The callback invoked for each value.</param>
+    /// <param name="timeout">The optional timeout applied to the fan-in operation.</param>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A result indicating whether the operation completed successfully.</returns>
     public static Task<Result<Unit>> SelectFanInAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Action<T> onValue,
@@ -101,6 +140,14 @@ public static partial class Go
     /// <summary>
     /// Fans multiple source channels into a destination writer, optionally completing the writer when the sources finish.
     /// </summary>
+    /// <typeparam name="T">The payload type emitted by the sources.</typeparam>
+    /// <param name="sources">The channel readers to fan in.</param>
+    /// <param name="destination">The destination writer that receives aggregated values.</param>
+    /// <param name="completeDestination"><see langword="true"/> to complete the destination once the sources finish.</param>
+    /// <param name="timeout">The optional timeout applied to the fan-in operation.</param>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A result indicating whether the operation completed successfully.</returns>
     public static Task<Result<Unit>> FanInAsync<T>(
         IEnumerable<ChannelReader<T>> sources,
         ChannelWriter<T> destination,
@@ -137,6 +184,12 @@ public static partial class Go
     /// <summary>
     /// Fans multiple source channels into a newly created channel.
     /// </summary>
+    /// <typeparam name="T">The payload type emitted by the sources.</typeparam>
+    /// <param name="sources">The channel readers to fan in.</param>
+    /// <param name="timeout">The optional timeout applied to the fan-in operation.</param>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A channel reader that produces values from the aggregated sources.</returns>
     public static ChannelReader<T> FanIn<T>(
         IEnumerable<ChannelReader<T>> sources,
         TimeSpan? timeout = null,

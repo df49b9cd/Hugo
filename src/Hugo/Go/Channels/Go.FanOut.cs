@@ -7,6 +7,17 @@ namespace Hugo;
 /// </content>
 public static partial class Go
 {
+    /// <summary>
+    /// Broadcasts values from the source reader to multiple destination writers.
+    /// </summary>
+    /// <typeparam name="T">The payload type emitted by the source.</typeparam>
+    /// <param name="source">The channel reader providing values to broadcast.</param>
+    /// <param name="destinations">The destination writers that receive each value.</param>
+    /// <param name="completeDestinations"><see langword="true"/> to complete each destination when the operation finishes.</param>
+    /// <param name="deadline">The optional deadline applied to individual writes.</param>
+    /// <param name="provider">The optional time provider used for deadline calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A result indicating whether the operation completed successfully.</returns>
     public static Task<Result<Unit>> FanOutAsync<T>(
         ChannelReader<T> source,
         IReadOnlyList<ChannelWriter<T>> destinations,
@@ -42,6 +53,17 @@ public static partial class Go
         return GoChannelHelpers.FanOutAsyncCore(source, destinations, completeDestinations, effectiveDeadline, effectiveProvider, cancellationToken);
     }
 
+    /// <summary>
+    /// Broadcasts values from the source reader to a set of newly created channels.
+    /// </summary>
+    /// <typeparam name="T">The payload type emitted by the source.</typeparam>
+    /// <param name="source">The channel reader providing values to broadcast.</param>
+    /// <param name="branchCount">The number of branches to create.</param>
+    /// <param name="completeBranches"><see langword="true"/> to complete each branch when the operation finishes.</param>
+    /// <param name="deadline">The optional deadline applied to individual writes.</param>
+    /// <param name="provider">The optional time provider used for deadline calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A collection of readers that receive the broadcast values.</returns>
     public static IReadOnlyList<ChannelReader<T>> FanOut<T>(
         ChannelReader<T> source,
         int branchCount,

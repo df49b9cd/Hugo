@@ -11,24 +11,42 @@ public static partial class Go
     /// <summary>
     /// Awaits the first channel case to produce a value.
     /// </summary>
+    /// <param name="provider">The optional time provider used for instrumentation.</param>
+    /// <param name="cancellationToken">The token used to cancel the select operation.</param>
+    /// <param name="cases">The channel cases to observe.</param>
+    /// <returns>A result indicating whether the select operation completed successfully.</returns>
     public static Task<Result<Unit>> SelectAsync(TimeProvider? provider = null, CancellationToken cancellationToken = default, params ChannelCase[] cases) =>
         SelectInternalAsync(cases, defaultCase: null, Timeout.InfiniteTimeSpan, provider, cancellationToken);
 
     /// <summary>
     /// Awaits the first channel case to produce a value or returns when the timeout elapses.
     /// </summary>
+    /// <param name="timeout">The duration to wait before timing out.</param>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the select operation.</param>
+    /// <param name="cases">The channel cases to observe.</param>
+    /// <returns>A result indicating whether the select operation completed successfully.</returns>
     public static Task<Result<Unit>> SelectAsync(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default, params ChannelCase[] cases) =>
         SelectInternalAsync(cases, defaultCase: null, timeout, provider, cancellationToken);
 
     /// <summary>
     /// Creates a fluent builder that materializes a typed channel select workflow.
     /// </summary>
+    /// <typeparam name="TResult">The result type produced by the select continuation.</typeparam>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the select operation.</param>
+    /// <returns>A builder that can configure and execute a select workflow.</returns>
     public static SelectBuilder<TResult> Select<TResult>(TimeProvider? provider = null, CancellationToken cancellationToken = default) =>
         new(Timeout.InfiniteTimeSpan, provider, cancellationToken);
 
     /// <summary>
     /// Creates a fluent builder that materializes a typed channel select workflow with a timeout.
     /// </summary>
+    /// <typeparam name="TResult">The result type produced by the select continuation.</typeparam>
+    /// <param name="timeout">The duration to wait before timing out.</param>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the select operation.</param>
+    /// <returns>A builder that can configure and execute a select workflow.</returns>
     public static SelectBuilder<TResult> Select<TResult>(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default) =>
         new(timeout, provider, cancellationToken);
 

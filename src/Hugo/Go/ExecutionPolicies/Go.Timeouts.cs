@@ -8,6 +8,12 @@ public static partial class Go
     /// <summary>
     /// Creates a timeout result if the operation does not complete within the specified duration.
     /// </summary>
+    /// <typeparam name="T">The result type produced by the operation.</typeparam>
+    /// <param name="operation">The operation to execute.</param>
+    /// <param name="timeout">The duration to wait before timing out.</param>
+    /// <param name="timeProvider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A result containing the operation outcome or a timeout error.</returns>
     public static async Task<Result<T>> WithTimeoutAsync<T>(
         Func<CancellationToken, Task<Result<T>>> operation,
         TimeSpan timeout,

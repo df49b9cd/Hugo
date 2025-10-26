@@ -1,3 +1,5 @@
+using static Hugo.Go;
+
 namespace Hugo;
 
 /// <summary>
@@ -17,7 +19,7 @@ public static class GoWaitGroupExtensions
         ArgumentNullException.ThrowIfNull(wg);
         ArgumentNullException.ThrowIfNull(func);
 
-        wg.Add(Task.Run(func));
+        wg.Add(Run(func));
     }
 
     /// <summary>
@@ -36,6 +38,6 @@ public static class GoWaitGroupExtensions
         ArgumentNullException.ThrowIfNull(wg);
         ArgumentNullException.ThrowIfNull(func);
 
-        wg.Add(Task.Run(() => func(), cancellationToken));
+        wg.Add(Run(_ => func(), cancellationToken));
     }
 }

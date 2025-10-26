@@ -10,6 +10,12 @@ public static partial class Go
     /// <summary>
     /// Executes multiple operations concurrently using <see cref="Result.WhenAll{T}(IEnumerable{Func{ResultPipelineStepContext, CancellationToken, ValueTask{Result{T}}}}, ResultExecutionPolicy?, CancellationToken, TimeProvider?)"/> with an optional execution policy.
     /// </summary>
+    /// <typeparam name="T">The result type produced by each operation.</typeparam>
+    /// <param name="operations">The operations to execute concurrently.</param>
+    /// <param name="policy">The optional execution policy applied to each operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the aggregate operation.</param>
+    /// <param name="timeProvider">The optional time provider used by the execution policy.</param>
+    /// <returns>A result containing the collection of operation outputs.</returns>
     public static Task<Result<IReadOnlyList<T>>> FanOutAsync<T>(
         IEnumerable<Func<CancellationToken, Task<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
@@ -30,6 +36,12 @@ public static partial class Go
     /// <summary>
     /// Executes multiple operations concurrently and returns the first successful result via <see cref="Result.WhenAny{T}(IEnumerable{Func{ResultPipelineStepContext, CancellationToken, ValueTask{Result{T}}}}, ResultExecutionPolicy?, CancellationToken, TimeProvider?)"/>.
     /// </summary>
+    /// <typeparam name="T">The result type produced by each operation.</typeparam>
+    /// <param name="operations">The operations to execute concurrently.</param>
+    /// <param name="policy">The optional execution policy applied to each operation.</param>
+    /// <param name="cancellationToken">The token used to cancel the aggregate operation.</param>
+    /// <param name="timeProvider">The optional time provider used by the execution policy.</param>
+    /// <returns>A result containing the first successful operation output.</returns>
     public static Task<Result<T>> RaceAsync<T>(
         IEnumerable<Func<CancellationToken, Task<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
