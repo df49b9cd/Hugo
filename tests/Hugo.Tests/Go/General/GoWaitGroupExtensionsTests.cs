@@ -4,11 +4,11 @@ public class GoWaitGroupExtensionsTests
 {
     [Fact]
     public void Go_ShouldThrow_WhenWaitGroupNull() =>
-        Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static () => Task.CompletedTask));
+        Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static (_) => Task.CompletedTask, TestContext.Current.CancellationToken));
 
     [Fact]
     public void Go_ShouldThrow_WhenFuncNull() =>
-        Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<Task>)null!));
+        Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<CancellationToken, Task>)null!, TestContext.Current.CancellationToken));
 
     [Fact]
     public async Task Go_ShouldRunFunctionAndTrackWaitGroup()
@@ -16,11 +16,11 @@ public class GoWaitGroupExtensionsTests
         var wg = new WaitGroup();
         var counter = 0;
 
-        GoWaitGroupExtensions.Go(wg, async () =>
+        GoWaitGroupExtensions.Go(wg, async (_) =>
         {
             await Task.Yield();
             Interlocked.Increment(ref counter);
-        });
+        }, TestContext.Current.CancellationToken);
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 
