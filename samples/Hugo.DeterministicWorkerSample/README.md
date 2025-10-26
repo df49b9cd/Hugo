@@ -16,3 +16,7 @@ dotnet run --project samples/Hugo.DeterministicWorkerSample/Hugo.DeterministicWo
 ```
 
 Publish additional messages by calling `SimulatedKafkaTopic.PublishAsync`. Re-enqueueing the same message id demonstrates the deterministic replay path logged by `KafkaWorker`.
+
+Telemetry is wired with OpenTelemetry: the worker emits traces/metrics via `DeterministicPipelineTelemetry`. Console exporters are enabled by default; point `OTEL_EXPORTER_OTLP_ENDPOINT` to send data to an OTLP collector, or enable the Prometheus exporter by setting `HUGO_PROMETHEUS_ENABLED=true` in `appsettings` or the environment.
+
+`SampleScenario` runs continuously, mixing sequential updates, replays, out-of-order timestamps, and bursts across multiple entities so the deterministic pipeline can be observed under varied conditions. Stop the host (`Ctrl+C`) to halt message production.

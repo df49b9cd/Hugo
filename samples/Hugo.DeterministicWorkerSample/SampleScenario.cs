@@ -1,8 +1,10 @@
+using System.Collections.Generic;
+
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
-/// Publishes a scripted set of messages so the sample can demonstrate deterministic replay.
+/// Continuously publishes simulated Kafka messages covering sequential, replay, and out-of-order scenarios.
 /// </summary>
 sealed class SampleScenario(
     SimulatedKafkaTopic topic,
@@ -14,6 +16,7 @@ sealed class SampleScenario(
     private readonly PipelineEntityStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
     private readonly ILogger<SampleScenario> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private static readonly string[] EntityIds = ["trend-042", "trend-107", "trend-204", "trend-314"];
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -21,53 +24,83 @@ sealed class SampleScenario(
         {
             await Task.Delay(TimeSpan.FromMilliseconds(250), stoppingToken).ConfigureAwait(false);
 
-            DateTimeOffset now = _timeProvider.GetUtcNow();
-            // Compose a deterministic script: two messages for the same entity, one for a second entity, then a replay.
-            SimulatedKafkaMessage first = new("msg-001", "trend-042", 3.40, now);
-            SimulatedKafkaMessage second = new("msg-002", "trend-042", 2.25, now.AddSeconds(1));
-            SimulatedKafkaMessage third = new("msg-003", "trend-107", 6.80, now.AddSeconds(2));
-            SimulatedKafkaMessage replay = first with { ObservedAt = now.AddSeconds(5) };
+            var random = new Random(42);
+            var publishedHistory = new List<SimulatedKafkaMessage>(capacity: 32);
+            int iteration = 0;
 
-            SimulatedKafkaMessage[] script =
-            [
-                first,
-                second,
-                third,
-                replay
-            ];
-
-            foreach (SimulatedKafkaMessage message in script)
+            while (!stoppingToken.IsCancellationRequested)
             {
-                await _topic.PublishAsync(message, stoppingToken).ConfigureAwait(false);
-                // Log the synthetic publish so the console mirrors a Kafka producer.
-                _logger.LogInformation(
-                    "Published {MessageId} -> {EntityId} ({Amount:F2}) at {ObservedAt:o}",
-                    message.MessageId,
-                    message.EntityId,
-                    message.Amount,
-                    message.ObservedAt);
-                await Task.Delay(TimeSpan.FromMilliseconds(200), stoppingToken).ConfigureAwait(false);
+                iteration++;
+                DateTimeOffset now = _timeProvider.GetUtcNow();
+
+                // Primary sequential message.
+                string entityId = EntityIds[iteration % EntityIds.Length];
+                double amount = Math.Round(random.NextDouble() * 5 + 1.25, 2);
+                SimulatedKafkaMessage sequential = new($"msg-{iteration:000000}", entityId, amount, now);
+                await PublishAsync(sequential, "sequential", stoppingToken).ConfigureAwait(false);
+                publishedHistory.Add(sequential);
+
+                // Simulate out-of-order delivery by backdating the observed time occasionally.
+                if (iteration % 3 == 0)
+                {
+                    DateTimeOffset olderTimestamp = now.AddSeconds(-random.Next(1, 4));
+                    double outOfOrderAmount = Math.Round(random.NextDouble() * 4 + 0.75, 2);
+                    SimulatedKafkaMessage outOfOrder = new($"msg-oo-{iteration:000000}", entityId, outOfOrderAmount, olderTimestamp);
+                    await PublishAsync(outOfOrder, "out-of-order", stoppingToken).ConfigureAwait(false);
+                    publishedHistory.Add(outOfOrder);
+                }
+
+                // Replays resend a previously published message id with a new observed time.
+                if (iteration % 5 == 0 && publishedHistory.Count > 0)
+                {
+                    SimulatedKafkaMessage replaySource = publishedHistory[random.Next(publishedHistory.Count)];
+                    SimulatedKafkaMessage replay = replaySource with { ObservedAt = now.AddSeconds(random.Next(1, 4)) };
+                    await PublishAsync(replay, "replay", stoppingToken).ConfigureAwait(false);
+                }
+
+                // Burst traffic for a different entity to mimic mixed workloads.
+                if (iteration % 7 == 0)
+                {
+                    string burstEntity = EntityIds[random.Next(EntityIds.Length)];
+                    double burstAmount = Math.Round(random.NextDouble() * 10 + 2.0, 2);
+                    DateTimeOffset burstTimestamp = now.AddMilliseconds(random.Next(-750, 750));
+                    SimulatedKafkaMessage burst = new($"msg-burst-{iteration:000000}", burstEntity, burstAmount, burstTimestamp);
+                    await PublishAsync(burst, "burst", stoppingToken).ConfigureAwait(false);
+                    publishedHistory.Add(burst);
+                }
+
+                if (iteration % 10 == 0)
+                {
+                    IReadOnlyList<PipelineEntity> snapshot = _store.Snapshot();
+                    foreach (PipelineEntity entity in snapshot)
+                    {
+                        _logger.LogInformation(
+                            "Snapshot {EntityId}: total={Total:F2} average={Average:F2} processed={Processed}",
+                            entity.EntityId,
+                            entity.RunningTotal,
+                            entity.RunningAverage,
+                            entity.ProcessedCount);
+                    }
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(250), stoppingToken).ConfigureAwait(false);
             }
-
-            await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken).ConfigureAwait(false);
-
-            IReadOnlyList<PipelineEntity> snapshot = _store.Snapshot();
-            // Display the final store state to prove replay didn't duplicate work.
-            foreach (PipelineEntity entity in snapshot)
-            {
-                _logger.LogInformation(
-                    "Store snapshot {EntityId}: total={Total:F2} average={Average:F2} processed={Processed}",
-                    entity.EntityId,
-                    entity.RunningTotal,
-                    entity.RunningAverage,
-                    entity.ProcessedCount);
-            }
-
-            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // host is shutting down
         }
+    }
+
+    private async Task PublishAsync(SimulatedKafkaMessage message, string scenario, CancellationToken cancellationToken)
+    {
+        await _topic.PublishAsync(message, cancellationToken).ConfigureAwait(false);
+        _logger.LogInformation(
+            "[{Scenario}] Published {MessageId} -> {EntityId} ({Amount:F2}) at {ObservedAt:o}",
+            scenario,
+            message.MessageId,
+            message.EntityId,
+            message.Amount,
+            message.ObservedAt);
     }
 }

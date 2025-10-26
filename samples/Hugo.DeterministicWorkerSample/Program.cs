@@ -3,10 +3,15 @@ using System.Text.Json.Serialization.Metadata;
 using System.Linq;
 
 using Hugo;
+using Hugo.Diagnostics.OpenTelemetry;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 
 // Program entry point wires together the worker pipeline:
 //  SampleScenario publishes scripted messages -> SimulatedKafkaTopic ->
@@ -23,6 +28,48 @@ builder.Services.AddLogging(logging =>
         options.TimestampFormat = "HH:mm:ss ";
     });
 });
+
+// Telemetry defaults to console exporters; toggle exporters through configuration or environment variables.
+bool consoleExporterEnabled = builder.Configuration.GetValue("Telemetry:ConsoleExporterEnabled", true);
+bool otlpExporterEnabled = builder.Configuration.GetValue("Telemetry:OtlpExporterEnabled", false);
+bool prometheusExporterEnabled = builder.Configuration.GetValue("Telemetry:PrometheusExporterEnabled", builder.Configuration.GetValue("HUGO_PROMETHEUS_ENABLED", false));
+
+Uri? otlpEndpoint = null;
+string? otlpEndpointValue = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
+if (!string.IsNullOrWhiteSpace(otlpEndpointValue) && Uri.TryCreate(otlpEndpointValue, UriKind.Absolute, out Uri? parsedEndpoint))
+{
+    otlpEndpoint = parsedEndpoint;
+    otlpExporterEnabled = true;
+}
+
+builder.Services.AddOpenTelemetry()
+    .AddHugoDiagnostics(options =>
+    {
+        options.ServiceName = builder.Environment.ApplicationName;
+        options.AddPrometheusExporter = prometheusExporterEnabled;
+        options.AddOtlpExporter = otlpExporterEnabled;
+        options.AddRuntimeInstrumentation = false;
+        if (otlpEndpoint is not null)
+        {
+            options.OtlpEndpoint = otlpEndpoint;
+        }
+    })
+    .WithTracing(tracing =>
+    {
+        tracing.AddSource(DeterministicPipelineTelemetry.ActivitySourceName);
+        if (consoleExporterEnabled)
+        {
+            tracing.AddConsoleExporter();
+        }
+    })
+    .WithMetrics(metrics =>
+    {
+        metrics.AddMeter(DeterministicPipelineTelemetry.MeterName);
+        if (consoleExporterEnabled)
+        {
+            metrics.AddConsoleExporter();
+        }
+    });
 
 // Share TimeProvider so the deterministic stores can agree on timestamps.
 builder.Services.AddSingleton(TimeProvider.System);

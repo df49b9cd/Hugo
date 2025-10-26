@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 using Hugo;
 
 using Microsoft.Extensions.Logging;
@@ -14,7 +16,7 @@ sealed class DeterministicPipelineProcessor(
     private readonly PipelineSaga _saga = saga ?? throw new ArgumentNullException(nameof(saga));
     private readonly ILogger<DeterministicPipelineProcessor> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public Task<Result<ProcessingOutcome>> ProcessAsync(SimulatedKafkaMessage message, CancellationToken cancellationToken)
+    public async Task<Result<ProcessingOutcome>> ProcessAsync(SimulatedKafkaMessage message, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(message);
 
@@ -22,7 +24,12 @@ sealed class DeterministicPipelineProcessor(
         string changeId = $"deterministic-pipeline::{message.MessageId}";
         const int Version = 1;
 
-        return _gate
+        using Activity? activity = DeterministicPipelineTelemetry.StartProcessingActivity(message);
+        activity?.SetTag("sample.pipeline.change_id", changeId);
+
+        Stopwatch stopwatch = Stopwatch.StartNew();
+
+        Result<ProcessingOutcome> result = await _gate
             .Workflow<ProcessingOutcome>(changeId, Version, Version)
             .ForVersion(
                 Version,
@@ -44,6 +51,33 @@ sealed class DeterministicPipelineProcessor(
                     // Deterministic outcomes surface whether this was a first-run or replay.
                     return Result.Ok(new ProcessingOutcome(!context.IsNew, context.Version, entity));
                 })
-            .ExecuteAsync(cancellationToken);
+            .ExecuteAsync(cancellationToken).ConfigureAwait(false);
+
+        stopwatch.Stop();
+
+        if (result.IsSuccess)
+        {
+            ProcessingOutcome outcome = result.Value;
+            DeterministicPipelineTelemetry.RecordProcessed(outcome.IsReplay, stopwatch.Elapsed);
+            activity?.SetTag("sample.pipeline.is_replay", outcome.IsReplay);
+            activity?.SetTag("sample.pipeline.version", outcome.Version);
+            activity?.SetStatus(ActivityStatusCode.Ok);
+        }
+        else
+        {
+            DeterministicPipelineTelemetry.RecordFailure();
+            if (result.Error is { } error)
+            {
+                activity?.SetStatus(ActivityStatusCode.Error, error.Message);
+                if (!string.IsNullOrWhiteSpace(error.Code))
+                {
+                    activity?.SetTag("error.code", error.Code);
+                }
+
+                activity?.SetTag("error.message", error.Message);
+            }
+        }
+
+        return result;
     }
 }
