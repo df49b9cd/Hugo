@@ -51,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Multi-targeted for .NET 9.0 and .NET 10.0
+- Targets .NET 10.0
 
 ### Fixed
 

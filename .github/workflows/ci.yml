@@ -29,11 +29,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - targetFramework: net9.0
-            resultsDirectory: tests/Hugo.Tests/TestResults/net9
-            coverageArtifact: coverage-net9
-            packageArtifact: nugetPackage-net9
-            sdkVersion: 10.0.x
           - targetFramework: net10.0
             resultsDirectory: tests/Hugo.Tests/TestResults/net10
             coverageArtifact: coverage-net10
@@ -80,7 +75,6 @@ jobs:
         run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory ${{ matrix.resultsDirectory }}
 
       - name: Pack
-        if: matrix.targetFramework == 'net10.0'
         run: |
           dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
           dotnet pack src/Hugo.Diagnostics.OpenTelemetry/Hugo.Diagnostics.OpenTelemetry.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
@@ -93,7 +87,6 @@ jobs:
           if-no-files-found: error
 
       - name: Upload NuGet Package
-        if: matrix.targetFramework == 'net10.0'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.packageArtifact }}

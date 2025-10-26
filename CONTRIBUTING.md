@@ -21,7 +21,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Prerequisites
 
-- **.NET 9 SDK** and **.NET 10 preview SDK** installed side-by-side
+- **.NET 10 SDK**
   - Verify with `dotnet --list-sdks`
 - **Git** for version control
 - **IDE**: Rider, Visual Studio 2022, or VS Code with C# Dev Kit
@@ -63,7 +63,7 @@ Use clear branch names:
 
 - Keep commits focused and atomic
 - Write clear commit messages following [Conventional Commits](https://www.conventionalcommits.org/)
-- Ensure code compiles for both `net9.0` and `net10.0`
+- Ensure code compiles for `net10.0`
 
 ### 4. Test Your Changes
 
@@ -198,7 +198,7 @@ If you add a new retry policy:
 ### Before Submitting
 
 - [ ] All tests pass locally
-- [ ] Code compiles for both .NET 9 and .NET 10
+- [ ] Code compiles for .NET 10
 - [ ] Coverage collected and reviewed
 - [ ] Documentation updated (if applicable)
 - [ ] CHANGELOG.md updated under `[Unreleased]`

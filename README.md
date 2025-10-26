@@ -4,7 +4,7 @@
 [![NuGet](https://img.shields.io/nuget/v/Hugo.svg?logo=nuget)](https://www.nuget.org/packages/Hugo)
 [![NuGet Diagnostics](https://img.shields.io/nuget/v/Hugo.Diagnostics.OpenTelemetry.svg?logo=nuget&label=Hugo.Diagnostics.OpenTelemetry)](https://www.nuget.org/packages/Hugo.Diagnostics.OpenTelemetry)
 
-Go-style concurrency primitives and functional result pipelines for .NET 9/10 applications.
+Go-style concurrency primitives and functional result pipelines for .NET 10 applications.
 
 ## Overview
 
@@ -18,9 +18,9 @@ Hugo brings Go-inspired building blocks—channels, wait groups, mutexes, timers
 
 ## Compatibility
 
-- Targets `net9.0` and `net10.0`.
+- Targets `net10.0`.
 - Plays nicely with host builders, ASP.NET background services, and worker services.
-- Tested with the .NET 10 preview SDK; install alongside .NET 9 for full coverage.
+- Tested with the .NET 10 SDK.
 
 ## Installation
 
@@ -176,7 +176,7 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed g
 
 Quick start:
 
-1. Install the .NET 10 preview SDK alongside .NET 9.
+1. Install the .NET 10 SDK.
 2. Run `dotnet build Hugo.slnx` and `dotnet test tests/Hugo.Tests/Hugo.Tests.csproj` before submitting changes.
 3. Collect coverage locally with `dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --collect:"XPlat Code Coverage"` to mirror CI.
 4. Review [`docs/index.md`](docs/index.md) to update tutorials, how-to guides, and references when behaviour changes.
