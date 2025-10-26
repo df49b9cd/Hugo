@@ -1,4 +1,5 @@
 using Hugo.Policies;
+
 using Microsoft.Extensions.Logging;
 
 namespace Hugo;

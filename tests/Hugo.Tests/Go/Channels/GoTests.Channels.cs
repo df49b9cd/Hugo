@@ -248,7 +248,7 @@ public partial class GoTests
         finally
         {
             advanceCts.Cancel();
-        await advanceLoop;
+            await advanceLoop;
         }
 
         Assert.True(result.IsFailure);

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+
 using Unit = Hugo.Go.Unit;
 
 namespace Hugo;
@@ -7,21 +8,14 @@ namespace Hugo;
 /// Provides a result-based wrapper around <see cref="TaskQueue{T}"/> that converts common exceptions into <see cref="Result{T}"/> failures.
 /// </summary>
 /// <typeparam name="T">Work item type.</typeparam>
-public sealed class SafeTaskQueue<T> : IAsyncDisposable
+/// <remarks>
+/// Initializes a new instance of the <see cref="SafeTaskQueue{T}"/> class.
+/// </remarks>
+/// <param name="queue">Underlying task queue to wrap.</param>
+/// <param name="ownsQueue">True to dispose the underlying queue when this wrapper is disposed.</param>
+public sealed class SafeTaskQueue<T>(TaskQueue<T> queue, bool ownsQueue = false) : IAsyncDisposable
 {
-    private readonly TaskQueue<T> _queue;
-    private readonly bool _ownsQueue;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SafeTaskQueue{T}"/> class.
-    /// </summary>
-    /// <param name="queue">Underlying task queue to wrap.</param>
-    /// <param name="ownsQueue">True to dispose the underlying queue when this wrapper is disposed.</param>
-    public SafeTaskQueue(TaskQueue<T> queue, bool ownsQueue = false)
-    {
-        _queue = queue ?? throw new ArgumentNullException(nameof(queue));
-        _ownsQueue = ownsQueue;
-    }
+    private readonly TaskQueue<T> _queue = queue ?? throw new ArgumentNullException(nameof(queue));
 
     /// <summary>
     /// Gets the underlying queue for scenarios that require direct access.
@@ -85,7 +79,7 @@ public sealed class SafeTaskQueue<T> : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        if (_ownsQueue)
+        if (ownsQueue)
         {
             await _queue.DisposeAsync().ConfigureAwait(false);
         }
@@ -153,15 +147,10 @@ public sealed class SafeTaskQueueLease<T>
     /// <param name="requeue"><see langword="true"/> to re-queue the work item; otherwise <see langword="false"/>.</param>
     /// <param name="cancellationToken">The token used to cancel the failure operation.</param>
     /// <returns>A result indicating failure success or failure.</returns>
-    public ValueTask<Result<Unit>> FailAsync(Error? error, bool requeue = true, CancellationToken cancellationToken = default)
-    {
-        if (error is null)
-        {
-            return ValueTask.FromResult(Result.Fail<Unit>(Error.From("Error must be provided when failing a lease.", ErrorCodes.Validation)));
-        }
-
-        return ExecuteAsync(() => _lease.FailAsync(error, requeue, cancellationToken));
-    }
+    public ValueTask<Result<Unit>> FailAsync(Error? error, bool requeue = true, CancellationToken cancellationToken = default) 
+        => error is null
+            ? ValueTask.FromResult(Result.Fail<Unit>(Error.From("Error must be provided when failing a lease.", ErrorCodes.Validation)))
+            : ExecuteAsync(() => _lease.FailAsync(error, requeue, cancellationToken));
 
     private static async ValueTask<Result<Unit>> ExecuteAsync(Func<ValueTask> operation)
     {
