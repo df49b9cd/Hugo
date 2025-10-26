@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 using Unit = Hugo.Go.Unit;
 
 namespace Hugo;

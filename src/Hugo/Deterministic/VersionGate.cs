@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Text;
-using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace Hugo;
