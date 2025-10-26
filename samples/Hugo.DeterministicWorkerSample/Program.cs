@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading.Channels;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 using Hugo;
 using Hugo.Sagas;
@@ -53,7 +54,17 @@ return;
 static JsonSerializerOptions CreateSampleSerializerOptions()
 {
     JsonSerializerOptions options = new(JsonSerializerDefaults.Web);
-    options.TypeInfoResolverChain.Add(DeterministicPipelineSerializerContext.Default);
+
+    if (!options.TypeInfoResolverChain.Contains(DeterministicPipelineSerializerContext.Default))
+    {
+        options.TypeInfoResolverChain.Insert(0, DeterministicPipelineSerializerContext.Default);
+    }
+
+    if (!options.TypeInfoResolverChain.OfType<DefaultJsonTypeInfoResolver>().Any())
+    {
+        options.TypeInfoResolverChain.Add(new DefaultJsonTypeInfoResolver());
+    }
+
     return options;
 }
 
