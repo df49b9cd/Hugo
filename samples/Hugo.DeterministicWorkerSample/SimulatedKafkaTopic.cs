@@ -17,7 +17,6 @@ sealed class SimulatedKafkaTopic
     public ValueTask PublishAsync(SimulatedKafkaMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
-        cancellationToken.ThrowIfCancellationRequested();
         // Writers push messages into the unbounded channel; the worker consumes them sequentially.
         return _channel.Writer.WriteAsync(message, cancellationToken);
     }
