@@ -110,10 +110,7 @@ public sealed class PrioritizedChannelBuilder<T>
     private bool _singleWriter;
     private Action<PrioritizedChannelOptions>? _configure;
 
-    internal PrioritizedChannelBuilder()
-        : this(3)
-    {
-    }
+    internal PrioritizedChannelBuilder() : this(3);
 
     internal PrioritizedChannelBuilder(int priorityLevels)
     {
