@@ -1,15 +1,11 @@
 using System.Threading.Channels;
 
 using Hugo;
-using Hugo.Diagnostics.OpenTelemetry;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Trace;
 
 using static Hugo.Go;
 
