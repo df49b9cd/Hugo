@@ -75,7 +75,7 @@ dotnet test tests/Hugo.Tests/Hugo.Tests.csproj
 dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --collect:"XPlat Code Coverage"
 
 # Native AOT smoke test
-dotnet publish samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj -c Release -p:PublishAot=true
+dotnet publish samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj -c Release -r <rid> -p:PublishAot=true
 
 # Run benchmarks (optional but recommended for performance-sensitive changes)
 dotnet run --project benchmarks/Hugo.Benchmarks/Hugo.Benchmarks.csproj -c Release
@@ -202,7 +202,7 @@ If you add a new retry policy:
 
 - [ ] All tests pass locally
 - [ ] Code compiles for .NET 10
-- [ ] Native AOT publish succeeds (`dotnet publish samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj -c Release -p:PublishAot=true`)
+- [ ] Native AOT publish succeeds (`dotnet publish samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj -c Release -r <rid> -p:PublishAot=true`)
 - [ ] Coverage collected and reviewed
 - [ ] Documentation updated (if applicable)
 - [ ] CHANGELOG.md updated under `[Unreleased]`

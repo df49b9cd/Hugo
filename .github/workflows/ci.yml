@@ -76,7 +76,7 @@ jobs:
 
       - name: Native AOT smoke test
         if: matrix.targetFramework == 'net10.0'
-        run: dotnet publish samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj --configuration Release --no-restore --no-build -p:PublishAot=true -p:TrimmerShowAllWarnings=true
+        run: dotnet publish samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj --configuration Release -r linux-x64 -p:PublishAot=true -p:TrimmerShowAllWarnings=true
 
       - name: Pack
         run: |

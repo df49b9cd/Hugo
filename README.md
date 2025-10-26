@@ -161,7 +161,7 @@ Generated reports are available in `BenchmarkDotNet.Artifacts/results/`. Hugo pr
 
 ## Native AOT
 
-- Publish the sample worker to a native binary with `dotnet publish samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj -c Release -p:PublishAot=true`.
+- Publish the sample worker to a native binary with `dotnet publish samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj -c Release -r <rid> -p:PublishAot=true` (for example, `-r linux-x64` on CI).
 - When persisting deterministic effects with custom payload types, register them with `JsonSerializerContext` / `JsonTypeInfoResolver` before publishing to trimming/AOT environments.
 
 ## Support & policies
