@@ -1,7 +1,5 @@
 using System.Threading.Channels;
 
-using Microsoft.Extensions.DependencyInjection;
-
 namespace Hugo;
 
 /// <summary>Provides a fluent API for configuring bounded channels before creation.</summary>
