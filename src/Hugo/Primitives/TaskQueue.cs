@@ -139,27 +139,29 @@ public sealed class TaskQueueLease<T>
     /// </summary>
     public Error? LastError { get; }
 
-    /// <summary>
-    /// Completes the lease and permanently removes the work item from the queue.
-    /// </summary>
+    /// <summary>Completes the lease and permanently removes the work item from the queue.</summary>
+    /// <param name="cancellationToken">The token used to cancel the completion.</param>
+    /// <returns>A task that completes once the lease is acknowledged.</returns>
     public ValueTask CompleteAsync(CancellationToken cancellationToken = default)
     {
         EnsureActive();
         return Interlocked.CompareExchange(ref _status, 1, 0) != 0 ? throw new InvalidOperationException("Lease is no longer active.") : _queue.CompleteAsync(_leaseId, cancellationToken);
     }
 
-    /// <summary>
-    /// Sends a heartbeat to extend the lease expiration.
-    /// </summary>
+    /// <summary>Sends a heartbeat to extend the lease expiration.</summary>
+    /// <param name="cancellationToken">The token used to cancel the heartbeat.</param>
+    /// <returns>A task that completes once the heartbeat is acknowledged.</returns>
     public ValueTask HeartbeatAsync(CancellationToken cancellationToken = default)
     {
         EnsureActive();
         return _queue.HeartbeatAsync(_leaseId, cancellationToken);
     }
 
-    /// <summary>
-    /// Fails the lease and optionally re-queues the work item for another attempt.
-    /// </summary>
+    /// <summary>Fails the lease and optionally re-queues the work item for another attempt.</summary>
+    /// <param name="error">The error that caused the failure.</param>
+    /// <param name="requeue"><see langword="true"/> to re-queue the work item; otherwise <see langword="false"/>.</param>
+    /// <param name="cancellationToken">The token used to cancel the failure operation.</param>
+    /// <returns>A task that completes once the failure is acknowledged.</returns>
     public ValueTask FailAsync(Error error, bool requeue = true, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(error);
@@ -201,6 +203,10 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     private long _pendingCount;
     private int _disposed;
 
+    /// <summary>Initializes a new instance of the <see cref="TaskQueue{T}"/> class.</summary>
+    /// <param name="options">The configuration applied to the queue.</param>
+    /// <param name="timeProvider">The time provider used for lease timing.</param>
+    /// <param name="deadLetter">An optional handler invoked when an item is dead-lettered.</param>
     public TaskQueue(TaskQueueOptions? options = null, TimeProvider? timeProvider = null, Func<TaskQueueDeadLetterContext<T>, CancellationToken, ValueTask>? deadLetter = null)
     {
         _options = options ?? new TaskQueueOptions();
@@ -228,9 +234,9 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     /// </summary>
     public int ActiveLeaseCount => _leases.Count;
 
-    /// <summary>
-    /// Enqueues a work item for processing.
-    /// </summary>
+    /// <summary>Enqueues a work item for processing.</summary>
+    /// <param name="value">The work item to enqueue.</param>
+    /// <param name="cancellationToken">The token used to cancel the enqueue operation.</param>
     public async ValueTask EnqueueAsync(T value, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -250,9 +256,9 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Leases the next available work item, waiting if necessary.
-    /// </summary>
+    /// <summary>Leases the next available work item, waiting if necessary.</summary>
+    /// <param name="cancellationToken">The token used to cancel the lease operation.</param>
+    /// <returns>An active lease that owns the work item.</returns>
     public async ValueTask<TaskQueueLease<T>> LeaseAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -479,6 +485,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
     private bool IsDisposed => Volatile.Read(ref _disposed) == 1;
 
+    /// <summary>Disposes the queue and drains any pending work.</summary>
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 1)

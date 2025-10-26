@@ -29,9 +29,8 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     /// </summary>
     public Error? Error => Volatile.Read(ref _error);
 
-    /// <summary>
-    /// Executes the supplied delegate and tracks it, propagating failures.
-    /// </summary>
+    /// <summary>Executes the supplied delegate and tracks it, propagating failures.</summary>
+    /// <param name="work">The delegate to execute.</param>
     public void Go(Func<CancellationToken, Task<Result<Unit>>> work)
     {
         ArgumentNullException.ThrowIfNull(work);
@@ -39,9 +38,8 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         RegisterAndRun(() => ExecuteAsync(work));
     }
 
-    /// <summary>
-    /// Executes the supplied delegate and tracks it, treating completion as success.
-    /// </summary>
+    /// <summary>Executes the supplied delegate and tracks it, treating completion as success.</summary>
+    /// <param name="work">The delegate to execute.</param>
     public void Go(Func<CancellationToken, Task> work)
     {
         ArgumentNullException.ThrowIfNull(work);
@@ -53,9 +51,8 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         }));
     }
 
-    /// <summary>
-    /// Executes the supplied delegate and tracks it, providing a group cancellation token.
-    /// </summary>
+    /// <summary>Executes the supplied delegate and tracks it, providing a group cancellation token.</summary>
+    /// <param name="work">The delegate to execute.</param>
     public void Go(Func<Task<Result<Unit>>> work)
     {
         ArgumentNullException.ThrowIfNull(work);
@@ -63,9 +60,8 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         RegisterAndRun(() => ExecuteAsync(_ => work()));
     }
 
-    /// <summary>
-    /// Executes the supplied delegate and tracks it, treating completion as success.
-    /// </summary>
+    /// <summary>Executes the supplied delegate and tracks it, treating completion as success.</summary>
+    /// <param name="work">The delegate to execute.</param>
     public void Go(Func<Task> work)
     {
         ArgumentNullException.ThrowIfNull(work);
@@ -77,9 +73,8 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         }));
     }
 
-    /// <summary>
-    /// Executes the supplied synchronous action and tracks it.
-    /// </summary>
+    /// <summary>Executes the supplied synchronous action and tracks it.</summary>
+    /// <param name="work">The action to execute.</param>
     public void Go(Action work)
     {
         ArgumentNullException.ThrowIfNull(work);
@@ -113,9 +108,9 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         RegisterAndRun(() => ExecutePipelineAsync(resolvedName, work, effectivePolicy, provider));
     }
 
-    /// <summary>
-    /// Waits for all registered operations to complete and returns the first error, if any.
-    /// </summary>
+    /// <summary>Waits for all registered operations to complete and returns the first error, if any.</summary>
+    /// <param name="cancellationToken">The token used to cancel the wait.</param>
+    /// <returns>A result describing the group outcome.</returns>
     public async Task<Result<Unit>> WaitAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -133,9 +128,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
             : Result.Fail<Unit>(error);
     }
 
-    /// <summary>
-    /// Cancels the group, notifying all registered delegates.
-    /// </summary>
+    /// <summary>Cancels the group, notifying all registered delegates.</summary>
     public void Cancel() => _cts.Cancel();
 
     private void RegisterAndRun(Func<Task> runner)

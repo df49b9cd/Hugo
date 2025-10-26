@@ -11,6 +11,8 @@ public sealed class RwMutex : IDisposable
     private int _readerCount;
     private int _disposed;
 
+    /// <summary>Enters the synchronous read scope, blocking writers until the returned disposable is released.</summary>
+    /// <returns>A disposable scope that exits the read lock when disposed.</returns>
     public IDisposable EnterReadScope()
     {
         ThrowIfDisposed();
@@ -18,6 +20,8 @@ public sealed class RwMutex : IDisposable
         return new ReadScope(_sync);
     }
 
+    /// <summary>Enters the synchronous write scope, blocking other readers and writers until the returned disposable is released.</summary>
+    /// <returns>A disposable scope that exits the write lock when disposed.</returns>
     public IDisposable EnterWriteScope()
     {
         ThrowIfDisposed();
@@ -28,6 +32,8 @@ public sealed class RwMutex : IDisposable
     /// <summary>
     /// Asynchronously acquires a read lock, honoring <paramref name="cancellationToken"/>, and returns a releaser that must be disposed to exit the read scope.
     /// </summary>
+    /// <param name="cancellationToken">The token used to cancel the wait.</param>
+    /// <returns>An asynchronous releaser that exits the read scope when disposed.</returns>
     public async ValueTask<AsyncReadReleaser> RLockAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -65,6 +71,8 @@ public sealed class RwMutex : IDisposable
     /// <summary>
     /// Asynchronously acquires the write lock, honoring <paramref name="cancellationToken"/>, and returns a releaser that must be disposed to exit the write scope.
     /// </summary>
+    /// <param name="cancellationToken">The token used to cancel the wait.</param>
+    /// <returns>An asynchronous releaser that exits the write scope when disposed.</returns>
     public async ValueTask<AsyncWriteReleaser> LockAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -90,9 +98,7 @@ public sealed class RwMutex : IDisposable
         }
     }
 
-    /// <summary>
-    /// Releases unmanaged resources.
-    /// </summary>
+    /// <summary>Releases unmanaged resources.</summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
@@ -123,8 +129,11 @@ public sealed class RwMutex : IDisposable
     {
         private readonly RwMutex _mutex = mutex;
 
+        /// <summary>Exits the asynchronous read scope.</summary>
         public void Dispose() => _mutex.ReleaseReader();
 
+        /// <summary>Exits the asynchronous read scope.</summary>
+        /// <returns>A completed task.</returns>
         public ValueTask DisposeAsync()
         {
             _mutex.ReleaseReader();
@@ -136,8 +145,11 @@ public sealed class RwMutex : IDisposable
     {
         private readonly RwMutex _mutex = mutex;
 
+        /// <summary>Exits the asynchronous write scope.</summary>
         public void Dispose() => _mutex.ReleaseWriter();
 
+        /// <summary>Exits the asynchronous write scope.</summary>
+        /// <returns>A completed task.</returns>
         public ValueTask DisposeAsync()
         {
             _mutex.ReleaseWriter();

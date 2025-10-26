@@ -8,6 +8,8 @@ public sealed class Once
     private int _done;
     private readonly Lock _lock = new();
 
+    /// <summary>Invokes the supplied action exactly once, ignoring subsequent invocations.</summary>
+    /// <param name="action">The action to execute.</param>
     public void Do(Action action)
     {
         ArgumentNullException.ThrowIfNull(action);

@@ -24,9 +24,8 @@ public sealed class WaitGroup
     /// </summary>
     public int Count => Math.Max(Volatile.Read(ref _count), 0);
 
-    /// <summary>
-    /// Adds a positive delta to the wait counter.
-    /// </summary>
+    /// <summary>Adds a positive delta to the wait counter.</summary>
+    /// <param name="delta">The number of operations to register with the wait group.</param>
     public void Add(int delta)
     {
         if (delta <= 0)
@@ -49,9 +48,8 @@ public sealed class WaitGroup
         }
     }
 
-    /// <summary>
-    /// Tracks the provided task and marks the wait group complete when it finishes.
-    /// </summary>
+    /// <summary>Tracks the provided task and marks the wait group complete when it finishes.</summary>
+    /// <param name="task">The task to observe.</param>
     public void Add(Task task)
     {
         ArgumentNullException.ThrowIfNull(task);
@@ -63,6 +61,8 @@ public sealed class WaitGroup
     /// <summary>
     /// Runs the supplied delegate via <see cref="Task.Run(Action)"/> and tracks it.
     /// </summary>
+    /// <param name="work">The asynchronous delegate to execute.</param>
+    /// <param name="cancellationToken">The token used to cancel the queued work.</param>
     public void Go(Func<Task> work, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(work);
@@ -85,9 +85,7 @@ public sealed class WaitGroup
 
     private void ObserveTask(Task task) => task.ContinueWith(static (_, state) => ((WaitGroup)state!).Done(), this, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
 
-    /// <summary>
-    /// Signals that one of the registered operations has completed.
-    /// </summary>
+    /// <summary>Signals that one of the registered operations has completed.</summary>
     public void Done()
     {
         var newValue = Interlocked.Decrement(ref _count);
@@ -105,9 +103,9 @@ public sealed class WaitGroup
         }
     }
 
-    /// <summary>
-    /// Asynchronously waits for all registered operations to complete.
-    /// </summary>
+    /// <summary>Asynchronously waits for all registered operations to complete.</summary>
+    /// <param name="cancellationToken">The token used to cancel the wait.</param>
+    /// <returns>A task that completes when all operations finish.</returns>
     public async Task WaitAsync(CancellationToken cancellationToken = default)
     {
         if (Count == 0)
@@ -131,6 +129,10 @@ public sealed class WaitGroup
     /// Asynchronously waits for all registered operations to complete or for the timeout to elapse.
     /// Returns <c>true</c> when the wait group completed before the timeout expired, otherwise <c>false</c>.
     /// </summary>
+    /// <param name="timeout">The amount of time to wait before timing out.</param>
+    /// <param name="provider">The time provider used to schedule the timeout.</param>
+    /// <param name="cancellationToken">The token used to cancel the wait.</param>
+    /// <returns><see langword="true"/> when the wait group completed before the timeout elapsed; otherwise <see langword="false"/>.</returns>
     public async Task<bool> WaitAsync(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
         if (timeout == Timeout.InfiniteTimeSpan)

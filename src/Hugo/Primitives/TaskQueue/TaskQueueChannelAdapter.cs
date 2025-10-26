@@ -30,9 +30,12 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Creates an adapter around the provided queue.
-    /// </summary>
+    /// <summary>Creates an adapter around the provided queue.</summary>
+    /// <param name="queue">The queue to adapt.</param>
+    /// <param name="channel">The channel used to surface leases; defaults to a new unbounded channel.</param>
+    /// <param name="concurrency">The number of concurrent lease pumps.</param>
+    /// <param name="ownsQueue"><see langword="true"/> to dispose the queue when the adapter is disposed.</param>
+    /// <returns>A configured task queue channel adapter.</returns>
     public static TaskQueueChannelAdapter<T> Create(
         TaskQueue<T> queue,
         Channel<TaskQueueLease<T>>? channel = null,
@@ -198,7 +201,7 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>Disposes the adapter, stops lease pumps, and optionally disposes the underlying queue.</summary>
     public async ValueTask DisposeAsync()
     {
         await _cts.CancelAsync().ConfigureAwait(false);

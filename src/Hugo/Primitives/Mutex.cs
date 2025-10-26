@@ -9,9 +9,8 @@ public sealed class Mutex : IDisposable
     private readonly Lock _lock = new();
     private int _disposed;
 
-    /// <summary>
-    /// Enters the synchronous critical section, returning a scope that releases the lock when disposed.
-    /// </summary>
+    /// <summary>Enters the synchronous critical section, returning a scope that releases the lock when disposed.</summary>
+    /// <returns>A disposable scope that exits the critical section when disposed.</returns>
     public Lock.Scope EnterScope()
     {
         ThrowIfDisposed();
@@ -21,6 +20,8 @@ public sealed class Mutex : IDisposable
     /// <summary>
     /// Asynchronously waits for the mutex and returns a releaser that unlocks when disposed.
     /// </summary>
+    /// <param name="cancellationToken">The token used to cancel the wait.</param>
+    /// <returns>An asynchronous releaser that unlocks the mutex when disposed.</returns>
     public async ValueTask<AsyncLockReleaser> LockAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -30,9 +31,7 @@ public sealed class Mutex : IDisposable
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, nameof(Mutex));
 
-    /// <summary>
-    /// Releases unmanaged resources.
-    /// </summary>
+    /// <summary>Releases unmanaged resources.</summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
@@ -43,9 +42,7 @@ public sealed class Mutex : IDisposable
         _asyncLock.Dispose();
     }
 
-    /// <summary>
-    /// Releases the asynchronous lock when disposed.
-    /// </summary>
+    /// <summary>Releases the asynchronous lock when disposed.</summary>
     public struct AsyncLockReleaser : IAsyncDisposable, IDisposable
     {
         private SemaphoreSlim? _semaphore;
@@ -55,8 +52,11 @@ public sealed class Mutex : IDisposable
             _semaphore = semaphore ?? throw new ArgumentNullException(nameof(semaphore));
         }
 
+        /// <summary>Releases the asynchronous lock.</summary>
         public void Dispose() => Release();
 
+        /// <summary>Releases the asynchronous lock.</summary>
+        /// <returns>A completed task.</returns>
         public ValueTask DisposeAsync()
         {
             Release();

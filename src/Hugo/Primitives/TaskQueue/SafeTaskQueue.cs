@@ -28,9 +28,10 @@ public sealed class SafeTaskQueue<T> : IAsyncDisposable
     /// </summary>
     public TaskQueue<T> UnsafeQueue => _queue;
 
-    /// <summary>
-    /// Enqueues the supplied work item, returning a failure result instead of throwing when the operation cannot be completed.
-    /// </summary>
+    /// <summary>Enqueues the supplied work item, returning a failure result instead of throwing when the operation cannot be completed.</summary>
+    /// <param name="value">The work item to enqueue.</param>
+    /// <param name="cancellationToken">The token used to cancel the enqueue operation.</param>
+    /// <returns>A result indicating enqueue success or failure.</returns>
     public async ValueTask<Result<Unit>> EnqueueAsync(T value, CancellationToken cancellationToken = default)
     {
         try
@@ -52,9 +53,9 @@ public sealed class SafeTaskQueue<T> : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Leases the next available work item.
-    /// </summary>
+    /// <summary>Leases the next available work item.</summary>
+    /// <param name="cancellationToken">The token used to cancel the lease operation.</param>
+    /// <returns>A result containing the leased work item when successful.</returns>
     public async ValueTask<Result<SafeTaskQueueLease<T>>> LeaseAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -76,9 +77,9 @@ public sealed class SafeTaskQueue<T> : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Creates a safe wrapper around an existing lease instance.
-    /// </summary>
+    /// <summary>Creates a safe wrapper around an existing lease instance.</summary>
+    /// <param name="lease">The lease to wrap.</param>
+    /// <returns>A safe lease wrapper.</returns>
     public SafeTaskQueueLease<T> Wrap(TaskQueueLease<T> lease) => SafeTaskQueueLease<T>.From(lease);
 
     /// <inheritdoc />
@@ -106,9 +107,9 @@ public sealed class SafeTaskQueueLease<T>
         _lease = lease ?? throw new ArgumentNullException(nameof(lease));
     }
 
-    /// <summary>
-    /// Wraps the specified lease instance.
-    /// </summary>
+    /// <summary>Wraps the specified lease instance.</summary>
+    /// <param name="lease">The lease to wrap.</param>
+    /// <returns>A safe lease wrapper.</returns>
     public static SafeTaskQueueLease<T> From(TaskQueueLease<T> lease) => new(lease);
 
     /// <summary>
@@ -131,21 +132,27 @@ public sealed class SafeTaskQueueLease<T>
     /// </summary>
     public Error? LastError => _lease.LastError;
 
-    /// <summary>
-    /// Completes the lease.
-    /// </summary>
+    /// <summary>Completes the lease.</summary>
+    /// <param name="cancellationToken">The token used to cancel the completion.</param>
+    /// <returns>A result indicating completion success or failure.</returns>
     public ValueTask<Result<Unit>> CompleteAsync(CancellationToken cancellationToken = default) =>
         ExecuteAsync(() => _lease.CompleteAsync(cancellationToken));
 
     /// <summary>
     /// Sends a heartbeat to extend the lease duration.
     /// </summary>
+    /// <param name="cancellationToken">The token used to cancel the heartbeat.</param>
+    /// <returns>A result indicating heartbeat success or failure.</returns>
     public ValueTask<Result<Unit>> HeartbeatAsync(CancellationToken cancellationToken = default) =>
         ExecuteAsync(() => _lease.HeartbeatAsync(cancellationToken));
 
     /// <summary>
     /// Fails the lease and optionally re-queues the work item.
     /// </summary>
+    /// <param name="error">The error that caused the failure.</param>
+    /// <param name="requeue"><see langword="true"/> to re-queue the work item; otherwise <see langword="false"/>.</param>
+    /// <param name="cancellationToken">The token used to cancel the failure operation.</param>
+    /// <returns>A result indicating failure success or failure.</returns>
     public ValueTask<Result<Unit>> FailAsync(Error? error, bool requeue = true, CancellationToken cancellationToken = default)
     {
         if (error is null)

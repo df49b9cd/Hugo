@@ -23,14 +23,22 @@ public sealed class Error
         _metadata = metadata ?? EmptyMetadata;
     }
 
+    /// <summary>Gets the human-readable error message.</summary>
     public string Message { get; }
 
+    /// <summary>Gets an optional error code that categorizes the error.</summary>
     public string? Code { get; }
 
+    /// <summary>Gets the underlying exception that triggered the error, if any.</summary>
     public Exception? Cause { get; }
 
+    /// <summary>Gets metadata associated with the error.</summary>
     public IReadOnlyDictionary<string, object?> Metadata => _metadata;
 
+    /// <summary>Adds or replaces a metadata entry and returns a new <see cref="Error"/> instance.</summary>
+    /// <param name="key">The metadata key.</param>
+    /// <param name="value">The metadata value.</param>
+    /// <returns>A new error instance containing the updated metadata.</returns>
     public Error WithMetadata(string key, object? value)
     {
         if (string.IsNullOrWhiteSpace(key))
@@ -44,6 +52,9 @@ public sealed class Error
         return new Error(Message, Code, Cause, FreezeMetadata(builder));
     }
 
+    /// <summary>Merges the supplied metadata entries into the error.</summary>
+    /// <param name="metadata">The metadata entries to merge.</param>
+    /// <returns>A new error instance containing the merged metadata.</returns>
     public Error WithMetadata(IEnumerable<KeyValuePair<string, object?>> metadata)
     {
         ArgumentNullException.ThrowIfNull(metadata);
@@ -57,10 +68,21 @@ public sealed class Error
         return new Error(Message, Code, Cause, FreezeMetadata(builder));
     }
 
+    /// <summary>Creates a new error with the specified code.</summary>
+    /// <param name="code">The error code to assign.</param>
+    /// <returns>A new error instance containing the provided code.</returns>
     public Error WithCode(string? code) => new(Message, code, Cause, _metadata);
 
+    /// <summary>Creates a new error with the specified cause.</summary>
+    /// <param name="cause">The underlying exception that caused the error.</param>
+    /// <returns>A new error instance containing the provided cause.</returns>
     public Error WithCause(Exception? cause) => new(Message, Code, cause, _metadata);
 
+    /// <summary>Attempts to retrieve a metadata entry of the specified type.</summary>
+    /// <typeparam name="T">The expected metadata type.</typeparam>
+    /// <param name="key">The metadata key.</param>
+    /// <param name="value">When this method returns, contains the value if found and of the correct type.</param>
+    /// <returns><see langword="true"/> when the metadata entry exists and matches <typeparamref name="T"/>; otherwise <see langword="false"/>.</returns>
     public bool TryGetMetadata<T>(string key, out T? value)
     {
         if (_metadata.TryGetValue(key, out var obj) && obj is T typed)
@@ -73,11 +95,23 @@ public sealed class Error
         return false;
     }
 
+    /// <summary>Returns a string representation of the error.</summary>
+    /// <returns>A string that combines the code and message when available.</returns>
     public override string ToString() => Code is null ? Message : $"{Code}: {Message}";
 
+    /// <summary>Creates an error from the supplied message, code, cause, and metadata.</summary>
+    /// <param name="message">The error message.</param>
+    /// <param name="code">An optional error code.</param>
+    /// <param name="cause">An optional exception that caused the error.</param>
+    /// <param name="metadata">Optional metadata associated with the error.</param>
+    /// <returns>A new error instance.</returns>
     public static Error From(string message, string? code = null, Exception? cause = null, IReadOnlyDictionary<string, object?>? metadata = null) =>
         new(message, code, cause, FreezeMetadata(metadata));
 
+    /// <summary>Creates an error from an exception.</summary>
+    /// <param name="exception">The exception to convert.</param>
+    /// <param name="code">An optional error code.</param>
+    /// <returns>A new error instance describing the exception.</returns>
     public static Error FromException(Exception exception, string? code = null)
     {
         ArgumentNullException.ThrowIfNull(exception);
@@ -91,6 +125,10 @@ public sealed class Error
         return new Error(exception.Message, code ?? ErrorCodes.Exception, exception, FreezeMetadata(builder));
     }
 
+    /// <summary>Creates a cancellation error that optionally captures the owning token.</summary>
+    /// <param name="message">An optional message describing the cancellation.</param>
+    /// <param name="token">The token that triggered the cancellation.</param>
+    /// <returns>A new cancellation error.</returns>
     public static Error Canceled(string? message = null, CancellationToken? token = null)
     {
         var builder = token is { } t
@@ -104,6 +142,10 @@ public sealed class Error
             FreezeMetadata(builder));
     }
 
+    /// <summary>Creates a timeout error.</summary>
+    /// <param name="duration">The duration associated with the timeout.</param>
+    /// <param name="message">An optional message describing the timeout.</param>
+    /// <returns>A new timeout error.</returns>
     public static Error Timeout(TimeSpan? duration = null, string? message = null)
     {
         var builder = duration.HasValue
@@ -113,8 +155,15 @@ public sealed class Error
         return new Error(message ?? "The operation timed out.", ErrorCodes.Timeout, null, FreezeMetadata(builder));
     }
 
+    /// <summary>Creates a generic error without a specific code.</summary>
+    /// <param name="message">An optional message describing the error.</param>
+    /// <returns>A new error instance.</returns>
     public static Error Unspecified(string? message = null) => new(message ?? "An unspecified error occurred.", ErrorCodes.Unspecified, null, EmptyMetadata);
 
+    /// <summary>Creates an aggregate error.</summary>
+    /// <param name="message">The message describing the aggregate failure.</param>
+    /// <param name="errors">The errors to combine.</param>
+    /// <returns>A new aggregate error.</returns>
     public static Error Aggregate(string message, params Error[] errors)
     {
         ArgumentNullException.ThrowIfNull(errors);
@@ -132,8 +181,14 @@ public sealed class Error
         return new Error(message, ErrorCodes.Aggregate, null, FreezeMetadata(builder));
     }
 
+    /// <summary>Implicit conversion from a message to an error.</summary>
+    /// <param name="message">The message to convert.</param>
+    /// <returns>An error representing the message.</returns>
     public static implicit operator Error?(string? message) => message is null ? null : From(message);
 
+    /// <summary>Implicit conversion from an exception to an error.</summary>
+    /// <param name="exception">The exception to convert.</param>
+    /// <returns>An error representing the exception.</returns>
     public static implicit operator Error?(Exception? exception) => exception is null ? null : FromException(exception);
 
     private static Dictionary<string, object?> CloneMetadata(IReadOnlyDictionary<string, object?> source, int additionalCapacity = 0)

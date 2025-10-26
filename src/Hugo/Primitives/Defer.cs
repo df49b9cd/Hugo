@@ -7,5 +7,6 @@ public readonly struct Defer(Action action) : IDisposable
 {
     private readonly Action _action = action ?? throw new ArgumentNullException(nameof(action));
 
+    /// <summary>Invokes the deferred action.</summary>
     public void Dispose() => _action();
 }
