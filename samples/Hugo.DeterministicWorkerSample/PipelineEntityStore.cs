@@ -18,7 +18,7 @@ sealed class PipelineEntityStore
         // Return the tracked entity if it exists; otherwise fabricate an empty projection.
         if (_entities.TryGetValue(entityId, out PipelineEntity? entity))
         {
-            PipelineEntity existing = entity ?? PipelineEntity.Create(entityId);
+            PipelineEntity existing = entity;
             return ValueTask.FromResult(Result.Ok(existing));
         }
 
