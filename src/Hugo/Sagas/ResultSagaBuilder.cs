@@ -9,6 +9,15 @@ public sealed class ResultSagaBuilder
 {
     private readonly List<ResultSagaStep> _steps = [];
 
+    /// <summary>
+    /// Adds a result-producing saga step with optional compensation support.
+    /// </summary>
+    /// <typeparam name="TState">The type returned by the step when it succeeds.</typeparam>
+    /// <param name="name">A descriptive name used in diagnostics and policy execution.</param>
+    /// <param name="operation">The operation to run when the step executes.</param>
+    /// <param name="compensation">An optional compensating action invoked if the saga rolls back.</param>
+    /// <param name="resultKey">An optional key under which the step result is stored in the saga state.</param>
+    /// <returns>The current builder instance to enable fluent configuration.</returns>
     public ResultSagaBuilder AddStep<TState>(
         string name,
         Func<ResultSagaStepContext, CancellationToken, ValueTask<Result<TState>>> operation,
@@ -41,9 +50,11 @@ public sealed class ResultSagaBuilder
         return this;
     }
 
-    /// <summary>
-    /// Executes the configured saga, applying the optional execution policy and returning the aggregated saga state.
-    /// </summary>
+    /// <summary>Executes the configured saga, applying the optional execution policy and returning the aggregated saga state.</summary>
+    /// <param name="policy">The policy that controls retries and resilience for each step.</param>
+    /// <param name="cancellationToken">The token used to cancel the saga execution.</param>
+    /// <param name="timeProvider">An optional time provider used for policy timing; defaults to <see cref="TimeProvider.System"/>.</param>
+    /// <returns>A result containing the final saga state or an error if execution fails.</returns>
     public Task<Result<ResultSagaState>> ExecuteAsync(
         ResultExecutionPolicy? policy = null,
         CancellationToken cancellationToken = default,
