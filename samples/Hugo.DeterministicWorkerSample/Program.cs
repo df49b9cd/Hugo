@@ -74,21 +74,20 @@ builder.Services.AddOpenTelemetry()
 // Share TimeProvider so the deterministic stores can agree on timestamps.
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IDeterministicStateStore, InMemoryDeterministicStateStore>();
+JsonSerializerOptions serializerOptions = CreateSampleSerializerOptions();
 builder.Services.AddSingleton(sp =>
 {
     // Reuse the same serializer options for version markers so replay metadata stays consistent.
     IDeterministicStateStore store = sp.GetRequiredService<IDeterministicStateStore>();
     TimeProvider timeProvider = sp.GetRequiredService<TimeProvider>();
-    JsonSerializerOptions options = CreateSampleSerializerOptions();
-    return new VersionGate(store, timeProvider, options);
+    return new VersionGate(store, timeProvider, serializerOptions);
 });
 builder.Services.AddSingleton(sp =>
 {
     // The deterministic effect store shares the serializer options to persist saga outcomes.
     IDeterministicStateStore store = sp.GetRequiredService<IDeterministicStateStore>();
     TimeProvider timeProvider = sp.GetRequiredService<TimeProvider>();
-    JsonSerializerOptions options = CreateSampleSerializerOptions();
-    return new DeterministicEffectStore(store, timeProvider, options);
+    return new DeterministicEffectStore(store, timeProvider, serializerOptions);
 });
 builder.Services.AddSingleton<DeterministicGate>();
 builder.Services.AddSingleton<SimulatedKafkaTopic>();
