@@ -54,11 +54,14 @@ public static class GoDiagnostics
     private static Histogram<long>? _workflowLogicalClock;
     private static Histogram<double>? _workflowDuration;
 
+    /// <summary>Gets the semantic version applied to exported telemetry.</summary>
     public static string InstrumentationVersion => DefaultInstrumentationVersion;
 
     /// <summary>
     /// Configures instrumentation using the supplied <see cref="IMeterFactory"/>.
     /// </summary>
+    /// <param name="factory">The factory used to create meters.</param>
+    /// <param name="meterName">An optional meter name override.</param>
     public static void Configure(IMeterFactory factory, string? meterName = null)
     {
         ArgumentNullException.ThrowIfNull(factory);
@@ -70,6 +73,7 @@ public static class GoDiagnostics
     /// <summary>
     /// Configures instrumentation using the provided <see cref="Meter"/> instance.
     /// </summary>
+    /// <param name="meter">The meter instance to adopt.</param>
     public static void Configure(Meter meter)
     {
         ArgumentNullException.ThrowIfNull(meter);
@@ -139,6 +143,12 @@ public static class GoDiagnostics
         return new ActivitySource(resolvedName, resolvedVersion);
     }
 
+    /// <summary>Applies rate-limited sampling to an <see cref="ActivitySource"/>.</summary>
+    /// <param name="source">The activity source to instrument.</param>
+    /// <param name="maxActivitiesPerInterval">The maximum activities permitted during each interval.</param>
+    /// <param name="interval">The duration of the sampling window.</param>
+    /// <param name="unsampledResult">The sampling result returned once the budget is exhausted.</param>
+    /// <returns>An <see cref="IDisposable"/> that restores the original sampling behavior when disposed.</returns>
     public static IDisposable UseRateLimitedSampling(ActivitySource source, int maxActivitiesPerInterval, TimeSpan interval, ActivitySamplingResult unsampledResult = ActivitySamplingResult.PropagationData)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -153,6 +163,7 @@ public static class GoDiagnostics
     /// <summary>
     /// Configures distributed tracing instrumentation using the provided <see cref="ActivitySource"/>.
     /// </summary>
+    /// <param name="source">The activity source used to create activities.</param>
     public static void Configure(ActivitySource source)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -166,6 +177,8 @@ public static class GoDiagnostics
     /// <summary>
     /// Configures metrics and distributed tracing instrumentation.
     /// </summary>
+    /// <param name="meter">The meter instance to adopt.</param>
+    /// <param name="activitySource">The activity source used to create activities.</param>
     public static void Configure(Meter meter, ActivitySource activitySource)
     {
         ArgumentNullException.ThrowIfNull(activitySource);

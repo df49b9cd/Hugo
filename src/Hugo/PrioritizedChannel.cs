@@ -98,9 +98,8 @@ public sealed class PrioritizedChannel<T>
     private readonly PrioritizedChannelReader _reader;
     private readonly PrioritizedChannelWriter _writer;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="PrioritizedChannel{T}"/> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="PrioritizedChannel{T}"/> class.</summary>
+    /// <param name="options">The channel configuration.</param>
     public PrioritizedChannel(PrioritizedChannelOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -353,20 +352,24 @@ public sealed class PrioritizedChannel<T>
             _defaultPriority = defaultPriority;
         }
 
-        /// <summary>
-        /// Asynchronously writes an item to the specified priority lane.
-        /// </summary>
+        /// <summary>Asynchronously writes an item to the specified priority lane.</summary>
+        /// <param name="item">The item to write.</param>
+        /// <param name="priority">The zero-based priority lane; lower values represent higher priority.</param>
+        /// <param name="cancellationToken">The token used to cancel the write.</param>
+        /// <returns>A task that completes when the item has been written.</returns>
         public ValueTask WriteAsync(T item, int priority, CancellationToken cancellationToken = default) =>
             GetWriter(priority).WriteAsync(item, cancellationToken);
 
-        /// <summary>
-        /// Attempts to write an item to the specified priority lane.
-        /// </summary>
+        /// <summary>Attempts to write an item to the specified priority lane.</summary>
+        /// <param name="item">The item to write.</param>
+        /// <param name="priority">The zero-based priority lane; lower values represent higher priority.</param>
+        /// <returns><see langword="true"/> when the item was written; otherwise <see langword="false"/>.</returns>
         public bool TryWrite(T item, int priority) => GetWriter(priority).TryWrite(item);
 
-        /// <summary>
-        /// Waits until space is available in the specified priority lane.
-        /// </summary>
+        /// <summary>Waits until space is available in the specified priority lane.</summary>
+        /// <param name="priority">The zero-based priority lane; lower values represent higher priority.</param>
+        /// <param name="cancellationToken">The token used to cancel the wait.</param>
+        /// <returns><see langword="true"/> when space became available; otherwise <see langword="false"/> if the writer completed.</returns>
         public ValueTask<bool> WaitToWriteAsync(int priority, CancellationToken cancellationToken = default) =>
             GetWriter(priority).WaitToWriteAsync(cancellationToken);
 
