@@ -192,7 +192,7 @@ public class FunctionalTests
     {
         var result = await Ok(5).EnsureAsync(
             static (v, _) => Task.FromResult(v > 10),
-            TestContext.Current.CancellationToken
+            cancellationToken: TestContext.Current.CancellationToken
         );
 
         Assert.True(result.IsFailure);
@@ -272,7 +272,7 @@ public class FunctionalTests
             )
             .EnsureAsync(
                 static (value, _) => Task.FromResult(value == 10),
-                TestContext.Current.CancellationToken
+                cancellationToken: TestContext.Current.CancellationToken
             )
             .RecoverAsync(
                 static _ => Ok(42),
@@ -512,7 +512,7 @@ public class FunctionalTests
         {
             await Task.Delay(5, ct);
             return false;
-        }, TestContext.Current.CancellationToken);
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(ensured.IsFailure);
         Assert.Equal(ErrorCodes.Validation, ensured.Error?.Code);

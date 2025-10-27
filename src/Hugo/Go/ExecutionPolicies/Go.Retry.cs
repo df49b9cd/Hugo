@@ -47,20 +47,16 @@ public static partial class Go
                     {
                         Result<T> result = await operation(currentAttempt, ct).ConfigureAwait(false);
 
-                        if (result.IsSuccess && currentAttempt > 1)
+                        if (logger is not null)
                         {
-                            logger?.LogInformation(
-                                "Operation succeeded on attempt {Attempt} of {MaxAttempts}",
-                                currentAttempt,
-                                maxAttempts);
-                        }
-                        else if (result.IsFailure && currentAttempt < maxAttempts)
-                        {
-                            logger?.LogWarning(
-                                "Operation failed on attempt {Attempt} of {MaxAttempts}: {Error}",
-                                currentAttempt,
-                                maxAttempts,
-                                result.Error?.Message);
+                            if (result.IsSuccess && currentAttempt > 1)
+                            {
+                                LogRetrySuccess(logger, currentAttempt, maxAttempts);
+                            }
+                            else if (result.IsFailure && currentAttempt < maxAttempts)
+                            {
+                                LogRetryFailure(logger, currentAttempt, maxAttempts, result.Error?.Message ?? Error.Unspecified().Message);
+                            }
                         }
 
                         return result;
@@ -77,11 +73,11 @@ public static partial class Go
                     }
                     catch (Exception ex)
                     {
-                        logger?.LogWarning(
-                            ex,
-                            "Operation threw on attempt {Attempt} of {MaxAttempts}",
-                            currentAttempt,
-                            maxAttempts);
+                        if (logger is not null)
+                        {
+                            LogRetryException(logger, ex, currentAttempt, maxAttempts);
+                        }
+
                         return Result.Fail<T>(Error.FromException(ex));
                     }
                 },
@@ -92,12 +88,24 @@ public static partial class Go
 
         if (finalResult.IsFailure)
         {
-            logger?.LogError(
-                "Operation failed after {MaxAttempts} attempts: {Error}",
-                maxAttempts,
-                finalResult.Error?.Message);
+            if (logger is not null)
+            {
+                LogRetryFinalFailure(logger, maxAttempts, finalResult.Error?.Message ?? Error.Unspecified().Message);
+            }
         }
 
         return finalResult;
     }
+
+    [LoggerMessage(EventId = 1001, Level = LogLevel.Information, Message = "Operation succeeded on attempt {Attempt} of {MaxAttempts}")]
+    private static partial void LogRetrySuccess(ILogger logger, int attempt, int maxAttempts);
+
+    [LoggerMessage(EventId = 1002, Level = LogLevel.Warning, Message = "Operation failed on attempt {Attempt} of {MaxAttempts}: {Error}")]
+    private static partial void LogRetryFailure(ILogger logger, int attempt, int maxAttempts, string error);
+
+    [LoggerMessage(EventId = 1003, Level = LogLevel.Warning, Message = "Operation threw on attempt {Attempt} of {MaxAttempts}")]
+    private static partial void LogRetryException(ILogger logger, Exception exception, int attempt, int maxAttempts);
+
+    [LoggerMessage(EventId = 1004, Level = LogLevel.Error, Message = "Operation failed after {MaxAttempts} attempts: {Error}")]
+    private static partial void LogRetryFinalFailure(ILogger logger, int maxAttempts, string error);
 }
