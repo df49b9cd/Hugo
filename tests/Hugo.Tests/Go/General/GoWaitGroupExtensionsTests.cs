@@ -1,6 +1,6 @@
 namespace Hugo.Tests;
 
-public class GoWaitGroupExtensionsTests
+internal class GoWaitGroupExtensionsTests
 {
     [Fact]
     public void Go_ShouldThrow_WhenWaitGroupNull() =>
@@ -22,7 +22,7 @@ public class GoWaitGroupExtensionsTests
             Interlocked.Increment(ref counter);
         });
 
-        await wg.WaitAsync(TestContext.Current.CancellationToken);
+        await wg.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.Equal(1, counter);
         Assert.Equal(0, wg.Count);
@@ -49,7 +49,7 @@ public class GoWaitGroupExtensionsTests
             await Task.Yield();
         }, cts.Token);
 
-        await wg.WaitAsync(TestContext.Current.CancellationToken);
+        await wg.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         var token = Assert.Single(observed);
         Assert.Equal(cts.Token, token);
@@ -70,7 +70,7 @@ public class GoWaitGroupExtensionsTests
             return Task.CompletedTask;
         }, cts.Token);
 
-        await wg.WaitAsync(TestContext.Current.CancellationToken);
+        await wg.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.False(invoked);
         Assert.Equal(0, wg.Count);

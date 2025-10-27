@@ -2,7 +2,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-public class ResultEdgeCaseTests
+internal class ResultEdgeCaseTests
 {
     [Fact]
     public void Ensure_ShouldAttachCustomMetadata()

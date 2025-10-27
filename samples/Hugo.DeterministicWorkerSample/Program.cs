@@ -97,7 +97,7 @@ builder.Services.AddHostedService<KafkaWorker>();
 builder.Services.AddHostedService<SampleScenario>();
 
 IHost app = builder.Build();
-await app.RunAsync();
+await app.RunAsync().ConfigureAwait(false);
 return;
 
 static JsonSerializerOptions CreateSampleSerializerOptions()

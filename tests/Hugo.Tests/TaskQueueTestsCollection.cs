@@ -1,6 +1,6 @@
 namespace Hugo.Tests;
 
 [CollectionDefinition("TaskQueueConcurrency", DisableParallelization = true)]
-public sealed class TaskQueueTestsCollection
+internal sealed class TaskQueueTestsCollection
 {
 }

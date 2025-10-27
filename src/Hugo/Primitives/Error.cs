@@ -255,4 +255,9 @@ public sealed class Error
     }
 
     private static FrozenDictionary<string, object?> FreezeMetadata(Dictionary<string, object?>? builder) => builder is null || builder.Count == 0 ? EmptyMetadata : builder.ToFrozenDictionary(MetadataComparer);
+
+    public Error? ToError()
+    {
+        throw new NotImplementedException();
+    }
 }

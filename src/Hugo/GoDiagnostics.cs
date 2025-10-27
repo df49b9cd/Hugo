@@ -808,4 +808,9 @@ public static class GoDiagnostics
         _taskQueueDeadLettered?.Add(1);
         _taskQueueActiveDepth?.Record(activeLeases);
     }
+
+    public static ActivitySource CreateActivitySource(string? name = null, string? version = null, Uri schemaUrl = null)
+    {
+        throw new NotImplementedException();
+    }
 }

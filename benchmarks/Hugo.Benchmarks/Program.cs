@@ -3,13 +3,13 @@ using BenchmarkDotNet.Running;
 
 namespace Hugo.Benchmarks;
 
-public static class Program
+internal static class Program
 {
     public static void Main(string[] args) => BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
 }
 
 [MemoryDiagnoser]
-public class MutexBenchmarks
+internal class MutexBenchmarks
 {
     private const int IterationsPerTask = 32;
 
@@ -39,7 +39,7 @@ public class MutexBenchmarks
             {
                 for (var iteration = 0; iteration < IterationsPerTask; iteration++)
                 {
-                    await using var releaser = await strategy.EnterAsync().ConfigureAwait(false);
+                    await using var releaser = (await strategy.EnterAsync().ConfigureAwait(false)).ConfigureAwait(false);
                     BenchmarkWorkloads.SimulateLightCpuWork();
                     Interlocked.Increment(ref shared);
                 }

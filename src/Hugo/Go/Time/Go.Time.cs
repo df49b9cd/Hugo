@@ -132,5 +132,25 @@ public static partial class Go
 
         /// <inheritdoc />
         public ValueTask DisposeAsync() => StopAsync();
+
+        public override bool Equals(object obj)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override int GetHashCode()
+        {
+            throw new NotImplementedException();
+        }
+
+        public static bool operator ==(GoTicker left, GoTicker right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(GoTicker left, GoTicker right)
+        {
+            return !(left == right);
+        }
     }
 }

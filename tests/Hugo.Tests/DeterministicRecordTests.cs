@@ -1,6 +1,6 @@
 namespace Hugo.Tests;
 
-public class DeterministicRecordTests
+internal class DeterministicRecordTests
 {
     [Theory]
     [InlineData("")]

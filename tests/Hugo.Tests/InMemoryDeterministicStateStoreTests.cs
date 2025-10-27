@@ -1,6 +1,6 @@
 namespace Hugo.Tests;
 
-public class InMemoryDeterministicStateStoreTests
+internal class InMemoryDeterministicStateStoreTests
 {
     [Fact]
     public void TryGet_ShouldThrow_WhenKeyMissing()

@@ -163,7 +163,7 @@ public static partial class Result
                 if (winner is null)
                 {
                     winner = result;
-                    await linkedCts.CancelAsync();
+                    await linkedCts.CancelAsync().ConfigureAwait(false);
                     continue;
                 }
 

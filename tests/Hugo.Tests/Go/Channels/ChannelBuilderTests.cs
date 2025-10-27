@@ -6,7 +6,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-public sealed class ChannelBuilderTests
+internal sealed class ChannelBuilderTests
 {
     [Fact]
     public void BoundedChannelBuilder_ShouldApplyDropOldest()
@@ -71,14 +71,14 @@ public sealed class ChannelBuilderTests
             .WithPriorityLevels(3)
             .Build();
 
-        await channel.PrioritizedWriter.WriteAsync(1, priority: 2, TestContext.Current.CancellationToken);
-        await channel.PrioritizedWriter.WriteAsync(2, priority: 0, TestContext.Current.CancellationToken);
-        await channel.PrioritizedWriter.WriteAsync(3, priority: 1, TestContext.Current.CancellationToken);
+        await channel.PrioritizedWriter.WriteAsync(1, priority: 2, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await channel.PrioritizedWriter.WriteAsync(2, priority: 0, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await channel.PrioritizedWriter.WriteAsync(3, priority: 1, TestContext.Current.CancellationToken).ConfigureAwait(false);
         channel.PrioritizedWriter.TryComplete();
 
-        var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
-        var second = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
-        var third = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+        var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var second = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var third = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.Equal(2, first);
         Assert.Equal(3, second);

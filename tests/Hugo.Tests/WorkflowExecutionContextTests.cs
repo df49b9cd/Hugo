@@ -2,7 +2,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests;
 
-public sealed class WorkflowExecutionContextTests : IDisposable
+internal sealed class WorkflowExecutionContextTests : IDisposable
 {
     public WorkflowExecutionContextTests()
     {
@@ -313,7 +313,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         var context = CreateContext();
 
         var scope = WorkflowExecution.Enter(context, TestContext.Current.CancellationToken);
-        await scope.DisposeAsync();
+        await scope.DisposeAsync().ConfigureAwait(false);
 
         Assert.False(WorkflowExecution.HasCurrent);
     }

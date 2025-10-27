@@ -2,7 +2,7 @@ using static Hugo.GoExecutionHelpers;
 
 namespace Hugo.Tests;
 
-public class GoExecutionHelpersTests
+internal class GoExecutionHelpersTests
 {
     [Fact]
     public void ResolveCancellationToken_ReturnsPreferred_WhenPreferredCancelable()

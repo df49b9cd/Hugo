@@ -194,7 +194,7 @@ public static partial class Result
                         result.Compensation.Clear();
                         if (successSource.TrySetResult(result.Result))
                         {
-                            await linkedCts.CancelAsync();
+                            await linkedCts.CancelAsync().ConfigureAwait(false);
                             group.Cancel();
                         }
                     }

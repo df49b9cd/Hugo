@@ -13,7 +13,7 @@ internal static class Program
     internal static async Task<int> Main(string[] args)
     {
         var command = BuildRootCommand();
-        return await command.Parse(args).InvokeAsync();
+        return await command.Parse(args).InvokeAsync().ConfigureAwait(false);
     }
 
     private static RootCommand BuildRootCommand()

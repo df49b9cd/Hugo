@@ -2,7 +2,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests;
 
-public class VersionGateTests
+internal class VersionGateTests
 {
     [Fact]
     public void Require_ShouldRecordMaxVersion_WhenMissing()

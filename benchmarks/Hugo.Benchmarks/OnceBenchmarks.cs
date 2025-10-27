@@ -3,7 +3,7 @@ using BenchmarkDotNet.Attributes;
 namespace Hugo.Benchmarks;
 
 [MemoryDiagnoser]
-public class OnceBenchmarks
+internal class OnceBenchmarks
 {
     [Params(16, 64)]
     public int TaskCount { get; set; }

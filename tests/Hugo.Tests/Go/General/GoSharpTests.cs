@@ -4,7 +4,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-public class GoSharpTests
+internal class GoSharpTests
 {
     [Fact]
     public async Task WaitGroup_Go_WithCancellationAwareWork_ShouldComplete()
@@ -16,12 +16,12 @@ public class GoSharpTests
         {
             wg.Go(async token =>
             {
-                await Task.Delay(10, token);
+                await Task.Delay(10, token).ConfigureAwait(false);
                 Interlocked.Increment(ref counter);
             }, TestContext.Current.CancellationToken);
         }
 
-        await wg.WaitAsync(TestContext.Current.CancellationToken);
+        await wg.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.Equal(3, counter);
     }
@@ -33,11 +33,11 @@ public class GoSharpTests
 
         wg.Go(static async () =>
         {
-            await Task.Delay(5, TestContext.Current.CancellationToken);
+            await Task.Delay(5, TestContext.Current.CancellationToken).ConfigureAwait(false);
             throw new InvalidOperationException("boom");
         }, TestContext.Current.CancellationToken);
 
-        await wg.WaitAsync(TestContext.Current.CancellationToken);
+        await wg.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(true);
     }
@@ -88,7 +88,7 @@ public class GoSharpTests
         Assert.True(channel.Writer.TryWrite(1));
         Assert.True(channel.Writer.TryWrite(2));
 
-        var value = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+        var value = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.Equal(2, value);
     }
@@ -106,7 +106,7 @@ public class GoSharpTests
 
         for (var i = 0; i < 5; i++)
         {
-            var value = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+            var value = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
             Assert.Equal(i, value);
         }
     }

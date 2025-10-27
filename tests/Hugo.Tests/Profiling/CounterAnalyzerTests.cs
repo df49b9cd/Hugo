@@ -4,7 +4,7 @@ using Hugo.Profiling;
 
 namespace Hugo.Tests.Profiling;
 
-public sealed class CounterAnalyzerTests
+internal sealed class CounterAnalyzerTests
 {
     [Fact]
     public void Analyze_ComputesSummariesAndFindings()

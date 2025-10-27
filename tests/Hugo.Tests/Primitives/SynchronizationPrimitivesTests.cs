@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace Hugo.Tests.Primitives;
 
-public class SynchronizationPrimitivesTests
+internal class SynchronizationPrimitivesTests
 {
     private static readonly TimeSpan ShortDelay = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan WriterDelay = TimeSpan.FromMilliseconds(10);
@@ -59,7 +59,7 @@ public class SynchronizationPrimitivesTests
             scope.Dispose();
         }
 
-        await second.WaitAsync(cancellation);
+        await second.WaitAsync(cancellation).ConfigureAwait(false);
         Assert.Equal(1, secondEntered);
     }
 
@@ -98,7 +98,7 @@ public class SynchronizationPrimitivesTests
         Task reader1 = StartReader();
         Task reader2 = StartReader();
         startReaders.Set();
-        await Task.WhenAll(reader1, reader2);
+        await Task.WhenAll(reader1, reader2).ConfigureAwait(false);
         Assert.Equal(2, maxInside);
 
         var readScope = rwMutex.EnterReadScope();
@@ -118,7 +118,7 @@ public class SynchronizationPrimitivesTests
         AssertIncomplete(writer, ShortDelay, cancellation);
         Assert.Equal(0, Volatile.Read(ref writerEntered));
         readScope.Dispose();
-        await writer.WaitAsync(cancellation);
+        await writer.WaitAsync(cancellation).ConfigureAwait(false);
         Assert.Equal(1, writerEntered);
     }
 
@@ -146,7 +146,7 @@ public class SynchronizationPrimitivesTests
         Assert.Equal(0, Volatile.Read(ref readerEntered));
 
         writeScope.Dispose();
-        await reader.WaitAsync(cancellation);
+        await reader.WaitAsync(cancellation).ConfigureAwait(false);
         Assert.Equal(1, readerEntered);
     }
 

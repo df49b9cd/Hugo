@@ -139,6 +139,26 @@ public sealed class RwMutex : IDisposable
             _mutex.ReleaseReader();
             return ValueTask.CompletedTask;
         }
+
+        public override bool Equals(object obj)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override int GetHashCode()
+        {
+            throw new NotImplementedException();
+        }
+
+        public static bool operator ==(AsyncReadReleaser left, AsyncReadReleaser right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(AsyncReadReleaser left, AsyncReadReleaser right)
+        {
+            return !(left == right);
+        }
     }
 
     public readonly struct AsyncWriteReleaser(RwMutex mutex) : IAsyncDisposable, IDisposable
@@ -154,6 +174,26 @@ public sealed class RwMutex : IDisposable
         {
             _mutex.ReleaseWriter();
             return ValueTask.CompletedTask;
+        }
+
+        public override bool Equals(object obj)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override int GetHashCode()
+        {
+            throw new NotImplementedException();
+        }
+
+        public static bool operator ==(AsyncWriteReleaser left, AsyncWriteReleaser right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(AsyncWriteReleaser left, AsyncWriteReleaser right)
+        {
+            return !(left == right);
         }
     }
 }

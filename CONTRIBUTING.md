@@ -86,6 +86,7 @@ dotnet run --project benchmarks/Hugo.Benchmarks/Hugo.Benchmarks.csproj -c Releas
 - **Guard clauses**: Validate public API arguments early with `ArgumentNullException.ThrowIfNull`
 - **ConfigureAwait**: Always use `.ConfigureAwait(false)` in library code
 - **Cancellation tokens**: All async methods must accept `CancellationToken` (default to `default`)
+- **Formatting**: Use the built-in `dotnet format` command described below to keep changes consistent.
 
 ### Naming Conventions
 
@@ -120,6 +121,23 @@ public static async Task<Result<T>> TryAsync<T>(
     }
 }
 ```
+
+### Formatting
+
+- Run `dotnet format whitespace` to apply whitespace fixes before sending a PR. Use `dotnet format whitespace --verify-no-changes` for a final check—CI executes the same command with `--no-restore`, so preflighting locally keeps the pipeline green.
+- When you need a new style rule, add it to `.editorconfig` so Rider, Visual Studio, analyzers, and the formatter stay aligned rather than passing ad hoc command-line switches. Opt into `dotnet format style` locally when you want the broader analyzer fixes.
+- Optional: install a pre-commit hook to format automatically.
+
+  ```bash
+  cat <<'HOOK' > .git/hooks/pre-commit
+  #!/usr/bin/env bash
+  set -euo pipefail
+  dotnet format whitespace
+  HOOK
+  chmod +x .git/hooks/pre-commit
+  ```
+
+  Update the hook if you prefer a different workflow (for example, formatting only staged files).
 
 ### XML Documentation
 

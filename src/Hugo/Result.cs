@@ -321,7 +321,7 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(selector);
 
         var configuredSource = source.WithCancellation(cancellationToken).ConfigureAwait(false);
-        await using var enumerator = configuredSource.GetAsyncEnumerator();
+        await using var enumerator = configuredSource.GetAsyncEnumerator().ConfigureAwait(false);
 
         while (true)
         {
@@ -579,6 +579,11 @@ public readonly record struct Result<T>
     /// <param name="result">The result to convert.</param>
     /// <returns>A tuple containing the value and error.</returns>
     public static implicit operator (T Value, Error? Error)(Result<T> result) => (result.Value, result.Error);
+
+    public Result<T> ToResult()
+    {
+        throw new NotImplementedException();
+    }
 }
 
 /// <summary>
@@ -600,4 +605,8 @@ public sealed class ResultException : Exception
 
     /// <summary>Gets the <see cref="Error"/> that caused the exception to be thrown.</summary>
     public Error Error { get; }
+
+    public ResultException()
+    {
+    }
 }

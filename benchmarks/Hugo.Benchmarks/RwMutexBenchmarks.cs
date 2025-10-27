@@ -5,10 +5,8 @@ using Microsoft.VisualStudio.Threading;
 namespace Hugo.Benchmarks;
 
 [MemoryDiagnoser]
-public class RwMutexBenchmarks
+internal class RwMutexBenchmarks
 {
-    private const int WriterModulo = 5;
-
     [Params(32, 128)]
     public int OperationCount { get; set; }
 

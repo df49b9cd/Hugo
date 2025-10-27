@@ -4,7 +4,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-public class GoEdgeCaseTests
+internal class GoEdgeCaseTests
 {
     [Fact]
     public async Task WaitGroup_AddTask_ShouldComplete_WhenTaskCancels()
@@ -14,14 +14,14 @@ public class GoEdgeCaseTests
 
         var task = Task.Run(async () =>
         {
-            await Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
+            await Task.Delay(TimeSpan.FromSeconds(5), cts.Token).ConfigureAwait(false);
         }, cts.Token);
 
         wg.Add(task);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task.ConfigureAwait(false)).ConfigureAwait(false);
 
-        await wg.WaitAsync(TestContext.Current.CancellationToken);
+        await wg.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
         Assert.Equal(0, wg.Count);
     }
 
@@ -35,16 +35,16 @@ public class GoEdgeCaseTests
         var tasks = Enumerable.Range(0, 16)
             .Select(_ => Task.Run(async () =>
             {
-                await using (await mutex.LockAsync(TestContext.Current.CancellationToken))
+                await using (await mutex.LockAsync(TestContext.Current.CancellationToken).ConfigureAwait(false))
                 {
                     var inflight = Interlocked.Increment(ref concurrent);
                     Interlocked.Exchange(ref observedMax, Math.Max(observedMax, inflight));
-                    await Task.Delay(5, TestContext.Current.CancellationToken);
+                    await Task.Delay(5, TestContext.Current.CancellationToken).ConfigureAwait(false);
                     Interlocked.Decrement(ref concurrent);
                 }
             }, TestContext.Current.CancellationToken)).ToArray();
 
-        await Task.WhenAll(tasks);
+        await Task.WhenAll(tasks).ConfigureAwait(false);
 
         Assert.Equal(1, observedMax);
     }
@@ -55,6 +55,6 @@ public class GoEdgeCaseTests
         var channel = MakeChannel<int>(capacity: 1);
         channel.Writer.TryComplete();
 
-        await Assert.ThrowsAsync<ChannelClosedException>(async () => await channel.Writer.WriteAsync(42, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ChannelClosedException>(async () => await channel.Writer.WriteAsync(42, TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
     }
 }

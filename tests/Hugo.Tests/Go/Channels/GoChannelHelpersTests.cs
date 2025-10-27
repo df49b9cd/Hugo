@@ -6,7 +6,7 @@ using static Hugo.GoChannelHelpers;
 
 namespace Hugo.Tests;
 
-public class GoChannelHelpersTests
+internal class GoChannelHelpersTests
 {
     [Fact]
     public void CollectSources_WithArray_ReturnsSameInstance()
@@ -56,7 +56,7 @@ public class GoChannelHelpersTests
     public async Task SelectFanInAsyncCore_ShouldReturnSuccess_WhenValuesProcessed()
     {
         Channel<int> channel = Channel.CreateUnbounded<int>();
-        await channel.Writer.WriteAsync(7, TestContext.Current.CancellationToken);
+        await channel.Writer.WriteAsync(7, TestContext.Current.CancellationToken).ConfigureAwait(false);
         channel.Writer.TryComplete();
 
         Result<Go.Unit> result = await SelectFanInAsyncCore(
@@ -64,7 +64,7 @@ public class GoChannelHelpersTests
             static (value, _) => Task.FromResult(Result.Ok(Go.Unit.Value)),
             Timeout.InfiniteTimeSpan,
             provider: null,
-            cancellationToken: TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsSuccess, result.Error?.Code);
     }
@@ -79,7 +79,7 @@ public class GoChannelHelpersTests
             static (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)),
             TimeSpan.Zero,
             provider: null,
-            cancellationToken: TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsFailure, result.Error?.Code);
         Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
@@ -89,7 +89,7 @@ public class GoChannelHelpersTests
     public async Task SelectFanInAsyncCore_ShouldReturnFailure_WhenHandlerFails()
     {
         Channel<int> channel = Channel.CreateUnbounded<int>();
-        await channel.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
+        await channel.Writer.WriteAsync(1, TestContext.Current.CancellationToken).ConfigureAwait(false);
         channel.Writer.TryComplete();
 
         Result<Go.Unit> result = await SelectFanInAsyncCore(
@@ -97,7 +97,7 @@ public class GoChannelHelpersTests
             static (_, _) => Task.FromResult(Result.Fail<Go.Unit>(Error.From("boom", ErrorCodes.Validation))),
             Timeout.InfiniteTimeSpan,
             provider: null,
-            cancellationToken: TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
@@ -118,7 +118,7 @@ public class GoChannelHelpersTests
 
         cts.Cancel();
 
-        Result<Go.Unit> result = await task;
+        Result<Go.Unit> result = await task.ConfigureAwait(false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -130,8 +130,8 @@ public class GoChannelHelpersTests
         Channel<int> source = Channel.CreateUnbounded<int>();
         Channel<int> destination = Channel.CreateUnbounded<int>();
 
-        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
-        await source.Writer.WriteAsync(2, TestContext.Current.CancellationToken);
+        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await source.Writer.WriteAsync(2, TestContext.Current.CancellationToken).ConfigureAwait(false);
         source.Writer.TryComplete();
 
         Result<Go.Unit> result = await FanInAsyncCore(
@@ -140,12 +140,12 @@ public class GoChannelHelpersTests
             completeDestination: true,
             timeout: Timeout.InfiniteTimeSpan,
             provider: null,
-            cancellationToken: TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsSuccess, result.Error?.Code);
 
         var values = new List<int>();
-        await foreach (int item in destination.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        await foreach (int item in destination.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ConfigureAwait(false))
         {
             values.Add(item);
         }
@@ -160,7 +160,7 @@ public class GoChannelHelpersTests
         Channel<int> source = Channel.CreateUnbounded<int>();
         Channel<int> destination = Channel.CreateUnbounded<int>();
 
-        await source.Writer.WriteAsync(5, TestContext.Current.CancellationToken);
+        await source.Writer.WriteAsync(5, TestContext.Current.CancellationToken).ConfigureAwait(false);
         source.Writer.TryComplete();
 
         Result<Go.Unit> result = await FanInAsyncCore(
@@ -169,7 +169,7 @@ public class GoChannelHelpersTests
             completeDestination: false,
             timeout: Timeout.InfiniteTimeSpan,
             provider: null,
-            cancellationToken: TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsSuccess);
         Assert.False(destination.Reader.Completion.IsCompleted);
@@ -182,7 +182,7 @@ public class GoChannelHelpersTests
         Channel<int> destination = Channel.CreateUnbounded<int>();
         destination.Writer.TryComplete(new InvalidOperationException("closed"));
 
-        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
+        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken).ConfigureAwait(false);
         source.Writer.TryComplete();
 
         Result<Go.Unit> result = await FanInAsyncCore(
@@ -191,7 +191,7 @@ public class GoChannelHelpersTests
             completeDestination: true,
             timeout: Timeout.InfiniteTimeSpan,
             provider: null,
-            cancellationToken: TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
@@ -204,8 +204,8 @@ public class GoChannelHelpersTests
         Channel<int> destination1 = Channel.CreateUnbounded<int>();
         Channel<int> destination2 = Channel.CreateUnbounded<int>();
 
-        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
-        await source.Writer.WriteAsync(2, TestContext.Current.CancellationToken);
+        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await source.Writer.WriteAsync(2, TestContext.Current.CancellationToken).ConfigureAwait(false);
         source.Writer.TryComplete();
 
         Result<Go.Unit> result = await FanOutAsyncCore(
@@ -214,18 +214,18 @@ public class GoChannelHelpersTests
             completeDestinations: true,
             deadline: Timeout.InfiniteTimeSpan,
             provider: TimeProvider.System,
-            cancellationToken: TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsSuccess);
 
         var values1 = new List<int>();
-        await foreach (int item in destination1.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        await foreach (int item in destination1.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ConfigureAwait(false))
         {
             values1.Add(item);
         }
 
         var values2 = new List<int>();
-        await foreach (int item in destination2.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        await foreach (int item in destination2.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ConfigureAwait(false))
         {
             values2.Add(item);
         }
@@ -243,7 +243,7 @@ public class GoChannelHelpersTests
         Channel<int> destination = Channel.CreateUnbounded<int>();
         destination.Writer.TryComplete();
 
-        await source.Writer.WriteAsync(42, TestContext.Current.CancellationToken);
+        await source.Writer.WriteAsync(42, TestContext.Current.CancellationToken).ConfigureAwait(false);
         source.Writer.TryComplete();
 
         Result<Go.Unit> result = await FanOutAsyncCore(
@@ -252,7 +252,7 @@ public class GoChannelHelpersTests
             completeDestinations: true,
             deadline: Timeout.InfiniteTimeSpan,
             provider: TimeProvider.System,
-            cancellationToken: TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.ChannelCompleted, result.Error?.Code);
@@ -264,7 +264,7 @@ public class GoChannelHelpersTests
         Channel<int> source = Channel.CreateUnbounded<int>();
         var blockingWriter = new BlockingWriter<int>();
 
-        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
+        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken).ConfigureAwait(false);
         source.Writer.TryComplete();
 
         var provider = new FakeTimeProvider();
@@ -278,11 +278,11 @@ public class GoChannelHelpersTests
 
         _ = Task.Run(async () =>
         {
-            await Task.Delay(50, TestContext.Current.CancellationToken);
+            await Task.Delay(50, TestContext.Current.CancellationToken).ConfigureAwait(false);
             provider.Advance(TimeSpan.FromSeconds(2));
         }, TestContext.Current.CancellationToken);
 
-        Result<Go.Unit> result = await task;
+        Result<Go.Unit> result = await task.ConfigureAwait(false);
 
         Assert.True(result.IsFailure, result.Error?.Code);
         Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
@@ -306,7 +306,7 @@ public class GoChannelHelpersTests
 
         cts.Cancel();
 
-        Result<Go.Unit> result = await task;
+        Result<Go.Unit> result = await task.ConfigureAwait(false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);

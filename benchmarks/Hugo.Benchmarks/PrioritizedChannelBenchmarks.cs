@@ -5,7 +5,7 @@ using BenchmarkDotNet.Attributes;
 namespace Hugo.Benchmarks;
 
 [MemoryDiagnoser]
-public class PrioritizedChannelBenchmarks
+internal class PrioritizedChannelBenchmarks
 {
     private const int ItemCount = 4096;
     private const int CapacityPerLevel = 64;

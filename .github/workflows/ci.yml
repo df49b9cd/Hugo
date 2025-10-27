@@ -74,6 +74,10 @@ jobs:
       - name: Restore
         run: dotnet restore Hugo.slnx --nologo
 
+      - name: Check formatting
+        if: matrix.targetFramework == 'net9.0'
+        run: dotnet format whitespace --verify-no-changes --no-restore
+
       - name: Build
         run: dotnet build Hugo.slnx --configuration Release --no-restore /p:Version=${{ steps.gitversion.outputs.semVer }}
 

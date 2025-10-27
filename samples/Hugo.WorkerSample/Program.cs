@@ -96,7 +96,7 @@ builder.Services.AddHostedService<TelemetryAggregationWorker>();
 builder.Services.AddHostedService<TelemetryAlertService>();
 
 IHost app = builder.Build();
-await app.RunAsync();
+await app.RunAsync().ConfigureAwait(false);
 return;
 
 // static Uri ResolveOtlpEndpoint(string? value) => Uri.TryCreate(value, UriKind.Absolute, out Uri? endpoint)
@@ -217,7 +217,7 @@ sealed partial class TelemetryWorker(
 
     private async Task ProcessQueueAsync(CancellationToken stoppingToken)
     {
-        await foreach (TaskQueueLease<TelemetryWorkItem> lease in _adapter.Reader.ReadAllAsync(stoppingToken))
+        await foreach (TaskQueueLease<TelemetryWorkItem> lease in _adapter.Reader.ReadAllAsync(stoppingToken).ConfigureAwait(false))
         {
             SafeTaskQueueLease<TelemetryWorkItem> safeLease = SafeTaskQueueLease<TelemetryWorkItem>.From(lease);
             await ProcessLeaseAsync(safeLease, stoppingToken).ConfigureAwait(false);

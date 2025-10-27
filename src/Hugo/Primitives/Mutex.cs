@@ -68,5 +68,25 @@ public sealed class Mutex : IDisposable
             var semaphore = Interlocked.Exchange(ref _semaphore, null);
             semaphore?.Release();
         }
+
+        public override bool Equals(object obj)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override int GetHashCode()
+        {
+            throw new NotImplementedException();
+        }
+
+        public static bool operator ==(AsyncLockReleaser left, AsyncLockReleaser right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(AsyncLockReleaser left, AsyncLockReleaser right)
+        {
+            return !(left == right);
+        }
     }
 }

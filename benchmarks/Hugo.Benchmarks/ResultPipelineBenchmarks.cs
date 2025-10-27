@@ -3,7 +3,7 @@ using BenchmarkDotNet.Attributes;
 namespace Hugo.Benchmarks;
 
 [MemoryDiagnoser]
-public class ResultPipelineBenchmarks
+internal class ResultPipelineBenchmarks
 {
     [Params(32, 128)]
     public int OperationCount { get; set; }

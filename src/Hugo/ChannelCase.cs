@@ -228,6 +228,26 @@ public readonly struct ChannelCase
 
         return CreateDefault(_ => Task.FromResult(onDefault()), priority);
     }
+
+    public override bool Equals(object obj)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override int GetHashCode()
+    {
+        throw new NotImplementedException();
+    }
+
+    public static bool operator ==(ChannelCase left, ChannelCase right)
+    {
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(ChannelCase left, ChannelCase right)
+    {
+        return !(left == right);
+    }
 }
 
 internal sealed class DeferredRead<T>(ChannelReader<T> reader)
@@ -287,6 +307,26 @@ public readonly struct ChannelCaseTemplate<T>(ChannelReader<T> reader)
     /// <param name="onValue">The callback invoked when a value is available.</param>
     /// <returns>A configured <see cref="ChannelCase"/>.</returns>
     public ChannelCase With(Action<T> onValue) => ChannelCase.Create(Reader, onValue);
+
+    public override bool Equals(object obj)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override int GetHashCode()
+    {
+        throw new NotImplementedException();
+    }
+
+    public static bool operator ==(ChannelCaseTemplate<T> left, ChannelCaseTemplate<T> right)
+    {
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(ChannelCaseTemplate<T> left, ChannelCaseTemplate<T> right)
+    {
+        return !(left == right);
+    }
 }
 
 /// <summary>

@@ -6,7 +6,7 @@ using Hugo.Sagas;
 
 namespace Hugo.Tests;
 
-public class ResultPipelineEnhancementsTests
+internal class ResultPipelineEnhancementsTests
 {
     [Fact]
     public async Task WhenAll_ShouldReturnValues_WhenAllStepsSucceed()
@@ -16,7 +16,7 @@ public class ResultPipelineEnhancementsTests
         {
             async (context, token) =>
             {
-                await Task.Delay(10, token);
+                await Task.Delay(10, token).ConfigureAwait(false);
                 context.RegisterCompensation(ct =>
                 {
                     Interlocked.Increment(ref compensations);
@@ -35,7 +35,7 @@ public class ResultPipelineEnhancementsTests
             }
         };
 
-        var result = await Result.WhenAll(operations, policy: new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await Result.WhenAll(operations, policy: new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse), cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsSuccess);
         Assert.Equal([1, 2], result.Value);
@@ -45,7 +45,7 @@ public class ResultPipelineEnhancementsTests
     [Fact]
     public async Task WhenAll_ShouldReturnEmptyResult_WhenNoOperations()
     {
-        var result = await Result.WhenAll(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await Result.WhenAll(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Value);
@@ -56,7 +56,7 @@ public class ResultPipelineEnhancementsTests
     {
         var operations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>?[] { null };
 
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await Result.WhenAll(operations!, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await Result.WhenAll(operations!, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public class ResultPipelineEnhancementsTests
         };
 
         var policy = new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse);
-        var result = await Result.WhenAll(operations, policy, TestContext.Current.CancellationToken);
+        var result = await Result.WhenAll(operations, policy, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(1, compensationInvoked);
@@ -96,7 +96,7 @@ public class ResultPipelineEnhancementsTests
                 Interlocked.Increment(ref compensation);
                 return ValueTask.CompletedTask;
             });
-            await Task.Delay(1, token);
+            await Task.Delay(1, token).ConfigureAwait(false);
             return Result.Ok("fast");
         });
 
@@ -107,12 +107,12 @@ public class ResultPipelineEnhancementsTests
                 Interlocked.Increment(ref compensation);
                 return ValueTask.CompletedTask;
             });
-            await Task.Delay(200);
+            await Task.Delay(200).ConfigureAwait(false);
             return Result.Ok("slow");
         });
 
         var policy = new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse);
-        var result = await Result.WhenAny([fast, slow], policy, TestContext.Current.CancellationToken);
+        var result = await Result.WhenAny([fast, slow], policy, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("fast", result.Value);
@@ -122,7 +122,7 @@ public class ResultPipelineEnhancementsTests
     [Fact]
     public async Task WhenAny_ShouldReturnValidationError_WhenNoOperations()
     {
-        var result = await Result.WhenAny(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await Result.WhenAny(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
@@ -139,7 +139,7 @@ public class ResultPipelineEnhancementsTests
             static (_, _) => ValueTask.FromResult(Result.Fail<int>(Error.From("second failure", ErrorCodes.Exception)))
         };
 
-        var result = await Result.WhenAny(operations, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await Result.WhenAny(operations, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsFailure);
         Assert.Equal("All operations failed.", result.Error?.Message);
@@ -158,7 +158,7 @@ public class ResultPipelineEnhancementsTests
             static (_, _) => ValueTask.FromResult(Result.Fail<int>(Error.Canceled()))
         };
 
-        var result = await Result.WhenAny(operations, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await Result.WhenAny(operations, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -183,7 +183,7 @@ public class ResultPipelineEnhancementsTests
             .AddStep("charge", (_, _) => ValueTask.FromResult(Result.Fail<string>(Error.From("payment failed", ErrorCodes.Exception))));
 
         var policy = new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse);
-        var result = await saga.ExecuteAsync(policy, TestContext.Current.CancellationToken);
+        var result = await saga.ExecuteAsync(policy, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(1, compensation);
@@ -200,7 +200,7 @@ public class ResultPipelineEnhancementsTests
                 return ValueTask.FromResult(Result.Ok(reserveId + "-charged"));
             }, resultKey: "chargeResult");
 
-        var result = await saga.ExecuteAsync(ResultExecutionPolicy.None, TestContext.Current.CancellationToken);
+        var result = await saga.ExecuteAsync(ResultExecutionPolicy.None, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsSuccess);
         Assert.True(result.Value.TryGet("chargeResult", out string? charge));
@@ -213,10 +213,10 @@ public class ResultPipelineEnhancementsTests
         var channel = Channel.CreateUnbounded<Result<int>>();
         var data = GetSequence(TestContext.Current.CancellationToken);
 
-        await data.ToChannelAsync(channel.Writer, TestContext.Current.CancellationToken);
+        await data.ToChannelAsync(channel.Writer, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         var collected = new List<int>();
-        await foreach (var item in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        await foreach (var item in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ConfigureAwait(false))
         {
             Assert.True(item.IsSuccess);
             collected.Add(item.Value);
@@ -227,7 +227,7 @@ public class ResultPipelineEnhancementsTests
         static async IAsyncEnumerable<Result<int>> GetSequence([EnumeratorCancellation] CancellationToken ct = default)
         {
             yield return Result.Ok(1);
-            await Task.Delay(10, ct);
+            await Task.Delay(10, ct).ConfigureAwait(false);
             yield return Result.Ok(2);
             yield return Result.Ok(3);
         }
@@ -242,15 +242,15 @@ public class ResultPipelineEnhancementsTests
         {
             for (var i = start; i < start + 2; i++)
             {
-                await Task.Delay(5, ct);
+                await Task.Delay(5, ct).ConfigureAwait(false);
                 yield return Result.Ok(i);
             }
         }
 
-        await Result.FanInAsync(new[] { Source(0, TestContext.Current.CancellationToken), Source(2, TestContext.Current.CancellationToken) }, channel.Writer, TestContext.Current.CancellationToken);
+        await Result.FanInAsync(new[] { Source(0, TestContext.Current.CancellationToken), Source(2, TestContext.Current.CancellationToken) }, channel.Writer, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         var collected = new List<int>();
-        await foreach (var result in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        await foreach (var result in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ConfigureAwait(false))
         {
             Assert.True(result.IsSuccess);
             collected.Add(result.Value);
@@ -268,19 +268,19 @@ public class ResultPipelineEnhancementsTests
         static async IAsyncEnumerable<Result<int>> Faulty([EnumeratorCancellation] CancellationToken ct = default)
         {
             yield return Result.Ok(1);
-            await Task.Delay(5, ct);
+            await Task.Delay(5, ct).ConfigureAwait(false);
             throw new InvalidOperationException("fan-in failure");
         }
 
         static async IAsyncEnumerable<Result<int>> Healthy([EnumeratorCancellation] CancellationToken ct = default)
         {
             yield return Result.Ok(10);
-            await Task.Delay(5, ct);
+            await Task.Delay(5, ct).ConfigureAwait(false);
             yield return Result.Ok(11);
         }
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await Result.FanInAsync(new[] { Faulty(TestContext.Current.CancellationToken), Healthy(TestContext.Current.CancellationToken) }, channel.Writer, TestContext.Current.CancellationToken));
+            await Result.FanInAsync(new[] { Faulty(TestContext.Current.CancellationToken), Healthy(TestContext.Current.CancellationToken) }, channel.Writer, TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
 
         var buffered = new List<Result<int>>();
         while (channel.Reader.TryRead(out var item))
@@ -290,7 +290,7 @@ public class ResultPipelineEnhancementsTests
 
         Assert.Contains(buffered, result => result.IsSuccess && result.Value == 1);
         Assert.True(channel.Reader.Completion.IsFaulted);
-        var completionException = await Assert.ThrowsAsync<InvalidOperationException>(async () => await channel.Reader.Completion);
+        var completionException = await Assert.ThrowsAsync<InvalidOperationException>(async () => await channel.Reader.Completion.ConfigureAwait(false)).ConfigureAwait(false);
         Assert.Same(exception, completionException);
     }
 
@@ -303,14 +303,14 @@ public class ResultPipelineEnhancementsTests
         static async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct = default)
         {
             yield return Result.Ok(3);
-            await Task.Delay(5, ct);
+            await Task.Delay(5, ct).ConfigureAwait(false);
             yield return Result.Ok(4);
         }
 
-        await Result.FanOutAsync(Source(TestContext.Current.CancellationToken), [first.Writer, second.Writer], TestContext.Current.CancellationToken);
+        await Result.FanOutAsync(Source(TestContext.Current.CancellationToken), [first.Writer, second.Writer], TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-        var firstValues = await ReadAllValuesAsync(first.Reader);
-        var secondValues = await ReadAllValuesAsync(second.Reader);
+        var firstValues = await ReadAllValuesAsync(first.Reader).ConfigureAwait(false);
+        var secondValues = await ReadAllValuesAsync(second.Reader).ConfigureAwait(false);
 
         Assert.Equal([3, 4], firstValues);
         Assert.Equal([3, 4], secondValues);
@@ -323,10 +323,10 @@ public class ResultPipelineEnhancementsTests
         var evenWriter = Channel.CreateUnbounded<Result<int>>();
         var oddWriter = Channel.CreateUnbounded<Result<int>>();
 
-        await source.PartitionAsync(static value => value % 2 == 0, evenWriter.Writer, oddWriter.Writer, TestContext.Current.CancellationToken);
+        await source.PartitionAsync(static value => value % 2 == 0, evenWriter.Writer, oddWriter.Writer, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-        var evenResults = await ReadAllResultsAsync(evenWriter.Reader);
-        var oddResults = await ReadAllResultsAsync(oddWriter.Reader);
+        var evenResults = await ReadAllResultsAsync(evenWriter.Reader).ConfigureAwait(false);
+        var oddResults = await ReadAllResultsAsync(oddWriter.Reader).ConfigureAwait(false);
 
         Assert.All(evenResults, static result => Assert.True(result.IsSuccess));
         Assert.Equal([2], evenResults.Select(static result => result.Value).ToArray());
@@ -353,22 +353,22 @@ public class ResultPipelineEnhancementsTests
 
         var toChannelTask = Sequence(linkedCts.Token).ToChannelAsync(channel.Writer, linkedCts.Token).AsTask();
 
-        var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+        var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
         Assert.True(first.IsSuccess);
 
         cts.Cancel();
 
-        await toChannelTask;
+        await toChannelTask.ConfigureAwait(false);
 
-        var sentinel = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+        var sentinel = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
         Assert.True(sentinel.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, sentinel.Error?.Code);
-        await channel.Reader.Completion;
+        await channel.Reader.Completion.ConfigureAwait(false);
 
         static async IAsyncEnumerable<Result<int>> Sequence([EnumeratorCancellation] CancellationToken ct = default)
         {
             yield return Result.Ok(1);
-            await Task.Delay(TimeSpan.FromSeconds(1), ct);
+            await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false);
             yield return Result.Ok(2);
         }
     }
@@ -378,7 +378,7 @@ public class ResultPipelineEnhancementsTests
     {
         var source = GetSequence(TestContext.Current.CancellationToken);
         var batches = new List<IReadOnlyList<int>>();
-        await foreach (var batch in source.WindowAsync(2, TestContext.Current.CancellationToken))
+        await foreach (var batch in source.WindowAsync(2, TestContext.Current.CancellationToken).ConfigureAwait(false))
         {
             Assert.True(batch.IsSuccess);
             batches.Add(batch.Value);
@@ -391,7 +391,7 @@ public class ResultPipelineEnhancementsTests
         static async IAsyncEnumerable<Result<int>> GetSequence([EnumeratorCancellation] CancellationToken ct = default)
         {
             yield return Result.Ok(1);
-            await Task.Delay(5, ct);
+            await Task.Delay(5, ct).ConfigureAwait(false);
             yield return Result.Ok(2);
             yield return Result.Ok(3);
         }
@@ -463,7 +463,7 @@ public class ResultPipelineEnhancementsTests
 
             context.RegisterCompensation(static ct => ValueTask.CompletedTask);
             return Result.Ok(42);
-        }, policy, TestContext.Current.CancellationToken);
+        }, policy, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(42, result.Value);
@@ -476,11 +476,11 @@ public class ResultPipelineEnhancementsTests
         var attempts = 0;
         var policy = new ResultExecutionPolicy(ResultRetryPolicy.FixedDelay(3, TimeSpan.Zero), Compensation: ResultCompensationPolicy.SequentialReverse);
 
-        var result = await Result.RetryWithPolicyAsync<int>((_, _) =>
+        var result = await Result.RetryWithPolicyAsync((_, _) =>
         {
             attempts++;
             return ValueTask.FromResult(Result.Fail<int>(Error.From("still failing", ErrorCodes.Exception)));
-        }, policy, TestContext.Current.CancellationToken);
+        }, policy, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.True(result.IsFailure);
         Assert.Equal(3, attempts);
@@ -490,7 +490,7 @@ public class ResultPipelineEnhancementsTests
     private static async Task<int[]> ReadAllValuesAsync(ChannelReader<Result<int>> reader)
     {
         var values = new List<int>();
-        await foreach (var result in reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        await foreach (var result in reader.ReadAllAsync(TestContext.Current.CancellationToken).ConfigureAwait(false))
         {
             Assert.True(result.IsSuccess);
             values.Add(result.Value);
@@ -502,7 +502,7 @@ public class ResultPipelineEnhancementsTests
     private static async Task<List<Result<int>>> ReadAllResultsAsync(ChannelReader<Result<int>> reader)
     {
         var results = new List<Result<int>>();
-        await foreach (var result in reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        await foreach (var result in reader.ReadAllAsync(TestContext.Current.CancellationToken).ConfigureAwait(false))
         {
             results.Add(result);
         }

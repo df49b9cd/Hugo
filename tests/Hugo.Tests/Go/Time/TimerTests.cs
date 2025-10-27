@@ -6,7 +6,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-public class TimerTests
+internal class TimerTests
 {
     [Fact]
     public async Task After_WithFakeTimeProvider_ShouldEmitOnce()
@@ -19,10 +19,10 @@ public class TimerTests
 
         provider.Advance(TimeSpan.FromSeconds(5));
 
-        var value = await readTask;
+        var value = await readTask.ConfigureAwait(false);
         Assert.Equal(provider.GetUtcNow(), value);
 
-        await Assert.ThrowsAsync<ChannelClosedException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<ChannelClosedException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask()).ConfigureAwait(false);
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public class TimerTests
         var task = AfterAsync(TimeSpan.Zero, provider, TestContext.Current.CancellationToken);
 
         Assert.True(task.IsCompleted);
-        var timestamp = await task;
+        var timestamp = await task.ConfigureAwait(false);
         Assert.Equal(provider.GetUtcNow(), timestamp);
     }
 
@@ -52,31 +52,31 @@ public class TimerTests
 
         Task<DateTimeOffset> task = AfterAsync(TimeSpan.FromSeconds(5), provider, cts.Token);
 
-        await cts.CancelAsync();
+        await cts.CancelAsync().ConfigureAwait(false);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task.ConfigureAwait(false)).ConfigureAwait(false);
     }
 
     [Fact]
     public async Task NewTicker_ShouldProduceTicksUntilStopped()
     {
         var provider = new FakeTimeProvider();
-        await using var ticker = NewTicker(TimeSpan.FromSeconds(2), provider, TestContext.Current.CancellationToken);
+        await using var ticker = NewTicker(TimeSpan.FromSeconds(2), provider, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         var firstTask = ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask();
         provider.Advance(TimeSpan.FromSeconds(2));
-        var first = await firstTask;
+        var first = await firstTask.ConfigureAwait(false);
 
         var secondTask = ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask();
         provider.Advance(TimeSpan.FromSeconds(2));
-        var second = await secondTask;
+        var second = await secondTask.ConfigureAwait(false);
 
         Assert.NotEqual(first, second);
         Assert.Equal(TimeSpan.FromSeconds(2), second - first);
 
-        await ticker.StopAsync();
+        await ticker.StopAsync().ConfigureAwait(false);
 
-        await Assert.ThrowsAsync<ChannelClosedException>(() => ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAsync<ChannelClosedException>(() => ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask()).ConfigureAwait(false);
     }
 
     [Theory]
@@ -99,31 +99,31 @@ public class TimerTests
 
         var firstTask = reader.ReadAsync(TestContext.Current.CancellationToken).AsTask();
         provider.Advance(TimeSpan.FromSeconds(1));
-        DateTimeOffset first = await firstTask;
+        DateTimeOffset first = await firstTask.ConfigureAwait(false);
 
         var secondTask = reader.ReadAsync(TestContext.Current.CancellationToken).AsTask();
         provider.Advance(TimeSpan.FromSeconds(1));
-        DateTimeOffset second = await secondTask;
+        DateTimeOffset second = await secondTask.ConfigureAwait(false);
 
         Assert.Equal(TimeSpan.FromSeconds(1), second - first);
 
-        await cts.CancelAsync();
+        await cts.CancelAsync().ConfigureAwait(false);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await reader.Completion);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask()).ConfigureAwait(false);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await reader.Completion.ConfigureAwait(false)).ConfigureAwait(false);
     }
 
     [Fact]
     public async Task GoTicker_TryRead_ShouldReflectAvailability()
     {
         var provider = new FakeTimeProvider();
-        await using var ticker = NewTicker(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken);
+        await using var ticker = NewTicker(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.False(ticker.TryRead(out _));
 
         var firstTask = ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask();
         provider.Advance(TimeSpan.FromSeconds(1));
-        DateTimeOffset first = await firstTask;
+        DateTimeOffset first = await firstTask.ConfigureAwait(false);
 
         provider.Advance(TimeSpan.FromSeconds(1));
 
@@ -141,7 +141,7 @@ public class TimerTests
         Assert.True(available);
         Assert.Equal(TimeSpan.FromSeconds(1), second - first);
 
-        await ticker.StopAsync();
+        await ticker.StopAsync().ConfigureAwait(false);
     }
 
     [Fact]

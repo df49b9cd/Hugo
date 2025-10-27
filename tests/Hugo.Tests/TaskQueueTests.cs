@@ -3,7 +3,7 @@ using Microsoft.Extensions.Time.Testing;
 namespace Hugo.Tests;
 
 [Collection("TaskQueueConcurrency")]
-public class TaskQueueTests
+internal class TaskQueueTests
 {
     [Fact]
     public void TaskQueueOptions_InvalidCapacity_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { Capacity = 0 });
@@ -18,18 +18,18 @@ public class TaskQueueTests
     public async Task EnqueueLeaseComplete_ShouldClearCounts()
     {
         var provider = new FakeTimeProvider();
-        await using var queue = new TaskQueue<string>(timeProvider: provider);
+        await using var queue = new TaskQueue<string>(timeProvider: provider).ConfigureAwait(false);
 
-        await queue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
+        await queue.EnqueueAsync("alpha", TestContext.Current.CancellationToken).ConfigureAwait(false);
         Assert.Equal(1, queue.PendingCount);
 
-        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
         Assert.Equal("alpha", lease.Value);
         Assert.Equal(1, lease.Attempt);
         Assert.Equal(0, queue.PendingCount);
         Assert.Equal(1, queue.ActiveLeaseCount);
 
-        await lease.CompleteAsync(TestContext.Current.CancellationToken);
+        await lease.CompleteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.Equal(0, queue.PendingCount);
         Assert.Equal(0, queue.ActiveLeaseCount);
@@ -40,23 +40,23 @@ public class TaskQueueTests
     {
         var provider = new FakeTimeProvider();
         var options = new TaskQueueOptions { MaxDeliveryAttempts = 3 };
-        await using var queue = new TaskQueue<string>(options, provider);
+        await using var queue = new TaskQueue<string>(options, provider).ConfigureAwait(false);
 
-        await queue.EnqueueAsync("beta", TestContext.Current.CancellationToken);
-        var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        await queue.EnqueueAsync("beta", TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
         var error = Error.From("worker abandoned", ErrorCodes.TaskQueueAbandoned)
             .WithMetadata("worker", "A");
 
-        await firstLease.FailAsync(error, requeue: true, TestContext.Current.CancellationToken);
+        await firstLease.FailAsync(error, requeue: true, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-        var secondLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        var secondLease = await queue.LeaseAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
         Assert.Equal(2, secondLease.Attempt);
         Assert.Equal("beta", secondLease.Value);
         Assert.Same(error, secondLease.LastError);
         Assert.Equal(0, queue.PendingCount);
         Assert.Equal(1, queue.ActiveLeaseCount);
 
-        await secondLease.CompleteAsync(TestContext.Current.CancellationToken);
+        await secondLease.CompleteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
     }
 
     [Fact]
@@ -71,13 +71,13 @@ public class TaskQueueTests
             return ValueTask.CompletedTask;
         }
 
-        await using var queue = new TaskQueue<string>(timeProvider: provider, deadLetter: DeadLetter);
+        await using var queue = new TaskQueue<string>(timeProvider: provider, deadLetter: DeadLetter).ConfigureAwait(false);
 
-        await queue.EnqueueAsync("gamma", TestContext.Current.CancellationToken);
-        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        await queue.EnqueueAsync("gamma", TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
         var error = Error.From("fatal", ErrorCodes.TaskQueueAbandoned);
 
-        await lease.FailAsync(error, requeue: false, TestContext.Current.CancellationToken);
+        await lease.FailAsync(error, requeue: false, TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.Single(contexts);
         var context = contexts[0];
@@ -92,12 +92,12 @@ public class TaskQueueTests
     [Fact]
     public async Task FailAsync_ShouldThrowWhenErrorNull()
     {
-        await using var queue = new TaskQueue<string>();
+        await using var queue = new TaskQueue<string>().ConfigureAwait(false);
 
-        await queue.EnqueueAsync("value", TestContext.Current.CancellationToken);
-        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        await queue.EnqueueAsync("value", TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await lease.FailAsync(null!, requeue: true, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await lease.FailAsync(null!, requeue: true, TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
     }
 
     [Fact]
@@ -112,15 +112,15 @@ public class TaskQueueTests
             MaxDeliveryAttempts = 3
         };
 
-        await using var queue = new TaskQueue<string>(options, provider);
+        await using var queue = new TaskQueue<string>(options, provider).ConfigureAwait(false);
 
-        await queue.EnqueueAsync("delta", TestContext.Current.CancellationToken);
-        var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        await queue.EnqueueAsync("delta", TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(70));
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(70)).ConfigureAwait(false);
         var secondLeaseTask = queue.LeaseAsync(TestContext.Current.CancellationToken).AsTask();
-        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(40));
-        var secondLease = await secondLeaseTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(40)).ConfigureAwait(false);
+        var secondLease = await secondLeaseTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken).ConfigureAwait(false);
         Assert.Equal(2, secondLease.Attempt);
         Assert.Equal("delta", secondLease.Value);
         Assert.NotNull(secondLease.LastError);
@@ -133,7 +133,7 @@ public class TaskQueueTests
         Assert.True(secondLease.LastError!.TryGetMetadata<DateTimeOffset>("enqueuedAt", out var enqueuedAt));
         Assert.Equal(firstLease.EnqueuedAt, enqueuedAt);
 
-        await secondLease.CompleteAsync(TestContext.Current.CancellationToken);
+        await secondLease.CompleteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
     }
 
     [Fact]
@@ -158,20 +158,20 @@ public class TaskQueueTests
             MaxDeliveryAttempts = 2
         };
 
-        await using var queue = new TaskQueue<string>(options, provider, DeadLetter);
+        await using var queue = new TaskQueue<string>(options, provider, DeadLetter).ConfigureAwait(false);
 
-        await queue.EnqueueAsync("epsilon", TestContext.Current.CancellationToken);
-        var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        await queue.EnqueueAsync("epsilon", TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(80));
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(80)).ConfigureAwait(false);
         var secondLeaseTask = queue.LeaseAsync(TestContext.Current.CancellationToken).AsTask();
-        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(50));
-        var secondLease = await secondLeaseTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+        var secondLease = await secondLeaseTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(80));
-        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(50));
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(80)).ConfigureAwait(false);
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
-        var context = await deadLetterSignal.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        var context = await deadLetterSignal.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken).ConfigureAwait(false);
         Assert.Single(contexts);
         Assert.Equal("epsilon", context.Value);
         Assert.Equal(2, context.Attempt);
@@ -186,16 +186,16 @@ public class TaskQueueTests
     [Fact]
     public async Task LeaseOperations_ShouldRejectAfterCompletion()
     {
-        await using var queue = new TaskQueue<string>();
+        await using var queue = new TaskQueue<string>().ConfigureAwait(false);
 
-        await queue.EnqueueAsync("theta", TestContext.Current.CancellationToken);
-        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        await queue.EnqueueAsync("theta", TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-        await lease.CompleteAsync(TestContext.Current.CancellationToken);
+        await lease.CompleteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await lease.CompleteAsync(TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await lease.HeartbeatAsync(TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await lease.FailAsync(Error.From("after-complete", ErrorCodes.TaskQueueAbandoned), cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await lease.CompleteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await lease.HeartbeatAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await lease.FailAsync(Error.From("after-complete", ErrorCodes.TaskQueueAbandoned), cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
     }
 
     [Fact]
@@ -210,19 +210,19 @@ public class TaskQueueTests
             MaxDeliveryAttempts = 3
         };
 
-        await using var queue = new TaskQueue<string>(options, provider);
+        await using var queue = new TaskQueue<string>(options, provider).ConfigureAwait(false);
 
-        await queue.EnqueueAsync("omega", TestContext.Current.CancellationToken);
-        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        await queue.EnqueueAsync("omega", TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         var error = Error.From("canceled-fail", ErrorCodes.TaskQueueAbandoned);
         using var canceledCts = new CancellationTokenSource();
         canceledCts.Cancel();
 
-        await lease.FailAsync(error, requeue: true, canceledCts.Token);
+        await lease.FailAsync(error, requeue: true, canceledCts.Token).ConfigureAwait(false);
 
         var requeuedTask = queue.LeaseAsync(TestContext.Current.CancellationToken).AsTask();
-        var requeued = await requeuedTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        var requeued = await requeuedTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         Assert.Equal(2, requeued.Attempt);
         Assert.Equal("omega", requeued.Value);
@@ -249,19 +249,19 @@ public class TaskQueueTests
             MaxDeliveryAttempts = 2
         };
 
-        await using var queue = new TaskQueue<string>(options, provider, DeadLetter);
+        await using var queue = new TaskQueue<string>(options, provider, DeadLetter).ConfigureAwait(false);
 
-        await queue.EnqueueAsync("sigma", TestContext.Current.CancellationToken);
-        _ = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        await queue.EnqueueAsync("sigma", TestContext.Current.CancellationToken).ConfigureAwait(false);
+        _ = await queue.LeaseAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
-        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(75));
-        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(75));
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(75)).ConfigureAwait(false);
+        await AdvanceAsync(provider, TimeSpan.FromMilliseconds(75)).ConfigureAwait(false);
 
         using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         waitCts.CancelAfter(TimeSpan.FromSeconds(2));
-        await WaitForConditionAsync(() => queue.ActiveLeaseCount == 0, waitCts.Token);
+        await WaitForConditionAsync(() => queue.ActiveLeaseCount == 0, waitCts.Token).ConfigureAwait(false);
 
-        await queue.DisposeAsync();
+        await queue.DisposeAsync().ConfigureAwait(false);
 
         var context = Assert.Single(contexts);
         Assert.Equal("sigma", context.Value);
@@ -271,12 +271,12 @@ public class TaskQueueTests
     [Fact]
     public async Task TaskQueue_Disposed_ShouldThrowOnEnqueueAndLease()
     {
-        await using var queue = new TaskQueue<string>();
+        await using var queue = new TaskQueue<string>().ConfigureAwait(false);
 
-        await queue.DisposeAsync();
+        await queue.DisposeAsync().ConfigureAwait(false);
 
-        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await queue.EnqueueAsync("value", TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await queue.LeaseAsync(TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await queue.EnqueueAsync("value", TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await queue.LeaseAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
     }
 
     [Fact]
@@ -290,19 +290,19 @@ public class TaskQueueTests
             HeartbeatInterval = TimeSpan.FromSeconds(1)
         };
 
-        await using var queue = new TaskQueue<string>(options, provider);
+        await using var queue = new TaskQueue<string>(options, provider).ConfigureAwait(false);
 
-        await queue.EnqueueAsync("zeta", TestContext.Current.CancellationToken);
-        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
-
-        provider.Advance(TimeSpan.FromSeconds(2));
-        await lease.HeartbeatAsync(TestContext.Current.CancellationToken);
+        await queue.EnqueueAsync("zeta", TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         provider.Advance(TimeSpan.FromSeconds(2));
-        await lease.HeartbeatAsync(TestContext.Current.CancellationToken);
+        await lease.HeartbeatAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         provider.Advance(TimeSpan.FromSeconds(2));
-        await lease.CompleteAsync(TestContext.Current.CancellationToken);
+        await lease.HeartbeatAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+
+        provider.Advance(TimeSpan.FromSeconds(2));
+        await lease.CompleteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
 
         provider.Advance(TimeSpan.FromSeconds(3));
 
@@ -335,7 +335,7 @@ public class TaskQueueTests
         while (!condition())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await Task.Delay(interval, cancellationToken);
+            await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
         }
     }
 
