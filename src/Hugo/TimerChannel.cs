@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
 namespace Hugo;
@@ -38,6 +39,7 @@ internal sealed class TimerChannel : IAsyncDisposable, IDisposable
 
     public ChannelReader<DateTimeOffset> Reader => _channel.Reader;
 
+    [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Ordering preserved to avoid breaking changes in public API.")]
     public static TimerChannel Start(TimeProvider provider, TimeSpan dueTime, TimeSpan period, CancellationToken cancellationToken, bool singleShot)
     {
         var channel = new TimerChannel(provider, dueTime, period, singleShot, cancellationToken);

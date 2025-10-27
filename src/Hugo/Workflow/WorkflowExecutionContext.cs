@@ -427,6 +427,7 @@ public static class WorkflowExecution
     /// <param name="context">Context to attach.</param>
     /// <param name="cancellationToken">Cancellation token linked to the scope.</param>
     /// <param name="replace">When true, replaces any existing ambient context instead of stacking.</param>
+    [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Maintains existing API surface for consumers already using positional arguments.")]
     public static Scope Enter(WorkflowExecutionContext context, CancellationToken cancellationToken = default, bool replace = false)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -457,6 +458,7 @@ public static class WorkflowExecution
 
     internal sealed class AmbientContext
     {
+        [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Constructor mirrors public Enter signature for consistency.")]
         internal AmbientContext(WorkflowExecutionContext context, CancellationToken cancellationToken, AmbientContext? parent)
         {
             Context = context;

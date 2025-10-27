@@ -74,10 +74,7 @@ public static partial class Go
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        if (branchCount <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(branchCount));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(branchCount);
 
         Channel<T>[] channels = new Channel<T>[branchCount];
         ChannelWriter<T>[] writers = new ChannelWriter<T>[branchCount];

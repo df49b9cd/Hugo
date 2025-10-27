@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Hugo.Policies;
 
 namespace Hugo;
@@ -16,6 +17,7 @@ public static partial class Go
     /// <param name="cancellationToken">The token used to cancel the aggregate operation.</param>
     /// <param name="timeProvider">The optional time provider used by the execution policy.</param>
     /// <returns>A result containing the collection of operation outputs.</returns>
+    [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Preserves established public API ordering for downstream callers.")]
     public static Task<Result<IReadOnlyList<T>>> FanOutAsync<T>(
         IEnumerable<Func<CancellationToken, Task<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
@@ -42,6 +44,7 @@ public static partial class Go
     /// <param name="cancellationToken">The token used to cancel the aggregate operation.</param>
     /// <param name="timeProvider">The optional time provider used by the execution policy.</param>
     /// <returns>A result containing the first successful operation output.</returns>
+    [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Preserves established public API ordering for downstream callers.")]
     public static Task<Result<T>> RaceAsync<T>(
         IEnumerable<Func<CancellationToken, Task<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,

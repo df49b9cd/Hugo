@@ -127,6 +127,6 @@ public static partial class Go
     public readonly record struct Unit
     {
         /// <summary>Gets a singleton instance representing the unit value.</summary>
-        public static readonly Unit Value = new();
+        public static readonly Unit Value;
     }
 }

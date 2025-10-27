@@ -107,7 +107,7 @@ public sealed class PrioritizedChannel<T>
         var levels = options.PriorityLevels;
         if (options.DefaultPriority is { } defaultPriority && defaultPriority >= levels)
         {
-            throw new ArgumentOutOfRangeException(nameof(options.DefaultPriority), "Default priority must be less than the number of priority levels.");
+            throw new ArgumentOutOfRangeException(nameof(options), options.DefaultPriority, "Default priority must be less than the number of priority levels.");
         }
 
         var capacity = options.CapacityPerLevel;

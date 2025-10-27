@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
 namespace Hugo;
@@ -36,6 +37,7 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
     /// <param name="concurrency">The number of concurrent lease pumps.</param>
     /// <param name="ownsQueue"><see langword="true"/> to dispose the queue when the adapter is disposed.</param>
     /// <returns>A configured task queue channel adapter.</returns>
+    [SuppressMessage("Design", "CA1000:Do not declare static members on generic types", Justification = "Factory method keeps construction aligned with invariant validation while avoiding public constructors.")]
     public static TaskQueueChannelAdapter<T> Create(
         TaskQueue<T> queue,
         Channel<TaskQueueLease<T>>? channel = null,

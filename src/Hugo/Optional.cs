@@ -5,6 +5,7 @@ namespace Hugo;
 /// <summary>
 /// Represents an optional value that may or may not be present.
 /// </summary>
+[SuppressMessage("Naming", "CA1716:Identifiers should not match keywords", Justification = "Optional is the established API surface for modeling optional values across the library.")]
 public readonly record struct Optional<T>
 {
     private readonly T _value;
@@ -173,6 +174,7 @@ public readonly record struct Optional<T>
 /// <summary>
 /// Provides helper methods for working with optionals.
 /// </summary>
+[SuppressMessage("Naming", "CA1716:Identifiers should not match keywords", Justification = "Optional is the established API surface for modeling optional values across the library.")]
 public static class Optional
 {
     /// <summary>Creates an optional containing the provided value.</summary>
