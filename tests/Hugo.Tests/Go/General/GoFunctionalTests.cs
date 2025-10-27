@@ -43,11 +43,11 @@ internal class GoFunctionalTests
 
         var task = Run(async ct =>
         {
-            await Task.Delay(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
         },
         cts.Token);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task).ConfigureAwait(false);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
     }
 
     [Fact]
@@ -76,11 +76,11 @@ internal class GoFunctionalTests
 
         wg.Go(async token =>
         {
-            await Task.Delay(TimeSpan.FromSeconds(5), token).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(5), token);
         },
         cts.Token);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wg.WaitAsync(cts.Token)).ConfigureAwait(false);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wg.WaitAsync(cts.Token));
     }
 
     [Fact]
@@ -94,9 +94,9 @@ internal class GoFunctionalTests
         {
             for (var i = 0; i < 3; i++)
             {
-                using (await mutex.LockAsync().ConfigureAwait(false))
+                using (await mutex.LockAsync())
                 {
-                    await channel.Writer.WriteAsync(i).ConfigureAwait(false);
+                    await channel.Writer.WriteAsync(i);
                 }
             }
 
@@ -104,12 +104,12 @@ internal class GoFunctionalTests
         }, TestContext.Current.CancellationToken);
 
         var collected = new List<int>();
-        await foreach (var item in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ConfigureAwait(false))
+        await foreach (var item in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
         {
             collected.Add(item);
         }
 
-        await wg.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
 
         var result = Ok(collected)
             .Map(items => items.Sum())
@@ -135,12 +135,12 @@ internal class GoFunctionalTests
         {
             var delayTask = DelayAsync(TimeSpan.FromSeconds(3), provider, token);
             delayScheduled.TrySetResult();
-            await delayTask.ConfigureAwait(false);
-            await channel.Writer.WriteAsync(42, token).ConfigureAwait(false);
+            await delayTask;
+            await channel.Writer.WriteAsync(42, token);
             channel.Writer.TryComplete();
         }, TestContext.Current.CancellationToken);
 
-        await delayScheduled.Task.ConfigureAwait(false); // ensure the delay is registered before advancing fake time
+        await delayScheduled.Task; // ensure the delay is registered before advancing fake time
 
         var selectTask = SelectAsync(
             timeout: TimeSpan.FromSeconds(5),
@@ -159,11 +159,11 @@ internal class GoFunctionalTests
 
         provider.Advance(TimeSpan.FromSeconds(3));
 
-        var result = await selectTask.ConfigureAwait(false);
+        var result = await selectTask;
 
         Assert.True(result.IsSuccess);
         Assert.Equal(expected, collected);
 
-        await wg.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
     }
 }

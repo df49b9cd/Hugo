@@ -68,7 +68,7 @@ internal class FunctionalTests
     public async Task ThenAsync_ShouldComposeSyncBinder_WithAsyncResult()
     {
         var result = await Task.FromResult(Ok("start"))
-            .ThenAsync(static value => Ok(value + "-next"), TestContext.Current.CancellationToken).ConfigureAwait(false);
+            .ThenAsync(static value => Ok(value + "-next"), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("start-next", result.Value);
@@ -81,7 +81,7 @@ internal class FunctionalTests
             .ThenAsync(
                 static (value, _) => Task.FromResult(Ok(value + "-async")),
                 TestContext.Current.CancellationToken
-            ).ConfigureAwait(false);
+            );
 
         Assert.True(result.IsSuccess);
         Assert.Equal("start-async", result.Value);
@@ -100,7 +100,7 @@ internal class FunctionalTests
     public async Task MapAsync_ShouldTransformAsync()
     {
         var result = await Ok(5)
-            .MapAsync(static (value, _) => Task.FromResult(value * 3), TestContext.Current.CancellationToken).ConfigureAwait(false);
+            .MapAsync(static (value, _) => Task.FromResult(value * 3), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(15, result.Value);
@@ -134,11 +134,11 @@ internal class FunctionalTests
             .TapAsync(
                 async (_, _) =>
                 {
-                    await Task.Delay(10, TestContext.Current.CancellationToken).ConfigureAwait(false);
+                    await Task.Delay(10, TestContext.Current.CancellationToken);
                     tapped = true;
                 },
                 TestContext.Current.CancellationToken
-            ).ConfigureAwait(false);
+            );
 
         Assert.True(tapped);
         Assert.True(result.IsSuccess);
@@ -159,7 +159,7 @@ internal class FunctionalTests
         var recovered = await Err<int>("fail").RecoverAsync(
             static (error, _) => Task.FromResult(Ok(error.Message.Length)),
             TestContext.Current.CancellationToken
-        ).ConfigureAwait(false);
+        );
 
         Assert.True(recovered.IsSuccess);
         Assert.Equal(4, recovered.Value);
@@ -172,7 +172,7 @@ internal class FunctionalTests
             .RecoverAsync(
                 static (err, _) => Task.FromResult(Ok(err.Message.Length)),
                 TestContext.Current.CancellationToken
-            ).ConfigureAwait(false);
+            );
 
         Assert.True(recovered.IsSuccess);
         Assert.Equal(4, recovered.Value);
@@ -193,7 +193,7 @@ internal class FunctionalTests
         var result = await Ok(5).EnsureAsync(
             static (v, _) => Task.FromResult(v > 10),
             TestContext.Current.CancellationToken
-        ).ConfigureAwait(false);
+        );
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
@@ -228,14 +228,14 @@ internal class FunctionalTests
                 static v => $"{v}-success",
                 static err => err.Message,
                 TestContext.Current.CancellationToken
-            ).ConfigureAwait(false);
+            );
 
         var failure = await Task.FromResult(Err<int>("fail"))
             .FinallyAsync(
                 static v => v.ToString(CultureInfo.InvariantCulture),
                 static err => err.Message,
                 TestContext.Current.CancellationToken
-            ).ConfigureAwait(false);
+            );
 
         Assert.Equal("1-success", success);
         Assert.Equal("fail", failure);
@@ -277,7 +277,7 @@ internal class FunctionalTests
             .RecoverAsync(
                 static _ => Ok(42),
                 TestContext.Current.CancellationToken
-            ).ConfigureAwait(false);
+            );
 
         Assert.True(result.IsSuccess);
         Assert.Equal(10, result.Value);
@@ -292,11 +292,11 @@ internal class FunctionalTests
             .ThenAsync(
                 static async (_, ct) =>
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromSeconds(5), ct);
                     return Ok("never");
                 },
                 cts.Token
-            ).ConfigureAwait(false);
+            );
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -306,10 +306,10 @@ internal class FunctionalTests
     public async Task MapAsync_ShouldReturnCancellationError_WhenTaskCanceled()
     {
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
 
         var task = Task.FromCanceled<Result<int>>(cts.Token);
-        var result = await task.MapAsync(static v => v, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await task.MapAsync(static v => v, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -319,10 +319,10 @@ internal class FunctionalTests
     public async Task RecoverAsync_ShouldSkip_WhenCancellationOccurs()
     {
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
 
         var task = Task.FromCanceled<Result<int>>(cts.Token);
-        var result = await task.RecoverAsync(static _ => Ok(5), TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await task.RecoverAsync(static _ => Ok(5), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -344,11 +344,11 @@ internal class FunctionalTests
         var result = await Ok(2).OnSuccessAsync(
             async (value, ct) =>
             {
-                await Task.Delay(5, ct).ConfigureAwait(false);
+                await Task.Delay(5, ct);
                 invoked = value == 2;
             },
             TestContext.Current.CancellationToken
-        ).ConfigureAwait(false);
+        );
 
         Assert.True(result.IsSuccess);
         Assert.True(invoked);
@@ -361,11 +361,11 @@ internal class FunctionalTests
         var result = await Task.FromResult(Ok(3)).OnSuccessAsync(
             async (value, ct) =>
             {
-                await Task.Delay(5, ct).ConfigureAwait(false);
+                await Task.Delay(5, ct);
                 invoked = value == 3;
             },
             TestContext.Current.CancellationToken
-        ).ConfigureAwait(false);
+        );
 
         Assert.True(result.IsSuccess);
         Assert.True(invoked);
@@ -387,11 +387,11 @@ internal class FunctionalTests
         var result = await Err<int>("fail").OnFailureAsync(
             async (error, ct) =>
             {
-                await Task.Delay(5, ct).ConfigureAwait(false);
+                await Task.Delay(5, ct);
                 captured = error;
             },
             TestContext.Current.CancellationToken
-        ).ConfigureAwait(false);
+        );
 
         Assert.True(result.IsFailure);
         Assert.NotNull(captured);
@@ -404,11 +404,11 @@ internal class FunctionalTests
         var result = await Task.FromResult(Err<int>("fail")).OnFailureAsync(
             async (error, ct) =>
             {
-                await Task.Delay(5, ct).ConfigureAwait(false);
+                await Task.Delay(5, ct);
                 captured = error;
             },
             TestContext.Current.CancellationToken
-        ).ConfigureAwait(false);
+        );
 
         Assert.True(result.IsFailure);
         Assert.NotNull(captured);
@@ -421,7 +421,7 @@ internal class FunctionalTests
         var result = await Task.FromResult(Err<int>("fail")).TapErrorAsync(
             error => captured = error,
             TestContext.Current.CancellationToken
-        ).ConfigureAwait(false);
+        );
 
         Assert.True(result.IsFailure);
         Assert.NotNull(captured);
@@ -442,7 +442,7 @@ internal class FunctionalTests
     {
         var tapped = false;
         var resultTask = Task.FromResult(Ok("value"));
-        var result = await resultTask.TeeAsync(_ => tapped = true, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await resultTask.TeeAsync(_ => tapped = true, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.True(tapped);
@@ -455,9 +455,9 @@ internal class FunctionalTests
         var resultTask = Task.FromResult(Ok(5));
         var result = await resultTask.TeeAsync(async (_, ct) =>
         {
-            await Task.Delay(5, ct).ConfigureAwait(false);
+            await Task.Delay(5, ct);
             tapped = true;
-        }, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        }, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.True(tapped);
@@ -467,7 +467,7 @@ internal class FunctionalTests
     public async Task MapAsync_TaskResult_ShouldTransformValue()
     {
         var resultTask = Task.FromResult(Ok(2));
-        var mapped = await resultTask.MapAsync(static v => v * 3, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var mapped = await resultTask.MapAsync(static v => v * 3, TestContext.Current.CancellationToken);
 
         Assert.True(mapped.IsSuccess);
         Assert.Equal(6, mapped.Value);
@@ -480,11 +480,11 @@ internal class FunctionalTests
         var mapped = await resultTask.MapAsync(
             static async (value, ct) =>
             {
-                await Task.Delay(5, ct).ConfigureAwait(false);
+                await Task.Delay(5, ct);
                 return value * 2;
             },
             TestContext.Current.CancellationToken
-        ).ConfigureAwait(false);
+        );
 
         Assert.True(mapped.IsSuccess);
         Assert.Equal(6, mapped.Value);
@@ -496,9 +496,9 @@ internal class FunctionalTests
         var task = Task.FromResult(Err<int>("fail"));
         var recovered = await task.RecoverAsync(static async (_, ct) =>
         {
-            await Task.Delay(5, ct).ConfigureAwait(false);
+            await Task.Delay(5, ct);
             return Ok(9);
-        }, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        }, TestContext.Current.CancellationToken);
 
         Assert.True(recovered.IsSuccess);
         Assert.Equal(9, recovered.Value);
@@ -510,9 +510,9 @@ internal class FunctionalTests
         var task = Task.FromResult(Ok(1));
         var ensured = await task.EnsureAsync(static async (_, ct) =>
         {
-            await Task.Delay(5, ct).ConfigureAwait(false);
+            await Task.Delay(5, ct);
             return false;
-        }, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        }, TestContext.Current.CancellationToken);
 
         Assert.True(ensured.IsFailure);
         Assert.Equal(ErrorCodes.Validation, ensured.Error?.Code);
@@ -524,16 +524,16 @@ internal class FunctionalTests
         var result = await Ok(1).FinallyAsync(
             static async (value, ct) =>
             {
-                await Task.Delay(5, ct).ConfigureAwait(false);
+                await Task.Delay(5, ct);
                 return value + 1;
             },
             static async (_, ct) =>
             {
-                await Task.Delay(5, ct).ConfigureAwait(false);
+                await Task.Delay(5, ct);
                 return -1;
             },
             TestContext.Current.CancellationToken
-        ).ConfigureAwait(false);
+        );
 
         Assert.Equal(2, result);
     }
@@ -544,16 +544,16 @@ internal class FunctionalTests
         var outcome = await Task.FromResult(Ok("value")).FinallyAsync(
             static async (value, ct) =>
             {
-                await Task.Delay(5, ct).ConfigureAwait(false);
+                await Task.Delay(5, ct);
                 return value.ToUpperInvariant();
             },
             static async (_, ct) =>
             {
-                await Task.Delay(5, ct).ConfigureAwait(false);
+                await Task.Delay(5, ct);
                 return string.Empty;
             },
             TestContext.Current.CancellationToken
-        ).ConfigureAwait(false);
+        );
 
         Assert.Equal("VALUE", outcome);
     }
@@ -562,22 +562,22 @@ internal class FunctionalTests
     public async Task FinallyAsync_TaskResult_ShouldReturnCanceledError()
     {
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
 
         var task = Task.FromCanceled<Result<int>>(cts.Token);
         var result = await task.FinallyAsync(
             static async (value, ct) =>
             {
-                await Task.Delay(1, ct).ConfigureAwait(false);
+                await Task.Delay(1, ct);
                 return value.ToString(CultureInfo.InvariantCulture);
             },
             static async (error, ct) =>
             {
-                await Task.Delay(1, ct).ConfigureAwait(false);
+                await Task.Delay(1, ct);
                 return error.Code ?? string.Empty;
             },
             TestContext.Current.CancellationToken
-        ).ConfigureAwait(false);
+        );
 
         Assert.Equal(ErrorCodes.Canceled, result);
     }

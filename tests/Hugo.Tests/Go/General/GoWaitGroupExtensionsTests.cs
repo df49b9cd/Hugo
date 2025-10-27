@@ -22,7 +22,7 @@ internal class GoWaitGroupExtensionsTests
             Interlocked.Increment(ref counter);
         });
 
-        await wg.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(1, counter);
         Assert.Equal(0, wg.Count);
@@ -49,7 +49,7 @@ internal class GoWaitGroupExtensionsTests
             await Task.Yield();
         }, cts.Token);
 
-        await wg.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
 
         var token = Assert.Single(observed);
         Assert.Equal(cts.Token, token);
@@ -70,7 +70,7 @@ internal class GoWaitGroupExtensionsTests
             return Task.CompletedTask;
         }, cts.Token);
 
-        await wg.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.False(invoked);
         Assert.Equal(0, wg.Count);

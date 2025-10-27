@@ -59,7 +59,7 @@ internal class SynchronizationPrimitivesTests
             scope.Dispose();
         }
 
-        await second.WaitAsync(cancellation).ConfigureAwait(false);
+        await second.WaitAsync(cancellation);
         Assert.Equal(1, secondEntered);
     }
 
@@ -98,7 +98,7 @@ internal class SynchronizationPrimitivesTests
         Task reader1 = StartReader();
         Task reader2 = StartReader();
         startReaders.Set();
-        await Task.WhenAll(reader1, reader2).ConfigureAwait(false);
+        await Task.WhenAll(reader1, reader2);
         Assert.Equal(2, maxInside);
 
         var readScope = rwMutex.EnterReadScope();
@@ -118,7 +118,7 @@ internal class SynchronizationPrimitivesTests
         AssertIncomplete(writer, ShortDelay, cancellation);
         Assert.Equal(0, Volatile.Read(ref writerEntered));
         readScope.Dispose();
-        await writer.WaitAsync(cancellation).ConfigureAwait(false);
+        await writer.WaitAsync(cancellation);
         Assert.Equal(1, writerEntered);
     }
 
@@ -146,7 +146,7 @@ internal class SynchronizationPrimitivesTests
         Assert.Equal(0, Volatile.Read(ref readerEntered));
 
         writeScope.Dispose();
-        await reader.WaitAsync(cancellation).ConfigureAwait(false);
+        await reader.WaitAsync(cancellation);
         Assert.Equal(1, readerEntered);
     }
 

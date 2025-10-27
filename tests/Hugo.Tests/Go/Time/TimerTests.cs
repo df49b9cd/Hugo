@@ -19,10 +19,10 @@ internal class TimerTests
 
         provider.Advance(TimeSpan.FromSeconds(5));
 
-        var value = await readTask.ConfigureAwait(false);
+        var value = await readTask;
         Assert.Equal(provider.GetUtcNow(), value);
 
-        await Assert.ThrowsAsync<ChannelClosedException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask()).ConfigureAwait(false);
+        await Assert.ThrowsAsync<ChannelClosedException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
     }
 
     [Fact]
@@ -32,7 +32,7 @@ internal class TimerTests
         var task = AfterAsync(TimeSpan.Zero, provider, TestContext.Current.CancellationToken);
 
         Assert.True(task.IsCompleted);
-        var timestamp = await task.ConfigureAwait(false);
+        var timestamp = await task;
         Assert.Equal(provider.GetUtcNow(), timestamp);
     }
 
@@ -52,31 +52,31 @@ internal class TimerTests
 
         Task<DateTimeOffset> task = AfterAsync(TimeSpan.FromSeconds(5), provider, cts.Token);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task.ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task);
     }
 
     [Fact]
     public async Task NewTicker_ShouldProduceTicksUntilStopped()
     {
         var provider = new FakeTimeProvider();
-        await using var ticker = NewTicker(TimeSpan.FromSeconds(2), provider, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await using var ticker = NewTicker(TimeSpan.FromSeconds(2), provider, TestContext.Current.CancellationToken);
 
         var firstTask = ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask();
         provider.Advance(TimeSpan.FromSeconds(2));
-        var first = await firstTask.ConfigureAwait(false);
+        var first = await firstTask;
 
         var secondTask = ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask();
         provider.Advance(TimeSpan.FromSeconds(2));
-        var second = await secondTask.ConfigureAwait(false);
+        var second = await secondTask;
 
         Assert.NotEqual(first, second);
         Assert.Equal(TimeSpan.FromSeconds(2), second - first);
 
-        await ticker.StopAsync().ConfigureAwait(false);
+        await ticker.StopAsync();
 
-        await Assert.ThrowsAsync<ChannelClosedException>(() => ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask()).ConfigureAwait(false);
+        await Assert.ThrowsAsync<ChannelClosedException>(() => ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask());
     }
 
     [Theory]
@@ -99,31 +99,31 @@ internal class TimerTests
 
         var firstTask = reader.ReadAsync(TestContext.Current.CancellationToken).AsTask();
         provider.Advance(TimeSpan.FromSeconds(1));
-        DateTimeOffset first = await firstTask.ConfigureAwait(false);
+        DateTimeOffset first = await firstTask;
 
         var secondTask = reader.ReadAsync(TestContext.Current.CancellationToken).AsTask();
         provider.Advance(TimeSpan.FromSeconds(1));
-        DateTimeOffset second = await secondTask.ConfigureAwait(false);
+        DateTimeOffset second = await secondTask;
 
         Assert.Equal(TimeSpan.FromSeconds(1), second - first);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask()).ConfigureAwait(false);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await reader.Completion.ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await reader.Completion);
     }
 
     [Fact]
     public async Task GoTicker_TryRead_ShouldReflectAvailability()
     {
         var provider = new FakeTimeProvider();
-        await using var ticker = NewTicker(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await using var ticker = NewTicker(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken);
 
         Assert.False(ticker.TryRead(out _));
 
         var firstTask = ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask();
         provider.Advance(TimeSpan.FromSeconds(1));
-        DateTimeOffset first = await firstTask.ConfigureAwait(false);
+        DateTimeOffset first = await firstTask;
 
         provider.Advance(TimeSpan.FromSeconds(1));
 
@@ -141,7 +141,7 @@ internal class TimerTests
         Assert.True(available);
         Assert.Equal(TimeSpan.FromSeconds(1), second - first);
 
-        await ticker.StopAsync().ConfigureAwait(false);
+        await ticker.StopAsync();
     }
 
     [Fact]

@@ -23,7 +23,7 @@ internal class ErrGroupTests
             return Task.CompletedTask;
         });
 
-        var result = await group.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, counter);
@@ -40,7 +40,7 @@ internal class ErrGroupTests
 
         group.Go(async ct =>
         {
-            await enteredSecond.Task.ConfigureAwait(false);
+            await enteredSecond.Task;
             return Result.Fail<Unit>(Error.From("boom", ErrorCodes.Exception));
         });
 
@@ -50,7 +50,7 @@ internal class ErrGroupTests
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromSeconds(5), ct);
                 cancellationObserved.TrySetResult(false);
             }
             catch (OperationCanceledException)
@@ -61,14 +61,14 @@ internal class ErrGroupTests
             return Result.Ok(Unit.Value);
         });
 
-        var result = await group.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal("boom", result.Error?.Message);
         Assert.Equal(group.Error?.Message, result.Error?.Message);
         Assert.True(group.Token.IsCancellationRequested);
         Assert.True(result.Error?.Code == ErrorCodes.Exception);
-        Assert.True(await cancellationObserved.Task.ConfigureAwait(false));
+        Assert.True(await cancellationObserved.Task);
     }
 
     [Fact]
@@ -82,7 +82,7 @@ internal class ErrGroupTests
             throw new InvalidOperationException("explode");
         });
 
-        var result = await group.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
@@ -98,13 +98,13 @@ internal class ErrGroupTests
 
         group.Go(static async ct =>
         {
-            await Task.Delay(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
             return Result.Ok(Unit.Value);
         });
 
-        await externalCts.CancelAsync().ConfigureAwait(false);
+        await externalCts.CancelAsync();
 
-        var result = await group.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -123,7 +123,7 @@ internal class ErrGroupTests
             await Task.Yield();
         });
 
-        var result = await group.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.True(observedToken.CanBeCanceled);
@@ -143,7 +143,7 @@ internal class ErrGroupTests
             return Result.Ok(Unit.Value);
         });
 
-        var result = await group.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1, counter);
@@ -156,7 +156,7 @@ internal class ErrGroupTests
 
         group.Go(static () => throw new InvalidOperationException("action failed"));
 
-        var result = await group.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
@@ -172,13 +172,13 @@ internal class ErrGroupTests
         group.Go(async ct =>
         {
             started.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
         });
 
-        await started.Task.ConfigureAwait(false);
+        await started.Task;
         group.Cancel();
 
-        var result = await group.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -193,14 +193,14 @@ internal class ErrGroupTests
 
         group.Go(static async ct =>
         {
-            await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
             return Result.Ok(Unit.Value);
         });
 
         var waitTask = group.WaitAsync(cts.Token);
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
 
-        var result = await waitTask.ConfigureAwait(false);
+        var result = await waitTask;
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);

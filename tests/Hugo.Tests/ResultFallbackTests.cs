@@ -17,7 +17,7 @@ internal class ResultFallbackTests
     [Fact]
     public async Task TieredFallbackAsync_ShouldReturnValidationError_WhenNoTiersProvided()
     {
-        var result = await Result.TieredFallbackAsync(Array.Empty<ResultFallbackTier<int>>(), cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await Result.TieredFallbackAsync(Array.Empty<ResultFallbackTier<int>>(), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
@@ -32,7 +32,7 @@ internal class ResultFallbackTests
             ResultFallbackTier<int>.From("primary", static _ => ValueTask.FromResult(Result.Ok(42)))
         };
 
-        var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(42, result.Value);
@@ -49,7 +49,7 @@ internal class ResultFallbackTests
             ResultFallbackTier<int>.From("secondary", static _ => ValueTask.FromResult(Result.Ok(100)))
         };
 
-        var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(100, result.Value);
@@ -68,7 +68,7 @@ internal class ResultFallbackTests
                 static _ => ValueTask.FromResult(Result.Fail<int>(Error.From("secondary failed", "error.secondary"))))
         };
 
-        var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Fallback pipeline exhausted all tiers.", result.Error?.Message);
@@ -91,14 +91,14 @@ internal class ResultFallbackTests
     public async Task TieredFallbackAsync_ShouldPropagateCancellation()
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
 
         var tiers = new[]
         {
             ResultFallbackTier<int>.From("primary", static _ => ValueTask.FromResult(Result.Ok(1)))
         };
 
-        var result = await Result.TieredFallbackAsync(tiers, cancellationToken: cts.Token).ConfigureAwait(false);
+        var result = await Result.TieredFallbackAsync(tiers, cancellationToken: cts.Token);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -116,14 +116,14 @@ internal class ResultFallbackTests
                 [
                     async (ctx, ct) =>
                     {
-                        await Task.Delay(TimeSpan.FromMilliseconds(50), ct).ConfigureAwait(false);
+                        await Task.Delay(TimeSpan.FromMilliseconds(50), ct);
                         return Result.Ok(7);
                     },
                     async (_, ct) =>
                     {
                         try
                         {
-                            await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false);
+                            await Task.Delay(TimeSpan.FromSeconds(1), ct);
                         }
                         catch (OperationCanceledException)
                         {
@@ -136,7 +136,7 @@ internal class ResultFallbackTests
                 ])
         };
 
-        var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(7, result.Value);
@@ -162,7 +162,7 @@ internal class ResultFallbackTests
             return ValueTask.FromResult(Result.Ok(Unit.Value));
         }, policy: policy, timeProvider: provider);
 
-        var result = await group.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, attempts);
@@ -182,7 +182,7 @@ internal class ResultFallbackTests
             return ValueTask.FromResult(Result.Fail<Unit>(Error.From("fatal", ErrorCodes.Validation)));
         }, policy: policy, timeProvider: provider);
 
-        var result = await group.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);

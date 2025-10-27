@@ -104,12 +104,12 @@ internal partial class GoTests
 
         var channel = MakeChannel<int>(options);
 
-        await channel.PrioritizedWriter.WriteAsync(99, TestContext.Current.CancellationToken).ConfigureAwait(false);
-        await channel.PrioritizedWriter.WriteAsync(42, priority: 0, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await channel.PrioritizedWriter.WriteAsync(99, TestContext.Current.CancellationToken);
+        await channel.PrioritizedWriter.WriteAsync(42, priority: 0, TestContext.Current.CancellationToken);
         channel.PrioritizedWriter.TryComplete();
 
-        var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
-        var second = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+        var second = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(42, first);
         Assert.Equal(99, second);
@@ -130,12 +130,12 @@ internal partial class GoTests
             singleWriter: true,
             defaultPriority: 1);
 
-        await channel.PrioritizedWriter.WriteAsync(100, TestContext.Current.CancellationToken).ConfigureAwait(false);
-        await channel.PrioritizedWriter.WriteAsync(200, priority: 0, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await channel.PrioritizedWriter.WriteAsync(100, TestContext.Current.CancellationToken);
+        await channel.PrioritizedWriter.WriteAsync(200, priority: 0, TestContext.Current.CancellationToken);
         channel.PrioritizedWriter.TryComplete();
 
-        var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
-        var second = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+        var second = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(200, first);
         Assert.Equal(100, second);
@@ -161,17 +161,17 @@ internal partial class GoTests
         var producers = Task.WhenAll(
             Task.Run(async () =>
             {
-                await channel1.Writer.WriteAsync(11, ct).ConfigureAwait(false);
+                await channel1.Writer.WriteAsync(11, ct);
                 channel1.Writer.TryComplete();
             }, ct),
             Task.Run(async () =>
             {
-                await channel2.Writer.WriteAsync(22, ct).ConfigureAwait(false);
+                await channel2.Writer.WriteAsync(22, ct);
                 channel2.Writer.TryComplete();
             }, ct));
 
-        await producers.ConfigureAwait(false);
-        var result = await fanInTask.ConfigureAwait(false);
+        await producers;
+        var result = await fanInTask;
 
         Assert.True(result.IsSuccess);
         Assert.Contains(11, observed);
@@ -188,10 +188,10 @@ internal partial class GoTests
             static (int _, CancellationToken _) => Task.FromResult(Result.Fail<Unit>(Error.From("boom", ErrorCodes.Validation))),
             cancellationToken: TestContext.Current.CancellationToken);
 
-        await channel.Writer.WriteAsync(5, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await channel.Writer.WriteAsync(5, TestContext.Current.CancellationToken);
         channel.Writer.TryComplete();
 
-        var result = await fanInTask.ConfigureAwait(false);
+        var result = await fanInTask;
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
@@ -207,7 +207,7 @@ internal partial class GoTests
         var result = await SelectFanInAsync(
             [channel.Reader],
             static (int _, CancellationToken _) => Task.FromResult(Result.Ok(Unit.Value)),
-            cancellationToken: cts.Token).ConfigureAwait(false);
+            cancellationToken: cts.Token);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -241,12 +241,12 @@ internal partial class GoTests
         Result<Unit> result;
         try
         {
-            result = await selectTask.ConfigureAwait(false);
+            result = await selectTask;
         }
         finally
         {
             advanceCts.Cancel();
-            await advanceLoop.ConfigureAwait(false);
+            await advanceLoop;
         }
 
         Assert.True(result.IsFailure);
@@ -256,7 +256,7 @@ internal partial class GoTests
     [Fact]
     public async Task SelectFanInAsync_WithNullReaders_Throws()
     {
-        await Assert.ThrowsAsync<ArgumentNullException>(static async () => await SelectFanInAsync<object>(null!, static (_, _) => Task.FromResult(Result.Ok(Unit.Value)), cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAsync<ArgumentNullException>(static async () => await SelectFanInAsync<object>(null!, static (_, _) => Task.FromResult(Result.Ok(Unit.Value)), cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -264,11 +264,11 @@ internal partial class GoTests
     {
         var channel = MakeChannel<int>();
 
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, CancellationToken, Task<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, Task<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, CancellationToken, Task>)null!, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, Task>)null!, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Action<int>)null!, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, CancellationToken, Task<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, Task<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, CancellationToken, Task>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, Task>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Action<int>)null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -284,19 +284,19 @@ internal partial class GoTests
 
         async Task ProduceAsync(ChannelWriter<int> writer, int value)
         {
-            await writer.WriteAsync(value, TestContext.Current.CancellationToken).ConfigureAwait(false);
+            await writer.WriteAsync(value, TestContext.Current.CancellationToken);
             writer.TryComplete();
         }
 
         await Task.WhenAll(
             ProduceAsync(source1.Writer, expected[0]),
-            ProduceAsync(source2.Writer, expected[^1])).ConfigureAwait(false);
-        var result = await fanInTask.ConfigureAwait(false);
+            ProduceAsync(source2.Writer, expected[^1]));
+        var result = await fanInTask;
 
         Assert.True(result.IsSuccess);
 
         var observed = new List<int>();
-        await foreach (var value in destination.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ConfigureAwait(false))
+        await foreach (var value in destination.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
         {
             observed.Add(value);
         }
@@ -314,14 +314,14 @@ internal partial class GoTests
 
         var fanInTask = FanInAsync([source.Reader], destination.Writer, cancellationToken: TestContext.Current.CancellationToken);
 
-        await source.Writer.WriteAsync(42, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await source.Writer.WriteAsync(42, TestContext.Current.CancellationToken);
         source.Writer.TryComplete();
 
-        var result = await fanInTask.ConfigureAwait(false);
+        var result = await fanInTask;
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await destination.Reader.Completion.ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await destination.Reader.Completion);
     }
 
     [Fact]
@@ -329,7 +329,7 @@ internal partial class GoTests
     {
         var destination = MakeChannel<int>();
 
-        var result = await FanInAsync(Array.Empty<ChannelReader<int>>(), destination.Writer, completeDestination: true, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await FanInAsync(Array.Empty<ChannelReader<int>>(), destination.Writer, completeDestination: true, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.True(destination.Reader.Completion.IsCompleted);
@@ -340,7 +340,7 @@ internal partial class GoTests
     {
         var destination = MakeChannel<int>();
 
-        var result = await FanInAsync(Array.Empty<ChannelReader<int>>(), destination.Writer, completeDestination: false, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await FanInAsync(Array.Empty<ChannelReader<int>>(), destination.Writer, completeDestination: false, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.False(destination.Reader.Completion.IsCompleted);
@@ -350,14 +350,14 @@ internal partial class GoTests
     public async Task FanInAsync_WithNullSources_Throws()
     {
         var destination = MakeChannel<int>();
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanInAsync(null!, destination.Writer, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanInAsync(null!, destination.Writer, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task FanInAsync_WithNullDestination_Throws()
     {
         var source = MakeChannel<int>();
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanInAsync([source.Reader], null!, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanInAsync([source.Reader], null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -372,16 +372,16 @@ internal partial class GoTests
 
         async Task ProduceAsync(ChannelWriter<int> writer, int value)
         {
-            await writer.WriteAsync(value, TestContext.Current.CancellationToken).ConfigureAwait(false);
+            await writer.WriteAsync(value, TestContext.Current.CancellationToken);
             writer.TryComplete();
         }
 
         await Task.WhenAll(
             ProduceAsync(source1.Writer, expected[0]),
-            ProduceAsync(source2.Writer, expected[^1])).ConfigureAwait(false);
+            ProduceAsync(source2.Writer, expected[^1]));
 
         var values = new List<int>();
-        await foreach (var value in merged.ReadAllAsync(TestContext.Current.CancellationToken).ConfigureAwait(false))
+        await foreach (var value in merged.ReadAllAsync(TestContext.Current.CancellationToken))
         {
             values.Add(value);
         }
@@ -398,14 +398,14 @@ internal partial class GoTests
     public async Task FanOutAsync_WithNullSource_Throws()
     {
         var destination = MakeChannel<int>();
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync(null!, [destination.Writer], cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync(null!, [destination.Writer], cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task FanOutAsync_WithNullDestinations_Throws()
     {
         var source = MakeChannel<int>();
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync(source.Reader, null!, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync(source.Reader, null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -414,7 +414,7 @@ internal partial class GoTests
         var source = MakeChannel<int>();
         IReadOnlyList<ChannelWriter<int>> destinations = [null!];
 
-        await Assert.ThrowsAsync<ArgumentException>(async () => await FanOutAsync(source.Reader, destinations, cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAsync<ArgumentException>(async () => await FanOutAsync(source.Reader, destinations, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -423,14 +423,14 @@ internal partial class GoTests
         var source = MakeChannel<int>();
         var destination = MakeChannel<int>();
 
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await FanOutAsync(source.Reader, [destination.Writer], deadline: TimeSpan.FromSeconds(-1), cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await FanOutAsync(source.Reader, [destination.Writer], deadline: TimeSpan.FromSeconds(-1), cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task FanOutAsync_WithNoDestinations_ReturnsSuccess()
     {
         var source = MakeChannel<int>();
-        var result = await FanOutAsync(source.Reader, Array.Empty<ChannelWriter<int>>(), cancellationToken: TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await FanOutAsync(source.Reader, Array.Empty<ChannelWriter<int>>(), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
     }
@@ -449,10 +449,10 @@ internal partial class GoTests
         var source = MakeChannel<int>();
         var branches = FanOut(source.Reader, branchCount: 1, completeBranches: false, cancellationToken: TestContext.Current.CancellationToken);
 
-        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
         source.Writer.TryComplete();
 
-        var value = await branches[0].ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var value = await branches[0].ReadAsync(TestContext.Current.CancellationToken);
         Assert.Equal(1, value);
         Assert.False(branches[0].Completion.IsCompleted);
     }
@@ -463,12 +463,12 @@ internal partial class GoTests
         var source = MakeChannel<int>();
         var branches = FanOut(source.Reader, branchCount: 1, completeBranches: true, cancellationToken: TestContext.Current.CancellationToken);
 
-        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
         source.Writer.TryComplete();
 
-        var value = await branches[0].ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var value = await branches[0].ReadAsync(TestContext.Current.CancellationToken);
         Assert.Equal(1, value);
-        await branches[0].Completion.ConfigureAwait(false);
+        await branches[0].Completion;
     }
 
     [Fact]
@@ -476,11 +476,11 @@ internal partial class GoTests
     {
         var source = MakeChannel<int>();
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
 
         var merged = FanIn([source.Reader], cancellationToken: cts.Token);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await merged.ReadAsync(cts.Token).ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await merged.ReadAsync(cts.Token));
         source.Writer.TryComplete();
     }
 
@@ -496,14 +496,14 @@ internal partial class GoTests
             [destination1.Writer, destination2.Writer],
             cancellationToken: TestContext.Current.CancellationToken);
 
-        await source.Writer.WriteAsync(17, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await source.Writer.WriteAsync(17, TestContext.Current.CancellationToken);
         source.Writer.TryComplete();
 
-        var result = await fanOutTask.ConfigureAwait(false);
+        var result = await fanOutTask;
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(17, await destination1.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false));
-        Assert.Equal(17, await destination2.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false));
+        Assert.Equal(17, await destination1.Reader.ReadAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(17, await destination2.Reader.ReadAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -526,7 +526,7 @@ internal partial class GoTests
             provider: provider,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        await source.Writer.WriteAsync(13, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await source.Writer.WriteAsync(13, TestContext.Current.CancellationToken);
         source.Writer.TryComplete();
 
         provider.Advance(TimeSpan.FromMilliseconds(1100));
@@ -545,12 +545,12 @@ internal partial class GoTests
         Result<Unit> result;
         try
         {
-            result = await fanOutTask.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken).ConfigureAwait(false);
+            result = await fanOutTask.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         }
         finally
         {
-            await advanceCts.CancelAsync().ConfigureAwait(false);
-            await advanceLoop.ConfigureAwait(false);
+            await advanceCts.CancelAsync();
+            await advanceLoop;
         }
 
         Assert.True(result.IsFailure);
@@ -569,9 +569,9 @@ internal partial class GoTests
             [destination.Writer],
             cancellationToken: cts.Token);
 
-        await cts.CancelAsync().ConfigureAwait(false);
+        await cts.CancelAsync();
 
-        var result = await fanOutTask.ConfigureAwait(false);
+        var result = await fanOutTask;
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -584,15 +584,15 @@ internal partial class GoTests
 
         var branches = FanOut(source.Reader, 2, cancellationToken: TestContext.Current.CancellationToken);
 
-        await source.Writer.WriteAsync(99, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await source.Writer.WriteAsync(99, TestContext.Current.CancellationToken);
         source.Writer.TryComplete();
 
-        var value1 = await branches[0].ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
-        var value2 = await branches[1].ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var value1 = await branches[0].ReadAsync(TestContext.Current.CancellationToken);
+        var value2 = await branches[1].ReadAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(99, value1);
         Assert.Equal(99, value2);
-        await Assert.ThrowsAsync<ChannelClosedException>(async () => await branches[0].ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
-        await Assert.ThrowsAsync<ChannelClosedException>(async () => await branches[1].ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        await Assert.ThrowsAsync<ChannelClosedException>(async () => await branches[0].ReadAsync(TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ChannelClosedException>(async () => await branches[1].ReadAsync(TestContext.Current.CancellationToken));
     }
 }

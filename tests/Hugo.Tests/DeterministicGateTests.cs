@@ -31,7 +31,7 @@ internal class DeterministicGateTests
                 return Task.FromResult(Result.Ok(21));
             },
             _ => 2,
-            TestContext.Current.CancellationToken).ConfigureAwait(false);
+            TestContext.Current.CancellationToken);
 
         var second = await gate.ExecuteAsync(
             "change.v1",
@@ -48,7 +48,7 @@ internal class DeterministicGateTests
                 return Task.FromResult(Result.Ok(7));
             },
             null,
-            TestContext.Current.CancellationToken).ConfigureAwait(false);
+            TestContext.Current.CancellationToken);
 
         Assert.True(first.IsSuccess);
         Assert.True(second.IsSuccess);
@@ -85,7 +85,7 @@ internal class DeterministicGateTests
                 return Task.FromResult(Result.Ok(50));
             },
             _ => 1,
-            TestContext.Current.CancellationToken).ConfigureAwait(false);
+            TestContext.Current.CancellationToken);
 
         var second = await gate.ExecuteAsync(
             "change.v2",
@@ -102,7 +102,7 @@ internal class DeterministicGateTests
                 return Task.FromResult(Result.Ok(75));
             },
             null,
-            TestContext.Current.CancellationToken).ConfigureAwait(false);
+            TestContext.Current.CancellationToken);
 
         Assert.True(first.IsSuccess);
         Assert.True(second.IsSuccess);
@@ -128,7 +128,7 @@ internal class DeterministicGateTests
             static ct => Task.FromResult(Result.Ok(1)),
             static ct => Task.FromResult(Result.Ok(0)),
             null,
-            TestContext.Current.CancellationToken).ConfigureAwait(false);
+            TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
@@ -154,15 +154,15 @@ internal class DeterministicGateTests
                     async token =>
                     {
                         Interlocked.Increment(ref executions);
-                        await Task.Delay(10, token).ConfigureAwait(false);
+                        await Task.Delay(10, token);
                         return Result.Ok(99);
                     },
-                    ct).ConfigureAwait(false);
+                    ct);
             })
             .WithFallback((ctx, ct) => ctx.CaptureAsync("fallback", _ => Task.FromResult(Result.Ok(5)), ct));
 
-        var first = await workflow.ExecuteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
-        var second = await workflow.ExecuteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var first = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
+        var second = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
         Assert.True(first.IsSuccess);
         Assert.True(second.IsSuccess);
@@ -186,7 +186,7 @@ internal class DeterministicGateTests
             .ForRange(1, 2, static (ctx, ct) => Task.FromResult(Result.Ok("range")))
             .WithFallback(static (ctx, ct) => Task.FromResult(Result.Ok("fallback")));
 
-        var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("fallback", result.Value);
@@ -204,7 +204,7 @@ internal class DeterministicGateTests
         var workflow = gate.Workflow<int>("change.workflow.missing", 1, 2, static _ => 2)
             .ForVersion(1, static (ctx, ct) => Task.FromResult(Result.Ok(10)));
 
-        var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.VersionConflict, result.Error?.Code);
@@ -241,7 +241,7 @@ internal class DeterministicGateTests
                     return Task.FromResult(Result.Ok("existing"));
                 });
 
-        var first = await workflow.ExecuteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var first = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
         Assert.True(first.IsSuccess);
         Assert.Equal("new", first.Value);
@@ -271,7 +271,7 @@ internal class DeterministicGateTests
                     return Task.FromResult(Result.Ok("existing"));
                 });
 
-        var second = await existingWorkflow.ExecuteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var second = await existingWorkflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
         Assert.True(second.IsSuccess);
         Assert.Equal("existing", second.Value);
@@ -317,7 +317,7 @@ internal class DeterministicGateTests
                 return ctx.CaptureAsync("  step  ", () => Result.Ok(5), ct);
             });
 
-        var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("change.workflow.scope::v1::step", effectId);
@@ -332,7 +332,7 @@ internal class DeterministicGateTests
         var workflow = gate.Workflow<int>("change.workflow.invalidstep", 1, 1, static _ => 1)
             .ForVersion(1, static (ctx, ct) => ctx.CaptureAsync(string.Empty, static () => Result.Ok(1), ct));
 
-        var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);

@@ -313,7 +313,7 @@ internal sealed class WorkflowExecutionContextTests : IDisposable
         var context = CreateContext();
 
         var scope = WorkflowExecution.Enter(context, TestContext.Current.CancellationToken);
-        await scope.DisposeAsync().ConfigureAwait(false);
+        await scope.DisposeAsync();
 
         Assert.False(WorkflowExecution.HasCurrent);
     }

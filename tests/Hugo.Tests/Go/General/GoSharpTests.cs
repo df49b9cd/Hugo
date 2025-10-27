@@ -16,12 +16,12 @@ internal class GoSharpTests
         {
             wg.Go(async token =>
             {
-                await Task.Delay(10, token).ConfigureAwait(false);
+                await Task.Delay(10, token);
                 Interlocked.Increment(ref counter);
             }, TestContext.Current.CancellationToken);
         }
 
-        await wg.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(3, counter);
     }
@@ -33,11 +33,11 @@ internal class GoSharpTests
 
         wg.Go(static async () =>
         {
-            await Task.Delay(5, TestContext.Current.CancellationToken).ConfigureAwait(false);
+            await Task.Delay(5, TestContext.Current.CancellationToken);
             throw new InvalidOperationException("boom");
         }, TestContext.Current.CancellationToken);
 
-        await wg.WaitAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.True(true);
     }
@@ -88,7 +88,7 @@ internal class GoSharpTests
         Assert.True(channel.Writer.TryWrite(1));
         Assert.True(channel.Writer.TryWrite(2));
 
-        var value = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        var value = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(2, value);
     }
@@ -106,7 +106,7 @@ internal class GoSharpTests
 
         for (var i = 0; i < 5; i++)
         {
-            var value = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken).ConfigureAwait(false);
+            var value = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
             Assert.Equal(i, value);
         }
     }

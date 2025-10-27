@@ -18,13 +18,13 @@ internal class DeterministicEffectStoreTests
             executionCount++;
             await Task.Yield();
             return Result.Ok(42);
-        }, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        }, TestContext.Current.CancellationToken);
 
         var second = await effectStore.CaptureAsync("effect.success", _ =>
         {
             executionCount++;
             return Task.FromResult(Result.Ok(99));
-        }, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        }, TestContext.Current.CancellationToken);
 
         Assert.True(first.IsSuccess);
         Assert.True(second.IsSuccess);
@@ -42,7 +42,7 @@ internal class DeterministicEffectStoreTests
         var first = await effectStore.CaptureAsync(
             "effect.failure",
             _ => Task.FromResult(Result.Fail<int>(Error.From("boom", ErrorCodes.Validation))),
-            TestContext.Current.CancellationToken).ConfigureAwait(false);
+            TestContext.Current.CancellationToken);
 
         var executed = false;
         var second = await effectStore.CaptureAsync(
@@ -52,7 +52,7 @@ internal class DeterministicEffectStoreTests
                 executed = true;
                 return Task.FromResult(Result.Ok(99));
             },
-            TestContext.Current.CancellationToken).ConfigureAwait(false);
+            TestContext.Current.CancellationToken);
 
         Assert.True(first.IsFailure);
         Assert.Equal(ErrorCodes.Validation, first.Error?.Code);
@@ -70,7 +70,7 @@ internal class DeterministicEffectStoreTests
         var initial = await effectStore.CaptureAsync(
             "effect.type",
             _ => Task.FromResult(Result.Ok(17)),
-            TestContext.Current.CancellationToken).ConfigureAwait(false);
+            TestContext.Current.CancellationToken);
         Assert.True(initial.IsSuccess);
 
         var mismatchExecuted = false;
@@ -81,7 +81,7 @@ internal class DeterministicEffectStoreTests
                 mismatchExecuted = true;
                 return Task.FromResult(Result.Ok("seventeen"));
             },
-            TestContext.Current.CancellationToken).ConfigureAwait(false);
+            TestContext.Current.CancellationToken);
 
         Assert.True(mismatch.IsFailure);
         Assert.Equal(ErrorCodes.DeterministicReplay, mismatch.Error?.Code);
@@ -98,7 +98,7 @@ internal class DeterministicEffectStoreTests
         {
             await Task.Yield();
             throw new InvalidOperationException("broken");
-        }, TestContext.Current.CancellationToken).ConfigureAwait(false);
+        }, TestContext.Current.CancellationToken);
 
         var exceptionExecuted = false;
         var second = await effectStore.CaptureAsync(
@@ -108,7 +108,7 @@ internal class DeterministicEffectStoreTests
                 exceptionExecuted = true;
                 return Task.FromResult(Result.Ok(Unit.Value));
             },
-            TestContext.Current.CancellationToken).ConfigureAwait(false);
+            TestContext.Current.CancellationToken);
 
         Assert.True(first.IsFailure);
         Assert.Equal(ErrorCodes.Exception, first.Error?.Code);
@@ -127,7 +127,7 @@ internal class DeterministicEffectStoreTests
 
         var mismatch = await effectStore.CaptureAsync(
             "effect.kind",
-            static () => Result.Ok(7)).ConfigureAwait(false);
+            static () => Result.Ok(7));
 
         Assert.True(mismatch.IsFailure);
         Assert.Equal(ErrorCodes.DeterministicReplay, mismatch.Error?.Code);
@@ -149,7 +149,7 @@ internal class DeterministicEffectStoreTests
                 await Task.Yield();
                 throw new OperationCanceledException(ct);
             },
-            cts.Token)).ConfigureAwait(false);
+            cts.Token));
 
         Assert.False(store.TryGet("effect.canceled", out _));
     }
@@ -167,7 +167,7 @@ internal class DeterministicEffectStoreTests
             {
                 executions++;
                 return Result.Ok("value");
-            }).ConfigureAwait(false);
+            });
 
         var second = await effectStore.CaptureAsync(
             "effect.sync",
@@ -175,7 +175,7 @@ internal class DeterministicEffectStoreTests
             {
                 executions++;
                 return Result.Ok("other");
-            }).ConfigureAwait(false);
+            });
 
         Assert.True(first.IsSuccess);
         Assert.True(second.IsSuccess);
@@ -194,14 +194,14 @@ internal class DeterministicEffectStoreTests
 
         var initial = await effectStore.CaptureAsync(
             "effect.cancellation",
-            () => Result.Fail<int>(Error.Canceled(token: cts.Token))).ConfigureAwait(false);
+            () => Result.Fail<int>(Error.Canceled(token: cts.Token)));
 
         Assert.True(initial.IsFailure);
         Assert.True(store.TryGet("effect.cancellation", out _));
 
         var replay = await effectStore.CaptureAsync(
             "effect.cancellation",
-            () => Result.Ok(1)).ConfigureAwait(false);
+            () => Result.Ok(1));
 
         Assert.True(replay.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, replay.Error?.Code);
