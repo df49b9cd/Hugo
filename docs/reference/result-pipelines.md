@@ -2,6 +2,21 @@
 
 `Result<T>` is the primary abstraction for representing success or failure. This reference enumerates the factory helpers, combinators, orchestration utilities, and metadata APIs that shape railway-oriented workflows.
 
+## Quick navigation
+
+- [Creating results](#creating-results)
+- [Inspecting and extracting state](#inspecting-and-extracting-state)
+- [Synchronous combinators](#synchronous-combinators)
+- [Async combinators](#async-combinators)
+- [Collection helpers](#collection-helpers)
+- [Streaming and channels](#streaming-and-channels)
+- [Parallel orchestration and retries](#parallel-orchestration-and-retries)
+- [Error metadata](#error-metadata)
+- [Cancellation handling](#cancellation-handling)
+- [Diagnostics](#diagnostics)
+
+> **Best practice:** Keep cancellations (`Error.Canceled`) flowing as data—avoid catching `OperationCanceledException` unless you intend to translate it to a different error code.
+
 ## Creating results
 
 - `Result.Ok<T>(T value)` / `Go.Ok(value)` wrap the value in a success.

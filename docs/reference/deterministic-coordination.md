@@ -2,6 +2,17 @@
 
 Deterministic coordination stitches together version markers and replay-safe side effects. Use these primitives when evolving long-running workflows without duplicating work on retries or replays.
 
+## Quick navigation
+
+- [Components](#components)
+- [One-shot execution](#one-shot-execution)
+- [Workflow builder](#workflow-builder)
+- [Capturing deterministic steps](#capturing-deterministic-steps)
+- [Error behaviour](#error-behaviour)
+- [Observability](#observability)
+
+> **Best practice:** Persist deterministic state in durable storage (SQL, Cosmos DB, Redis) before performing out-of-process side effects so replays can resume from the same step without re-executing external calls.
+
 ## Components
 
 - `VersionGate` records an immutable version decision per change identifier.

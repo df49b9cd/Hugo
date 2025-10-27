@@ -2,6 +2,20 @@
 
 This reference describes the concurrency types exposed through `Hugo.Go`. Each section lists primary APIs, behaviour, and diagnostics emitted via `GoDiagnostics`.
 
+## Quick navigation
+
+- [WaitGroup](#waitgroup)
+- [Mutex](#mutex)
+- [RwMutex](#rwmutex)
+- [Channels](#channels)
+- [Task queue leasing](#task-queue-leasing)
+- [Select / fan-in utilities](#fan-in-utilities)
+- [Result orchestration helpers](#result-orchestration-helpers)
+- [Timers](#timers)
+- [Deterministic utilities](#deterministic-utilities)
+
+> **Best practice:** Configure `GoDiagnostics` (or call `AddHugoDiagnostics`) before constructing these primitives so counters, histograms, and activity sources capture the full lifecycle.
+
 ## WaitGroup
 
 Tracks asynchronous operations and delays shutdown until every task completes.
