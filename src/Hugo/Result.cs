@@ -66,7 +66,7 @@ public static partial class Result
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <param name="errorFactory">An optional factory that converts exceptions into errors.</param>
     /// <returns>A successful result containing the operation output or a failure wrapping the thrown exception.</returns>
-    public static async Task<Result<T>> TryAsync<T>(Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken = default, Func<Exception, Error?>? errorFactory = null)
+    public static async Task<Result<T>> TryAsync<T>(Func<CancellationToken, Task<T>> operation, Func<Exception, Error?>? errorFactory = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(operation);
 
@@ -559,7 +559,7 @@ public readonly record struct Result<T>
 
     /// <summary>Converts the result into an <see cref="Optional{T}"/>.</summary>
     /// <returns>An optional representing the current result.</returns>
-    public Optional<T> ToOptional() => IsSuccess ? Optional<T>.SomeUnsafe(_value) : Optional<T>.None();
+    public Optional<T> ToOptional() => IsSuccess ? Optional<T>.SomeUnsafe(_value) : Optional.None<T>();
 
     /// <summary>Supports tuple deconstruction syntax.</summary>
     /// <param name="value">When this method returns, contains the successful value or the default.</param>

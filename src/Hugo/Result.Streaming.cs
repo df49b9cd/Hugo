@@ -20,7 +20,7 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(writer);
 
-        await ForwardToChannelInternalAsync(source, writer, cancellationToken, completeWriter: true).ConfigureAwait(false);
+        await ForwardToChannelInternalAsync(source, writer, completeWriter: true, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -56,7 +56,7 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(writer);
 
-        Task[] forwarders = [.. sources.Select(source => Go.Run(async _ => await ForwardToChannelInternalAsync(source, writer, cancellationToken, completeWriter: false).ConfigureAwait(false), cancellationToken))];
+        Task[] forwarders = [.. sources.Select(source => Go.Run(async _ => await ForwardToChannelInternalAsync(source, writer, completeWriter: false, cancellationToken).ConfigureAwait(false), cancellationToken))];
 
         Exception? failure = null;
         try
@@ -186,7 +186,7 @@ public static partial class Result
         }, cancellationToken));
     }
 
-    private static async Task ForwardToChannelInternalAsync<T>(IAsyncEnumerable<Result<T>> source, ChannelWriter<Result<T>> writer, CancellationToken cancellationToken, bool completeWriter)
+    private static async Task ForwardToChannelInternalAsync<T>(IAsyncEnumerable<Result<T>> source, ChannelWriter<Result<T>> writer, bool completeWriter, CancellationToken cancellationToken)
     {
         try
         {

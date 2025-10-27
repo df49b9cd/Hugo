@@ -9,7 +9,7 @@ public sealed class SafeTaskQueueTests
     public async Task EnqueueLeaseComplete_ShouldReturnSuccess()
     {
         await using var queue = new TaskQueue<string>();
-        await using var safeQueue = new SafeTaskQueue<string>(queue);
+        await using var safeQueue = new SafeTaskQueueWrapper<string>(queue);
 
         var enqueue = await safeQueue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
         Assert.True(enqueue.IsSuccess);
@@ -27,7 +27,7 @@ public sealed class SafeTaskQueueTests
     public async Task Lease_WhenQueueDisposed_ShouldFail()
     {
         await using var queue = new TaskQueue<string>();
-        await using var safeQueue = new SafeTaskQueue<string>(queue);
+        await using var safeQueue = new SafeTaskQueueWrapper<string>(queue);
 
         await queue.DisposeAsync();
 
@@ -44,7 +44,7 @@ public sealed class SafeTaskQueueTests
     public async Task LeaseOperations_ShouldReturnFailuresInsteadOfThrowing()
     {
         await using var queue = new TaskQueue<string>();
-        await using var safeQueue = new SafeTaskQueue<string>(queue);
+        await using var safeQueue = new SafeTaskQueueWrapper<string>(queue);
 
         await safeQueue.EnqueueAsync("gamma", TestContext.Current.CancellationToken);
         var leaseResult = await safeQueue.LeaseAsync(TestContext.Current.CancellationToken);
@@ -71,7 +71,7 @@ public sealed class SafeTaskQueueTests
     public async Task FailAsync_WithNullError_ShouldReturnValidationError()
     {
         await using var queue = new TaskQueue<string>();
-        await using var safeQueue = new SafeTaskQueue<string>(queue);
+        await using var safeQueue = new SafeTaskQueueWrapper<string>(queue);
 
         await safeQueue.EnqueueAsync("delta", TestContext.Current.CancellationToken);
         var leaseResult = await safeQueue.LeaseAsync(TestContext.Current.CancellationToken);
@@ -88,7 +88,7 @@ public sealed class SafeTaskQueueTests
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<string>(timeProvider: provider);
-        await using var safeQueue = new SafeTaskQueue<string>(queue);
+        await using var safeQueue = new SafeTaskQueueWrapper<string>(queue);
 
         await safeQueue.EnqueueAsync("epsilon", TestContext.Current.CancellationToken);
         var leaseResult = await safeQueue.LeaseAsync(TestContext.Current.CancellationToken);
@@ -110,7 +110,7 @@ public sealed class SafeTaskQueueTests
     public async Task LeaseAsync_WhenCanceled_ShouldReturnCanceledError()
     {
         await using var queue = new TaskQueue<string>();
-        await using var safeQueue = new SafeTaskQueue<string>(queue);
+        await using var safeQueue = new SafeTaskQueueWrapper<string>(queue);
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
