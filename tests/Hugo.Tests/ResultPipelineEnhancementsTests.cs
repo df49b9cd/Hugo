@@ -247,7 +247,7 @@ public class ResultPipelineEnhancementsTests
             }
         }
 
-        await Result.FanInAsync(new[] { Source(0, TestContext.Current.CancellationToken), Source(2, TestContext.Current.CancellationToken) }, channel.Writer, TestContext.Current.CancellationToken);
+        await Result.FanInAsync([Source(0, TestContext.Current.CancellationToken), Source(2, TestContext.Current.CancellationToken)], channel.Writer, TestContext.Current.CancellationToken);
 
         var collected = new List<int>();
         await foreach (var result in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
@@ -280,7 +280,7 @@ public class ResultPipelineEnhancementsTests
         }
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await Result.FanInAsync(new[] { Faulty(TestContext.Current.CancellationToken), Healthy(TestContext.Current.CancellationToken) }, channel.Writer, TestContext.Current.CancellationToken));
+            await Result.FanInAsync([Faulty(TestContext.Current.CancellationToken), Healthy(TestContext.Current.CancellationToken)], channel.Writer, TestContext.Current.CancellationToken));
 
         var buffered = new List<Result<int>>();
         while (channel.Reader.TryRead(out var item))
@@ -329,7 +329,7 @@ public class ResultPipelineEnhancementsTests
         var oddResults = await ReadAllResultsAsync(oddWriter.Reader);
 
         Assert.All(evenResults, static result => Assert.True(result.IsSuccess));
-        Assert.Equal([2], evenResults.Select(static result => result.Value).ToArray());
+        Assert.Equal([2], [.. evenResults.Select(static result => result.Value)]);
 
         Assert.Equal(2, oddResults.Count);
         Assert.True(oddResults[0].IsSuccess);
@@ -463,7 +463,7 @@ public class ResultPipelineEnhancementsTests
 
             context.RegisterCompensation(static ct => ValueTask.CompletedTask);
             return Result.Ok(42);
-        }, policy, TestContext.Current.CancellationToken);
+        }, policy, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(42, result.Value);
@@ -480,7 +480,7 @@ public class ResultPipelineEnhancementsTests
         {
             attempts++;
             return ValueTask.FromResult(Result.Fail<int>(Error.From("still failing", ErrorCodes.Exception)));
-        }, policy, TestContext.Current.CancellationToken);
+        }, policy, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(3, attempts);
@@ -496,7 +496,7 @@ public class ResultPipelineEnhancementsTests
             values.Add(result.Value);
         }
 
-        return values.ToArray();
+        return [.. values];
     }
 
     private static async Task<List<Result<int>>> ReadAllResultsAsync(ChannelReader<Result<int>> reader)

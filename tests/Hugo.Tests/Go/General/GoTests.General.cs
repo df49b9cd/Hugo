@@ -822,7 +822,7 @@ public partial class GoTests
             Activity[] recorded;
             lock (stoppedActivities)
             {
-                recorded = stoppedActivities.ToArray();
+                recorded = [.. stoppedActivities];
             }
 
             var activity = Assert.Single(recorded, static activity => activity.DisplayName == "Go.Select");
@@ -867,7 +867,7 @@ public partial class GoTests
             Activity[] recorded;
             lock (stoppedActivities)
             {
-                recorded = stoppedActivities.ToArray();
+                recorded = [.. stoppedActivities];
             }
 
             var activity = Assert.Single(recorded, static activity => activity.DisplayName == "Go.Select");

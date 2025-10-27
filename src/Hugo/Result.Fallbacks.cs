@@ -22,7 +22,7 @@ public sealed class ResultFallbackTier<T>
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(operations);
 
-        var list = operations as IList<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> ?? operations.ToList();
+        var list = operations as IList<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> ?? [.. operations];
         if (list.Count == 0)
         {
             throw new ArgumentException("At least one fallback operation must be provided.", nameof(operations));
@@ -98,7 +98,7 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(tiers);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
-        var tierList = tiers as IList<ResultFallbackTier<T>> ?? tiers.ToList();
+        var tierList = tiers as IList<ResultFallbackTier<T>> ?? [.. tiers];
         if (tierList.Count == 0)
         {
             return Fail<T>(Error.From("No fallback tiers were provided.", ErrorCodes.Validation));
@@ -143,7 +143,7 @@ public static partial class Result
             return Fail<T>(tierErrors[0]);
         }
 
-        var aggregate = Error.Aggregate("Fallback pipeline exhausted all tiers.", tierErrors.ToArray());
+        var aggregate = Error.Aggregate("Fallback pipeline exhausted all tiers.", [.. tierErrors]);
         return Fail<T>(aggregate);
     }
 

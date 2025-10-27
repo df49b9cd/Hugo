@@ -92,10 +92,7 @@ public sealed class RwMutex : IDisposable
 
     private void ThrowIfDisposed()
     {
-        if (Volatile.Read(ref _disposed) == 1)
-        {
-            throw new ObjectDisposedException(nameof(RwMutex));
-        }
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
     }
 
     /// <summary>Releases unmanaged resources.</summary>

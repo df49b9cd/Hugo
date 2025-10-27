@@ -56,9 +56,7 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(writer);
 
-        Task[] forwarders = sources
-            .Select(source => Go.Run(async _ => await ForwardToChannelInternalAsync(source, writer, cancellationToken, completeWriter: false).ConfigureAwait(false), cancellationToken))
-            .ToArray();
+        Task[] forwarders = [.. sources.Select(source => Go.Run(async _ => await ForwardToChannelInternalAsync(source, writer, cancellationToken, completeWriter: false).ConfigureAwait(false), cancellationToken))];
 
         Exception? failure = null;
         try

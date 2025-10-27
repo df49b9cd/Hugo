@@ -82,8 +82,8 @@ public static partial class Go
                     }
                 },
                 policy,
-                cancellationToken,
-                provider)
+                provider,
+                cancellationToken)
             .ConfigureAwait(false);
 
         if (finalResult.IsFailure)

@@ -43,7 +43,7 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
-        var operationList = operations as IList<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> ?? operations.ToList();
+        var operationList = operations as IList<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> ?? [.. operations];
         if (operationList.Count == 0)
         {
             return Ok<IReadOnlyList<T>>(Array.Empty<T>());
@@ -104,7 +104,7 @@ public static partial class Result
 
         var aggregate = errors.Count == 1
             ? errors[0]
-            : Error.Aggregate("One or more operations failed.", errors.ToArray());
+            : Error.Aggregate("One or more operations failed.", [.. errors]);
 
         return Fail<IReadOnlyList<T>>(aggregate);
     }
@@ -118,7 +118,7 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
-        var operationList = operations as IList<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> ?? operations.ToList();
+        var operationList = operations as IList<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> ?? [.. operations];
         if (operationList.Count == 0)
         {
             return Fail<T>(Error.From("No operations provided for WhenAny.", ErrorCodes.Validation));
@@ -220,7 +220,7 @@ public static partial class Result
 
             var aggregate = errors.Count == 1
                 ? errors[0]
-                : Error.Aggregate("All operations failed.", errors.ToArray());
+                : Error.Aggregate("All operations failed.", [.. errors]);
 
             return Fail<T>(aggregate);
         }
@@ -236,7 +236,7 @@ public static partial class Result
         {
             var aggregate = errors.Count == 1
                 ? errors[0]
-                : Error.Aggregate("One or more secondary operations failed.", errors.ToArray());
+                : Error.Aggregate("One or more secondary operations failed.", [.. errors]);
             return Fail<T>(aggregate);
         }
 

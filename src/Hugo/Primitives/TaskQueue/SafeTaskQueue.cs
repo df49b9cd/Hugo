@@ -8,17 +8,17 @@ namespace Hugo;
 /// Provides a result-based wrapper around <see cref="TaskQueue{T}"/> that converts common exceptions into <see cref="Result{T}"/> failures.
 /// </summary>
 /// <typeparam name="T">Work item type.</typeparam>
-public sealed class SafeTaskQueue<T> : IAsyncDisposable
+public sealed class SafeTaskQueueWrapper<T> : IAsyncDisposable
 {
     private readonly TaskQueue<T> _queue;
     private readonly bool _ownsQueue;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SafeTaskQueue{T}"/> class.
+    /// Initializes a new instance of the <see cref="SafeTaskQueueWrapper{T}"/> class.
     /// </summary>
     /// <param name="queue">Underlying task queue to wrap.</param>
     /// <param name="ownsQueue">True to dispose the underlying queue when this wrapper is disposed.</param>
-    public SafeTaskQueue(TaskQueue<T> queue, bool ownsQueue = false)
+    public SafeTaskQueueWrapper(TaskQueue<T> queue, bool ownsQueue = false)
     {
         _queue = queue ?? throw new ArgumentNullException(nameof(queue));
         _ownsQueue = ownsQueue;
@@ -111,7 +111,7 @@ public sealed class SafeTaskQueueLease<T>
     /// <summary>Wraps the specified lease instance.</summary>
     /// <param name="lease">The lease to wrap.</param>
     /// <returns>A safe lease wrapper.</returns>
-    public static SafeTaskQueueLease<T> From(TaskQueueLease<T> lease) => new(lease);
+    internal static SafeTaskQueueLease<T> From(TaskQueueLease<T> lease) => new(lease);
 
     /// <summary>
     /// Gets the leased value.

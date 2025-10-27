@@ -26,7 +26,7 @@ public partial class GoTests
         var result = await FanOutAsync(operations, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(new[] { 1, 2 }, result.Value.ToArray());
+        Assert.Equal([1, 2], result.Value);
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public partial class GoTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(99, result.Value);
-        Assert.Equal(new[] { 1, 2, 3 }, attempts.ToArray());
+        Assert.Equal(new[] { 1, 2, 3 }, attempts);
     }
 
     [Fact]
@@ -270,10 +270,10 @@ public partial class GoTests
     {
         using var cts = new CancellationTokenSource();
         TaskCompletionSource[] started =
-        {
+        [
             new(TaskCreationOptions.RunContinuationsAsynchronously),
             new(TaskCreationOptions.RunContinuationsAsynchronously)
-        };
+        ];
 
         var operations = new List<Func<CancellationToken, Task<Result<int>>>>
         {
@@ -346,10 +346,10 @@ public partial class GoTests
     {
         using var cts = new CancellationTokenSource();
         TaskCompletionSource[] started =
-        {
+        [
             new(TaskCreationOptions.RunContinuationsAsynchronously),
             new(TaskCreationOptions.RunContinuationsAsynchronously)
-        };
+        ];
 
         var operations = new List<Func<CancellationToken, Task<Result<int>>>>
         {
