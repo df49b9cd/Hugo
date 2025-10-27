@@ -7,7 +7,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-internal partial class GoTests
+public partial class GoTests
 {
     [Fact]
     public void MakeChannel_WithCapacity_UsesBoundedConfiguration()
