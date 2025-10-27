@@ -1,5 +1,7 @@
 using System.Threading.Channels;
 
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Hugo;
 
 /// <summary>Provides a fluent API for configuring bounded channels before creation.</summary>
@@ -108,7 +110,7 @@ public sealed class PrioritizedChannelBuilder<T>
     private bool _singleWriter;
     private Action<PrioritizedChannelOptions>? _configure;
 
-    internal PrioritizedChannelBuilder() : this(3);
+    internal PrioritizedChannelBuilder() : this(3) { }
 
     internal PrioritizedChannelBuilder(int priorityLevels)
     {
