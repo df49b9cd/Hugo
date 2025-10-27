@@ -1,6 +1,6 @@
 namespace Hugo.Tests;
 
-internal class InMemoryDeterministicStateStoreTests
+public class InMemoryDeterministicStateStoreTests
 {
     [Fact]
     public void TryGet_ShouldThrow_WhenKeyMissing()
@@ -31,7 +31,7 @@ internal class InMemoryDeterministicStateStoreTests
     public void SetAndTryGet_ShouldReturnStoredRecord()
     {
         var store = new InMemoryDeterministicStateStore();
-        var record = new DeterministicRecord("hugo.test", 2, new byte[] { 1 }, DateTimeOffset.UtcNow);
+        var record = new DeterministicRecord("hugo.test", 2, [1], DateTimeOffset.UtcNow);
 
         store.Set("key", record);
 

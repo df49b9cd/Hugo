@@ -66,7 +66,7 @@ public static partial class Result
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <param name="errorFactory">An optional factory that converts exceptions into errors.</param>
     /// <returns>A successful result containing the operation output or a failure wrapping the thrown exception.</returns>
-    public static async Task<Result<T>> TryAsync<T>(Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken = default, Func<Exception, Error?>? errorFactory = null)
+    public static async Task<Result<T>> TryAsync<T>(Func<CancellationToken, Task<T>> operation, Func<Exception, Error?>? errorFactory = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(operation);
 
@@ -321,73 +321,77 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(selector);
 
         var configuredSource = source.WithCancellation(cancellationToken).ConfigureAwait(false);
-        await using var enumerator = configuredSource.GetAsyncEnumerator().ConfigureAwait(false);
-
-        while (true)
+        var enumerator = configuredSource.GetAsyncEnumerator();
+        try
         {
-            bool hasNext;
-            Result<TOut> failure = default;
-            var hasFailure = false;
-            try
+            while (true)
             {
-                hasNext = await enumerator.MoveNextAsync();
-            }
-            catch (OperationCanceledException oce)
-            {
-                failure = Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
-                hasFailure = true;
-                hasNext = false;
-            }
-            catch (Exception ex)
-            {
-                failure = Fail<TOut>(Error.FromException(ex));
-                hasFailure = true;
-                hasNext = false;
-            }
+                Result<TOut> failure = default;
+                var hasFailure = false;
+                bool hasNext;
+                try
+                {
+                    hasNext = await enumerator.MoveNextAsync();
+                }
+                catch (OperationCanceledException oce)
+                {
+                    failure = Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+                    hasFailure = true;
+                    hasNext = false;
+                }
+                catch (Exception ex)
+                {
+                    failure = Fail<TOut>(Error.FromException(ex));
+                    hasFailure = true;
+                    hasNext = false;
+                }
 
-            if (hasFailure)
-            {
-                yield return failure;
-                yield break;
-            }
+                if (hasFailure)
+                {
+                    yield return failure;
+                    yield break;
+                }
 
-            if (!hasNext)
-            {
-                yield break;
-            }
+                if (!hasNext)
+                {
+                    yield break;
+                }
 
-            Result<TOut> mapped;
-            failure = default;
-            hasFailure = false;
-            try
-            {
-                mapped = await selector(enumerator.Current, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException oce)
-            {
-                failure = Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
-                hasFailure = true;
-                mapped = default;
-            }
-            catch (Exception ex)
-            {
-                failure = Fail<TOut>(Error.FromException(ex));
-                hasFailure = true;
-                mapped = default;
-            }
+                Result<TOut> mapped;
+                try
+                {
+                    mapped = await selector(enumerator.Current, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException oce)
+                {
+                    failure = Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+                    hasFailure = true;
+                    mapped = default;
+                }
+                catch (Exception ex)
+                {
+                    failure = Fail<TOut>(Error.FromException(ex));
+                    hasFailure = true;
+                    mapped = default;
+                }
 
-            if (hasFailure)
-            {
-                yield return failure;
-                yield break;
-            }
+                if (hasFailure)
+                {
+                    yield return failure;
+                    yield break;
+                }
 
-            yield return mapped;
+                yield return mapped;
 
-            if (mapped.IsFailure)
-            {
-                yield break;
+                if (mapped.IsFailure)
+                {
+                    yield break;
+                }
             }
+        }
+        finally
+        {
+            await enumerator.DisposeAsync();
         }
     }
 }
@@ -555,7 +559,7 @@ public readonly record struct Result<T>
 
     /// <summary>Converts the result into an <see cref="Optional{T}"/>.</summary>
     /// <returns>An optional representing the current result.</returns>
-    public Optional<T> ToOptional() => IsSuccess ? Optional<T>.SomeUnsafe(_value) : Optional<T>.None();
+    public Optional<T> ToOptional() => IsSuccess ? Optional<T>.SomeUnsafe(_value) : Optional.None<T>();
 
     /// <summary>Supports tuple deconstruction syntax.</summary>
     /// <param name="value">When this method returns, contains the successful value or the default.</param>
@@ -584,6 +588,11 @@ public readonly record struct Result<T>
     {
         throw new NotImplementedException();
     }
+
+    public (T Value, Error? Error) ToValueTuple()
+    {
+        throw new NotImplementedException();
+    }
 }
 
 /// <summary>
@@ -607,6 +616,17 @@ public sealed class ResultException : Exception
     public Error Error { get; }
 
     public ResultException()
+        : this(Error.Unspecified())
+    {
+    }
+
+    public ResultException(string message)
+        : this(Error.From(message ?? Error.Unspecified().Message, ErrorCodes.Exception))
+    {
+    }
+
+    public ResultException(string message, Exception innerException)
+        : this(Error.From(message ?? innerException?.Message ?? Error.Unspecified().Message, ErrorCodes.Exception, innerException))
     {
     }
 }

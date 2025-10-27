@@ -1,6 +1,6 @@
 namespace Hugo.Tests;
 
 [CollectionDefinition("GoConcurrency", DisableParallelization = true)]
-internal sealed class GoConcurrencyCollection
+public sealed class GoConcurrencyCollection
 {
 }

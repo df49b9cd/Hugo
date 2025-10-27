@@ -1,6 +1,6 @@
 namespace Hugo.Tests;
 
-internal class OptionalTests
+public class OptionalTests
 {
     [Fact]
     public void Some_ShouldContainValue()
@@ -15,7 +15,7 @@ internal class OptionalTests
     [Fact]
     public void None_ShouldIndicateAbsence()
     {
-        var optional = Optional<int>.None();
+        var optional = Optional.None<int>();
 
         Assert.False(optional.HasValue);
         Assert.True(optional.HasNoValue);
@@ -25,7 +25,7 @@ internal class OptionalTests
     [Fact]
     public void Value_ShouldThrow_WhenNoValue()
     {
-        var optional = Optional<string>.None();
+        var optional = Optional.None<string>();
 
         Assert.Throws<InvalidOperationException>(() => optional.Value);
     }
@@ -33,7 +33,7 @@ internal class OptionalTests
     [Fact]
     public void ValueOr_ShouldReturnFallback_WhenNone()
     {
-        var optional = Optional<string>.None();
+        var optional = Optional.None<string>();
 
         Assert.Equal("fallback", optional.ValueOr("fallback"));
     }
@@ -41,7 +41,7 @@ internal class OptionalTests
     [Fact]
     public void ValueOr_ShouldInvokeFactory_WhenNone()
     {
-        var optional = Optional<string>.None();
+        var optional = Optional.None<string>();
         var invoked = false;
 
         var value = optional.ValueOr(() =>
@@ -58,7 +58,7 @@ internal class OptionalTests
     public void Match_ShouldSelectCorrectBranch()
     {
         var some = Optional.Some("value");
-        var none = Optional<string>.None();
+        var none = Optional.None<string>();
 
         Assert.Equal("value", some.Match(static v => v, static () => "none"));
         Assert.Equal("none", none.Match(static v => v, static () => "none"));
@@ -71,7 +71,7 @@ internal class OptionalTests
         var noneBranchInvoked = false;
 
         Optional.Some(5).Switch(_ => valueBranchInvoked = true, () => noneBranchInvoked = true);
-        Optional<int>.None().Switch(_ => valueBranchInvoked = true, () => noneBranchInvoked = true);
+        Optional.None<int>().Switch(_ => valueBranchInvoked = true, () => noneBranchInvoked = true);
 
         Assert.True(valueBranchInvoked);
         Assert.True(noneBranchInvoked);
@@ -107,7 +107,7 @@ internal class OptionalTests
     public void Or_ShouldReturnAlternative_WhenNone()
     {
         var alternative = Optional.Some("alt");
-        var value = Optional<string>.None().Or(alternative);
+        var value = Optional.None<string>().Or(alternative);
 
         Assert.True(value.HasValue);
         Assert.Equal("alt", value.Value);
@@ -127,7 +127,7 @@ internal class OptionalTests
     [Fact]
     public void ToResult_ShouldUseErrorFactory_WhenNone()
     {
-        var optional = Optional<int>.None();
+        var optional = Optional.None<int>();
 
         var result = optional.ToResult(static () => Error.From("missing", ErrorCodes.Validation));
 
@@ -170,7 +170,7 @@ internal class OptionalTests
     [Fact]
     public void FromOptional_ShouldReturnFailure_WhenNone()
     {
-        var optional = Optional<int>.None();
+        var optional = Optional.None<int>();
 
         var result = Result.FromOptional(optional, static () => Error.From("missing", ErrorCodes.Validation));
 

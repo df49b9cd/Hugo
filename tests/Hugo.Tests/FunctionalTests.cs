@@ -4,7 +4,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-internal class FunctionalTests
+public class FunctionalTests
 {
     [Fact]
     public void Err_ShouldReturnDefaultError_WhenGivenNull()
@@ -192,7 +192,7 @@ internal class FunctionalTests
     {
         var result = await Ok(5).EnsureAsync(
             static (v, _) => Task.FromResult(v > 10),
-            TestContext.Current.CancellationToken
+            cancellationToken: TestContext.Current.CancellationToken
         );
 
         Assert.True(result.IsFailure);
@@ -272,7 +272,7 @@ internal class FunctionalTests
             )
             .EnsureAsync(
                 static (value, _) => Task.FromResult(value == 10),
-                TestContext.Current.CancellationToken
+                cancellationToken: TestContext.Current.CancellationToken
             )
             .RecoverAsync(
                 static _ => Ok(42),
@@ -512,7 +512,7 @@ internal class FunctionalTests
         {
             await Task.Delay(5, ct);
             return false;
-        }, TestContext.Current.CancellationToken);
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(ensured.IsFailure);
         Assert.Equal(ErrorCodes.Validation, ensured.Error?.Code);

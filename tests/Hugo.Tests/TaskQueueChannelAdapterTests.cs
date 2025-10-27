@@ -5,7 +5,7 @@ using Microsoft.Extensions.Time.Testing;
 namespace Hugo.Tests;
 
 [Collection("TaskQueueConcurrency")]
-internal class TaskQueueChannelAdapterTests
+public class TaskQueueChannelAdapterTests
 {
     private static async Task WaitForConditionAsync(Func<bool> condition, CancellationToken cancellationToken, TimeSpan? pollInterval = null)
     {
@@ -131,7 +131,7 @@ internal class TaskQueueChannelAdapterTests
     [Fact]
     public async Task Dispose_WithOwnership_ShouldDisposeQueue()
     {
-        var queue = new TaskQueue<string>();
+        await using var queue = new TaskQueue<string>();
         var adapter = TaskQueueChannelAdapter<string>.Create(queue, ownsQueue: true);
 
         await adapter.DisposeAsync();

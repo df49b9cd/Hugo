@@ -4,7 +4,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-internal class GoSharpTests
+public class GoSharpTests
 {
     [Fact]
     public async Task WaitGroup_Go_WithCancellationAwareWork_ShouldComplete()

@@ -814,14 +814,14 @@ public static class Functional
     /// <typeparam name="T">The result value type.</typeparam>
     /// <param name="result">The source result.</param>
     /// <param name="predicate">The asynchronous predicate evaluated on success.</param>
-    /// <param name="cancellationToken">The token used to cancel predicate evaluation.</param>
     /// <param name="errorFactory">An optional factory that produces an error when the predicate fails.</param>
+    /// <param name="cancellationToken">The token used to cancel predicate evaluation.</param>
     /// <returns>The original result when the predicate succeeds; otherwise a failure.</returns>
     public static async Task<Result<T>> EnsureAsync<T>(
         this Result<T> result,
         Func<T, CancellationToken, Task<bool>> predicate,
-        CancellationToken cancellationToken = default,
-        Func<T, Error>? errorFactory = null
+        Func<T, Error>? errorFactory = null,
+        CancellationToken cancellationToken = default
     )
     {
         ArgumentNullException.ThrowIfNull(predicate);
@@ -853,8 +853,8 @@ public static class Functional
     public static async Task<Result<T>> EnsureAsync<T>(
         this Task<Result<T>> resultTask,
         Func<T, CancellationToken, Task<bool>> predicate,
-        CancellationToken cancellationToken = default,
-        Func<T, Error>? errorFactory = null
+        Func<T, Error>? errorFactory = null,
+        CancellationToken cancellationToken = default
     )
     {
         ArgumentNullException.ThrowIfNull(resultTask);
@@ -865,7 +865,7 @@ public static class Functional
         {
             cancellationToken.ThrowIfCancellationRequested();
             var result = await resultTask.ConfigureAwait(false);
-            return await result.EnsureAsync(predicate, cancellationToken, errorFactory).ConfigureAwait(false);
+            return await result.EnsureAsync(predicate, errorFactory, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException oce)
         {

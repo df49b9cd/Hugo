@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
 namespace Hugo;
@@ -191,6 +192,7 @@ public readonly record struct TaskQueueDeadLetterContext<T>(T Value, Error Error
 /// <summary>
 /// Provides a channel-backed task queue with cooperative leasing and heartbeat semantics.
 /// </summary>
+[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "TaskQueue exposes queue semantics without deriving from System.Collections.Queue by design.")]
 public sealed class TaskQueue<T> : IAsyncDisposable
 {
     private readonly TaskQueueOptions _options;

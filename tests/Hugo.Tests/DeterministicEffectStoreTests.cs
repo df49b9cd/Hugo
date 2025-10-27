@@ -4,7 +4,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-internal class DeterministicEffectStoreTests
+public class DeterministicEffectStoreTests
 {
     [Fact]
     public async Task CaptureAsync_ShouldRecordAndReplaySuccessfulResult()

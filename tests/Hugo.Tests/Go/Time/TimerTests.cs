@@ -6,7 +6,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-internal class TimerTests
+public class TimerTests
 {
     [Fact]
     public async Task After_WithFakeTimeProvider_ShouldEmitOnce()

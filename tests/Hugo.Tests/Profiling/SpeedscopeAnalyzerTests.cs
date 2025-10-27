@@ -4,7 +4,7 @@ using Hugo.Profiling;
 
 namespace Hugo.Tests.Profiling;
 
-internal sealed class SpeedscopeAnalyzerTests
+public sealed class SpeedscopeAnalyzerTests
 {
     [Fact]
     public void Analyze_ComputesFrameAndProfileSummaries()

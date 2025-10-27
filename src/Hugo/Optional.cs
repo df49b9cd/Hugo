@@ -5,6 +5,7 @@ namespace Hugo;
 /// <summary>
 /// Represents an optional value that may or may not be present.
 /// </summary>
+[SuppressMessage("Naming", "CA1716:Identifiers should not match keywords", Justification = "Optional is the established API surface for modeling optional values across the library.")]
 public readonly record struct Optional<T>
 {
     private readonly T _value;
@@ -15,22 +16,13 @@ public readonly record struct Optional<T>
         HasValue = hasValue;
     }
 
-    /// <summary>Creates an optional with the provided value.</summary>
-    /// <param name="value">The value to wrap.</param>
-    /// <returns>An optional containing <paramref name="value"/>.</returns>
-    public static Optional<T> Some(T value)
+    public Optional(T value)
     {
-        if (value is null)
-        {
-            throw new ArgumentNullException(nameof(value));
-        }
+        ArgumentNullException.ThrowIfNull(value);
 
-        return new Optional<T>(value, true);
+        _value = value;
+        HasValue = true;
     }
-
-    /// <summary>Gets an optional without a value.</summary>
-    /// <returns>An optional that does not contain a value.</returns>
-    public static Optional<T> None() => default;
 
     /// <summary>
     /// Indicates whether the optional contains a value.
@@ -118,7 +110,7 @@ public readonly record struct Optional<T>
     {
         ArgumentNullException.ThrowIfNull(mapper);
 
-        return HasValue ? Optional<TResult>.Some(mapper(_value)) : Optional<TResult>.None();
+        return HasValue ? Optional.Some(mapper(_value)) : default;
     }
 
     /// <summary>Binds the value when present using the provided binder.</summary>
@@ -129,7 +121,7 @@ public readonly record struct Optional<T>
     {
         ArgumentNullException.ThrowIfNull(binder);
 
-        return HasValue ? binder(_value) : Optional<TResult>.None();
+        return HasValue ? binder(_value) : default;
     }
 
     /// <summary>Keeps the value only when the predicate returns <see langword="true"/>.</summary>
@@ -144,7 +136,7 @@ public readonly record struct Optional<T>
             return this;
         }
 
-        return predicate(_value) ? this : None();
+        return predicate(_value) ? this : default;
     }
 
     /// <summary>Converts the optional into a <see cref="Result{T}"/>.</summary>
@@ -182,20 +174,21 @@ public readonly record struct Optional<T>
 /// <summary>
 /// Provides helper methods for working with optionals.
 /// </summary>
+[SuppressMessage("Naming", "CA1716:Identifiers should not match keywords", Justification = "Optional is the established API surface for modeling optional values across the library.")]
 public static class Optional
 {
     /// <summary>Creates an optional containing the provided value.</summary>
     /// <typeparam name="T">The value type.</typeparam>
     /// <param name="value">The value to wrap.</param>
     /// <returns>An optional containing <paramref name="value"/>.</returns>
-    public static Optional<T> Some<T>(T value) => Optional<T>.Some(value);
+    public static Optional<T> Some<T>(T value) => new Optional<T>(value);
 
     /// <summary>
     /// Returns an empty optional.
     /// </summary>
     /// <typeparam name="T">The value type.</typeparam>
     /// <returns>An empty optional.</returns>
-    public static Optional<T> None<T>() => Optional<T>.None();
+    public static Optional<T> None<T>() => default;
 
     /// <summary>
     /// Creates an optional from a nullable reference.
@@ -203,7 +196,8 @@ public static class Optional
     /// <typeparam name="T">The value type.</typeparam>
     /// <param name="value">The nullable reference value.</param>
     /// <returns>An optional that is empty when <paramref name="value"/> is <see langword="null"/>.</returns>
-    public static Optional<T> FromNullable<T>(T? value) where T : class => value is null ? Optional<T>.None() : Optional<T>.Some(value);
+    public static Optional<T> FromNullable<T>(T? value) where T : class =>
+        value is null ? default : new Optional<T>(value);
 
     /// <summary>
     /// Creates an optional from a nullable value type.
@@ -211,7 +205,8 @@ public static class Optional
     /// <typeparam name="T">The value type.</typeparam>
     /// <param name="value">The nullable value.</param>
     /// <returns>An optional that is empty when <paramref name="value"/> has no value.</returns>
-    public static Optional<T> FromNullable<T>(T? value) where T : struct => value.HasValue ? Optional<T>.Some(value.Value) : Optional<T>.None();
+    public static Optional<T> FromNullable<T>(T? value) where T : struct =>
+        value.HasValue ? new Optional<T>(value.Value) : default;
 
     /// <summary>
     /// Converts an optional to a <see cref="Result{T}"/> using the provided error factory.

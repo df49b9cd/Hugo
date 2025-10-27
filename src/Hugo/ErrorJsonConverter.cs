@@ -276,7 +276,7 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
         return value;
     }
 
-    private static object? DeserializeArray(JsonElement element, JsonSerializerOptions options)
+    private static object?[]? DeserializeArray(JsonElement element, JsonSerializerOptions options)
     {
         var list = new List<object?>(element.GetArrayLength());
         foreach (var item in element.EnumerateArray())
@@ -292,10 +292,10 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
             }
         }
 
-        return list.ToArray();
+        return [.. list];
     }
 
-    private static object DeserializeObject(JsonElement element, JsonSerializerOptions options)
+    private static Dictionary<string, object?> DeserializeObject(JsonElement element, JsonSerializerOptions options)
     {
         var dictionary = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var property in element.EnumerateObject())
@@ -310,7 +310,7 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
             && element.TryGetProperty("message", out var messageProperty)
             && messageProperty.ValueKind == JsonValueKind.String;
 
-    public sealed class SerializedErrorException(string? typeName, string? message, string? stackTrace) : Exception(message ?? typeName ?? nameof(SerializedErrorException))
+    public sealed class SerializedErrorException(string? typeName, string? message, string? stackTrace, Exception? innerException = null) : Exception(message ?? typeName ?? nameof(SerializedErrorException), innerException)
     {
         private readonly string? _stackTrace = stackTrace;
 
@@ -319,6 +319,17 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
         public override string? StackTrace => _stackTrace ?? base.StackTrace;
 
         public SerializedErrorException()
+            : this(null, null, null)
+        {
+        }
+
+        public SerializedErrorException(string message)
+            : this(null, message, null)
+        {
+        }
+
+        public SerializedErrorException(string message, Exception innerException)
+            : this(null, message, null, innerException)
         {
         }
     }

@@ -1,6 +1,6 @@
 namespace Hugo.Tests;
 
-internal class ErrorTests
+public class ErrorTests
 {
     [Fact]
     public void WithMetadata_ShouldAddEntry()

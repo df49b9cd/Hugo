@@ -8,21 +8,15 @@ namespace Hugo;
 /// Provides a result-based wrapper around <see cref="TaskQueue{T}"/> that converts common exceptions into <see cref="Result{T}"/> failures.
 /// </summary>
 /// <typeparam name="T">Work item type.</typeparam>
-public sealed class SafeTaskQueue<T> : IAsyncDisposable
+/// <remarks>
+/// Initializes a new instance of the <see cref="SafeTaskQueueWrapper{T}"/> class.
+/// </remarks>
+/// <param name="queue">Underlying task queue to wrap.</param>
+/// <param name="ownsQueue">True to dispose the underlying queue when this wrapper is disposed.</param>
+public sealed class SafeTaskQueueWrapper<T>(TaskQueue<T> queue, bool ownsQueue = false) : IAsyncDisposable
 {
-    private readonly TaskQueue<T> _queue;
-    private readonly bool _ownsQueue;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SafeTaskQueue{T}"/> class.
-    /// </summary>
-    /// <param name="queue">Underlying task queue to wrap.</param>
-    /// <param name="ownsQueue">True to dispose the underlying queue when this wrapper is disposed.</param>
-    public SafeTaskQueue(TaskQueue<T> queue, bool ownsQueue = false)
-    {
-        _queue = queue ?? throw new ArgumentNullException(nameof(queue));
-        _ownsQueue = ownsQueue;
-    }
+    private readonly TaskQueue<T> _queue = queue ?? throw new ArgumentNullException(nameof(queue));
+    private readonly bool _ownsQueue = ownsQueue;
 
     /// <summary>
     /// Gets the underlying queue for scenarios that require direct access.
@@ -62,7 +56,7 @@ public sealed class SafeTaskQueue<T> : IAsyncDisposable
         try
         {
             TaskQueueLease<T> lease = await _queue.LeaseAsync(cancellationToken).ConfigureAwait(false);
-            return Result.Ok(SafeTaskQueueLease<T>.From(lease));
+            return Result.Ok(new SafeTaskQueueLease<T>(lease));
         }
         catch (OperationCanceledException oce)
         {
@@ -81,7 +75,7 @@ public sealed class SafeTaskQueue<T> : IAsyncDisposable
     /// <summary>Creates a safe wrapper around an existing lease instance.</summary>
     /// <param name="lease">The lease to wrap.</param>
     /// <returns>A safe lease wrapper.</returns>
-    public SafeTaskQueueLease<T> Wrap(TaskQueueLease<T> lease) => SafeTaskQueueLease<T>.From(lease);
+    public SafeTaskQueueLease<T> Wrap(TaskQueueLease<T> lease) => new SafeTaskQueueLease<T>(lease);
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
@@ -99,19 +93,9 @@ public sealed class SafeTaskQueue<T> : IAsyncDisposable
 /// Provides result-based helpers for managing a leased work item.
 /// </summary>
 /// <typeparam name="T">Work item type.</typeparam>
-public sealed class SafeTaskQueueLease<T>
+public sealed class SafeTaskQueueLease<T>(TaskQueueLease<T> lease)
 {
-    private readonly TaskQueueLease<T> _lease;
-
-    private SafeTaskQueueLease(TaskQueueLease<T> lease)
-    {
-        _lease = lease ?? throw new ArgumentNullException(nameof(lease));
-    }
-
-    /// <summary>Wraps the specified lease instance.</summary>
-    /// <param name="lease">The lease to wrap.</param>
-    /// <returns>A safe lease wrapper.</returns>
-    public static SafeTaskQueueLease<T> From(TaskQueueLease<T> lease) => new(lease);
+    private readonly TaskQueueLease<T> _lease = lease ?? throw new ArgumentNullException(nameof(lease));
 
     /// <summary>
     /// Gets the leased value.

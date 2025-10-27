@@ -2,7 +2,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests;
 
-internal sealed class WorkflowExecutionContextTests : IDisposable
+public sealed class WorkflowExecutionContextTests : IDisposable
 {
     public WorkflowExecutionContextTests()
     {

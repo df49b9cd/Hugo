@@ -5,7 +5,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-internal class ResultPropertyTests
+public class ResultPropertyTests
 {
     [Fact]
     public void Map_ComposesFunctionApplication() => Check.QuickThrowOnFailure(Prop.ForAll<int>(static value =>

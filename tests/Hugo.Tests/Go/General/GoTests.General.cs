@@ -61,8 +61,8 @@ public partial class GoTests
     [Fact]
     public async Task Mutex_ShouldThrow_WhenLockIsCancelled()
     {
-        var mutex = new Mutex();
-        var cts = new CancellationTokenSource();
+        using var mutex = new Mutex();
+        using var cts = new CancellationTokenSource();
         using (await mutex.LockAsync(cts.Token))
         {
             var waitingTask = mutex.LockAsync(cts.Token);
@@ -75,7 +75,7 @@ public partial class GoTests
     [Fact]
     public async Task Mutex_LockAsync_WithPreCanceledToken_ShouldThrow()
     {
-        var mutex = new Mutex();
+        using var mutex = new Mutex();
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
@@ -85,7 +85,7 @@ public partial class GoTests
     [Fact]
     public async Task Mutex_ShouldThrowAfterDispose()
     {
-        var mutex = new Mutex();
+        using var mutex = new Mutex();
         mutex.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => mutex.EnterScope());
@@ -95,7 +95,7 @@ public partial class GoTests
     [Fact]
     public async Task Mutex_ShouldNotBeReentrant()
     {
-        var mutex = new Mutex();
+        using var mutex = new Mutex();
         using (await mutex.LockAsync(TestContext.Current.CancellationToken))
         {
             var reentrantLockTask = mutex.LockAsync(TestContext.Current.CancellationToken).AsTask();
@@ -110,7 +110,7 @@ public partial class GoTests
     [Fact]
     public async Task Mutex_AsyncReleaser_ShouldBeIdempotent()
     {
-        var mutex = new Mutex();
+        using var mutex = new Mutex();
         var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
 
         await releaser.DisposeAsync();
@@ -124,7 +124,7 @@ public partial class GoTests
     [Fact]
     public async Task Mutex_AsyncReleaser_DisposeAsync_ShouldReleaseLock()
     {
-        var mutex = new Mutex();
+        using var mutex = new Mutex();
         var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
 
         await releaser.DisposeAsync();
@@ -137,7 +137,7 @@ public partial class GoTests
     [Fact]
     public async Task Mutex_AsyncReleaser_DisposeAsyncTwice_ShouldNotThrow()
     {
-        var mutex = new Mutex();
+        using var mutex = new Mutex();
         var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
 
         await releaser.DisposeAsync();
@@ -185,11 +185,11 @@ public partial class GoTests
     [Fact]
     public async Task RWMutex_ShouldAllow_MultipleConcurrentReaders()
     {
-        var rwMutex = new RwMutex();
+        using var rwMutex = new RwMutex();
         var activeReaders = 0;
         var maxConcurrentReaders = 0;
         var wg = new WaitGroup();
-        var startSignal = new ManualResetEventSlim(false);
+        using var startSignal = new ManualResetEventSlim(false);
 
         for (var i = 0; i < 5; i++)
         {
@@ -222,7 +222,7 @@ public partial class GoTests
     [Fact]
     public async Task RWMutex_ShouldProvide_ExclusiveWriteLock()
     {
-        var rwMutex = new RwMutex();
+        using var rwMutex = new RwMutex();
         var writeLockHeld = false;
         var wg = new WaitGroup();
 
@@ -361,7 +361,7 @@ public partial class GoTests
     public async Task Mutex_ShouldPreventRaceConditions()
     {
         var wg = new WaitGroup();
-        var mutex = new Mutex();
+        using var mutex = new Mutex();
         var counter = 0;
         const int numTasks = 5;
         const int incrementsPerTask = 10;
@@ -460,7 +460,7 @@ public partial class GoTests
     [Fact]
     public async Task Mutex_DisposeAsync_ShouldReleaseLock()
     {
-        var mutex = new Mutex();
+        using var mutex = new Mutex();
         var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
 
         var pending = mutex.LockAsync(TestContext.Current.CancellationToken);
@@ -477,7 +477,7 @@ public partial class GoTests
     [Fact]
     public async Task RwMutex_RLockAsync_ShouldCancelWhenWriterHeld()
     {
-        var rwMutex = new RwMutex();
+        using var rwMutex = new RwMutex();
         using (await rwMutex.LockAsync(TestContext.Current.CancellationToken))
         {
             using var cts = new CancellationTokenSource(20);
@@ -488,7 +488,7 @@ public partial class GoTests
     [Fact]
     public async Task RwMutex_LockAsync_DisposeAsync_ShouldRelease()
     {
-        var rwMutex = new RwMutex();
+        using var rwMutex = new RwMutex();
         var writer = await rwMutex.LockAsync(TestContext.Current.CancellationToken);
         var pendingWriter = rwMutex.LockAsync(TestContext.Current.CancellationToken).AsTask();
 
@@ -822,7 +822,7 @@ public partial class GoTests
             Activity[] recorded;
             lock (stoppedActivities)
             {
-                recorded = stoppedActivities.ToArray();
+                recorded = [.. stoppedActivities];
             }
 
             var activity = Assert.Single(recorded, static activity => activity.DisplayName == "Go.Select");
@@ -867,7 +867,7 @@ public partial class GoTests
             Activity[] recorded;
             lock (stoppedActivities)
             {
-                recorded = stoppedActivities.ToArray();
+                recorded = [.. stoppedActivities];
             }
 
             var activity = Assert.Single(recorded, static activity => activity.DisplayName == "Go.Select");

@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace Hugo.Tests;
 
-internal class ErrorJsonConverterTests
+public class ErrorJsonConverterTests
 {
     [Fact]
     public void SerializeAndDeserialize_ShouldRoundTripError()
@@ -236,7 +236,11 @@ internal class ErrorJsonConverterTests
         Assert.Equal(7, jsonElement.GetProperty("number").GetInt32());
         Assert.Equal(5, meta.GetProperty("readOnlyDictionary").GetProperty("nested").GetInt32());
         Assert.Equal("value", meta.GetProperty("dictionary").GetProperty("hash").GetString());
-        Assert.Equal(new[] { 1, 2, 3 }, meta.GetProperty("enumerable").EnumerateArray().Select(static e => e.GetInt32()).ToArray());
+        var enumeratedItems = meta.GetProperty("enumerable")
+            .EnumerateArray()
+            .Select(static e => e.GetInt32())
+            .ToArray();
+        Assert.Equal([1, 2, 3], enumeratedItems);
         var serializedErrors = meta.GetProperty("errorEnumerable").EnumerateArray().Select(static e => e.GetProperty("message").GetString()).ToArray();
         Assert.Equal(new[] { "first", "second" }, serializedErrors);
         Assert.Equal(unsupportedDescription, meta.GetProperty("unsupported").GetString());

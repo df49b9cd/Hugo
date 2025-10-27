@@ -135,7 +135,7 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
 
         if (outcome.IsSuccess)
         {
-            valuePayload = JsonSerializer.SerializeToUtf8Bytes(outcome.Value, typeof(T), _serializerOptions);
+            valuePayload = JsonSerializer.SerializeToUtf8Bytes(outcome.Value, _serializerOptions);
         }
 
         var sanitizedError = DeterministicErrorSanitizer.Sanitize(outcome.Error);

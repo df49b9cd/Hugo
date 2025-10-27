@@ -4,7 +4,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests;
 
-internal class ResultTests
+public class ResultTests
 {
     [Fact]
     public void Fail_WithNullError_ShouldReturnUnspecified()
@@ -59,7 +59,7 @@ internal class ResultTests
     [Fact]
     public async Task TryAsync_ShouldReturnOperationValue()
     {
-        var result = await Result.TryAsync(static _ => Task.FromResult(21), TestContext.Current.CancellationToken);
+        var result = await Result.TryAsync(static _ => Task.FromResult(21), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(21, result.Value);
@@ -70,7 +70,7 @@ internal class ResultTests
     {
         var exception = new InvalidOperationException("boom");
 
-        var result = await Result.TryAsync(_ => Task.FromException<int>(exception), TestContext.Current.CancellationToken);
+        var result = await Result.TryAsync(_ => Task.FromException<int>(exception), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
@@ -84,8 +84,8 @@ internal class ResultTests
 
         var result = await Result.TryAsync(
             _ => Task.FromException<int>(new InvalidOperationException("fail")),
-            TestContext.Current.CancellationToken,
-            _ => custom);
+            cancellationToken: TestContext.Current.CancellationToken,
+            errorFactory: _ => custom);
 
         Assert.True(result.IsFailure);
         Assert.Same(custom, result.Error);
@@ -103,7 +103,7 @@ internal class ResultTests
                 await Task.Delay(10, token);
                 return 1;
             },
-            cts.Token);
+            cancellationToken: cts.Token);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -116,8 +116,8 @@ internal class ResultTests
     {
         var result = await Result.TryAsync(
             static _ => Task.FromException<int>(new InvalidOperationException("fail")),
-            TestContext.Current.CancellationToken,
-            static _ => null);
+            cancellationToken: TestContext.Current.CancellationToken,
+            errorFactory: _ => null);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
@@ -126,7 +126,7 @@ internal class ResultTests
     [Fact]
     public void FromOptional_ShouldReturnSuccessWhenValuePresent()
     {
-        var optional = Optional<int>.Some(5);
+        var optional = Optional.Some(5);
 
         var result = Result.FromOptional(optional, static () => Error.From("missing"));
 
@@ -137,7 +137,7 @@ internal class ResultTests
     [Fact]
     public void FromOptional_ShouldInvokeErrorFactoryWhenValueMissing()
     {
-        var optional = Optional<int>.None();
+        var optional = Optional.None<int>();
         var custom = Error.From("missing", ErrorCodes.Validation);
 
         var result = Result.FromOptional(optional, () => custom);
@@ -149,7 +149,7 @@ internal class ResultTests
     [Fact]
     public void FromOptional_ShouldFallbackToUnspecifiedWhenFactoryReturnsNull()
     {
-        var optional = Optional<int>.None();
+        var optional = Optional.None<int>();
 
         var result = Result.FromOptional(optional, static () => null!);
 
@@ -158,7 +158,7 @@ internal class ResultTests
     }
 
     [Fact]
-    public void FromOptional_ShouldThrowWhenFactoryIsNull() => Assert.Throws<ArgumentNullException>(static () => Result.FromOptional(Optional<int>.Some(1), null!));
+    public void FromOptional_ShouldThrowWhenFactoryIsNull() => Assert.Throws<ArgumentNullException>(static () => Result.FromOptional(Optional.Some(1), null!));
 
     [Fact]
     public void Traverse_ShouldThrow_WhenSourceIsNull() => Assert.Throws<ArgumentNullException>(static () => Result.Traverse<int, int>(null!, static x => Result.Ok(x)));

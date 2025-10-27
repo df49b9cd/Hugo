@@ -809,7 +809,7 @@ public static class GoDiagnostics
         _taskQueueActiveDepth?.Record(activeLeases);
     }
 
-    public static ActivitySource CreateActivitySource(string? name = null, string? version = null, Uri schemaUrl = null)
+    public static ActivitySource CreateActivitySource(string? name = null, string? version = null, Uri? schemaUrl = null)
     {
         throw new NotImplementedException();
     }

@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Hugo;
 
 /// <summary>
@@ -29,5 +31,6 @@ public interface IDeterministicStateStore
     /// The record to persist. Implementations must store the provided instance without mutation so that subsequent reads
     /// return payloads identical to those recorded during the workflow execution.
     /// </param>
+    [SuppressMessage("Naming", "CA1716:Identifiers should not match keywords", Justification = "Set expresses the domain-specific operation for deterministic state stores.")]
     void Set(string key, DeterministicRecord record);
 }

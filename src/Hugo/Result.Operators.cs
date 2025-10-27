@@ -112,10 +112,10 @@ public static partial class Result
     /// <typeparam name="T">The type of the result value.</typeparam>
     /// <param name="operation">The operation to execute under policy control.</param>
     /// <param name="policy">The execution policy that governs retries and compensation.</param>
-    /// <param name="cancellationToken">The token used to cancel the execution.</param>
     /// <param name="timeProvider">The optional time provider used for policy timing.</param>
+    /// <param name="cancellationToken">The token used to cancel the execution.</param>
     /// <returns>A result describing the policy-governed execution.</returns>
-    public static async ValueTask<Result<T>> RetryWithPolicyAsync<T>(Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>> operation, ResultExecutionPolicy policy, CancellationToken cancellationToken = default, TimeProvider? timeProvider = null)
+    public static async ValueTask<Result<T>> RetryWithPolicyAsync<T>(Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>> operation, ResultExecutionPolicy policy, TimeProvider? timeProvider = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(policy);

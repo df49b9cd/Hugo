@@ -6,7 +6,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-internal class ResultFallbackTests
+public class ResultFallbackTests
 {
     [Fact]
     public void ResultFallbackTier_ShouldThrow_WhenOperationsEmpty()

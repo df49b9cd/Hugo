@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 
 using Hugo.Policies;
 
@@ -22,7 +23,7 @@ public sealed class ResultFallbackTier<T>
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(operations);
 
-        var list = operations as IList<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> ?? operations.ToList();
+        var list = operations as IList<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> ?? [.. operations];
         if (list.Count == 0)
         {
             throw new ArgumentException("At least one fallback operation must be provided.", nameof(operations));
@@ -41,6 +42,7 @@ public sealed class ResultFallbackTier<T>
     /// <param name="name">The name assigned to the fallback tier.</param>
     /// <param name="operations">The operations evaluated within the tier.</param>
     /// <returns>A configured fallback tier.</returns>
+    [SuppressMessage("Design", "CA1000:Do not declare static members on generic types", Justification = "The factory simplifies tier construction while retaining generic type safety.")]
     public static ResultFallbackTier<T> From(
         string name,
         params Func<CancellationToken, ValueTask<Result<T>>>[] operations)
@@ -58,6 +60,7 @@ public sealed class ResultFallbackTier<T>
     /// <param name="name">The name assigned to the fallback tier.</param>
     /// <param name="operations">The operations evaluated within the tier.</param>
     /// <returns>A configured fallback tier.</returns>
+    [SuppressMessage("Design", "CA1000:Do not declare static members on generic types", Justification = "The factory simplifies tier construction while retaining generic type safety.")]
     public static ResultFallbackTier<T> From(
         string name,
         params Func<Result<T>>[] operations)
@@ -83,12 +86,14 @@ public static partial class Result
     /// <param name="cancellationToken">The token used to cancel the fallback execution.</param>
     /// <param name="timeProvider">The optional time provider used for policy timing.</param>
     /// <returns>A result describing the outcome of the fallback orchestration.</returns>
+    [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Maintains existing API contract for callers relying on positional arguments.")]
     public static Task<Result<T>> TieredFallbackAsync<T>(
         IEnumerable<ResultFallbackTier<T>> tiers,
         ResultExecutionPolicy? policy = null,
         CancellationToken cancellationToken = default,
         TimeProvider? timeProvider = null) => TieredFallbackInternal(tiers, policy, cancellationToken, timeProvider ?? TimeProvider.System);
 
+    [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Internal helper mirrors public API ordering for consistency.")]
     private static async Task<Result<T>> TieredFallbackInternal<T>(
         IEnumerable<ResultFallbackTier<T>> tiers,
         ResultExecutionPolicy? policy,
@@ -98,7 +103,7 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(tiers);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
-        var tierList = tiers as IList<ResultFallbackTier<T>> ?? tiers.ToList();
+        var tierList = tiers as IList<ResultFallbackTier<T>> ?? [.. tiers];
         if (tierList.Count == 0)
         {
             return Fail<T>(Error.From("No fallback tiers were provided.", ErrorCodes.Validation));
@@ -143,7 +148,7 @@ public static partial class Result
             return Fail<T>(tierErrors[0]);
         }
 
-        var aggregate = Error.Aggregate("Fallback pipeline exhausted all tiers.", tierErrors.ToArray());
+        var aggregate = Error.Aggregate("Fallback pipeline exhausted all tiers.", [.. tierErrors]);
         return Fail<T>(aggregate);
     }
 

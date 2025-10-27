@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 
 namespace Hugo;
@@ -7,6 +8,7 @@ namespace Hugo;
 /// Represents a structured error with optional metadata, code, and cause.
 /// </summary>
 [JsonConverter(typeof(ErrorJsonConverter))]
+[SuppressMessage("Naming", "CA1716:Identifiers should not match keywords", Justification = "Error is the canonical domain concept and renaming would break the public API.")]
 public sealed class Error
 {
     private const string DescriptorNameKey = "error.name";

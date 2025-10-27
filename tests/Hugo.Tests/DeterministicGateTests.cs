@@ -2,7 +2,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests;
 
-internal class DeterministicGateTests
+public class DeterministicGateTests
 {
     [Fact]
     public async Task ExecuteAsync_ShouldPreferUpgradedPath_WhenVersionMatches()

@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace Hugo.Tests.Primitives;
 
-internal class SynchronizationPrimitivesTests
+public class SynchronizationPrimitivesTests
 {
     private static readonly TimeSpan ShortDelay = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan WriterDelay = TimeSpan.FromMilliseconds(10);
@@ -33,7 +33,7 @@ internal class SynchronizationPrimitivesTests
     public async Task Mutex_EnterScope_ShouldProvideExclusiveAccess()
     {
         var cancellation = TestContext.Current.CancellationToken;
-        var mutex = new Mutex();
+        using var mutex = new Mutex();
         var secondEntered = 0;
         using ManualResetEventSlim secondStarted = new(false);
 
@@ -67,7 +67,7 @@ internal class SynchronizationPrimitivesTests
     public async Task RwMutex_EnterReadScope_ShouldAllowConcurrentReadersAndBlockWriter()
     {
         var cancellation = TestContext.Current.CancellationToken;
-        var rwMutex = new RwMutex();
+        using var rwMutex = new RwMutex();
         using ManualResetEventSlim startReaders = new(false);
         object gate = new();
         int inside = 0;
@@ -126,7 +126,7 @@ internal class SynchronizationPrimitivesTests
     public async Task RwMutex_EnterWriteScope_ShouldBlockReadersUntilReleased()
     {
         var cancellation = TestContext.Current.CancellationToken;
-        var rwMutex = new RwMutex();
+        using var rwMutex = new RwMutex();
         var writeScope = rwMutex.EnterWriteScope();
         using ManualResetEventSlim readerStarted = new(false);
         var readerEntered = 0;

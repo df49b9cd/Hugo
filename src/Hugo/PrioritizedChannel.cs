@@ -107,7 +107,7 @@ public sealed class PrioritizedChannel<T>
         var levels = options.PriorityLevels;
         if (options.DefaultPriority is { } defaultPriority && defaultPriority >= levels)
         {
-            throw new ArgumentOutOfRangeException(nameof(options.DefaultPriority), "Default priority must be less than the number of priority levels.");
+            throw new ArgumentOutOfRangeException(nameof(options), options.DefaultPriority, "Default priority must be less than the number of priority levels.");
         }
 
         var capacity = options.CapacityPerLevel;
@@ -293,7 +293,12 @@ public sealed class PrioritizedChannel<T>
                 for (var priority = 0; priority < _readers.Length; priority++)
                 {
                     var task = waitTasks[priority];
-                    if (task is { IsCompletedSuccessfully: true, Result: true })
+                    if (!task.IsCompleted)
+                    {
+                        continue;
+                    }
+
+                    if (task.IsCompletedSuccessfully && await task.ConfigureAwait(false))
                     {
                         while (_readers[priority].TryRead(out var item))
                         {
@@ -318,7 +323,7 @@ public sealed class PrioritizedChannel<T>
                         break;
                     }
 
-                    if (task is { IsCompletedSuccessfully: true, Result: true })
+                    if (task.IsCompletedSuccessfully && await task.ConfigureAwait(false))
                     {
                         allCompleted = false;
                         break;

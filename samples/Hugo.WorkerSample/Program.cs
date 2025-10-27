@@ -63,11 +63,11 @@ builder.Services.AddSingleton(sp =>
             return ValueTask.CompletedTask;
         });
 });
-builder.Services.AddSingleton(sp => new SafeTaskQueue<TelemetryWorkItem>(sp.GetRequiredService<TaskQueue<TelemetryWorkItem>>()));
+builder.Services.AddSingleton(sp => new SafeTaskQueueWrapper<TelemetryWorkItem>(sp.GetRequiredService<TaskQueue<TelemetryWorkItem>>()));
 builder.Services.AddSingleton<IDeterministicStateStore, InMemoryDeterministicStateStore>();
 builder.Services.AddSingleton(sp =>
 {
-    SafeTaskQueue<TelemetryWorkItem> safeQueue = sp.GetRequiredService<SafeTaskQueue<TelemetryWorkItem>>();
+    SafeTaskQueueWrapper<TelemetryWorkItem> safeQueue = sp.GetRequiredService<SafeTaskQueueWrapper<TelemetryWorkItem>>();
     return TaskQueueChannelAdapter<TelemetryWorkItem>.Create(safeQueue.UnsafeQueue, concurrency: 1);
 });
 builder.Services.AddSingleton(sp =>
@@ -122,7 +122,7 @@ sealed partial class TelemetryWorker(
     ILogger<TelemetryWorker> logger,
     TelemetryCalibration calibration,
     TimeProvider timeProvider,
-    SafeTaskQueue<TelemetryWorkItem> queue,
+    SafeTaskQueueWrapper<TelemetryWorkItem> queue,
     TaskQueueChannelAdapter<TelemetryWorkItem> adapter,
     TelemetryStream stream,
     TelemetryAlertChannel alerts) : BackgroundService
@@ -130,7 +130,7 @@ sealed partial class TelemetryWorker(
     private readonly ILogger<TelemetryWorker> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly TelemetryCalibration _calibration = calibration ?? throw new ArgumentNullException(nameof(calibration));
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
-    private readonly SafeTaskQueue<TelemetryWorkItem> _queue = queue ?? throw new ArgumentNullException(nameof(queue));
+    private readonly SafeTaskQueueWrapper<TelemetryWorkItem> _queue = queue ?? throw new ArgumentNullException(nameof(queue));
     private readonly TaskQueueChannelAdapter<TelemetryWorkItem> _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
     private readonly TelemetryStream _stream = stream ?? throw new ArgumentNullException(nameof(stream));
     private readonly TelemetryAlertChannel _alerts = alerts ?? throw new ArgumentNullException(nameof(alerts));
@@ -219,7 +219,7 @@ sealed partial class TelemetryWorker(
     {
         await foreach (TaskQueueLease<TelemetryWorkItem> lease in _adapter.Reader.ReadAllAsync(stoppingToken).ConfigureAwait(false))
         {
-            SafeTaskQueueLease<TelemetryWorkItem> safeLease = SafeTaskQueueLease<TelemetryWorkItem>.From(lease);
+            SafeTaskQueueLease<TelemetryWorkItem> safeLease = new(lease);
             await ProcessLeaseAsync(safeLease, stoppingToken).ConfigureAwait(false);
         }
     }

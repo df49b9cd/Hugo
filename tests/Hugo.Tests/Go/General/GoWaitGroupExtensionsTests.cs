@@ -1,6 +1,6 @@
 namespace Hugo.Tests;
 
-internal class GoWaitGroupExtensionsTests
+public class GoWaitGroupExtensionsTests
 {
     [Fact]
     public void Go_ShouldThrow_WhenWaitGroupNull() =>
