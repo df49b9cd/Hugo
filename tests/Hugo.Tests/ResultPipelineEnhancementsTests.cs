@@ -6,7 +6,7 @@ using Hugo.Sagas;
 
 namespace Hugo.Tests;
 
-internal class ResultPipelineEnhancementsTests
+public class ResultPipelineEnhancementsTests
 {
     [Fact]
     public async Task WhenAll_ShouldReturnValues_WhenAllStepsSucceed()
@@ -78,7 +78,7 @@ internal class ResultPipelineEnhancementsTests
         };
 
         var policy = new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse);
-        var result = await Result.WhenAll(operations, policy, TestContext.Current.CancellationToken);
+        var result = await Result.WhenAll(operations, policy, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(1, compensationInvoked);
@@ -112,7 +112,7 @@ internal class ResultPipelineEnhancementsTests
         });
 
         var policy = new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse);
-        var result = await Result.WhenAny([fast, slow], policy, TestContext.Current.CancellationToken);
+        var result = await Result.WhenAny([fast, slow], policy, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("fast", result.Value);

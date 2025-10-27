@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace Hugo.Tests;
 
-internal class ErrorJsonConverterTests
+public class ErrorJsonConverterTests
 {
     [Fact]
     public void SerializeAndDeserialize_ShouldRoundTripError()

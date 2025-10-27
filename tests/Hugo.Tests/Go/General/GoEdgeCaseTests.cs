@@ -4,7 +4,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-internal class GoEdgeCaseTests
+public class GoEdgeCaseTests
 {
     [Fact]
     public async Task WaitGroup_AddTask_ShouldComplete_WhenTaskCancels()
@@ -28,7 +28,7 @@ internal class GoEdgeCaseTests
     [Fact]
     public async Task Mutex_Contention_ShouldSerializeCriticalSection()
     {
-        var mutex = new Mutex();
+        using var mutex = new Mutex();
         var concurrent = 0;
         var observedMax = 0;
 

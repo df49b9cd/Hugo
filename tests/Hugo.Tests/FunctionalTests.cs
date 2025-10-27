@@ -4,7 +4,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-internal class FunctionalTests
+public class FunctionalTests
 {
     [Fact]
     public void Err_ShouldReturnDefaultError_WhenGivenNull()

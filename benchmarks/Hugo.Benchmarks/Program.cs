@@ -39,7 +39,7 @@ internal class MutexBenchmarks
             {
                 for (var iteration = 0; iteration < IterationsPerTask; iteration++)
                 {
-                    await using var releaser = (await strategy.EnterAsync().ConfigureAwait(false)).ConfigureAwait(false);
+                    await using var releaser = ((await strategy.EnterAsync().ConfigureAwait(false)).ConfigureAwait(false));
                     BenchmarkWorkloads.SimulateLightCpuWork();
                     Interlocked.Increment(ref shared);
                 }

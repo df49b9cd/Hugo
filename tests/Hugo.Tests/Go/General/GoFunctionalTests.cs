@@ -6,7 +6,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-internal class GoFunctionalTests
+public class GoFunctionalTests
 {
     [Fact]
     public void Err_ShouldReturnDefaultError_WhenGivenNull()
@@ -87,7 +87,7 @@ internal class GoFunctionalTests
     public async Task Integration_Pipeline_ShouldComposeGoAndFunctionalHelpers()
     {
         var channel = MakeChannel<int>(capacity: 2);
-        var mutex = new Mutex();
+        using var mutex = new Mutex();
         var wg = new WaitGroup();
 
         wg.Go(async () =>

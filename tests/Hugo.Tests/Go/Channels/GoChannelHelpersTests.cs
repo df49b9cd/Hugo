@@ -6,7 +6,7 @@ using static Hugo.GoChannelHelpers;
 
 namespace Hugo.Tests;
 
-internal class GoChannelHelpersTests
+public class GoChannelHelpersTests
 {
     [Fact]
     public void CollectSources_WithArray_ReturnsSameInstance()

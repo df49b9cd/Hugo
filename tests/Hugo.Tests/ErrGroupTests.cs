@@ -2,7 +2,7 @@ using Unit = Hugo.Go.Unit;
 
 namespace Hugo.Tests;
 
-internal class ErrGroupTests
+public class ErrGroupTests
 {
     [Fact]
     public async Task WaitAsync_ShouldReturnSuccess_WhenAllOperationsComplete()

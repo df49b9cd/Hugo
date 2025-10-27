@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Channels;
 
 namespace Hugo;
@@ -5,7 +6,7 @@ namespace Hugo;
 /// <summary>
 /// Represents an awaitable channel read with an associated continuation to execute when the read succeeds.
 /// </summary>
-public readonly struct ChannelCase
+public readonly struct ChannelCase : IEquatable<ChannelCase>
 {
     private readonly Func<CancellationToken, Task<(bool HasValue, object? Value)>> _waiter;
     private readonly Func<object?, CancellationToken, Task<Result<Go.Unit>>> _continuation;
@@ -229,25 +230,28 @@ public readonly struct ChannelCase
         return CreateDefault(_ => Task.FromResult(onDefault()), priority);
     }
 
-    public override bool Equals(object obj)
-    {
-        throw new NotImplementedException();
-    }
+    public override bool Equals(object? obj) => obj is ChannelCase other && Equals(other);
 
     public override int GetHashCode()
     {
-        throw new NotImplementedException();
+        var hash = new HashCode();
+        hash.Add(_waiter);
+        hash.Add(_continuation);
+        hash.Add(_readyProbe);
+        hash.Add(Priority);
+        hash.Add(IsDefault);
+        return hash.ToHashCode();
     }
 
-    public static bool operator ==(ChannelCase left, ChannelCase right)
-    {
-        return left.Equals(right);
-    }
+    public static bool operator ==(ChannelCase left, ChannelCase right) => left.Equals(right);
 
-    public static bool operator !=(ChannelCase left, ChannelCase right)
-    {
-        return !(left == right);
-    }
+    public static bool operator !=(ChannelCase left, ChannelCase right) => !left.Equals(right);
+
+    public bool Equals(ChannelCase other) => ReferenceEquals(_waiter, other._waiter)
+        && ReferenceEquals(_continuation, other._continuation)
+        && ReferenceEquals(_readyProbe, other._readyProbe)
+        && Priority == other.Priority
+        && IsDefault == other.IsDefault;
 }
 
 internal sealed class DeferredRead<T>(ChannelReader<T> reader)
@@ -268,7 +272,7 @@ internal abstract class ImmediateRead<T>(T value)
 /// </remarks>
 /// <param name="reader">The channel reader that drives the template.</param>
 /// <exception cref="ArgumentNullException">Thrown when <paramref name="reader"/> is <see langword="null"/>.</exception>
-public readonly struct ChannelCaseTemplate<T>(ChannelReader<T> reader)
+public readonly struct ChannelCaseTemplate<T>(ChannelReader<T> reader) : IEquatable<ChannelCaseTemplate<T>>
 {
 
     /// <summary>
@@ -308,25 +312,15 @@ public readonly struct ChannelCaseTemplate<T>(ChannelReader<T> reader)
     /// <returns>A configured <see cref="ChannelCase"/>.</returns>
     public ChannelCase With(Action<T> onValue) => ChannelCase.Create(Reader, onValue);
 
-    public override bool Equals(object obj)
-    {
-        throw new NotImplementedException();
-    }
+    public override bool Equals(object? obj) => obj is ChannelCaseTemplate<T> other && Equals(other);
 
-    public override int GetHashCode()
-    {
-        throw new NotImplementedException();
-    }
+    public override int GetHashCode() => Reader.GetHashCode();
 
-    public static bool operator ==(ChannelCaseTemplate<T> left, ChannelCaseTemplate<T> right)
-    {
-        return left.Equals(right);
-    }
+    public static bool operator ==(ChannelCaseTemplate<T> left, ChannelCaseTemplate<T> right) => left.Equals(right);
 
-    public static bool operator !=(ChannelCaseTemplate<T> left, ChannelCaseTemplate<T> right)
-    {
-        return !(left == right);
-    }
+    public static bool operator !=(ChannelCaseTemplate<T> left, ChannelCaseTemplate<T> right) => !left.Equals(right);
+
+    public bool Equals(ChannelCaseTemplate<T> other) => ReferenceEquals(Reader, other.Reader);
 }
 
 /// <summary>

@@ -1,6 +1,6 @@
 namespace Hugo.Tests;
 
-internal class OptionalTests
+public class OptionalTests
 {
     [Fact]
     public void Some_ShouldContainValue()

@@ -12,7 +12,7 @@ static class DeterministicPipelineTelemetry
     public const string MeterName = "Hugo.DeterministicWorkerSample";
     private const string Version = "1.0.0";
 
-    private static readonly ActivitySource ActivitySource = GoDiagnostics.CreateActivitySource(ActivitySourceName, Version);
+    private static readonly ActivitySource ActivitySource = GoDiagnostics.CreateActivitySource(ActivitySourceName, Version, schemaUrl: (Uri?)null);
     private static readonly Meter Meter = new(MeterName, Version);
 
     private static readonly Counter<int> MessagesProcessed = Meter.CreateCounter<int>("sample.pipeline.messages.processed");

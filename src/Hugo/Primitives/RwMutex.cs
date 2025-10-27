@@ -125,7 +125,7 @@ public sealed class RwMutex : IDisposable
         public void Dispose() => _rwLock.ExitWriteLock();
     }
 
-    public readonly struct AsyncReadReleaser(RwMutex mutex) : IAsyncDisposable, IDisposable
+    public readonly struct AsyncReadReleaser(RwMutex mutex) : IAsyncDisposable, IDisposable, IEquatable<AsyncReadReleaser>
     {
         private readonly RwMutex _mutex = mutex;
 
@@ -140,28 +140,18 @@ public sealed class RwMutex : IDisposable
             return ValueTask.CompletedTask;
         }
 
-        public override bool Equals(object obj)
-        {
-            throw new NotImplementedException();
-        }
+        public override bool Equals(object? obj) => obj is AsyncReadReleaser other && Equals(other);
 
-        public override int GetHashCode()
-        {
-            throw new NotImplementedException();
-        }
+        public override int GetHashCode() => _mutex?.GetHashCode() ?? 0;
 
-        public static bool operator ==(AsyncReadReleaser left, AsyncReadReleaser right)
-        {
-            return left.Equals(right);
-        }
+        public static bool operator ==(AsyncReadReleaser left, AsyncReadReleaser right) => left.Equals(right);
 
-        public static bool operator !=(AsyncReadReleaser left, AsyncReadReleaser right)
-        {
-            return !(left == right);
-        }
+        public static bool operator !=(AsyncReadReleaser left, AsyncReadReleaser right) => !left.Equals(right);
+
+        public bool Equals(AsyncReadReleaser other) => ReferenceEquals(_mutex, other._mutex);
     }
 
-    public readonly struct AsyncWriteReleaser(RwMutex mutex) : IAsyncDisposable, IDisposable
+    public readonly struct AsyncWriteReleaser(RwMutex mutex) : IAsyncDisposable, IDisposable, IEquatable<AsyncWriteReleaser>
     {
         private readonly RwMutex _mutex = mutex;
 
@@ -176,24 +166,14 @@ public sealed class RwMutex : IDisposable
             return ValueTask.CompletedTask;
         }
 
-        public override bool Equals(object obj)
-        {
-            throw new NotImplementedException();
-        }
+        public override bool Equals(object? obj) => obj is AsyncWriteReleaser other && Equals(other);
 
-        public override int GetHashCode()
-        {
-            throw new NotImplementedException();
-        }
+        public override int GetHashCode() => _mutex?.GetHashCode() ?? 0;
 
-        public static bool operator ==(AsyncWriteReleaser left, AsyncWriteReleaser right)
-        {
-            return left.Equals(right);
-        }
+        public static bool operator ==(AsyncWriteReleaser left, AsyncWriteReleaser right) => left.Equals(right);
 
-        public static bool operator !=(AsyncWriteReleaser left, AsyncWriteReleaser right)
-        {
-            return !(left == right);
-        }
+        public static bool operator !=(AsyncWriteReleaser left, AsyncWriteReleaser right) => !left.Equals(right);
+
+        public bool Equals(AsyncWriteReleaser other) => ReferenceEquals(_mutex, other._mutex);
     }
 }

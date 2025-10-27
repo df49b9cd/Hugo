@@ -4,7 +4,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests;
 
-internal class ResultTests
+public class ResultTests
 {
     [Fact]
     public void Fail_WithNullError_ShouldReturnUnspecified()

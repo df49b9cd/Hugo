@@ -3,7 +3,7 @@ using Microsoft.Extensions.Time.Testing;
 namespace Hugo.Tests;
 
 [Collection("TaskQueueConcurrency")]
-internal sealed class SafeTaskQueueTests
+public sealed class SafeTaskQueueTests
 {
     [Fact]
     public async Task EnqueueLeaseComplete_ShouldReturnSuccess()

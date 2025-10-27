@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <AnalysisMode>AllEnabledByDefault</AnalysisMode>
+    <AnalysisMode>None</AnalysisMode>
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>

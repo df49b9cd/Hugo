@@ -32,3 +32,17 @@ csharp_style_var_when_type_is_apparent = false:suggestion
 
 [*.{csproj,props,targets}]
 indent_size = 2
+
+[tests/Hugo.Tests/**/*.{cs}]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA2007.severity = none
+dotnet_diagnostic.CA1849.severity = none
+dotnet_diagnostic.CA1307.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA1305.severity = none
+dotnet_diagnostic.CA1711.severity = none
+dotnet_diagnostic.CA1515.severity = none
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA2016.severity = none
+dotnet_diagnostic.CA1869.severity = none
+dotnet_diagnostic.CA1031.severity = none

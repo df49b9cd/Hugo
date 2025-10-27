@@ -6,7 +6,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
-internal sealed class ChannelBuilderTests
+public sealed class ChannelBuilderTests
 {
     [Fact]
     public void BoundedChannelBuilder_ShouldApplyDropOldest()

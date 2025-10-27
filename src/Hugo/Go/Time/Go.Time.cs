@@ -40,7 +40,9 @@ public static partial class Go
         }
 
         provider ??= TimeProvider.System;
+#pragma warning disable CA2000 // TimerChannel lifetime is managed by the returned ticker.
         TimerChannel timerChannel = TimerChannel.Start(provider, period, period, cancellationToken, singleShot: false);
+#pragma warning restore CA2000
         return new GoTicker(timerChannel);
     }
 
@@ -74,7 +76,9 @@ public static partial class Go
         }
 
         provider ??= TimeProvider.System;
+#pragma warning disable CA2000 // TimerChannel lifetime is managed by the returned reader.
         TimerChannel timerChannel = TimerChannel.Start(provider, delay, Timeout.InfiniteTimeSpan, cancellationToken, singleShot: true);
+#pragma warning restore CA2000
         return timerChannel.Reader;
     }
 
@@ -92,7 +96,7 @@ public static partial class Go
     }
 
     /// <summary>Represents a timer-backed ticker that publishes periodic timestamps.</summary>
-    public readonly struct GoTicker : IAsyncDisposable, IDisposable
+    public readonly struct GoTicker : IAsyncDisposable, IDisposable, IEquatable<GoTicker>
     {
         private readonly TimerChannel? _channel;
 
@@ -133,24 +137,14 @@ public static partial class Go
         /// <inheritdoc />
         public ValueTask DisposeAsync() => StopAsync();
 
-        public override bool Equals(object obj)
-        {
-            throw new NotImplementedException();
-        }
+        public override bool Equals(object? obj) => obj is GoTicker other && Equals(other);
 
-        public override int GetHashCode()
-        {
-            throw new NotImplementedException();
-        }
+        public override int GetHashCode() => _channel?.GetHashCode() ?? 0;
 
-        public static bool operator ==(GoTicker left, GoTicker right)
-        {
-            return left.Equals(right);
-        }
+        public static bool operator ==(GoTicker left, GoTicker right) => left.Equals(right);
 
-        public static bool operator !=(GoTicker left, GoTicker right)
-        {
-            return !(left == right);
-        }
+        public static bool operator !=(GoTicker left, GoTicker right) => !left.Equals(right);
+
+        public bool Equals(GoTicker other) => ReferenceEquals(_channel, other._channel);
     }
 }

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Time.Testing;
 namespace Hugo.Tests;
 
 [Collection("TaskQueueConcurrency")]
-internal class TaskQueueTests
+public class TaskQueueTests
 {
     [Fact]
     public void TaskQueueOptions_InvalidCapacity_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { Capacity = 0 });

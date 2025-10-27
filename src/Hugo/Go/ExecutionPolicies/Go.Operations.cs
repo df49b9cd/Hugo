@@ -8,7 +8,7 @@ namespace Hugo;
 public static partial class Go
 {
     /// <summary>
-    /// Executes multiple operations concurrently using <see cref="Result.WhenAll{T}(IEnumerable{Func{ResultPipelineStepContext, CancellationToken, ValueTask{Result{T}}}}, ResultExecutionPolicy?, CancellationToken, TimeProvider?)"/> with an optional execution policy.
+    /// Executes multiple operations concurrently using <see cref="Result.WhenAll{T}(IEnumerable{Func{ResultPipelineStepContext, CancellationToken, ValueTask{Result{T}}}}, ResultExecutionPolicy?, TimeProvider?, CancellationToken)"/> with an optional execution policy.
     /// </summary>
     /// <typeparam name="T">The result type produced by each operation.</typeparam>
     /// <param name="operations">The operations to execute concurrently.</param>
@@ -30,11 +30,11 @@ public static partial class Go
                 : new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>(
                     (_, ct) => new ValueTask<Result<T>>(operation(ct))));
 
-        return Result.WhenAll(adapted, policy, cancellationToken, timeProvider);
+        return Result.WhenAll(adapted, policy, timeProvider, cancellationToken);
     }
 
     /// <summary>
-    /// Executes multiple operations concurrently and returns the first successful result via <see cref="Result.WhenAny{T}(IEnumerable{Func{ResultPipelineStepContext, CancellationToken, ValueTask{Result{T}}}}, ResultExecutionPolicy?, CancellationToken, TimeProvider?)"/>.
+    /// Executes multiple operations concurrently and returns the first successful result via <see cref="Result.WhenAny{T}(IEnumerable{Func{ResultPipelineStepContext, CancellationToken, ValueTask{Result{T}}}}, ResultExecutionPolicy?, TimeProvider?, CancellationToken)"/>.
     /// </summary>
     /// <typeparam name="T">The result type produced by each operation.</typeparam>
     /// <param name="operations">The operations to execute concurrently.</param>
@@ -56,6 +56,6 @@ public static partial class Go
                 : new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>(
                     (_, ct) => new ValueTask<Result<T>>(operation(ct))));
 
-        return Result.WhenAny(adapted, policy, cancellationToken, timeProvider);
+        return Result.WhenAny(adapted, policy, timeProvider, cancellationToken);
     }
 }

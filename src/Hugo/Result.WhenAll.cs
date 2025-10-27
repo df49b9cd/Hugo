@@ -16,8 +16,8 @@ public static partial class Result
     public static Task<Result<IReadOnlyList<T>>> WhenAll<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
-        CancellationToken cancellationToken = default,
-        TimeProvider? timeProvider = null) => WhenAllInternal(operations, policy, cancellationToken, timeProvider ?? TimeProvider.System);
+        TimeProvider? timeProvider = null,
+        CancellationToken cancellationToken = default) => WhenAllInternal(operations, policy, timeProvider ?? TimeProvider.System, cancellationToken);
 
     /// <summary>
     /// Executes the supplied operations until one succeeds, cancelling the remaining work and applying the optional execution policy.
@@ -31,14 +31,14 @@ public static partial class Result
     public static Task<Result<T>> WhenAny<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
-        CancellationToken cancellationToken = default,
-        TimeProvider? timeProvider = null) => WhenAnyInternal(operations, policy, cancellationToken, timeProvider ?? TimeProvider.System);
+        TimeProvider? timeProvider = null,
+        CancellationToken cancellationToken = default) => WhenAnyInternal(operations, policy, timeProvider ?? TimeProvider.System, cancellationToken);
 
     private static async Task<Result<IReadOnlyList<T>>> WhenAllInternal<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy,
-        CancellationToken cancellationToken,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -112,8 +112,8 @@ public static partial class Result
     private static async Task<Result<T>> WhenAnyInternal<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy,
-        CancellationToken cancellationToken,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -274,11 +274,13 @@ public static partial class Result
                 attemptScope.Clear();
                 return new PipelineOperationResult<T>(Fail<T>(Error.Canceled(token: oce.CancellationToken)), attemptScope);
             }
+#pragma warning disable CA1031 // We need to surface unexpected exceptions as failure results rather than throwing.
             catch (Exception ex)
             {
                 attemptScope.Clear();
                 return new PipelineOperationResult<T>(Fail<T>(Error.FromException(ex)), attemptScope);
             }
+#pragma warning restore CA1031
 
             if (result.IsSuccess)
             {
@@ -339,10 +341,12 @@ public static partial class Result
         {
             return Error.Canceled(token: oce.CancellationToken);
         }
+#pragma warning disable CA1031 // Compensation errors must be captured and reported via Error.
         catch (Exception ex)
         {
             return Error.FromException(ex);
         }
+#pragma warning restore CA1031
     }
 
     internal readonly record struct PipelineOperationResult<T>(Result<T> Result, CompensationScope Compensation);

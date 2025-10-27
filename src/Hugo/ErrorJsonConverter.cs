@@ -310,7 +310,7 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
             && element.TryGetProperty("message", out var messageProperty)
             && messageProperty.ValueKind == JsonValueKind.String;
 
-    public sealed class SerializedErrorException(string? typeName, string? message, string? stackTrace) : Exception(message ?? typeName ?? nameof(SerializedErrorException))
+    public sealed class SerializedErrorException(string? typeName, string? message, string? stackTrace, Exception? innerException = null) : Exception(message ?? typeName ?? nameof(SerializedErrorException), innerException)
     {
         private readonly string? _stackTrace = stackTrace;
 
@@ -319,6 +319,17 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
         public override string? StackTrace => _stackTrace ?? base.StackTrace;
 
         public SerializedErrorException()
+            : this(null, null, null)
+        {
+        }
+
+        public SerializedErrorException(string message)
+            : this(null, message, null)
+        {
+        }
+
+        public SerializedErrorException(string message, Exception innerException)
+            : this(null, message, null, innerException)
         {
         }
     }
