@@ -1,32 +1,47 @@
 # Hugo Documentation
 
-Hugo brings Go-style concurrency and result pipelines to .NET. This documentation follows the Divio system so you can quickly find the right kind of guidance for every development stage.
+Hugo brings Go-inspired concurrency primitives, deterministic workflows, and functional result pipelines to .NET. The documentation is organised using the Divio system so that every task—learning, doing, auditing, or understanding—has a dedicated home.
 
-## Tutorials
+## How these docs are organised
 
-- [Getting started with channels and results](tutorials/getting-started.md): build a minimal worker that writes to a channel, fans results back in, and handles failures with `Result<T>`.
+| Doc type | Purpose | Start here |
+| --- | --- | --- |
+| **Tutorials** | Follow-along introductions that assume no prior knowledge. Finish with a working sample. | [Getting started with channels and results](tutorials/getting-started.md) |
+| **How-to guides** | Copy-paste recipes for well-defined tasks. Each guide lists prerequisites, steps, validation checks, and troubleshooting tips. | [Coordinate fan-in workflows](how-to/fan-in-channels.md) |
+| **Reference** | Authoritative API catalogues and behavioural notes. Use when you already know what you are looking for. | [Concurrency primitives](reference/concurrency-primitives.md) |
+| **Explanation** | Design rationale and architectural decisions. Helps you understand trade-offs and evolution. | [Design principles](explanation/design-principles.md) |
+| **Meta** | Roadmap, project status, and audit trackers. | [Roadmap](meta/roadmap.md) |
 
-## How-to Guides
+> **Tip:** Need the big picture first? Read the [README](../README.md) for a product overview, then return here when you are ready to dive deeper.
 
-- [Coordinate fan-in workflows](how-to/fan-in-channels.md): step-by-step recipe for merging multiple channel readers with cancellation and deadlines.
-- [Apply timeout, retry, and cancellation playbooks](how-to/playbook-templates.md): recommended deadlines and retry policies for HTTP calls, queue handlers, and sagas.
-- [Publish metrics to OpenTelemetry](how-to/observe-with-opentelemetry.md): use `Hugo.Diagnostics.OpenTelemetry` helpers to register schema-aware meters, OTLP/Prometheus exporters, and Aspire-friendly defaults.
-- [Design workflow visibility & search](how-to/workflow-visibility.md): capture `WorkflowExecutionContext` snapshots, persist canonical attributes, and build targeted queries.
-- [Capture baselines with the profiling toolkit](how-to/profiling-toolkit.md): gather counters, traces, and automated recipes with `dotnet-counters`, `dotnet-trace`, and `dotnet-monitor`.
+## Choose your path
 
-## Reference
+- **Just installed Hugo?** Start with the [tutorial](tutorials/getting-started.md), then wire observability via [Publish metrics to OpenTelemetry](how-to/observe-with-opentelemetry.md).
+- **Shipping a feature?** Follow the relevant how-to: timeout/retry playbooks, fan-in coordination, workflow visibility, or profiling.
+- **Auditing behaviour?** Jump to the reference for `WaitGroup`, `SelectAsync`, result pipelines, deterministic gate helpers, or diagnostics instruments.
+- **Explaining trade-offs to your team?** Point them to [Design principles](explanation/design-principles.md) and the linked blog-inspired commentary.
 
-- [Concurrency primitives](reference/concurrency-primitives.md): definitive description of `WaitGroup`, `Mutex`, `RwMutex`, timers, and select helpers.
-- [Deterministic coordination](reference/deterministic-coordination.md): workflow builder, version markers, and replay-safe effect capture.
-- [Result pipeline APIs](reference/result-pipelines.md): catalogue of `Result<T>` operations, async overloads, and error metadata helpers.
-- [Diagnostics surface](reference/diagnostics.md): instruments emitted by `GoDiagnostics` with units, dimensions, and usage notes.
+## Navigation & search tips
 
-## Explanation
+- DocFX search (⌘/Ctrl + K in the published site) indexes headings, code samples, and metadata. Prefix with `how-to:` or `ref:` to narrow queries.
+- Every page ends with “Related topics” or “Next steps” to keep you moving. Use those cross-links to jump between Divio categories.
+- API surfaces reference namespaces and class names verbatim so IDE quick actions (Go to Definition) line up with documentation anchors.
 
-- [Design principles](explanation/design-principles.md): rationale behind cancellation-first APIs, metadata-rich errors, and deterministic timing.
+## Reference map
 
-## Meta
+- **Concurrency**: [Wait groups, mutexes, timers, channels, select helpers](reference/concurrency-primitives.md)
+- **Result pipelines**: [Factories, combinators, streaming, retries, fallbacks](reference/result-pipelines.md)
+- **Deterministic workflows**: [Version gates, effect stores, workflow builder](reference/deterministic-coordination.md)
+- **Diagnostics**: [Meters, histograms, activity sources, configuration](reference/diagnostics.md)
+- **Complete catalogue**: [API reference](reference/api-reference.md)
 
-- [Roadmap](meta/roadmap.md): active initiatives, recently shipped features, and contribution expectations.
+## Learn by doing
 
-For runnable demonstrations and performance data, see `samples/Hugo.WorkerSample` (TaskQueue leasing in a hosted service) and `benchmarks/Hugo.Benchmarks`.
+- **Samples**: Explore `samples/Hugo.WorkerSample` for a hosted worker that combines task queues, telemetry, and deterministic workflows.
+- **Benchmarks**: Run `benchmarks/Hugo.Benchmarks` to compare Hugo primitives with baseline .NET constructs.
+- **Tooling**: The [profiling toolkit guide](how-to/profiling-toolkit.md) walks through capturing repeatable performance baselines.
+
+## Stay in sync
+
+- Track progress and upcoming work in the [roadmap](meta/roadmap.md) and [async API audit](async-api-audit.md).
+- For contribution guidelines, coding standards, and CI expectations, see [CONTRIBUTING.md](../CONTRIBUTING.md).

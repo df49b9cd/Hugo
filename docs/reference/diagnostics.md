@@ -2,6 +2,19 @@
 
 `GoDiagnostics` emits `System.Diagnostics.Metrics` instruments that you can export through OpenTelemetry or other meter providers. You can wire everything in manually with `GoDiagnostics.Configure(IMeterFactory, string meterName = "Hugo.Go")` or install the `Hugo.Diagnostics.OpenTelemetry` package and call `builder.AddHugoDiagnostics(...)` for Aspire-aligned defaults, schema-aware meters, activity sources, OTLP/Prometheus exporters, and rate-limited sampling.
 
+## Quick navigation
+
+- [Instruments](#instruments)
+  - [Wait groups](#wait-groups)
+  - [Result pipelines](#result-pipelines)
+  - [Channel selectors](#channel-selectors)
+  - [Task queues](#task-queues)
+  - [Workflow execution](#workflow-execution)
+- [Configuration options](#configuration-options)
+- [Usage guidelines](#usage-guidelines)
+
+> **Best practice:** Register diagnostics before you create channels, wait groups, or result pipelines—metrics only emit after instrumentation is configured.
+
 ## Instruments
 
 ### Wait groups
