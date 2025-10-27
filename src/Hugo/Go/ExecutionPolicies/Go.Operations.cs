@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+
 using Hugo.Policies;
 
 namespace Hugo;
