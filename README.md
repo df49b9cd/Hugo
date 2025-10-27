@@ -26,6 +26,7 @@
 - **Deterministic concurrency**: Channels, wait groups, mutexes, RW locks, timers, defer, and select-style helpers mirror Go semantics while respecting `CancellationToken` and `TimeProvider`.
 - **Railway-oriented results**: `Result<T>` pipelines keep success/failure explicit with `Then`, `Map`, `Recover`, `Ensure`, streaming helpers, sagas, and tiered fallbacks.
 - **Observability first**: `GoDiagnostics` ships counters, histograms, and activity sources that plug directly into OpenTelemetry exporters or custom meter providers.
+- **Source-generated error catalog**: Hugo’s well-known error codes are generated at compile time, ensuring consistent metadata for logs, metrics, and documentation.
 - **Batteries included**: Prioritised channels, task queue leasing, retry policies, deterministic version gates, workflow telemetry, and profiling recipes ship alongside the core library.
 - **Testability**: Fakeable time providers, deterministic effect capture, structured errors, and cancellation metadata keep async workflows reproducible in CI.
 

@@ -112,4 +112,24 @@ public class ErrorTests
         Assert.Contains(first, (Error[])value!);
         Assert.Contains(second, (Error[])value!);
     }
+
+    [Fact]
+    public void From_ShouldAttachDescriptorMetadata_ForKnownCode()
+    {
+        var error = Error.From("invalid payload", ErrorCodes.Validation);
+
+        Assert.Equal("Validation", error.Metadata["error.name"]);
+        Assert.Equal("Input validation failed or precondition was not satisfied.", error.Metadata["error.description"]);
+        Assert.Equal("General", error.Metadata["error.category"]);
+    }
+
+    [Fact]
+    public void ErrorCodes_ShouldExposeDescriptors()
+    {
+        Assert.True(ErrorCodes.TryGetDescriptor(ErrorCodes.Timeout, out var descriptor));
+        Assert.Equal("Timeout", descriptor.Name);
+        Assert.Equal("error.timeout", descriptor.Code);
+        Assert.Equal("General", descriptor.Category);
+        Assert.Equal("Operation exceeded the allotted deadline.", descriptor.Description);
+    }
 }

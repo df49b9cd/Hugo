@@ -146,6 +146,7 @@ var completion = await group.WaitAsync(cancellationToken);
 - `Error.TryGetMetadata<T>(string key, out T value)`
 - `Error.WithCode(string? code)` / `Error.WithCause(Exception? cause)`
 - Factory helpers: `Error.From`, `Error.FromException`, `Error.Canceled`, `Error.Timeout`, `Error.Unspecified`, `Error.Aggregate`
+- `ErrorCodes.Descriptors` exposes compile-time generated metadata for all well-known error codes so logs, dashboards, and validation share a single source of truth. Call `ErrorCodes.TryGetDescriptor(code, out var descriptor)` or `ErrorCodes.GetDescriptor(code)` to enrich observability pipelines with descriptions and categories. When a known code is assigned, Hugo automatically attaches `error.name`, `error.description`, and `error.category` metadata entries to the resulting <code>Error</code>.
 
 ```csharp
 var result = Go.Ok(user)

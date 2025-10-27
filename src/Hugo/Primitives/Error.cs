@@ -9,6 +9,10 @@ namespace Hugo;
 [JsonConverter(typeof(ErrorJsonConverter))]
 public sealed class Error
 {
+    private const string DescriptorNameKey = "error.name";
+    private const string DescriptorDescriptionKey = "error.description";
+    private const string DescriptorCategoryKey = "error.category";
+
     private static readonly StringComparer MetadataComparer = StringComparer.OrdinalIgnoreCase;
     private static readonly FrozenDictionary<string, object?> EmptyMetadata =
         FrozenDictionary.ToFrozenDictionary(Array.Empty<KeyValuePair<string, object?>>(), MetadataComparer);
@@ -20,7 +24,7 @@ public sealed class Error
         Message = message ?? throw new ArgumentNullException(nameof(message));
         Code = code;
         Cause = cause;
-        _metadata = metadata ?? EmptyMetadata;
+        _metadata = AttachDescriptor(metadata ?? EmptyMetadata, code);
     }
 
     /// <summary>Gets the human-readable error message.</summary>
@@ -190,6 +194,42 @@ public sealed class Error
     /// <param name="exception">The exception to convert.</param>
     /// <returns>An error representing the exception.</returns>
     public static implicit operator Error?(Exception? exception) => exception is null ? null : FromException(exception);
+
+    private static FrozenDictionary<string, object?> AttachDescriptor(FrozenDictionary<string, object?> metadata, string? code)
+    {
+        if (code is null || !ErrorCodes.TryGetDescriptor(code, out var descriptor))
+        {
+            return metadata;
+        }
+
+        bool hasName = metadata.ContainsKey(DescriptorNameKey);
+        bool hasDescription = metadata.ContainsKey(DescriptorDescriptionKey);
+        bool hasCategory = metadata.ContainsKey(DescriptorCategoryKey);
+
+        if (hasName && hasDescription && hasCategory)
+        {
+            return metadata;
+        }
+
+        var builder = CloneMetadata(metadata, 3);
+
+        if (!hasName)
+        {
+            builder.TryAdd(DescriptorNameKey, descriptor.Name);
+        }
+
+        if (!hasDescription)
+        {
+            builder.TryAdd(DescriptorDescriptionKey, descriptor.Description);
+        }
+
+        if (!hasCategory)
+        {
+            builder.TryAdd(DescriptorCategoryKey, descriptor.Category);
+        }
+
+        return FreezeMetadata(builder);
+    }
 
     private static Dictionary<string, object?> CloneMetadata(IReadOnlyDictionary<string, object?> source, int additionalCapacity = 0)
     {
