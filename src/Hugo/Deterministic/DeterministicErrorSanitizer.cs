@@ -8,6 +8,11 @@ namespace Hugo;
 
 internal static class DeterministicErrorSanitizer
 {
+    /// <summary>
+    /// Produces a sanitized <see cref="Error"/> graph that eliminates non-deterministic metadata payloads.
+    /// </summary>
+    /// <param name="error">The error to sanitize.</param>
+    /// <returns>A sanitized error instance, or <c>null</c> when the input was <c>null</c>.</returns>
     public static Error? Sanitize(Error? error)
     {
         if (error is null)
@@ -19,6 +24,11 @@ internal static class DeterministicErrorSanitizer
         return Sanitize(error, visited);
     }
 
+    /// <summary>
+    /// Sanitizes an error metadata value so that persisted payloads remain deterministic and serializable.
+    /// </summary>
+    /// <param name="value">The value to sanitize.</param>
+    /// <returns>The sanitized value, or <c>null</c> when the input was <c>null</c>.</returns>
     public static object? SanitizeMetadataValue(object? value)
     {
         if (value is null)
@@ -30,6 +40,12 @@ internal static class DeterministicErrorSanitizer
         return SanitizeValue(value, visited);
     }
 
+    /// <summary>
+    /// Recursively sanitizes an error while preventing infinite recursion caused by cyclic references.
+    /// </summary>
+    /// <param name="error">The error to sanitize.</param>
+    /// <param name="visited">The set tracking already visited instances.</param>
+    /// <returns>The sanitized error instance.</returns>
     private static Error Sanitize(Error error, HashSet<object> visited)
     {
         if (!visited.Add(error))
@@ -48,6 +64,13 @@ internal static class DeterministicErrorSanitizer
         return Error.From(error.Message, error.Code, cause, sanitizedMetadata);
     }
 
+    /// <summary>
+    /// Sanitizes error metadata values to ensure they can be serialized deterministically.
+    /// </summary>
+    /// <param name="metadata">The metadata collection to sanitize.</param>
+    /// <param name="visited">The set tracking already visited instances.</param>
+    /// <param name="changed">Indicates whether the returned metadata differs from the original.</param>
+    /// <returns>The sanitized metadata collection.</returns>
     private static IReadOnlyDictionary<string, object?> SanitizeMetadataDictionary(
         IReadOnlyDictionary<string, object?> metadata,
         HashSet<object> visited,
@@ -75,6 +98,12 @@ internal static class DeterministicErrorSanitizer
         return changed ? builder : metadata;
     }
 
+    /// <summary>
+    /// Sanitizes a metadata value into a deterministic, serializable representation.
+    /// </summary>
+    /// <param name="value">The value to sanitize.</param>
+    /// <param name="visited">The set tracking already visited instances.</param>
+    /// <returns>The sanitized value.</returns>
     private static object? SanitizeValue(object? value, HashSet<object> visited)
     {
         if (value is null)
@@ -174,6 +203,11 @@ internal static class DeterministicErrorSanitizer
         return value.ToString();
     }
 
+    /// <summary>
+    /// Determines whether the supplied value is a primitive that can be used verbatim.
+    /// </summary>
+    /// <param name="value">The value to evaluate.</param>
+    /// <returns><c>true</c> when the value is already deterministic; otherwise <c>false</c>.</returns>
     private static bool IsSupportedPrimitive(object value) =>
         value is string
         || value is bool
@@ -193,6 +227,12 @@ internal static class DeterministicErrorSanitizer
         || value is Guid
         || value is TimeSpan;
 
+    /// <summary>
+    /// Compares metadata values while respecting reference equality.
+    /// </summary>
+    /// <param name="original">The original value.</param>
+    /// <param name="sanitized">The sanitized value.</param>
+    /// <returns><c>true</c> when the values are equivalent; otherwise <c>false</c>.</returns>
     private static bool MetadataValuesEqual(object? original, object? sanitized)
     {
         if (ReferenceEquals(original, sanitized))
@@ -203,6 +243,12 @@ internal static class DeterministicErrorSanitizer
         return Equals(original, sanitized);
     }
 
+    /// <summary>
+    /// Tracks whether a reference type has already been processed to guard against cycles.
+    /// </summary>
+    /// <param name="candidate">The value to record.</param>
+    /// <param name="visited">The set tracking already visited instances.</param>
+    /// <returns><c>true</c> when the value should be processed; otherwise <c>false</c>.</returns>
     private static bool AddVisited(object candidate, HashSet<object> visited)
     {
         if (candidate.GetType().IsValueType)
@@ -213,12 +259,17 @@ internal static class DeterministicErrorSanitizer
         return visited.Add(candidate);
     }
 
+    /// <summary>
+    /// Provides reference equality semantics for tracking visited instances.
+    /// </summary>
     private sealed class ReferenceEqualityComparer : IEqualityComparer<object>
     {
         public static ReferenceEqualityComparer Instance { get; } = new();
 
+        /// <inheritdoc />
         public new bool Equals(object? x, object? y) => ReferenceEquals(x, y);
 
+        /// <inheritdoc />
         public int GetHashCode([DisallowNull] object obj) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj);
     }
 }

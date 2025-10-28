@@ -12,6 +12,21 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
     /// Executes the upgraded or legacy branch for the supplied change identifier based on the resolved version gate decision.
     /// Captures the outcome deterministically so subsequent executions replay the same result.
     /// </summary>
+    /// <typeparam name="T">The result type produced by the workflow branch.</typeparam>
+    /// <param name="changeId">The unique identifier for the gated change.</param>
+    /// <param name="minVersion">The minimum supported version for the change.</param>
+    /// <param name="maxVersion">The maximum supported version for the change.</param>
+    /// <param name="upgraded">Delegate invoked when the resolved version meets or exceeds <paramref name="maxVersion"/>.</param>
+    /// <param name="legacy">Delegate invoked when the resolved version falls below <paramref name="maxVersion"/>.</param>
+    /// <param name="initialVersionProvider">
+    /// Optional factory used to seed the gate when no existing version marker is recorded. Defaults to <paramref name="maxVersion"/>.
+    /// </param>
+    /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
+    /// <returns>A <see cref="Result{T}"/> describing the replay-safe branch outcome.</returns>
+    /// <remarks>
+    /// The selected branch executes at most once for a given change identifier and version. Subsequent invocations replay the
+    /// persisted effect captured through <see cref="DeterministicEffectStore"/>.
+    /// </remarks>
     public Task<Result<T>> ExecuteAsync<T>(
         string changeId,
         int minVersion,
@@ -36,6 +51,16 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
     /// <summary>
     /// Executes the supplied workflow delegate for the resolved version gate decision and stores the outcome deterministically.
     /// </summary>
+    /// <typeparam name="T">The result type produced by the workflow delegate.</typeparam>
+    /// <param name="changeId">The unique identifier for the gated change.</param>
+    /// <param name="minVersion">The minimum supported version for the change.</param>
+    /// <param name="maxVersion">The maximum supported version for the change.</param>
+    /// <param name="onExecute">Delegate that executes the workflow for the resolved version decision.</param>
+    /// <param name="initialVersionProvider">
+    /// Optional factory used to seed the gate when no existing version marker is recorded. Defaults to <paramref name="maxVersion"/>.
+    /// </param>
+    /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
+    /// <returns>A <see cref="Result{T}"/> describing the replay-safe workflow outcome.</returns>
     public async Task<Result<T>> ExecuteAsync<T>(
         string changeId,
         int minVersion,
@@ -62,6 +87,17 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Creates a fluent builder that configures deterministic workflow branches for the specified change identifier.
+    /// </summary>
+    /// <typeparam name="TResult">The result type produced by the configured workflow.</typeparam>
+    /// <param name="changeId">The unique identifier for the gated change.</param>
+    /// <param name="minVersion">The minimum supported version for the change.</param>
+    /// <param name="maxVersion">The maximum supported version for the change.</param>
+    /// <param name="initialVersionProvider">
+    /// Optional factory used to seed the gate when no existing version marker is recorded. Defaults to <paramref name="maxVersion"/>.
+    /// </param>
+    /// <returns>A builder that can register version-specific branches and execute them deterministically.</returns>
     public DeterministicWorkflowBuilder<TResult> Workflow<TResult>(
         string changeId,
         int minVersion,
@@ -69,6 +105,13 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         Func<VersionGateContext, int>? initialVersionProvider = null) =>
         new(this, changeId, minVersion, maxVersion, initialVersionProvider);
 
+    /// <summary>
+    /// Builds a deterministic effect identifier that incorporates the change identifier, version, and optional scope.
+    /// </summary>
+    /// <param name="changeId">The unique change identifier.</param>
+    /// <param name="version">The resolved version.</param>
+    /// <param name="scope">Optional workflow scope or step identifier.</param>
+    /// <returns>A normalized effect identifier used for deterministic storage.</returns>
     private static string BuildEffectId(string changeId, int version, string? scope = null)
     {
         var baseId = $"{changeId}::v{version}";
@@ -80,6 +123,11 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         return $"{baseId}::{scope}";
     }
 
+    /// <summary>
+    /// Normalizes the provided scope string to ensure consistent deterministic identifiers.
+    /// </summary>
+    /// <param name="scope">The user-supplied scope identifier.</param>
+    /// <returns>A trimmed, non-empty scope value.</returns>
     private static string NormalizeScope(string scope)
     {
         if (string.IsNullOrWhiteSpace(scope))
@@ -90,6 +138,10 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         return scope.Trim();
     }
 
+    /// <summary>
+    /// Provides a fluent API for registering version-specific workflow branches that execute deterministically.
+    /// </summary>
+    /// <typeparam name="TResult">The result type produced by the workflow.</typeparam>
     public sealed class DeterministicWorkflowBuilder<TResult>
     {
         private readonly DeterministicGate _gate;
@@ -126,6 +178,12 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             _initialVersionProvider = initialVersionProvider;
         }
 
+        /// <summary>
+        /// Registers a branch that executes when the resolved version exactly matches <paramref name="version"/>.
+        /// </summary>
+        /// <param name="version">The specific version to match.</param>
+        /// <param name="executor">Delegate that produces the branch result.</param>
+        /// <returns>The current builder instance to support fluent chaining.</returns>
         public DeterministicWorkflowBuilder<TResult> ForVersion(
             int version,
             Func<DeterministicWorkflowContext, CancellationToken, Task<Result<TResult>>> executor)
@@ -138,11 +196,24 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             return For(decision => decision.Version == version, executor);
         }
 
+        /// <summary>
+        /// Registers a synchronous branch that executes when the resolved version exactly matches <paramref name="version"/>.
+        /// </summary>
+        /// <param name="version">The specific version to match.</param>
+        /// <param name="executor">Delegate that produces the branch result synchronously.</param>
+        /// <returns>The current builder instance to support fluent chaining.</returns>
         public DeterministicWorkflowBuilder<TResult> ForVersion(
             int version,
             Func<DeterministicWorkflowContext, Result<TResult>> executor) =>
             ForVersion(version, (context, _) => Task.FromResult(executor(context)));
 
+        /// <summary>
+        /// Registers a branch that executes when the resolved version falls within the supplied inclusive range.
+        /// </summary>
+        /// <param name="minVersion">The minimum version to match.</param>
+        /// <param name="maxVersion">The maximum version to match.</param>
+        /// <param name="executor">Delegate that produces the branch result.</param>
+        /// <returns>The current builder instance to support fluent chaining.</returns>
         public DeterministicWorkflowBuilder<TResult> ForRange(
             int minVersion,
             int maxVersion,
@@ -166,12 +237,25 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             return For(decision => decision.Version >= minVersion && decision.Version <= maxVersion, executor);
         }
 
+        /// <summary>
+        /// Registers a synchronous branch that executes when the resolved version falls within the supplied inclusive range.
+        /// </summary>
+        /// <param name="minVersion">The minimum version to match.</param>
+        /// <param name="maxVersion">The maximum version to match.</param>
+        /// <param name="executor">Delegate that produces the branch result synchronously.</param>
+        /// <returns>The current builder instance to support fluent chaining.</returns>
         public DeterministicWorkflowBuilder<TResult> ForRange(
             int minVersion,
             int maxVersion,
             Func<DeterministicWorkflowContext, Result<TResult>> executor) =>
             ForRange(minVersion, maxVersion, (context, _) => Task.FromResult(executor(context)));
 
+        /// <summary>
+        /// Registers a branch that executes when the supplied predicate evaluates to <c>true</c> for the resolved decision.
+        /// </summary>
+        /// <param name="predicate">Predicate used to match the decision.</param>
+        /// <param name="executor">Delegate that produces the branch result.</param>
+        /// <returns>The current builder instance to support fluent chaining.</returns>
         public DeterministicWorkflowBuilder<TResult> For(
             Func<VersionDecision, bool> predicate,
             Func<DeterministicWorkflowContext, CancellationToken, Task<Result<TResult>>> executor)
@@ -183,11 +267,22 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             return this;
         }
 
+        /// <summary>
+        /// Registers a synchronous branch that executes when the supplied predicate evaluates to <c>true</c> for the resolved decision.
+        /// </summary>
+        /// <param name="predicate">Predicate used to match the decision.</param>
+        /// <param name="executor">Delegate that produces the branch result synchronously.</param>
+        /// <returns>The current builder instance to support fluent chaining.</returns>
         public DeterministicWorkflowBuilder<TResult> For(
             Func<VersionDecision, bool> predicate,
             Func<DeterministicWorkflowContext, Result<TResult>> executor) =>
             For(predicate, (context, _) => Task.FromResult(executor(context)));
 
+        /// <summary>
+        /// Registers a fallback branch that executes when no other branch predicates match the resolved decision.
+        /// </summary>
+        /// <param name="executor">Delegate invoked when no branch matches.</param>
+        /// <returns>The current builder instance to support fluent chaining.</returns>
         public DeterministicWorkflowBuilder<TResult> WithFallback(
             Func<DeterministicWorkflowContext, CancellationToken, Task<Result<TResult>>> executor)
         {
@@ -196,6 +291,11 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             return this;
         }
 
+        /// <summary>
+        /// Registers a synchronous fallback branch that executes when no other branch predicates match the resolved decision.
+        /// </summary>
+        /// <param name="executor">Delegate invoked when no branch matches.</param>
+        /// <returns>The current builder instance to support fluent chaining.</returns>
         public DeterministicWorkflowBuilder<TResult> WithFallback(
             Func<DeterministicWorkflowContext, Result<TResult>> executor)
         {
@@ -203,6 +303,11 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             return WithFallback((context, _) => Task.FromResult(executor(context)));
         }
 
+        /// <summary>
+        /// Executes the deterministic workflow by evaluating registered branches and capturing side-effects.
+        /// </summary>
+        /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
+        /// <returns>A <see cref="Result{TResult}"/> describing the replay-safe workflow outcome.</returns>
         public Task<Result<TResult>> ExecuteAsync(CancellationToken cancellationToken = default) =>
             _gate.ExecuteAsync(
                 _changeId,
@@ -212,6 +317,12 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
                 _initialVersionProvider,
                 cancellationToken);
 
+        /// <summary>
+        /// Resolves the matching branch and executes it within the deterministic context.
+        /// </summary>
+        /// <param name="decision">The resolved version decision.</param>
+        /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
+        /// <returns>A <see cref="Result{TResult}"/> describing the branch outcome.</returns>
         private async Task<Result<TResult>> ExecuteBranchAsync(VersionDecision decision, CancellationToken cancellationToken)
         {
             var executor = Resolve(decision);
@@ -247,6 +358,11 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             }
         }
 
+        /// <summary>
+        /// Finds the first registered branch whose predicate matches the supplied decision.
+        /// </summary>
+        /// <param name="decision">The resolved version decision.</param>
+        /// <returns>The registered executor, or <c>null</c> when no branch matches.</returns>
         private Func<DeterministicWorkflowContext, CancellationToken, Task<Result<TResult>>>? Resolve(VersionDecision decision)
         {
             foreach (var branch in _branches)
@@ -261,6 +377,9 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         }
     }
 
+    /// <summary>
+    /// Represents the deterministic execution context surfaced to workflow branches and effects.
+    /// </summary>
     public sealed class DeterministicWorkflowContext
     {
         private readonly DeterministicGate _gate;
@@ -273,16 +392,39 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             Decision = decision ?? throw new ArgumentNullException(nameof(decision));
         }
 
+        /// <summary>
+        /// Gets the resolved version decision.
+        /// </summary>
         public VersionDecision Decision { get; }
 
+        /// <summary>
+        /// Gets the change identifier associated with the deterministic workflow.
+        /// </summary>
         public string ChangeId => _changeId;
 
+        /// <summary>
+        /// Gets the resolved version number.
+        /// </summary>
         public int Version => Decision.Version;
 
+        /// <summary>
+        /// Gets a value indicating whether the version decision was newly recorded.
+        /// </summary>
         public bool IsNew => Decision.IsNew;
 
+        /// <summary>
+        /// Gets the timestamp associated with the version decision.
+        /// </summary>
         public DateTimeOffset RecordedAt => Decision.RecordedAt;
 
+        /// <summary>
+        /// Captures the supplied asynchronous side-effect within the deterministic effect store.
+        /// </summary>
+        /// <typeparam name="T">The side-effect result type.</typeparam>
+        /// <param name="stepId">Unique identifier for the step within the workflow.</param>
+        /// <param name="effect">Delegate that performs the side-effect.</param>
+        /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
+        /// <returns>A <see cref="Result{T}"/> describing the deterministic effect outcome.</returns>
         public Task<Result<T>> CaptureAsync<T>(
             string stepId,
             Func<CancellationToken, Task<Result<T>>> effect,
@@ -295,6 +437,14 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
                 cancellationToken);
         }
 
+        /// <summary>
+        /// Captures the supplied asynchronous side-effect within the deterministic effect store.
+        /// </summary>
+        /// <typeparam name="T">The side-effect result type.</typeparam>
+        /// <param name="stepId">Unique identifier for the step within the workflow.</param>
+        /// <param name="effect">Delegate that performs the side-effect.</param>
+        /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
+        /// <returns>A <see cref="Result{T}"/> describing the deterministic effect outcome.</returns>
         public Task<Result<T>> CaptureAsync<T>(
             string stepId,
             Func<Task<Result<T>>> effect,
@@ -304,6 +454,14 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             return CaptureAsync(stepId, _ => effect(), cancellationToken);
         }
 
+        /// <summary>
+        /// Captures the supplied synchronous side-effect within the deterministic effect store.
+        /// </summary>
+        /// <typeparam name="T">The side-effect result type.</typeparam>
+        /// <param name="stepId">Unique identifier for the step within the workflow.</param>
+        /// <param name="effect">Delegate that performs the side-effect.</param>
+        /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
+        /// <returns>A <see cref="Result{T}"/> describing the deterministic effect outcome.</returns>
         public Task<Result<T>> CaptureAsync<T>(
             string stepId,
             Func<Result<T>> effect,
@@ -313,6 +471,11 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             return CaptureAsync(stepId, _ => Task.FromResult(effect()), cancellationToken);
         }
 
+        /// <summary>
+        /// Composes a deterministic effect identifier for the supplied step.
+        /// </summary>
+        /// <param name="stepId">The workflow step identifier.</param>
+        /// <returns>An effect identifier suitable for deterministic storage.</returns>
         public string CreateEffectId(string stepId)
         {
             var normalized = NormalizeScope(stepId);
@@ -320,6 +483,10 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         }
     }
 
+    /// <summary>
+    /// Represents a registered deterministic workflow branch.
+    /// </summary>
+    /// <typeparam name="TResult">The branch result type.</typeparam>
     private sealed record WorkflowBranch<TResult>(
         Func<VersionDecision, bool> Predicate,
         Func<DeterministicWorkflowContext, CancellationToken, Task<Result<TResult>>> Executor);

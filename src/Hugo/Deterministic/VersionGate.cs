@@ -121,8 +121,18 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
         return Result.Ok(new VersionDecision(decidedVersion, true, now));
     }
 
+    /// <summary>
+    /// Serializes the supplied version marker for persistence.
+    /// </summary>
+    /// <param name="version">The version to serialize.</param>
+    /// <returns>The serialized payload.</returns>
     private byte[] SerializeVersion(int version) => JsonSerializer.SerializeToUtf8Bytes(new VersionMarker(version), _serializerOptions);
 
+    /// <summary>
+    /// Deserializes a persisted version marker payload.
+    /// </summary>
+    /// <param name="payload">The serialized payload.</param>
+    /// <returns>The materialized version value.</returns>
     private int DeserializeVersion(ReadOnlySpan<byte> payload)
     {
         var marker = JsonSerializer.Deserialize<VersionMarker>(payload, _serializerOptions);

@@ -93,6 +93,13 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
         return CaptureAsync(effectId, _ => Task.FromResult(effect()));
     }
 
+    /// <summary>
+    /// Replays a previously captured deterministic effect.
+    /// </summary>
+    /// <typeparam name="T">The expected result type.</typeparam>
+    /// <param name="effectId">The effect identifier.</param>
+    /// <param name="record">The persisted record.</param>
+    /// <returns>The replayed result or a failure when the stored payload is incompatible.</returns>
     private Result<T> Replay<T>(string effectId, DeterministicRecord record)
     {
         if (!string.Equals(record.Kind, RecordKind, StringComparison.Ordinal))
@@ -128,6 +135,12 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
         return Result.Fail<T>(envelope.Error ?? Error.Unspecified());
     }
 
+    /// <summary>
+    /// Persists the supplied effect outcome in the deterministic state store.
+    /// </summary>
+    /// <typeparam name="T">The result type.</typeparam>
+    /// <param name="effectId">The effect identifier.</param>
+    /// <param name="outcome">The outcome to persist.</param>
     private Task PersistAsync<T>(string effectId, Result<T> outcome)
     {
         var now = _timeProvider.GetUtcNow();
@@ -153,6 +166,11 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Materializes a deterministic effect envelope from serialized payload.
+    /// </summary>
+    /// <param name="payload">The serialized envelope.</param>
+    /// <returns>The deserialized envelope.</returns>
     private EffectEnvelope DeserializeEnvelope(ReadOnlySpan<byte> payload)
     {
         var envelope = JsonSerializer.Deserialize<EffectEnvelope>(payload, _serializerOptions);
@@ -164,6 +182,12 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
         return envelope;
     }
 
+    /// <summary>
+    /// Deserializes a persisted effect value.
+    /// </summary>
+    /// <typeparam name="T">The expected result type.</typeparam>
+    /// <param name="payload">The serialized value.</param>
+    /// <returns>The materialized value, or the default when the payload is <c>null</c>.</returns>
     private T DeserializeValue<T>(byte[]? payload)
     {
         if (payload is null)
