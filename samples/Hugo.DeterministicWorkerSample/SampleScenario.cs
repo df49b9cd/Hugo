@@ -16,6 +16,10 @@ sealed class SampleScenario(
     private readonly ILogger<SampleScenario> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private static readonly string[] EntityIds = ["trend-042", "trend-107", "trend-204", "trend-314"];
 
+    /// <summary>
+    /// Publishes patterned messages to the simulated topic until the host shuts down.
+    /// </summary>
+    /// <param name="stoppingToken">Token used to stop the background worker.</param>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
@@ -90,6 +94,12 @@ sealed class SampleScenario(
         }
     }
 
+    /// <summary>
+    /// Publishes a message to the simulated topic and logs the scenario tag.
+    /// </summary>
+    /// <param name="message">The message being published.</param>
+    /// <param name="scenario">The scenario label included in the log output.</param>
+    /// <param name="cancellationToken">Token used to cancel the publish operation.</param>
     private async Task PublishAsync(SimulatedKafkaMessage message, string scenario, CancellationToken cancellationToken)
     {
         await _topic.PublishAsync(message, cancellationToken).ConfigureAwait(false);

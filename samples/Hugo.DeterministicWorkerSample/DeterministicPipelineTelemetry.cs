@@ -8,7 +8,14 @@ using Hugo;
 /// </summary>
 static class DeterministicPipelineTelemetry
 {
+    /// <summary>
+    /// The activity source name emitted by the deterministic worker sample.
+    /// </summary>
     public const string ActivitySourceName = "Hugo.DeterministicWorkerSample";
+
+    /// <summary>
+    /// The meter name emitted by the deterministic worker sample.
+    /// </summary>
     public const string MeterName = "Hugo.DeterministicWorkerSample";
     private const string Version = "1.0.0";
 
@@ -28,6 +35,11 @@ static class DeterministicPipelineTelemetry
         GoDiagnostics.Configure(Meter, ActivitySource);
     }
 
+    /// <summary>
+    /// Starts a consumer activity that tracks processing of the supplied message.
+    /// </summary>
+    /// <param name="message">The simulated Kafka message being processed.</param>
+    /// <returns>The activity representing the processing scope, or <c>null</c> when instrumentation is disabled.</returns>
     public static Activity? StartProcessingActivity(SimulatedKafkaMessage message)
     {
         Activity? activity = ActivitySource.StartActivity("ProcessMessage", ActivityKind.Consumer);
@@ -43,6 +55,11 @@ static class DeterministicPipelineTelemetry
         return activity;
     }
 
+    /// <summary>
+    /// Records successful processing metrics and tracks whether the outcome was replayed.
+    /// </summary>
+    /// <param name="isReplay">Indicates whether the deterministic gate replayed a prior result.</param>
+    /// <param name="duration">The time spent processing the message.</param>
     public static void RecordProcessed(bool isReplay, TimeSpan duration)
     {
         MessagesProcessed.Add(1);
@@ -54,6 +71,9 @@ static class DeterministicPipelineTelemetry
         }
     }
 
+    /// <summary>
+    /// Records a failed processing attempt for the sample pipeline.
+    /// </summary>
     public static void RecordFailure()
     {
         MessagesFailed.Add(1);

@@ -9,6 +9,12 @@ sealed class PipelineEntityStore
 {
     private readonly ConcurrentDictionary<string, PipelineEntity> _entities = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Loads the current projection for the supplied entity, creating a default snapshot when none exists.
+    /// </summary>
+    /// <param name="entityId">The entity identifier to load.</param>
+    /// <param name="cancellationToken">Token used to cancel the load operation.</param>
+    /// <returns>A deterministic result containing the entity projection.</returns>
     public ValueTask<Result<PipelineEntity>> LoadAsync(string entityId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(entityId);
@@ -23,6 +29,12 @@ sealed class PipelineEntityStore
         return ValueTask.FromResult(Result.Ok(PipelineEntity.Create(entityId)));
     }
 
+    /// <summary>
+    /// Persists the supplied projection so future loads and snapshots observe the mutation.
+    /// </summary>
+    /// <param name="entity">The entity projection to store.</param>
+    /// <param name="cancellationToken">Token used to cancel the save operation.</param>
+    /// <returns>A deterministic result containing the stored entity.</returns>
     public ValueTask<Result<PipelineEntity>> SaveAsync(PipelineEntity entity, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(entity);
@@ -33,6 +45,10 @@ sealed class PipelineEntityStore
         return ValueTask.FromResult(Result.Ok(entity));
     }
 
+    /// <summary>
+    /// Creates a deterministic snapshot of all tracked entities ordered by identifier.
+    /// </summary>
+    /// <returns>An immutable snapshot of the current projections.</returns>
     public IReadOnlyList<PipelineEntity> Snapshot() =>
         // Produce a deterministic ordering so console output stays stable between runs.
         [.. _entities.Values.OrderBy(static e => e.EntityId, StringComparer.OrdinalIgnoreCase)];
@@ -48,16 +64,36 @@ sealed record class PipelineEntity(
     double LastAmount,
     DateTimeOffset LastUpdated)
 {
+    /// <summary>
+    /// Gets the running average of all processed amounts for the entity.
+    /// </summary>
     public double RunningAverage => ProcessedCount == 0 ? 0d : RunningTotal / ProcessedCount;
 
+    /// <summary>
+    /// Creates an empty projection for a newly observed entity.
+    /// </summary>
+    /// <param name="entityId">The entity identifier.</param>
+    /// <returns>A pipeline entity with zeroed aggregates.</returns>
     public static PipelineEntity Create(string entityId) =>
         new(entityId, 0d, 0, 0d, DateTimeOffset.MinValue);
 }
 
+/// <summary>
+/// Represents a computation performed over an entity as part of the saga.
+/// </summary>
 readonly record struct PipelineComputation(double Total, int ProcessedCount)
 {
+    /// <summary>
+    /// Gets the average derived from the aggregated totals.
+    /// </summary>
     public double Average => ProcessedCount == 0 ? 0d : Total / ProcessedCount;
 
+    /// <summary>
+    /// Calculates updated aggregates for the supplied entity and message.
+    /// </summary>
+    /// <param name="entity">The existing entity projection.</param>
+    /// <param name="message">The message contributing to the aggregates.</param>
+    /// <returns>The computed aggregate snapshot.</returns>
     public static PipelineComputation Create(PipelineEntity entity, SimulatedKafkaMessage message)
     {
         // Increment aggregates with the latest observation; pure function keeps saga deterministic.
@@ -66,6 +102,12 @@ readonly record struct PipelineComputation(double Total, int ProcessedCount)
         return new PipelineComputation(total, processed);
     }
 
+    /// <summary>
+    /// Applies the computed aggregates to the supplied entity, producing an updated projection.
+    /// </summary>
+    /// <param name="entity">The original entity projection.</param>
+    /// <param name="message">The message that produced the aggregates.</param>
+    /// <returns>The updated entity projection.</returns>
     public PipelineEntity ApplyTo(PipelineEntity entity, SimulatedKafkaMessage message) =>
         // Emit a new immutable projection that carries the updated totals and last seen value.
         new(

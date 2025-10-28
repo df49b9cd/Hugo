@@ -100,6 +100,10 @@ IHost app = builder.Build();
 await app.RunAsync().ConfigureAwait(false);
 return;
 
+/// <summary>
+/// Configures serializer options used across deterministic stores in the sample.
+/// </summary>
+/// <returns>Serializer options that include sample-specific metadata.</returns>
 static JsonSerializerOptions CreateSampleSerializerOptions()
 {
     JsonSerializerOptions options = new(JsonSerializerDefaults.Web);

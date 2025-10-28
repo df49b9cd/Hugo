@@ -22,6 +22,13 @@ sealed class PipelineSaga(
         public const string PersistScope = "entity-save";
     }
 
+    /// <summary>
+    /// Executes the saga steps for the supplied message inside the deterministic workflow context.
+    /// </summary>
+    /// <param name="message">The message driving the saga execution.</param>
+    /// <param name="workflowContext">The deterministic context supplied by the gate.</param>
+    /// <param name="cancellationToken">Token used to cancel the saga execution.</param>
+    /// <returns>A <see cref="Result{PipelineEntity}"/> describing the persisted entity projection.</returns>
     public async Task<Result<PipelineEntity>> ExecuteAsync(
         SimulatedKafkaMessage message,
         DeterministicGate.DeterministicWorkflowContext workflowContext,
@@ -118,6 +125,11 @@ sealed class PipelineSaga(
         return Result.Ok(entity);
     }
 
+    /// <summary>
+    /// Creates a validation error indicating that the saga state is missing the expected key.
+    /// </summary>
+    /// <param name="key">The missing state key.</param>
+    /// <returns>An error describing the missing saga state entry.</returns>
     private static Error MissingSagaState(string key) =>
         Error.From($"Saga state is missing '{key}'.", ErrorCodes.Validation);
 }

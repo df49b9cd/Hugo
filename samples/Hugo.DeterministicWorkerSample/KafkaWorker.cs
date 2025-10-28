@@ -17,6 +17,10 @@ sealed class KafkaWorker(
     private readonly DeterministicPipelineProcessor _processor = processor ?? throw new ArgumentNullException(nameof(processor));
     private readonly ILogger<KafkaWorker> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
+    /// <summary>
+    /// Continuously reads messages from the simulated topic and hands them to the deterministic processor.
+    /// </summary>
+    /// <param name="stoppingToken">Token used to stop the background worker.</param>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         ChannelReader<SimulatedKafkaMessage> reader = _topic.Reader;

@@ -16,6 +16,12 @@ sealed class DeterministicPipelineProcessor(
     private readonly PipelineSaga _saga = saga ?? throw new ArgumentNullException(nameof(saga));
     private readonly ILogger<DeterministicPipelineProcessor> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
+    /// <summary>
+    /// Processes an incoming Kafka message inside a deterministic workflow, replaying persisted saga outcomes when available.
+    /// </summary>
+    /// <param name="message">The simulated Kafka message to process.</param>
+    /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
+    /// <returns>A <see cref="Result{ProcessingOutcome}"/> describing the pipeline outcome, including replay metadata.</returns>
     public async Task<Result<ProcessingOutcome>> ProcessAsync(SimulatedKafkaMessage message, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(message);
