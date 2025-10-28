@@ -1,5 +1,5 @@
 <Solution>
-  <Folder Name="/.github/"> 
+  <Folder Name="/.github/">
     <File Path=".github/copilot-instructions.md" />
   </Folder>
   <Folder Name="/.github/workflows/">
@@ -11,21 +11,21 @@
   <Folder Name="/docs/">
     <File Path="docs/index.md" />
   </Folder>
+  <Folder Name="/docs/explanation/">
+    <File Path="docs/explanation/design-principles.md" />
+  </Folder>
   <Folder Name="/docs/how-to/">
     <File Path="docs/how-to/fan-in-channels.md" />
     <File Path="docs/how-to/observe-with-opentelemetry.md" />
     <File Path="docs/how-to/workflow-visibility.md" />
   </Folder>
+  <Folder Name="/docs/meta/">
+    <File Path="docs/meta/roadmap.md" />
+  </Folder>
   <Folder Name="/docs/reference/">
     <File Path="docs/reference/concurrency-primitives.md" />
     <File Path="docs/reference/result-pipelines.md" />
     <File Path="docs/reference/diagnostics.md" />
-  </Folder>
-  <Folder Name="/docs/explanation/">
-    <File Path="docs/explanation/design-principles.md" />
-  </Folder>
-  <Folder Name="/docs/meta/">
-    <File Path="docs/meta/roadmap.md" />
   </Folder>
   <Folder Name="/docs/tutorials/">
     <File Path="docs/tutorials/getting-started.md" />
@@ -43,6 +43,7 @@
     <Project Path="src/Hugo.Diagnostics.OpenTelemetry/Hugo.Diagnostics.OpenTelemetry.csproj" />
     <Project Path="src/Hugo.Profiling/Hugo.Profiling.csproj" />
     <Project Path="src/Hugo/Hugo.csproj" />
+    <Project Path="src\Hugo.SourceGenerators\Hugo.SourceGenerators.csproj" Type="Classic C#" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Hugo.Tests/Hugo.Tests.csproj" />
