@@ -52,6 +52,9 @@
     <Project Path="src\Hugo.SourceGenerators\Hugo.SourceGenerators.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Hugo.Deterministic.Cosmos.Tests/Hugo.Deterministic.Cosmos.Tests.csproj" />
+    <Project Path="tests/Hugo.Deterministic.Redis.Tests/Hugo.Deterministic.Redis.Tests.csproj" />
+    <Project Path="tests/Hugo.Deterministic.SqlServer.Tests/Hugo.Deterministic.SqlServer.Tests.csproj" />
     <Project Path="tests/Hugo.Tests/Hugo.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
