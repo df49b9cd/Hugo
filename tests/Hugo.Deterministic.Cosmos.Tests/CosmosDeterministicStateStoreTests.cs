@@ -3,13 +3,14 @@ using System.Net.Http;
 using System.Threading;
 
 using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Containers;
 using DotNet.Testcontainers.Configurations;
 
 using Hugo;
 using Hugo.Deterministic.Cosmos;
 
 using Microsoft.Azure.Cosmos;
+
+using Testcontainers.CosmosDb;
 
 using Xunit;
 
@@ -19,7 +20,7 @@ public sealed class CosmosDeterministicStateStoreTests : IAsyncLifetime
     private const string DatabaseId = "hugo-deterministic-tests";
     private const string ContainerId = "deterministic-effects";
 
-    private readonly TestcontainersContainer _container = new TestcontainersBuilder<TestcontainersContainer>()
+    private readonly CosmosDbContainer _container = new CosmosDbBuilder()
         .WithImage("mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest")
         .WithCleanUp(true)
         .WithPrivileged(true)
@@ -33,7 +34,7 @@ public sealed class CosmosDeterministicStateStoreTests : IAsyncLifetime
         .WithEnvironment("AZURE_COSMOS_EMULATOR_IP_ADDRESS_OVERRIDE", "0.0.0.0")
         .WithEnvironment("AZURE_COSMOS_EMULATOR_CERTIFICATE_PASSWORD", "CosmosEmulator")
         .WithEnvironment("AZURE_COSMOS_EMULATOR_ACCEPT_EULA", "Y")
-        .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(8081))
+        .WithWaitStrategy(Wait.ForUnixContainer().UntilExternalTcpPortIsAvailable(8081))
         .Build();
 
     private CosmosClient? _client;

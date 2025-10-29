@@ -1,18 +1,15 @@
-using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Containers;
-using DotNet.Testcontainers.Configurations;
-
 using Hugo;
 using Hugo.Deterministic.Redis;
 
 using StackExchange.Redis;
 
+using Testcontainers.Redis;
+
 using Xunit;
 
 public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
 {
-    private readonly RedisTestcontainer _container = new TestcontainersBuilder<RedisTestcontainer>()
-        .WithDatabase(new RedisTestcontainerConfiguration())
+    private readonly RedisContainer _container = new RedisBuilder()
         .WithImage("redis:7-alpine")
         .WithCleanUp(true)
         .Build();
@@ -22,7 +19,7 @@ public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await _container.StartAsync().ConfigureAwait(false);
-        _multiplexer = await ConnectionMultiplexer.ConnectAsync(_container.ConnectionString).ConfigureAwait(false);
+        _multiplexer = await ConnectionMultiplexer.ConnectAsync(_container.GetConnectionString()).ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
