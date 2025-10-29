@@ -1,10 +1,15 @@
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
+using Azure.Storage.Queues;
+
 using Hugo;
 using Hugo.Diagnostics.OpenTelemetry;
+using Hugo.Deterministic.Cosmos;
+using Hugo.DeterministicWorkerSample.CloudQueue;
 using Hugo.DeterministicWorkerSample.Core;
 
+using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -71,9 +76,35 @@ builder.Services.AddOpenTelemetry()
         }
     });
 
-// Share TimeProvider so the deterministic stores can agree on timestamps.
+string queueConnectionString = ResolveQueueConnectionString(builder.Configuration);
+string queueName = builder.Configuration.GetValue("Queue:Name", "deterministic-events");
+builder.Services.AddSingleton(new QueueClient(queueConnectionString, queueName));
+
+CosmosClient cosmosClient = new(ResolveCosmosConnectionString(builder.Configuration), new CosmosClientOptions
+{
+    ApplicationName = builder.Environment.ApplicationName
+});
+builder.Services.AddSingleton(cosmosClient);
+
+builder.Services.AddHugoDeterministicCosmos(options =>
+{
+    options.Client = cosmosClient;
+    options.DatabaseId = builder.Configuration.GetValue("Cosmos:Database", "hugo-deterministic");
+    options.ContainerId = builder.Configuration.GetValue("Cosmos:DeterministicContainer", "deterministic-effects");
+    options.PartitionKeyPath = "/id";
+});
+
+builder.Services.AddOptions<CosmosPipelineOptions>().Configure(options =>
+{
+    options.DatabaseId = builder.Configuration.GetValue("Cosmos:Database", "hugo-deterministic");
+    options.ContainerId = builder.Configuration.GetValue("Cosmos:PipelineContainer", "pipeline-projections");
+    options.PartitionKeyPath = builder.Configuration.GetValue("Cosmos:PipelinePartitionKey", "/id");
+    options.CreateResources = builder.Configuration.GetValue("Cosmos:CreateResources", true);
+});
+builder.Services.AddSingleton<CosmosPipelineEntityRepository>();
+
+// Share TimeProvider so deterministic components agree on timestamps.
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<IDeterministicStateStore, InMemoryDeterministicStateStore>();
 JsonSerializerOptions serializerOptions = CreateSampleSerializerOptions();
 builder.Services.AddSingleton(sp =>
 {
@@ -90,16 +121,33 @@ builder.Services.AddSingleton(sp =>
     return new DeterministicEffectStore(store, timeProvider, serializerOptions);
 });
 builder.Services.AddSingleton<DeterministicGate>();
-builder.Services.AddSingleton<SimulatedKafkaTopic>();
-builder.Services.AddSingleton<IPipelineEntityRepository, InMemoryPipelineEntityRepository>();
+builder.Services.AddSingleton<IPipelineEntityRepository>(sp => sp.GetRequiredService<CosmosPipelineEntityRepository>());
 builder.Services.AddSingleton<PipelineSaga>();
 builder.Services.AddSingleton<DeterministicPipelineProcessor>();
-builder.Services.AddHostedService<KafkaWorker>();
-builder.Services.AddHostedService<SampleScenario>();
+builder.Services.AddHostedService<QueueWorker>();
+builder.Services.AddHostedService<QueuePublisher>();
 
 IHost app = builder.Build();
 await app.RunAsync().ConfigureAwait(false);
 return;
+
+static string ResolveQueueConnectionString(IConfiguration configuration)
+{
+    string? connectionString = configuration["Queue:ConnectionString"] ?? configuration.GetConnectionString("Queue") ?? Environment.GetEnvironmentVariable("HUGO_SAMPLE_QUEUE");
+    return string.IsNullOrWhiteSpace(connectionString) ? "UseDevelopmentStorage=true" : connectionString;
+}
+
+static string ResolveCosmosConnectionString(IConfiguration configuration)
+{
+    string? connectionString = configuration["Cosmos:ConnectionString"] ?? Environment.GetEnvironmentVariable("HUGO_SAMPLE_COSMOS");
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        // Emulator connection string.
+        connectionString = "AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4DG8q0wE=";
+    }
+
+    return connectionString;
+}
 
 /// <summary>
 /// Configures serializer options used across deterministic stores in the sample.

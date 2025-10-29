@@ -3,14 +3,16 @@ using Hugo.Sagas;
 
 using Microsoft.Extensions.Logging;
 
+namespace Hugo.DeterministicWorkerSample.Core;
+
 /// <summary>
 /// Orchestrates load, compute, mutate, and persist steps for a single entity update.
 /// </summary>
-sealed class PipelineSaga(
-    PipelineEntityStore store,
+public sealed class PipelineSaga(
+    IPipelineEntityRepository store,
     ILogger<PipelineSaga> logger)
 {
-    private readonly PipelineEntityStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly IPipelineEntityRepository _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly ILogger<PipelineSaga> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     private static class SagaKeys

@@ -1,63 +1,39 @@
-using System.Collections.Concurrent;
-
 using Hugo;
 
+namespace Hugo.DeterministicWorkerSample.Core;
+
 /// <summary>
-/// Provides an in-memory backing store plus helper models for saga-driven projections.
+/// Abstraction over the projection datastore used by the pipeline saga.
 /// </summary>
-sealed class PipelineEntityStore
+public interface IPipelineEntityRepository
 {
-    private readonly ConcurrentDictionary<string, PipelineEntity> _entities = new(StringComparer.OrdinalIgnoreCase);
-
     /// <summary>
-    /// Loads the current projection for the supplied entity, creating a default snapshot when none exists.
+    /// Loads the current projection for the supplied entity, returning a deterministic result.
     /// </summary>
-    /// <param name="entityId">The entity identifier to load.</param>
-    /// <param name="cancellationToken">Token used to cancel the load operation.</param>
+    /// <param name="entityId">Identifier of the entity to load.</param>
+    /// <param name="cancellationToken">Token used to cancel the load.</param>
     /// <returns>A deterministic result containing the entity projection.</returns>
-    public ValueTask<Result<PipelineEntity>> LoadAsync(string entityId, CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(entityId);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        // Return the tracked entity if it exists; otherwise fabricate an empty projection.
-        if (_entities.TryGetValue(entityId, out PipelineEntity? entity))
-        {
-            return ValueTask.FromResult(Result.Ok(entity));
-        }
-
-        return ValueTask.FromResult(Result.Ok(PipelineEntity.Create(entityId)));
-    }
+    ValueTask<Result<PipelineEntity>> LoadAsync(string entityId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Persists the supplied projection so future loads and snapshots observe the mutation.
+    /// Persists the supplied projection so future loads observe the mutation.
     /// </summary>
     /// <param name="entity">The entity projection to store.</param>
-    /// <param name="cancellationToken">Token used to cancel the save operation.</param>
+    /// <param name="cancellationToken">Token used to cancel the save.</param>
     /// <returns>A deterministic result containing the stored entity.</returns>
-    public ValueTask<Result<PipelineEntity>> SaveAsync(PipelineEntity entity, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(entity);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        // Persist in-memory so subsequent loads and snapshots reflect the mutation.
-        _entities[entity.EntityId] = entity;
-        return ValueTask.FromResult(Result.Ok(entity));
-    }
+    ValueTask<Result<PipelineEntity>> SaveAsync(PipelineEntity entity, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Creates a deterministic snapshot of all tracked entities ordered by identifier.
+    /// Produces a snapshot of the currently tracked projections for diagnostics.
     /// </summary>
-    /// <returns>An immutable snapshot of the current projections.</returns>
-    public IReadOnlyList<PipelineEntity> Snapshot() =>
-        // Produce a deterministic ordering so console output stays stable between runs.
-        [.. _entities.Values.OrderBy(static e => e.EntityId, StringComparer.OrdinalIgnoreCase)];
+    /// <returns>A deterministic snapshot of all tracked entities.</returns>
+    IReadOnlyList<PipelineEntity> Snapshot();
 }
 
 /// <summary>
 /// Represents the saga's materialized view (e.g., rolling totals for an entity).
 /// </summary>
-sealed record class PipelineEntity(
+public sealed record class PipelineEntity(
     string EntityId,
     double RunningTotal,
     int ProcessedCount,
@@ -81,7 +57,7 @@ sealed record class PipelineEntity(
 /// <summary>
 /// Represents a computation performed over an entity as part of the saga.
 /// </summary>
-readonly record struct PipelineComputation(double Total, int ProcessedCount)
+public readonly record struct PipelineComputation(double Total, int ProcessedCount)
 {
     /// <summary>
     /// Gets the average derived from the aggregated totals.
@@ -96,7 +72,6 @@ readonly record struct PipelineComputation(double Total, int ProcessedCount)
     /// <returns>The computed aggregate snapshot.</returns>
     public static PipelineComputation Create(PipelineEntity entity, SimulatedKafkaMessage message)
     {
-        // Increment aggregates with the latest observation; pure function keeps saga deterministic.
         double total = entity.RunningTotal + message.Amount;
         int processed = entity.ProcessedCount + 1;
         return new PipelineComputation(total, processed);
@@ -109,7 +84,6 @@ readonly record struct PipelineComputation(double Total, int ProcessedCount)
     /// <param name="message">The message that produced the aggregates.</param>
     /// <returns>The updated entity projection.</returns>
     public PipelineEntity ApplyTo(PipelineEntity entity, SimulatedKafkaMessage message) =>
-        // Emit a new immutable projection that carries the updated totals and last seen value.
         new(
             entity.EntityId,
             Total,
@@ -121,4 +95,4 @@ readonly record struct PipelineComputation(double Total, int ProcessedCount)
 /// <summary>
 /// Returned to the worker so it can log whether the saga was replayed or newly executed.
 /// </summary>
-readonly record struct ProcessingOutcome(bool IsReplay, int Version, PipelineEntity Entity);
+public readonly record struct ProcessingOutcome(bool IsReplay, int Version, PipelineEntity Entity);

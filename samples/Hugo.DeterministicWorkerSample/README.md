@@ -1,6 +1,6 @@
 # Hugo.DeterministicWorkerSample
 
-This sample shows how to build an always-on worker that processes Kafka-like traffic while remaining replay-safe. It uses Hugo’s deterministic coordination primitives to prove that long-running sagas can survive retries, duplicates, and out-of-order deliveries without corrupting state or double-writing downstream systems.
+This in-memory baseline sample shows how to build an always-on worker that processes Kafka-like traffic while remaining replay-safe. It uses Hugo’s deterministic coordination primitives to prove that long-running sagas can survive retries, duplicates, and out-of-order deliveries without corrupting state or double-writing downstream systems.
 
 ## Learning Goals
 
@@ -59,7 +59,7 @@ The producer chooses from four entity identifiers (`trend-042`, `trend-107`, `tr
 | Worker | `KafkaWorker.cs` | Reads messages, forwards them to the processor, and logs replay vs. first-run. |
 | Processor | `DeterministicPipelineProcessor.cs` | Wraps saga execution in a deterministic workflow and surfaces `ProcessingOutcome`. |
 | Saga | `PipelineSaga.cs` | Performs load → compute → mutate → persist using `ResultSagaBuilder`. |
-| Store | `PipelineEntityStore.cs` | In-memory projection backing store plus helper records for entities and computations. |
+| Store | `InMemoryPipelineEntityRepository.cs` | Storage-agnostic repository contract with an in-memory default implementation. |
 | Telemetry | `DeterministicPipelineTelemetry.cs` | Defines the sample’s `ActivitySource`, `Meter`, and metric instruments. |
 | Serialization | `DeterministicPipelineSerializerContext.cs` | Source-generated metadata so deterministic stores can serialize pipeline types. |
 
@@ -99,9 +99,24 @@ The producer chooses from four entity identifiers (`trend-042`, `trend-107`, `tr
 
 - **Inject manual messages** – Set a breakpoint or use a REPL to call `SimulatedKafkaTopic.PublishAsync(SimulatedKafkaMessage.Create(...))`. Reusing the same `MessageId` demonstrates replay.
 - **Alter message patterns** – Modify `SampleScenario.ExecuteAsync` to change frequencies, introduce partitions, or simulate failures.
-- **Test failure paths** – Throw from `PipelineSaga` steps or `PipelineEntityStore.SaveAsync` to see how deterministic retries behave.
+- **Test failure paths** – Throw from `PipelineSaga` steps or `IPipelineEntityRepository.SaveAsync` to see how deterministic retries behave.
 - **Change the saga schema** – Introduce new fields to `PipelineEntity` and bump the workflow version in `DeterministicPipelineProcessor` to practice rolling upgrades.
-- **Externalize persistence** – Replace `PipelineEntityStore` with a database-backed projection. Only the deterministic capture needs to remain pure (idempotent write returning the same payload).
+- **Externalize persistence** – Swap in a database-backed implementation of `IPipelineEntityRepository`. Only the deterministic capture needs to remain pure (idempotent write returning the same payload).
+
+## Additional Sample Variants
+
+- `samples/Hugo.DeterministicWorkerSample.Relational` – Targets SQL Server with migrations that provision deterministic state and pipeline projections.
+- `samples/Hugo.DeterministicWorkerSample.CloudQueue` – Integrates Azure Queue Storage for ingress and Azure Cosmos DB for deterministic state and projections.
+
+## Pluggable Persistence Providers
+
+Hugo ships optional provider packages so you can plug deterministic storage into common backends:
+
+- `Hugo.Deterministic.SqlServer` – SQL Server-backed `IDeterministicStateStore` with DI helpers.
+- `Hugo.Deterministic.Cosmos` – Azure Cosmos DB deterministic store.
+- `Hugo.Deterministic.Redis` – Redis wrapper for deterministic state.
+
+See `docs/deterministic-persistence-providers.md` for configuration snippets covering connection strings, schema creation, and idempotent write patterns for each provider family.
 
 ## Troubleshooting
 

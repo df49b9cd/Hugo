@@ -3,10 +3,12 @@ using System.Diagnostics.Metrics;
 
 using Hugo;
 
+namespace Hugo.DeterministicWorkerSample.Core;
+
 /// <summary>
 /// Centralizes ActivitySource and Meter instances used by the deterministic worker sample.
 /// </summary>
-static class DeterministicPipelineTelemetry
+public static class DeterministicPipelineTelemetry
 {
     /// <summary>
     /// The activity source name emitted by the deterministic worker sample.
