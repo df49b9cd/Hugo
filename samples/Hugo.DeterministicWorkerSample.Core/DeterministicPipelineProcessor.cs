@@ -4,10 +4,12 @@ using Hugo;
 
 using Microsoft.Extensions.Logging;
 
+namespace Hugo.DeterministicWorkerSample.Core;
+
 /// <summary>
 /// Coordinates deterministic execution by dispatching saga work inside a workflow gate.
 /// </summary>
-sealed class DeterministicPipelineProcessor(
+public sealed class DeterministicPipelineProcessor(
     DeterministicGate gate,
     PipelineSaga saga,
     ILogger<DeterministicPipelineProcessor> logger)

@@ -3,7 +3,9 @@ using System.Text.Json.Serialization.Metadata;
 
 using Hugo;
 using Hugo.Diagnostics.OpenTelemetry;
+using Hugo.Deterministic.SqlServer;
 using Hugo.DeterministicWorkerSample.Core;
+using Hugo.DeterministicWorkerSample.Relational;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -71,9 +73,23 @@ builder.Services.AddOpenTelemetry()
         }
     });
 
-// Share TimeProvider so the deterministic stores can agree on timestamps.
+string sqlConnectionString = ResolveConnectionString(builder.Configuration);
+builder.Services.AddHugoDeterministicSqlServer(sqlConnectionString, options =>
+{
+    options.Schema = builder.Configuration.GetValue("Deterministic:SqlServer:Schema", "dbo");
+    options.TableName = builder.Configuration.GetValue("Deterministic:SqlServer:TableName", "DeterministicRecords");
+});
+
+builder.Services.AddOptions<SqlServerPipelineOptions>().Configure(options =>
+{
+    options.ConnectionString = sqlConnectionString;
+    options.Schema = builder.Configuration.GetValue("Pipeline:SqlServer:Schema", "dbo");
+    options.TableName = builder.Configuration.GetValue("Pipeline:SqlServer:TableName", "PipelineEntities");
+});
+builder.Services.AddSingleton<SqlServerPipelineSchemaMigrator>();
+
+// Share TimeProvider so deterministic stores can agree on timestamps.
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<IDeterministicStateStore, InMemoryDeterministicStateStore>();
 JsonSerializerOptions serializerOptions = CreateSampleSerializerOptions();
 builder.Services.AddSingleton(sp =>
 {
@@ -91,7 +107,7 @@ builder.Services.AddSingleton(sp =>
 });
 builder.Services.AddSingleton<DeterministicGate>();
 builder.Services.AddSingleton<SimulatedKafkaTopic>();
-builder.Services.AddSingleton<IPipelineEntityRepository, InMemoryPipelineEntityRepository>();
+builder.Services.AddSingleton<IPipelineEntityRepository, SqlServerPipelineEntityRepository>();
 builder.Services.AddSingleton<PipelineSaga>();
 builder.Services.AddSingleton<DeterministicPipelineProcessor>();
 builder.Services.AddHostedService<KafkaWorker>();
@@ -100,6 +116,33 @@ builder.Services.AddHostedService<SampleScenario>();
 IHost app = builder.Build();
 await app.RunAsync().ConfigureAwait(false);
 return;
+
+static string ResolveConnectionString(IConfiguration configuration)
+{
+    string? pipelineSection = configuration["Pipeline:SqlServer:ConnectionString"];
+    string? deterministicSection = configuration["Deterministic:SqlServer:ConnectionString"];
+    string? connectionString = pipelineSection;
+
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        connectionString = deterministicSection;
+    }
+
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        connectionString = configuration.GetConnectionString("Pipeline")
+            ?? configuration.GetConnectionString("Deterministic")
+            ?? Environment.GetEnvironmentVariable("HUGO_SAMPLE_SQLSERVER");
+    }
+
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        // Default to a development connection string targeting a local SQL Server instance.
+        connectionString = "Server=localhost,1433;Database=HugoDeterministicSample;User ID=sa;Password=Your_password123;TrustServerCertificate=True";
+    }
+
+    return connectionString;
+}
 
 /// <summary>
 /// Configures serializer options used across deterministic stores in the sample.

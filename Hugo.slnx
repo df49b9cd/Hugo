@@ -31,6 +31,9 @@
     <File Path="docs/tutorials/getting-started.md" />
   </Folder>
   <Folder Name="/samples/">
+    <Project Path="samples/Hugo.DeterministicWorkerSample.CloudQueue/Hugo.DeterministicWorkerSample.CloudQueue.csproj" />
+    <Project Path="samples/Hugo.DeterministicWorkerSample.Core/Hugo.DeterministicWorkerSample.Core.csproj" />
+    <Project Path="samples/Hugo.DeterministicWorkerSample.Relational/Hugo.DeterministicWorkerSample.Relational.csproj" />
     <Project Path="samples/Hugo.DeterministicWorkerSample/Hugo.DeterministicWorkerSample.csproj" />
     <Project Path="samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj" />
   </Folder>
@@ -40,12 +43,18 @@
     <File Path="TODO.md" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Hugo.Deterministic.Cosmos/Hugo.Deterministic.Cosmos.csproj" />
+    <Project Path="src/Hugo.Deterministic.Redis/Hugo.Deterministic.Redis.csproj" />
+    <Project Path="src/Hugo.Deterministic.SqlServer/Hugo.Deterministic.SqlServer.csproj" />
     <Project Path="src/Hugo.Diagnostics.OpenTelemetry/Hugo.Diagnostics.OpenTelemetry.csproj" />
     <Project Path="src/Hugo.Profiling/Hugo.Profiling.csproj" />
     <Project Path="src/Hugo/Hugo.csproj" />
-    <Project Path="src\Hugo.SourceGenerators\Hugo.SourceGenerators.csproj" Type="Classic C#" />
+    <Project Path="src\Hugo.SourceGenerators\Hugo.SourceGenerators.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Hugo.Deterministic.Cosmos.Tests/Hugo.Deterministic.Cosmos.Tests.csproj" />
+    <Project Path="tests/Hugo.Deterministic.Redis.Tests/Hugo.Deterministic.Redis.Tests.csproj" />
+    <Project Path="tests/Hugo.Deterministic.SqlServer.Tests/Hugo.Deterministic.SqlServer.Tests.csproj" />
     <Project Path="tests/Hugo.Tests/Hugo.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
