@@ -11,7 +11,7 @@ This in-memory baseline sample shows how to build an always-on worker that proce
 
 ## Prerequisites
 
-- .NET 8 SDK or later.
+- .NET 9 or .NET 10 SDK.
 - A terminal that can run `dotnet` CLI.
 - (Optional) An OpenTelemetry collector or Prometheus endpoint if you want to stream metrics and traces.
 

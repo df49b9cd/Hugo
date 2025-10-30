@@ -1,6 +1,6 @@
 # Hugo Worker Sample
 
-This sample demonstrates a resilient telemetry processing pipeline that uses `TaskQueue<T>` and the `SafeTaskQueue<T>` wrapper to lease work cooperatively, retry failures, and surface dead-lettered payloads. It runs on the .NET generic host with deterministic coordination primitives (`VersionGate`, `DeterministicEffectStore`) and prioritised alert channels.
+This sample demonstrates a resilient telemetry processing pipeline that uses `TaskQueue<T>` and the `SafeTaskQueueWrapper<T>` wrapper to lease work cooperatively, retry failures, and surface dead-lettered payloads. It runs on the .NET generic host with deterministic coordination primitives (`VersionGate`, `DeterministicEffectStore`) and prioritised alert channels.
 
 ## Configuration
 
@@ -34,12 +34,18 @@ Update `samples/Hugo.WorkerSample/appsettings.json` or supply overrides through 
 
 ## Safe Task Queue Usage
 
-`SafeTaskQueue<T>` wraps `TaskQueue<T>` and returns `Result<Unit>` values instead of throwing exceptions on common failure paths. It is registered in `Program.cs`:
+`SafeTaskQueueWrapper<T>` wraps `TaskQueue<T>` and returns `Result<Unit>` values instead of throwing exceptions on common failure paths. It is registered in `Program.cs`:
 
 ```csharp
 builder.Services.Configure<TelemetryQueueOptions>(builder.Configuration.GetSection("TelemetryQueue"));
 builder.Services.AddSingleton(sp => new TaskQueue<TelemetryWorkItem>(/* … */));
-builder.Services.AddSingleton(sp => new SafeTaskQueue<TelemetryWorkItem>(sp.GetRequiredService<TaskQueue<TelemetryWorkItem>>()));
+builder.Services.AddSingleton(sp => new SafeTaskQueueWrapper<TelemetryWorkItem>(
+    sp.GetRequiredService<TaskQueue<TelemetryWorkItem>>()));
+builder.Services.AddSingleton(sp =>
+{
+    SafeTaskQueueWrapper<TelemetryWorkItem> safeQueue = sp.GetRequiredService<SafeTaskQueueWrapper<TelemetryWorkItem>>();
+    return TaskQueueChannelAdapter<TelemetryWorkItem>.Create(safeQueue.UnsafeQueue, concurrency: 1);
+});
 ```
 
 Producer loops enqueue work and inspect the result:
@@ -57,7 +63,7 @@ The worker processes leases through the channel adapter and converts them to `Sa
 ```csharp
 await foreach (TaskQueueLease<TelemetryWorkItem> lease in adapter.Reader.ReadAllAsync(stoppingToken))
 {
-    var safeLease = SafeTaskQueueLease<TelemetryWorkItem>.From(lease);
+    var safeLease = new SafeTaskQueueLease<TelemetryWorkItem>(lease);
     var complete = await safeLease.CompleteAsync(stoppingToken);
     if (complete.IsFailure)
     {
@@ -84,7 +90,7 @@ Optional: enable the OpenTelemetry pipeline by uncommenting the block in `Progra
 
 ### Tests
 
-`SafeTaskQueue<T>` is covered by unit tests in `tests/Hugo.Tests/SafeTaskQueueTests.cs`. Run the full suite:
+`SafeTaskQueueWrapper<T>` is covered by unit tests in `tests/Hugo.Tests/SafeTaskQueueTests.cs`. Run the full suite:
 
 ```bash
 dotnet test

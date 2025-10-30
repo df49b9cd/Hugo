@@ -201,6 +201,43 @@ await foreach (var lease in adapter.Reader.ReadAllAsync(ct))
 - `concurrency` controls the number of concurrent pumps issuing leases.
 - Disposing the adapter waits for pumps to finish; when `ownsQueue` is `true`, the underlying queue is disposed as well.
 
+### SafeTaskQueueWrapper usage
+
+`SafeTaskQueueWrapper<T>` converts the exception-heavy surface of `TaskQueue<T>` into `Result<Unit>` and `Result<SafeTaskQueueLease<T>>` responses so producers and consumers can branch without try/catch blocks.
+
+```csharp
+await using var queue = new TaskQueue<Job>();
+await using var safeQueue = new SafeTaskQueueWrapper<Job>(queue);
+
+var enqueue = await safeQueue.EnqueueAsync(new Job("alpha"), ct);
+if (enqueue.IsFailure)
+{
+    logger.LogWarning("Queue enqueue failed: {Error}", enqueue.Error);
+    return;
+}
+
+Result<SafeTaskQueueLease<Job>> leaseResult = await safeQueue.LeaseAsync(ct);
+if (leaseResult.IsFailure)
+{
+    logger.LogWarning("Lease failed: {Error}", leaseResult.Error);
+    return;
+}
+
+SafeTaskQueueLease<Job> lease = leaseResult.Value;
+var complete = await lease.CompleteAsync(ct);
+if (complete.IsFailure)
+{
+    logger.LogWarning("Completion failed: {Error}", complete.Error);
+}
+```
+
+### SafeTaskQueueWrapper notes
+
+- `EnqueueAsync` and `LeaseAsync` translate `OperationCanceledException`, `ObjectDisposedException`, and other failures into structured `Error` codes such as `error.taskqueue.disposed`.
+- `Wrap(TaskQueueLease<T>)` adapts existing leases (for example those surfaced by `TaskQueueChannelAdapter`) into `SafeTaskQueueLease<T>` instances.
+- `DisposeAsync` optionally disposes the underlying queue when `ownsQueue` is `true`.
+- `SafeTaskQueueLease<T>` methods (`CompleteAsync`, `HeartbeatAsync`, `FailAsync`) return `Result<Unit>` and normalise cancellations and inactive lease states to `error.taskqueue.lease_inactive`.
+
 ## Select helpers
 
 Await whichever channel case becomes ready first.
