@@ -164,6 +164,12 @@ jobs:
           NUGET_AUTH_TOKEN: ${{ secrets.NUGET_TOKEN }}
         run: dotnet nuget push ./artifacts/*.nupkg --api-key "$NUGET_AUTH_TOKEN" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
+      - name: Publish to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key "$GITHUB_TOKEN" --source "https://nuget.pkg.github.com/${OWNER}/index.json" --skip-duplicate
+
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-22.04
