@@ -18,10 +18,12 @@
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <IncludeSymbols>true</IncludeSymbols>
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PackageIcon>branding/hugo-icon.png</PackageIcon>
     </PropertyGroup>
 
     <ItemGroup>
         <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+        <None Include="..\..\branding\hugo-icon.png" Pack="true" PackagePath="branding/" />
     </ItemGroup>
 
     <ItemGroup>
