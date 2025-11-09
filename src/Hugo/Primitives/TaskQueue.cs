@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
@@ -15,6 +16,7 @@ public sealed class TaskQueueOptions
     private readonly TimeSpan _leaseSweepInterval = TimeSpan.FromSeconds(1);
     private readonly TimeSpan _requeueDelay = TimeSpan.Zero;
     private readonly int _maxDeliveryAttempts = 5;
+    private string? _name;
 
     /// <summary>
     /// Gets or sets the channel capacity used to buffer queued work. Defaults to 512 items.
@@ -90,6 +92,20 @@ public sealed class TaskQueueOptions
         };
     }
 
+    /// <summary>
+    /// Gets or sets an optional queue name used for diagnostics and tracing.
+    /// </summary>
+    public string? Name
+    {
+        get => _name;
+        init => _name = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    /// <summary>
+    /// Gets or sets backpressure configuration applied to the queue.
+    /// </summary>
+    public TaskQueueBackpressureOptions? Backpressure { get; init; }
+
     private static TimeSpan ValidatePositive(TimeSpan value, string propertyName)
     {
         if (value <= TimeSpan.Zero)
@@ -102,22 +118,107 @@ public sealed class TaskQueueOptions
 }
 
 /// <summary>
+/// Configures queue-level backpressure notifications.
+/// </summary>
+public sealed class TaskQueueBackpressureOptions
+{
+    private long _highWatermark = -1;
+    private long _lowWatermark = -1;
+    private TimeSpan _cooldown = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Gets or sets the backlog size that triggers backpressure. Specify a negative value to disable.
+    /// </summary>
+    public long HighWatermark
+    {
+        get => _highWatermark;
+        init
+        {
+            if (value < 0)
+            {
+                _highWatermark = -1;
+                return;
+            }
+
+            if (value == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "High watermark must be greater than zero when enabled.");
+            }
+
+            _highWatermark = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the backlog size that clears backpressure. Defaults to <see cref="HighWatermark"/>.
+    /// </summary>
+    public long LowWatermark
+    {
+        get => _lowWatermark < 0 && _highWatermark > 0 ? _highWatermark / 2 : _lowWatermark;
+        init
+        {
+            if (value < 0)
+            {
+                _lowWatermark = -1;
+                return;
+            }
+
+            _lowWatermark = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the minimum duration between repeated notifications for the same state.
+    /// </summary>
+    public TimeSpan Cooldown
+    {
+        get => _cooldown;
+        init
+        {
+            if (value <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Cooldown must be positive.");
+            }
+
+            _cooldown = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the callback invoked when the backpressure state changes.
+    /// </summary>
+    public Action<TaskQueueBackpressureState>? StateChanged { get; init; }
+}
+
+/// <summary>
+/// Represents the current backpressure state.
+/// </summary>
+/// <param name="IsActive">True when writers should throttle.</param>
+/// <param name="PendingCount">The pending depth that triggered the event.</param>
+/// <param name="ObservedAt">Timestamp associated with the observation.</param>
+public readonly record struct TaskQueueBackpressureState(bool IsActive, long PendingCount, DateTimeOffset ObservedAt);
+
+/// <summary>
 /// Represents an in-flight lease for a queued task.
 /// </summary>
 public sealed class TaskQueueLease<T>
 {
     private readonly TaskQueue<T> _queue;
     private readonly Guid _leaseId;
+    private readonly long _sequenceId;
+    private readonly TaskQueueOwnershipToken _ownershipToken;
     private int _status; // 0 = active, 1 = completed, 2 = failed
 
-    internal TaskQueueLease(TaskQueue<T> queue, Guid leaseId, T value, int attempt, DateTimeOffset enqueuedAt, Error? lastError)
+    internal TaskQueueLease(TaskQueue<T> queue, Guid leaseId, long sequenceId, T value, int attempt, DateTimeOffset enqueuedAt, Error? lastError)
     {
         _queue = queue ?? throw new ArgumentNullException(nameof(queue));
         _leaseId = leaseId;
+        _sequenceId = sequenceId;
         Value = value;
         Attempt = attempt;
         EnqueuedAt = enqueuedAt;
         LastError = lastError;
+        _ownershipToken = new TaskQueueOwnershipToken(sequenceId, attempt, leaseId);
     }
 
     /// <summary>
@@ -139,6 +240,16 @@ public sealed class TaskQueueLease<T>
     /// Gets the error captured from the previous attempt when the item was re-queued.
     /// </summary>
     public Error? LastError { get; }
+
+    /// <summary>
+    /// Gets the monotonic ownership token associated with the current lease.
+    /// </summary>
+    public TaskQueueOwnershipToken OwnershipToken => _ownershipToken;
+
+    /// <summary>
+    /// Gets the enqueue sequence identifier used for fencing and tracing.
+    /// </summary>
+    public long SequenceId => _sequenceId;
 
     /// <summary>Completes the lease and permanently removes the work item from the queue.</summary>
     /// <param name="cancellationToken">The token used to cancel the completion.</param>
@@ -168,7 +279,9 @@ public sealed class TaskQueueLease<T>
         ArgumentNullException.ThrowIfNull(error);
 
         EnsureActive();
-        return Interlocked.CompareExchange(ref _status, 2, 0) != 0 ? throw new InvalidOperationException("Lease is no longer active.") : _queue.FailAsync(_leaseId, error, requeue, cancellationToken);
+        return Interlocked.CompareExchange(ref _status, 2, 0) != 0
+            ? throw new InvalidOperationException("Lease is no longer active.")
+            : _queue.FailAsync(_leaseId, error, requeue, cancellationToken);
     }
 
     private void EnsureActive()
@@ -181,13 +294,48 @@ public sealed class TaskQueueLease<T>
 }
 
 /// <summary>
+/// Represents the ownership token associated with a leased work item.
+/// </summary>
+/// <param name="SequenceId">Monotonically increasing identifier assigned at enqueue time.</param>
+/// <param name="Attempt">The delivery attempt represented by the token.</param>
+/// <param name="LeaseId">Unique lease identifier.</param>
+public readonly record struct TaskQueueOwnershipToken(long SequenceId, int Attempt, Guid LeaseId)
+{
+    /// <inheritdoc />
+    public override string ToString() => $"{SequenceId:D}:{Attempt}:{LeaseId:N}";
+}
+
+/// <summary>
 /// Provides details about a work item that was moved to the dead-letter sink.
 /// </summary>
 /// <param name="Value">The work item payload.</param>
 /// <param name="Error">The error that caused dead-lettering.</param>
 /// <param name="Attempt">The final attempt count.</param>
 /// <param name="EnqueuedAt">The original enqueue timestamp.</param>
-public readonly record struct TaskQueueDeadLetterContext<T>(T Value, Error Error, int Attempt, DateTimeOffset EnqueuedAt);
+public readonly record struct TaskQueueDeadLetterContext<T>(
+    T Value,
+    Error Error,
+    int Attempt,
+    DateTimeOffset EnqueuedAt,
+    long SequenceId,
+    TaskQueueOwnershipToken? LastOwnershipToken);
+
+/// <summary>
+/// Represents pending work captured during queue draining.
+/// </summary>
+/// <param name="Value">The work item payload.</param>
+/// <param name="Attempt">The attempt that had not yet completed.</param>
+/// <param name="EnqueuedAt">The enqueue timestamp.</param>
+/// <param name="LastError">The last error recorded for the payload.</param>
+/// <param name="SequenceId">Monotonically increasing sequence identifier.</param>
+/// <param name="LastOwnershipToken">The last ownership token observed for the payload.</param>
+public readonly record struct TaskQueuePendingItem<T>(
+    T Value,
+    int Attempt,
+    DateTimeOffset EnqueuedAt,
+    Error? LastError,
+    long SequenceId,
+    TaskQueueOwnershipToken? LastOwnershipToken);
 
 /// <summary>
 /// Provides a channel-backed task queue with cooperative leasing and heartbeat semantics.
@@ -202,7 +350,12 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     private readonly ConcurrentDictionary<Guid, LeaseState> _leases = new();
     private readonly CancellationTokenSource _monitorCts = new();
     private readonly Task _monitorTask;
+    private readonly string? _queueName;
+    private readonly TaskQueueBackpressureOptions? _backpressureOptions;
     private long _pendingCount;
+    private long _sequenceCounter;
+    private int _backpressureState;
+    private long _lastBackpressureNotificationTicks = DateTimeOffset.MinValue.UtcTicks;
     private int _disposed;
 
     /// <summary>Initializes a new instance of the <see cref="TaskQueue{T}"/> class.</summary>
@@ -214,6 +367,8 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         _options = options ?? new TaskQueueOptions();
         _timeProvider = timeProvider ?? TimeProvider.System;
         _deadLetter = deadLetter;
+        _queueName = string.IsNullOrWhiteSpace(_options.Name) ? typeof(T).Name : _options.Name;
+        _backpressureOptions = _options.Backpressure;
 
         BoundedChannelOptions channelOptions = new(_options.Capacity)
         {
@@ -243,17 +398,23 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     {
         ThrowIfDisposed();
 
-        QueueEnvelope envelope = new(value, 1, _timeProvider.GetUtcNow(), null);
+        DateTimeOffset enqueuedAt = _timeProvider.GetUtcNow();
+        long sequenceId = Interlocked.Increment(ref _sequenceCounter);
+        QueueEnvelope envelope = new(value, sequenceId, 1, enqueuedAt, null, null);
         long depth = Interlocked.Increment(ref _pendingCount);
+        using Activity? activity = GoDiagnostics.StartTaskQueueActivity("enqueue", _queueName, sequenceId, 1);
 
         try
         {
             await _channel.Writer.WriteAsync(envelope, cancellationToken).ConfigureAwait(false);
             GoDiagnostics.RecordTaskQueueQueued(depth);
+            ObserveBackpressure(depth);
+            GoDiagnostics.CompleteTaskQueueActivity(activity);
         }
-        catch
+        catch (Exception ex)
         {
             Interlocked.Decrement(ref _pendingCount);
+            GoDiagnostics.CompleteTaskQueueActivity(activity, Error.FromException(ex));
             throw;
         }
     }
@@ -265,7 +426,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     {
         ThrowIfDisposed();
 
-        QueueEnvelope envelope;
+        QueueEnvelope envelope = default!;
         bool readSucceeded = false;
         try
         {
@@ -281,21 +442,27 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             if (readSucceeded)
             {
                 Interlocked.Decrement(ref _pendingCount);
+                ObserveBackpressure(Math.Max(0, Volatile.Read(ref _pendingCount)));
             }
         }
+
+        using Activity? activity = GoDiagnostics.StartTaskQueueActivity("lease", _queueName, envelope.SequenceId, envelope.Attempt);
 
         Guid leaseId = Guid.NewGuid();
         DateTimeOffset now = _timeProvider.GetUtcNow();
         DateTimeOffset expiration = now + _options.LeaseDuration;
-        LeaseState state = new(envelope, now, expiration);
+        LeaseState state = new(envelope, leaseId, now, expiration);
 
         if (!_leases.TryAdd(leaseId, state))
         {
+            var error = Error.From("Failed to track lease state.", ErrorCodes.TaskQueueLeaseInactive);
+            GoDiagnostics.CompleteTaskQueueActivity(activity, error);
             throw new InvalidOperationException("Failed to track lease state.");
         }
 
         GoDiagnostics.RecordTaskQueueLeased(envelope.Attempt, PendingCount, _leases.Count);
-        return new TaskQueueLease<T>(this, leaseId, envelope.Value, envelope.Attempt, envelope.EnqueuedAt, envelope.LastError);
+        GoDiagnostics.CompleteTaskQueueActivity(activity);
+        return new TaskQueueLease<T>(this, leaseId, envelope.SequenceId, envelope.Value, envelope.Attempt, envelope.EnqueuedAt, envelope.LastError);
     }
 
     internal ValueTask CompleteAsync(Guid leaseId, CancellationToken cancellationToken)
@@ -309,7 +476,14 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
         _leases.TryRemove(leaseId, out _);
         DateTimeOffset now = _timeProvider.GetUtcNow();
+        using Activity? activity = GoDiagnostics.StartTaskQueueActivity(
+            "complete",
+            _queueName,
+            state.Envelope.SequenceId,
+            state.Envelope.Attempt,
+            state.OwnershipToken);
         GoDiagnostics.RecordTaskQueueCompleted(state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
+        GoDiagnostics.CompleteTaskQueueActivity(activity);
         return ValueTask.CompletedTask;
     }
 
@@ -332,12 +506,21 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             }
         }
 
+        using Activity? activity = GoDiagnostics.StartTaskQueueActivity(
+            "heartbeat",
+            _queueName,
+            state.Envelope.SequenceId,
+            state.Envelope.Attempt,
+            state.OwnershipToken);
+
         if (!state.TryHeartbeat(now, _options.LeaseDuration, out DateTimeOffset newExpiration))
         {
+            GoDiagnostics.CompleteTaskQueueActivity(activity, Error.From("Lease is no longer active.", ErrorCodes.TaskQueueLeaseInactive));
             throw new InvalidOperationException("Lease is no longer active.");
         }
 
         GoDiagnostics.RecordTaskQueueHeartbeat(state.Envelope.Attempt, newExpiration - now, _leases.Count);
+        GoDiagnostics.CompleteTaskQueueActivity(activity);
         return ValueTask.CompletedTask;
     }
 
@@ -354,14 +537,24 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
         DateTimeOffset now = _timeProvider.GetUtcNow();
         GoDiagnostics.RecordTaskQueueFailed(state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
+        QueueEnvelope envelopeWithToken = state.Envelope with { LastOwnershipToken = state.OwnershipToken };
+
+        using Activity? activity = GoDiagnostics.StartTaskQueueActivity(
+            requeue ? "fail.requeue" : "fail.deadletter",
+            _queueName,
+            envelopeWithToken.SequenceId,
+            envelopeWithToken.Attempt,
+            state.OwnershipToken);
 
         if (!requeue)
         {
-            await DeadLetterAsync(state.Envelope, error, cancellationToken).ConfigureAwait(false);
+            await DeadLetterAsync(envelopeWithToken, error, cancellationToken).ConfigureAwait(false);
+            GoDiagnostics.CompleteTaskQueueActivity(activity, error);
             return;
         }
 
-        await RequeueAsync(state.Envelope, error, cancellationToken).ConfigureAwait(false);
+        await RequeueAsync(envelopeWithToken, error, state.OwnershipToken, cancellationToken).ConfigureAwait(false);
+        GoDiagnostics.CompleteTaskQueueActivity(activity, error);
     }
 
     private async Task MonitorLeasesAsync(CancellationToken cancellationToken)
@@ -416,11 +609,12 @@ public sealed class TaskQueue<T> : IAsyncDisposable
                 .WithMetadata(metadata);
 
             GoDiagnostics.RecordTaskQueueExpired(state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
-            await RequeueAsync(state.Envelope, expiredError, cancellationToken).ConfigureAwait(false);
+            QueueEnvelope expiredEnvelope = state.Envelope with { LastOwnershipToken = state.OwnershipToken };
+            await RequeueAsync(expiredEnvelope, expiredError, state.OwnershipToken, cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private async ValueTask RequeueAsync(QueueEnvelope envelope, Error error, CancellationToken cancellationToken)
+    private async ValueTask RequeueAsync(QueueEnvelope envelope, Error error, TaskQueueOwnershipToken? ownershipToken, CancellationToken cancellationToken)
     {
         int nextAttempt = envelope.Attempt + 1;
         if (nextAttempt > _options.MaxDeliveryAttempts)
@@ -429,7 +623,8 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             return;
         }
 
-        QueueEnvelope requeued = new(envelope.Value, nextAttempt, envelope.EnqueuedAt, error);
+        TaskQueueOwnershipToken? recordedToken = ownershipToken ?? envelope.LastOwnershipToken;
+        QueueEnvelope requeued = new(envelope.Value, envelope.SequenceId, nextAttempt, envelope.EnqueuedAt, error, recordedToken);
 
         if (_options.RequeueDelay > TimeSpan.Zero)
         {
@@ -457,6 +652,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             }
 
             GoDiagnostics.RecordTaskQueueRequeued(nextAttempt, depth, _leases.Count);
+            ObserveBackpressure(depth);
         }
         catch (ChannelClosedException)
         {
@@ -479,7 +675,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             return;
         }
 
-        TaskQueueDeadLetterContext<T> context = new(envelope.Value, error, envelope.Attempt, envelope.EnqueuedAt);
+        TaskQueueDeadLetterContext<T> context = new(envelope.Value, error, envelope.Attempt, envelope.EnqueuedAt, envelope.SequenceId, envelope.LastOwnershipToken);
         await _deadLetter(context, CancellationToken.None).ConfigureAwait(false);
     }
 
@@ -490,9 +686,76 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     /// <summary>Disposes the queue and drains any pending work.</summary>
     public async ValueTask DisposeAsync()
     {
+        List<QueueEnvelope> drained = await ShutdownAsync(CancellationToken.None).ConfigureAwait(false);
+        foreach (QueueEnvelope envelope in drained)
+        {
+            Error reason = envelope.LastError ?? Error.From("Queue disposed before delivery.", ErrorCodes.TaskQueueDeadLettered);
+            await DeadLetterAsync(envelope, reason, CancellationToken.None).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Drains pending work for persistence prior to shutdown.
+    /// </summary>
+    public async ValueTask<IReadOnlyList<TaskQueuePendingItem<T>>> DrainPendingItemsAsync(CancellationToken cancellationToken = default)
+    {
+        List<QueueEnvelope> drained = await ShutdownAsync(cancellationToken).ConfigureAwait(false);
+        if (drained.Count == 0)
+        {
+            return Array.Empty<TaskQueuePendingItem<T>>();
+        }
+
+        TaskQueuePendingItem<T>[] snapshot = new TaskQueuePendingItem<T>[drained.Count];
+        for (int i = 0; i < drained.Count; i++)
+        {
+            snapshot[i] = ToPendingItem(drained[i]);
+        }
+
+        return snapshot;
+    }
+
+    /// <summary>
+    /// Restores previously drained work items into the queue.
+    /// </summary>
+    public async ValueTask RestorePendingItemsAsync(IEnumerable<TaskQueuePendingItem<T>> pendingItems, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(pendingItems);
+
+        foreach (TaskQueuePendingItem<T> pending in pendingItems)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            AdvanceSequenceCounter(pending.SequenceId);
+
+            QueueEnvelope envelope = new(
+                pending.Value,
+                pending.SequenceId,
+                pending.Attempt,
+                pending.EnqueuedAt,
+                pending.LastError,
+                pending.LastOwnershipToken);
+
+            long depth = Interlocked.Increment(ref _pendingCount);
+
+            try
+            {
+                await _channel.Writer.WriteAsync(envelope, cancellationToken).ConfigureAwait(false);
+                GoDiagnostics.RecordTaskQueueQueued(depth);
+                ObserveBackpressure(depth);
+            }
+            catch
+            {
+                Interlocked.Decrement(ref _pendingCount);
+                throw;
+            }
+        }
+    }
+
+    private async ValueTask<List<QueueEnvelope>> ShutdownAsync(CancellationToken cancellationToken)
+    {
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
         {
-            return;
+            return new List<QueueEnvelope>(0);
         }
 
         await _monitorCts.CancelAsync().ConfigureAwait(false);
@@ -508,36 +771,139 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         }
 
         _monitorCts.Dispose();
-        await DrainPendingAsync().ConfigureAwait(false);
+        return await DrainPendingCoreAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask DrainPendingAsync()
+    private async ValueTask<List<QueueEnvelope>> DrainPendingCoreAsync(CancellationToken cancellationToken)
     {
-        while (await _channel.Reader.WaitToReadAsync().ConfigureAwait(false))
+        List<QueueEnvelope> drained = new();
+        while (await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
         {
             while (_channel.Reader.TryRead(out QueueEnvelope? envelope))
             {
                 Interlocked.Decrement(ref _pendingCount);
+                drained.Add(envelope);
+            }
+        }
 
-                Error reason = envelope.LastError ?? Error.From("Queue disposed before delivery.", ErrorCodes.TaskQueueDeadLettered);
-                await DeadLetterAsync(envelope, reason, CancellationToken.None).ConfigureAwait(false);
+        return drained;
+    }
+
+    private static TaskQueuePendingItem<T> ToPendingItem(QueueEnvelope envelope) =>
+        new(envelope.Value, envelope.Attempt, envelope.EnqueuedAt, envelope.LastError, envelope.SequenceId, envelope.LastOwnershipToken);
+
+    private void AdvanceSequenceCounter(long candidate)
+    {
+        while (true)
+        {
+            long current = Volatile.Read(ref _sequenceCounter);
+            if (candidate <= current)
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref _sequenceCounter, candidate, current) == current)
+            {
+                return;
             }
         }
     }
 
-    private sealed record QueueEnvelope(T Value, int Attempt, DateTimeOffset EnqueuedAt, Error? LastError);
+    private void ObserveBackpressure(long pendingDepth)
+    {
+        if (pendingDepth < 0)
+        {
+            return;
+        }
+
+        if (!TryGetBackpressureConfiguration(out long high, out long low, out TimeSpan cooldown, out Action<TaskQueueBackpressureState>? callback))
+        {
+            return;
+        }
+
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        bool currentlyActive = Volatile.Read(ref _backpressureState) == 1;
+
+        if (!currentlyActive && pendingDepth >= high)
+        {
+            if (Interlocked.CompareExchange(ref _backpressureState, 1, 0) == 0 && ShouldEmitBackpressure(now, cooldown))
+            {
+                callback?.Invoke(new TaskQueueBackpressureState(true, pendingDepth, now));
+            }
+
+            return;
+        }
+
+        if (currentlyActive && pendingDepth <= low)
+        {
+            if (Interlocked.CompareExchange(ref _backpressureState, 0, 1) == 1 && ShouldEmitBackpressure(now, cooldown))
+            {
+                callback?.Invoke(new TaskQueueBackpressureState(false, pendingDepth, now));
+            }
+        }
+    }
+
+    private bool TryGetBackpressureConfiguration(
+        out long high,
+        out long low,
+        out TimeSpan cooldown,
+        out Action<TaskQueueBackpressureState>? callback)
+    {
+        TaskQueueBackpressureOptions? options = _backpressureOptions;
+        if (options is null || options.HighWatermark <= 0)
+        {
+            high = low = 0;
+            cooldown = TimeSpan.Zero;
+            callback = null;
+            return false;
+        }
+
+        high = options.HighWatermark;
+        long configuredLow = options.LowWatermark;
+        low = configuredLow <= 0 || configuredLow >= high ? Math.Max(1, high / 2) : configuredLow;
+        cooldown = options.Cooldown;
+        callback = options.StateChanged;
+        return callback is not null;
+    }
+
+    private bool ShouldEmitBackpressure(DateTimeOffset now, TimeSpan cooldown)
+    {
+        long current = now.UtcTicks;
+        while (true)
+        {
+            long last = Volatile.Read(ref _lastBackpressureNotificationTicks);
+            if (current - last < cooldown.Ticks)
+            {
+                return false;
+            }
+
+            if (Interlocked.CompareExchange(ref _lastBackpressureNotificationTicks, current, last) == last)
+            {
+                return true;
+            }
+        }
+    }
+
+    private sealed record QueueEnvelope(
+        T Value,
+        long SequenceId,
+        int Attempt,
+        DateTimeOffset EnqueuedAt,
+        Error? LastError,
+        TaskQueueOwnershipToken? LastOwnershipToken);
 
     private sealed class LeaseState
     {
         private readonly Lock _sync = new();
         private int _status; // 0 = active, 1 = completed, 2 = failed, 3 = expired
 
-        internal LeaseState(QueueEnvelope envelope, DateTimeOffset grantedAt, DateTimeOffset expiration)
+        internal LeaseState(QueueEnvelope envelope, Guid leaseId, DateTimeOffset grantedAt, DateTimeOffset expiration)
         {
             Envelope = envelope;
             GrantedAt = grantedAt;
             Expiration = expiration;
             LastHeartbeat = grantedAt;
+            OwnershipToken = new TaskQueueOwnershipToken(envelope.SequenceId, envelope.Attempt, leaseId);
         }
 
         internal QueueEnvelope Envelope { get; }
@@ -547,6 +913,8 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         internal DateTimeOffset Expiration { get; private set; }
 
         internal DateTimeOffset LastHeartbeat { get; private set; }
+
+        internal TaskQueueOwnershipToken OwnershipToken { get; }
 
         internal bool TryHeartbeat(DateTimeOffset now, TimeSpan leaseDuration, out DateTimeOffset newExpiration)
         {

@@ -280,6 +280,74 @@ public class TaskQueueTests
     }
 
     [Fact]
+    public async Task OwnershipToken_ShouldAdvancePerLease()
+    {
+        await using var queue = new TaskQueue<string>();
+        await queue.EnqueueAsync("value", TestContext.Current.CancellationToken);
+
+        var firstLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        TaskQueueOwnershipToken firstToken = firstLease.OwnershipToken;
+        await firstLease.FailAsync(Error.From("retry", ErrorCodes.TaskQueueAbandoned), requeue: true, TestContext.Current.CancellationToken);
+
+        var secondLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        TaskQueueOwnershipToken secondToken = secondLease.OwnershipToken;
+
+        Assert.Equal(firstToken.SequenceId, secondToken.SequenceId);
+        Assert.Equal(firstToken.Attempt + 1, secondToken.Attempt);
+        Assert.NotEqual(firstToken.LeaseId, secondToken.LeaseId);
+    }
+
+    [Fact]
+    public async Task DrainAndRestore_ShouldRoundTripPendingItems()
+    {
+        await using var queue = new TaskQueue<string>();
+        await queue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
+        await queue.EnqueueAsync("bravo", TestContext.Current.CancellationToken);
+
+        IReadOnlyList<TaskQueuePendingItem<string>> snapshot = await queue.DrainPendingItemsAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2, snapshot.Count);
+        Assert.True(snapshot[0].SequenceId < snapshot[1].SequenceId);
+
+        await using var restored = new TaskQueue<string>();
+        await restored.RestorePendingItemsAsync(snapshot, TestContext.Current.CancellationToken);
+
+        Assert.Equal(snapshot.Count, restored.PendingCount);
+        var lease = await restored.LeaseAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("alpha", lease.Value);
+    }
+
+    [Fact]
+    public async Task BackpressureCallbacks_ShouldFireOnThresholdTransitions()
+    {
+        var notifications = new List<TaskQueueBackpressureState>();
+        TaskQueueBackpressureOptions backpressure = new()
+        {
+            HighWatermark = 2,
+            LowWatermark = 1,
+            Cooldown = TimeSpan.FromMilliseconds(1),
+            StateChanged = state => notifications.Add(state)
+        };
+
+        var options = new TaskQueueOptions
+        {
+            Capacity = 8,
+            Backpressure = backpressure
+        };
+
+        await using var queue = new TaskQueue<int>(options);
+        await queue.EnqueueAsync(1, TestContext.Current.CancellationToken);
+        await queue.EnqueueAsync(2, TestContext.Current.CancellationToken);
+
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        await lease.CompleteAsync(TestContext.Current.CancellationToken);
+
+        Assert.Collection(
+            notifications,
+            state => Assert.True(state.IsActive),
+            state => Assert.False(state.IsActive));
+    }
+
+    [Fact]
     public async Task Heartbeat_ShouldExtendLease()
     {
         var provider = new FakeTimeProvider();

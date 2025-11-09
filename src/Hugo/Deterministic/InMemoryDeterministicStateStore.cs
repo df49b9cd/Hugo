@@ -24,4 +24,13 @@ public sealed class InMemoryDeterministicStateStore : IDeterministicStateStore
 
         _records[key] = record;
     }
+
+    /// <inheritdoc />
+    public bool TryAdd(string key, DeterministicRecord record)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(record);
+
+        return _records.TryAdd(key, record);
+    }
 }

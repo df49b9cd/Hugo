@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Hugo;
 
 /// <summary>
@@ -72,19 +74,39 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         ArgumentException.ThrowIfNullOrWhiteSpace(changeId);
         ArgumentNullException.ThrowIfNull(onExecute);
 
+        using Activity? gateActivity = GoDiagnostics.StartDeterministicActivity("version_gate.require", changeId);
         var decisionResult = _versionGate.Require(changeId, minVersion, maxVersion, initialVersionProvider);
         if (decisionResult.IsFailure)
         {
+            GoDiagnostics.CompleteDeterministicActivity(gateActivity, decisionResult.Error);
             return Result.Fail<T>(decisionResult.Error ?? Error.Unspecified());
         }
 
         var decision = decisionResult.Value;
-        var effectId = BuildEffectId(changeId, decision.Version);
+        GoDiagnostics.EnrichDeterministicActivity(gateActivity, decision);
 
-        return await _effectStore.CaptureAsync(
-            effectId,
-            ct => onExecute(decision, ct),
-            cancellationToken).ConfigureAwait(false);
+        var effectId = BuildEffectId(changeId, decision.Version);
+        using Activity? workflowActivity = GoDiagnostics.StartDeterministicActivity("workflow.execute", changeId, decision.Version, effectId);
+
+        Result<T> executionResult;
+        try
+        {
+            executionResult = await _effectStore.CaptureAsync(
+                effectId,
+                ct => onExecute(decision, ct),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Error error = Error.FromException(ex);
+            GoDiagnostics.CompleteDeterministicActivity(workflowActivity, error);
+            GoDiagnostics.CompleteDeterministicActivity(gateActivity, error);
+            throw;
+        }
+
+        GoDiagnostics.CompleteDeterministicActivity(workflowActivity, executionResult.Error);
+        GoDiagnostics.CompleteDeterministicActivity(gateActivity, executionResult.Error);
+        return executionResult;
     }
 
     /// <summary>

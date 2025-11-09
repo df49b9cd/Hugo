@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace Hugo;
@@ -40,9 +41,13 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
         ArgumentException.ThrowIfNullOrWhiteSpace(effectId);
         ArgumentNullException.ThrowIfNull(effect);
 
+        using Activity? activity = GoDiagnostics.StartDeterministicActivity("effect.capture", effectId: effectId);
+
         if (_store.TryGet(effectId, out var record))
         {
-            return Replay<T>(effectId, record);
+            var replay = Replay<T>(effectId, record);
+            GoDiagnostics.CompleteDeterministicActivity(activity, replay.Error);
+            return replay;
         }
 
         Result<T> outcome;
@@ -60,6 +65,7 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
         }
 
         await PersistAsync(effectId, outcome).ConfigureAwait(false);
+        GoDiagnostics.CompleteDeterministicActivity(activity, outcome.Error);
         return outcome;
     }
 

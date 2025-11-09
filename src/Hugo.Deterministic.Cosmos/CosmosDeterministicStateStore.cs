@@ -99,6 +99,25 @@ public sealed class CosmosDeterministicStateStore : IDeterministicStateStore
         _container!.UpsertItemAsync(document, new PartitionKey(key)).GetAwaiter().GetResult();
     }
 
+    /// <inheritdoc />
+    public bool TryAdd(string key, DeterministicRecord record)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(record);
+        EnsureInitialized();
+
+        DeterministicDocument document = DeterministicDocument.FromRecord(key, record);
+        try
+        {
+            _container!.CreateItemAsync(document, new PartitionKey(key)).GetAwaiter().GetResult();
+            return true;
+        }
+        catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            return false;
+        }
+    }
+
     private void EnsureInitialized()
     {
         if (_container is not null)

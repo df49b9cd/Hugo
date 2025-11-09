@@ -33,4 +33,12 @@ public interface IDeterministicStateStore
     /// </param>
     [SuppressMessage("Naming", "CA1716:Identifiers should not match keywords", Justification = "Set expresses the domain-specific operation for deterministic state stores.")]
     void Set(string key, DeterministicRecord record);
+
+    /// <summary>
+    /// Attempts to persist the supplied deterministic state entry when no record for the key exists.
+    /// </summary>
+    /// <param name="key">Unique identifier for the state entry.</param>
+    /// <param name="record">The record to persist if the key has not been recorded.</param>
+    /// <returns><c>true</c> when the record was inserted; <c>false</c> when another writer already recorded a value.</returns>
+    bool TryAdd(string key, DeterministicRecord record);
 }

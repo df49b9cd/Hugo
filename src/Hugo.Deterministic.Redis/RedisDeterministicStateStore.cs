@@ -96,6 +96,18 @@ public sealed class RedisDeterministicStateStore : IDeterministicStateStore
         database.StringSet(BuildKey(key), json, _options.Expiry);
     }
 
+    /// <inheritdoc />
+    public bool TryAdd(string key, DeterministicRecord record)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(record);
+
+        IDatabase database = GetDatabase();
+        DeterministicPayload payload = DeterministicPayload.FromRecord(record);
+        string json = JsonSerializer.Serialize(payload, _serializerOptions);
+        return database.StringSet(BuildKey(key), json, _options.Expiry, When.NotExists);
+    }
+
     private IDatabase GetDatabase() =>
         _options.ConnectionMultiplexer!.GetDatabase(_options.Database);
 

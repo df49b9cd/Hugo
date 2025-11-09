@@ -809,8 +809,143 @@ public static class GoDiagnostics
         _taskQueueActiveDepth?.Record(activeLeases);
     }
 
-    public static ActivitySource CreateActivitySource(string? name = null, string? version = null, Uri? schemaUrl = null)
+    internal static Activity? StartTaskQueueActivity(string operation, string? queueName, long? sequenceId = null, int? attempt = null, TaskQueueOwnershipToken? ownershipToken = null)
     {
-        throw new NotImplementedException();
+        ActivitySource? source = _activitySource;
+        if (source is null)
+        {
+            return null;
+        }
+
+        Activity? activity = source.StartActivity($"TaskQueue.{operation}", ActivityKind.Internal);
+        if (activity is null)
+        {
+            return null;
+        }
+
+        if (activity.IsAllDataRequested)
+        {
+            activity.SetTag("taskqueue.operation", operation);
+            if (!string.IsNullOrWhiteSpace(queueName))
+            {
+                activity.SetTag("taskqueue.name", queueName);
+            }
+
+            if (sequenceId.HasValue)
+            {
+                activity.SetTag("taskqueue.sequence_id", sequenceId.Value);
+            }
+
+            if (attempt.HasValue)
+            {
+                activity.SetTag("taskqueue.attempt", attempt.Value);
+            }
+
+            if (ownershipToken.HasValue)
+            {
+                activity.SetTag("taskqueue.token", ownershipToken.Value.ToString());
+            }
+        }
+
+        return activity;
     }
+
+    internal static void CompleteTaskQueueActivity(Activity? activity, Error? error = null)
+    {
+        if (activity is null)
+        {
+            return;
+        }
+
+        if (error is null)
+        {
+            activity.SetStatus(ActivityStatusCode.Ok);
+        }
+        else
+        {
+            if (!string.IsNullOrEmpty(error.Code))
+            {
+                activity.SetTag("taskqueue.error.code", error.Code);
+            }
+
+            activity.SetStatus(ActivityStatusCode.Error, error.Message);
+        }
+
+        activity.Dispose();
+    }
+
+    internal static Activity? StartDeterministicActivity(string stage, string? changeId = null, int? version = null, string? effectId = null)
+    {
+        ActivitySource? source = _activitySource;
+        if (source is null)
+        {
+            return null;
+        }
+
+        Activity? activity = source.StartActivity($"Deterministic.{stage}", ActivityKind.Internal);
+        if (activity is null)
+        {
+            return null;
+        }
+
+        if (activity.IsAllDataRequested)
+        {
+            activity.SetTag("deterministic.stage", stage);
+            if (!string.IsNullOrWhiteSpace(changeId))
+            {
+                activity.SetTag("deterministic.change_id", changeId);
+            }
+
+            if (version.HasValue)
+            {
+                activity.SetTag("deterministic.version", version.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(effectId))
+            {
+                activity.SetTag("deterministic.effect_id", effectId);
+            }
+        }
+
+        return activity;
+    }
+
+    internal static void EnrichDeterministicActivity(Activity? activity, VersionDecision decision)
+    {
+        if (activity is null || !activity.IsAllDataRequested)
+        {
+            return;
+        }
+
+        activity.SetTag("deterministic.version", decision.Version);
+        activity.SetTag("deterministic.is_new", decision.IsNew);
+        activity.SetTag("deterministic.recorded_at", decision.RecordedAt);
+    }
+
+    internal static void CompleteDeterministicActivity(Activity? activity, Error? error = null)
+    {
+        if (activity is null)
+        {
+            return;
+        }
+
+        if (error is null)
+        {
+            activity.SetStatus(ActivityStatusCode.Ok);
+        }
+        else
+        {
+            if (!string.IsNullOrEmpty(error.Code))
+            {
+                activity.SetTag("deterministic.error.code", error.Code);
+            }
+
+            activity.SetStatus(ActivityStatusCode.Error, error.Message);
+        }
+
+        activity.Dispose();
+    }
+
+    public static ActivitySource CreateActivitySource(string? name = null, string? version = null, Uri? schemaUrl = null) =>
+        CreateActivitySource(name, version, schemaUrl?.ToString());
 }

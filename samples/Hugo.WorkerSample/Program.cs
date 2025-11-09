@@ -2,6 +2,8 @@ using System.Threading.Channels;
 
 using Hugo;
 
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 using static Hugo.Go;
 
-HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
 // builder.Services
 //     .AddOpenTelemetry()
@@ -65,6 +67,16 @@ builder.Services.AddSingleton(sp =>
 });
 builder.Services.AddSingleton(sp => new SafeTaskQueueWrapper<TelemetryWorkItem>(sp.GetRequiredService<TaskQueue<TelemetryWorkItem>>()));
 builder.Services.AddSingleton<IDeterministicStateStore, InMemoryDeterministicStateStore>();
+builder.Services.AddTaskQueueHealthCheck<TelemetryWorkItem>(
+    "telemetry-queue",
+    sp => sp.GetRequiredService<TaskQueue<TelemetryWorkItem>>(),
+    options =>
+    {
+        options.PendingDegradedThreshold = 24;
+        options.PendingUnhealthyThreshold = 48;
+        options.ActiveLeaseDegradedThreshold = 4;
+        options.ActiveLeaseUnhealthyThreshold = 8;
+    });
 builder.Services.AddSingleton(sp =>
 {
     SafeTaskQueueWrapper<TelemetryWorkItem> safeQueue = sp.GetRequiredService<SafeTaskQueueWrapper<TelemetryWorkItem>>();
@@ -95,7 +107,11 @@ builder.Services.AddSingleton<TelemetryAlertChannel>();
 builder.Services.AddHostedService<TelemetryAggregationWorker>();
 builder.Services.AddHostedService<TelemetryAlertService>();
 
-IHost app = builder.Build();
+var app = builder.Build();
+
+app.MapHealthChecks("/health/ready");
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+
 await app.RunAsync().ConfigureAwait(false);
 return;
 

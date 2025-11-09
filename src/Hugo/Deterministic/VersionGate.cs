@@ -58,32 +58,7 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
 
         if (_store.TryGet(changeId, out var record))
         {
-            if (!string.Equals(record.Kind, RecordKind, StringComparison.Ordinal))
-            {
-                return Result.Fail<VersionDecision>(Error.From(
-                    $"Deterministic record kind '{record.Kind}' does not match expected '{RecordKind}'.",
-                    ErrorCodes.DeterministicReplay).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
-                    {
-                        ["changeId"] = changeId,
-                        ["kind"] = record.Kind
-                    }));
-            }
-
-            var persistedVersion = DeserializeVersion(record.Payload.Span);
-            if (persistedVersion < minSupportedVersion || persistedVersion > maxSupportedVersion)
-            {
-                return Result.Fail<VersionDecision>(Error.From(
-                    $"Recorded version {persistedVersion} falls outside supported range {minSupportedVersion}..{maxSupportedVersion}.",
-                    ErrorCodes.VersionConflict).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
-                    {
-                        ["changeId"] = changeId,
-                        ["persistedVersion"] = persistedVersion,
-                        ["minVersion"] = minSupportedVersion,
-                        ["maxVersion"] = maxSupportedVersion
-                    }));
-            }
-
-            return Result.Ok(new VersionDecision(persistedVersion, false, record.RecordedAt));
+            return ResolveExistingRecord(changeId, record, minSupportedVersion, maxSupportedVersion);
         }
 
         var context = new VersionGateContext(changeId, minSupportedVersion, maxSupportedVersion);
@@ -116,9 +91,25 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
         var now = _timeProvider.GetUtcNow();
         var payload = SerializeVersion(decidedVersion);
         var newRecord = new DeterministicRecord(RecordKind, decidedVersion, payload, now);
-        _store.Set(changeId, newRecord);
 
-        return Result.Ok(new VersionDecision(decidedVersion, true, now));
+        if (_store.TryAdd(changeId, newRecord))
+        {
+            return Result.Ok(new VersionDecision(decidedVersion, true, now));
+        }
+
+        if (_store.TryGet(changeId, out var concurrentRecord))
+        {
+            return ResolveExistingRecord(changeId, concurrentRecord, minSupportedVersion, maxSupportedVersion);
+        }
+
+        return Result.Fail<VersionDecision>(Error.From(
+            "Concurrent version gate update prevented recording a decision.",
+            ErrorCodes.VersionConflict).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["changeId"] = changeId,
+                ["minVersion"] = minSupportedVersion,
+                ["maxVersion"] = maxSupportedVersion
+            }));
     }
 
     /// <summary>
@@ -142,6 +133,36 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
         }
 
         return marker.Version;
+    }
+
+    private Result<VersionDecision> ResolveExistingRecord(string changeId, DeterministicRecord record, int minSupportedVersion, int maxSupportedVersion)
+    {
+        if (!string.Equals(record.Kind, RecordKind, StringComparison.Ordinal))
+        {
+            return Result.Fail<VersionDecision>(Error.From(
+                $"Deterministic record kind '{record.Kind}' does not match expected '{RecordKind}'.",
+                ErrorCodes.DeterministicReplay).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["changeId"] = changeId,
+                    ["kind"] = record.Kind
+                }));
+        }
+
+        var persistedVersion = DeserializeVersion(record.Payload.Span);
+        if (persistedVersion < minSupportedVersion || persistedVersion > maxSupportedVersion)
+        {
+            return Result.Fail<VersionDecision>(Error.From(
+                $"Recorded version {persistedVersion} falls outside supported range {minSupportedVersion}..{maxSupportedVersion}.",
+                ErrorCodes.VersionConflict).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["changeId"] = changeId,
+                    ["persistedVersion"] = persistedVersion,
+                    ["minVersion"] = minSupportedVersion,
+                    ["maxVersion"] = maxSupportedVersion
+                }));
+        }
+
+        return Result.Ok(new VersionDecision(persistedVersion, false, record.RecordedAt));
     }
 
     private sealed record VersionMarker(int Version);

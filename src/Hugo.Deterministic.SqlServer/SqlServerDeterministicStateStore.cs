@@ -151,6 +151,36 @@ public sealed class SqlServerDeterministicStateStore : IDeterministicStateStore
         }
     }
 
+    /// <inheritdoc />
+    public bool TryAdd(string key, DeterministicRecord record)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(record);
+        EnsureInitialized();
+
+        using SqlConnection connection = new(_options.ConnectionString);
+        connection.Open();
+
+        using SqlCommand insert = new(
+            $"""
+             INSERT INTO {_qualifiedTable} ([Key], [Kind], [Version], [RecordedAt], [Payload])
+             VALUES (@key, @kind, @version, @recordedAt, @payload)
+             """,
+            connection);
+
+        insert.Parameters.Add(CreateKeyParameter(key));
+        AddRecordParameters(insert, record);
+
+        try
+        {
+            return insert.ExecuteNonQuery() == 1;
+        }
+        catch (SqlException ex) when (ex.Number is 2601 or 2627)
+        {
+            return false;
+        }
+    }
+
     private int ExecuteUpdate(string key, DeterministicRecord record, SqlConnection connection, SqlTransaction transaction)
     {
         using SqlCommand update = new(

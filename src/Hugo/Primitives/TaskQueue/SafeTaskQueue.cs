@@ -117,6 +117,16 @@ public sealed class SafeTaskQueueLease<T>(TaskQueueLease<T> lease)
     /// </summary>
     public Error? LastError => _lease.LastError;
 
+    /// <summary>
+    /// Gets the ownership token associated with the lease.
+    /// </summary>
+    public TaskQueueOwnershipToken OwnershipToken => _lease.OwnershipToken;
+
+    /// <summary>
+    /// Gets the monotonic sequence identifier assigned when the work item was enqueued.
+    /// </summary>
+    public long SequenceId => _lease.SequenceId;
+
     /// <summary>Completes the lease.</summary>
     /// <param name="cancellationToken">The token used to cancel the completion.</param>
     /// <returns>A result indicating completion success or failure.</returns>
