@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using System.Threading.Tasks;
 
 namespace Hugo;
 
@@ -8,7 +9,7 @@ namespace Hugo;
 public static partial class Go
 {
     /// <summary>
-    /// Drains the provided channel readers until each one completes, invoking <paramref name="onValue"/> for every observed value.
+    /// Drains the provided channel readers until each one completes, invoking <paramref name="onValue"/> for every observed value using a value task continuation.
     /// </summary>
     /// <typeparam name="T">The payload type emitted by the readers.</typeparam>
     /// <param name="readers">The channel readers to drain.</param>
@@ -17,9 +18,9 @@ public static partial class Go
     /// <param name="provider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result indicating whether the operation completed successfully.</returns>
-    public static Task<Result<Unit>> SelectFanInAsync<T>(
+    public static Task<Result<Unit>> SelectFanInValueTaskAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
-        Func<T, CancellationToken, Task<Result<Unit>>> onValue,
+        Func<T, CancellationToken, ValueTask<Result<Unit>>> onValue,
         TimeSpan? timeout = null,
         TimeProvider? provider = null,
         CancellationToken cancellationToken = default)
@@ -42,7 +43,30 @@ public static partial class Go
         }
 
         TimeSpan effectiveTimeout = timeout ?? Timeout.InfiniteTimeSpan;
-        return GoChannelHelpers.SelectFanInAsyncCore(collected, onValue, effectiveTimeout, provider, cancellationToken);
+        return GoChannelHelpers.SelectFanInAsyncCore(collected, (value, ct) => InvokeValueTask(onValue, value, ct), effectiveTimeout, provider, cancellationToken);
+    }
+
+    /// <summary>
+    /// Drains the provided channel readers until each one completes, invoking <paramref name="onValue"/> for every observed value.
+    /// </summary>
+    /// <typeparam name="T">The payload type emitted by the readers.</typeparam>
+    /// <param name="readers">The channel readers to drain.</param>
+    /// <param name="onValue">The continuation invoked for each value.</param>
+    /// <param name="timeout">The optional timeout applied to the fan-in operation.</param>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A result indicating whether the operation completed successfully.</returns>
+    public static Task<Result<Unit>> SelectFanInAsync<T>(
+        IEnumerable<ChannelReader<T>> readers,
+        Func<T, CancellationToken, Task<Result<Unit>>> onValue,
+        TimeSpan? timeout = null,
+        TimeProvider? provider = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(onValue);
+
+        Func<T, CancellationToken, ValueTask<Result<Unit>>> handler = (value, ct) => new ValueTask<Result<Unit>>(onValue(value, ct));
+        return SelectFanInValueTaskAsync(readers, handler, timeout, provider, cancellationToken);
     }
 
     /// <summary>Drains the provided readers using a continuation without a cancellation token.</summary>
@@ -62,7 +86,29 @@ public static partial class Go
     {
         ArgumentNullException.ThrowIfNull(onValue);
 
-        return SelectFanInAsync(readers, (value, _) => onValue(value), timeout, provider, cancellationToken);
+        Func<T, CancellationToken, ValueTask<Result<Unit>>> handler = (value, _) => new ValueTask<Result<Unit>>(onValue(value));
+        return SelectFanInValueTaskAsync(readers, handler, timeout, provider, cancellationToken);
+    }
+
+    /// <summary>Drains the provided readers using a value task-returning continuation without a cancellation token.</summary>
+    /// <typeparam name="T">The payload type emitted by the readers.</typeparam>
+    /// <param name="readers">The channel readers to drain.</param>
+    /// <param name="onValue">The continuation invoked for each value.</param>
+    /// <param name="timeout">The optional timeout applied to the fan-in operation.</param>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A result indicating whether the operation completed successfully.</returns>
+    public static Task<Result<Unit>> SelectFanInValueTaskAsync<T>(
+        IEnumerable<ChannelReader<T>> readers,
+        Func<T, ValueTask<Result<Unit>>> onValue,
+        TimeSpan? timeout = null,
+        TimeProvider? provider = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(onValue);
+
+        Func<T, CancellationToken, ValueTask<Result<Unit>>> handler = (value, _) => onValue(value);
+        return SelectFanInValueTaskAsync(readers, handler, timeout, provider, cancellationToken);
     }
 
     /// <summary>Drains the provided readers invoking a task-returning continuation.</summary>
@@ -82,11 +128,39 @@ public static partial class Go
     {
         ArgumentNullException.ThrowIfNull(onValue);
 
-        return SelectFanInAsync(readers, async (value, ct) =>
+        Func<T, CancellationToken, ValueTask<Result<Unit>>> handler = async (value, ct) =>
         {
             await onValue(value, ct).ConfigureAwait(false);
             return Result.Ok(Unit.Value);
-        }, timeout, provider, cancellationToken);
+        };
+
+        return SelectFanInValueTaskAsync(readers, handler, timeout, provider, cancellationToken);
+    }
+
+    /// <summary>Drains the provided readers invoking a value task-returning continuation.</summary>
+    /// <typeparam name="T">The payload type emitted by the readers.</typeparam>
+    /// <param name="readers">The channel readers to drain.</param>
+    /// <param name="onValue">The continuation invoked for each value.</param>
+    /// <param name="timeout">The optional timeout applied to the fan-in operation.</param>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A result indicating whether the operation completed successfully.</returns>
+    public static Task<Result<Unit>> SelectFanInValueTaskAsync<T>(
+        IEnumerable<ChannelReader<T>> readers,
+        Func<T, CancellationToken, ValueTask> onValue,
+        TimeSpan? timeout = null,
+        TimeProvider? provider = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(onValue);
+
+        Func<T, CancellationToken, ValueTask<Result<Unit>>> handler = async (value, ct) =>
+        {
+            await onValue(value, ct).ConfigureAwait(false);
+            return Result.Ok(Unit.Value);
+        };
+
+        return SelectFanInValueTaskAsync(readers, handler, timeout, provider, cancellationToken);
     }
 
     /// <summary>Drains the provided readers invoking a task-returning continuation without a cancellation token.</summary>
@@ -106,11 +180,39 @@ public static partial class Go
     {
         ArgumentNullException.ThrowIfNull(onValue);
 
-        return SelectFanInAsync(readers, async (value, _) =>
+        Func<T, CancellationToken, ValueTask<Result<Unit>>> handler = async (value, _) =>
         {
             await onValue(value).ConfigureAwait(false);
             return Result.Ok(Unit.Value);
-        }, timeout, provider, cancellationToken);
+        };
+
+        return SelectFanInValueTaskAsync(readers, handler, timeout, provider, cancellationToken);
+    }
+
+    /// <summary>Drains the provided readers invoking a value task-returning continuation without a cancellation token.</summary>
+    /// <typeparam name="T">The payload type emitted by the readers.</typeparam>
+    /// <param name="readers">The channel readers to drain.</param>
+    /// <param name="onValue">The continuation invoked for each value.</param>
+    /// <param name="timeout">The optional timeout applied to the fan-in operation.</param>
+    /// <param name="provider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A result indicating whether the operation completed successfully.</returns>
+    public static Task<Result<Unit>> SelectFanInValueTaskAsync<T>(
+        IEnumerable<ChannelReader<T>> readers,
+        Func<T, ValueTask> onValue,
+        TimeSpan? timeout = null,
+        TimeProvider? provider = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(onValue);
+
+        Func<T, CancellationToken, ValueTask<Result<Unit>>> handler = async (value, _) =>
+        {
+            await onValue(value).ConfigureAwait(false);
+            return Result.Ok(Unit.Value);
+        };
+
+        return SelectFanInValueTaskAsync(readers, handler, timeout, provider, cancellationToken);
     }
 
     /// <summary>Drains the provided readers invoking a synchronous callback.</summary>
@@ -130,11 +232,13 @@ public static partial class Go
     {
         ArgumentNullException.ThrowIfNull(onValue);
 
-        return SelectFanInAsync(readers, (value, _) =>
+        Func<T, CancellationToken, ValueTask<Result<Unit>>> handler = (value, _) =>
         {
             onValue(value);
-            return Task.FromResult(Result.Ok(Unit.Value));
-        }, timeout, provider, cancellationToken);
+            return new ValueTask<Result<Unit>>(Result.Ok(Unit.Value));
+        };
+
+        return SelectFanInValueTaskAsync(readers, handler, timeout, provider, cancellationToken);
     }
 
     /// <summary>
@@ -222,5 +326,25 @@ public static partial class Go
         }, CancellationToken.None);
 
         return output.Reader;
+    }
+
+    private static Task<Result<Unit>> InvokeValueTask<T>(Func<T, CancellationToken, ValueTask<Result<Unit>>> handler, T value, CancellationToken cancellationToken)
+    {
+        ValueTask<Result<Unit>> valueTask;
+        try
+        {
+            valueTask = handler(value, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            return Task.FromException<Result<Unit>>(ex);
+        }
+
+        if (valueTask.IsCompletedSuccessfully)
+        {
+            return Task.FromResult(valueTask.Result);
+        }
+
+        return valueTask.AsTask();
     }
 }

@@ -180,6 +180,32 @@ public partial class GoTests
     }
 
     [Fact]
+    public async Task SelectFanInAsync_WithValueTaskContinuation_ShouldDrainAllCases()
+    {
+        var channel = MakeChannel<int>();
+        var observed = new ConcurrentBag<int>();
+
+        Task<Result<Unit>> fanInTask = SelectFanInValueTaskAsync(
+            [channel.Reader],
+            async (int value, CancellationToken ct) =>
+            {
+                await Task.Yield();
+                observed.Add(value);
+                return Result.Ok(Unit.Value);
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        await channel.Writer.WriteAsync(42, TestContext.Current.CancellationToken);
+        channel.Writer.TryComplete();
+
+        var result = await fanInTask;
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(observed);
+        Assert.Contains(42, observed);
+    }
+
+    [Fact]
     public async Task SelectFanInAsync_ShouldPropagateCaseFailure()
     {
         var channel = MakeChannel<int>();
@@ -266,8 +292,12 @@ public partial class GoTests
 
         await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, CancellationToken, Task<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
         await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, Task<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInValueTaskAsync([channel.Reader], (Func<int, CancellationToken, ValueTask<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInValueTaskAsync([channel.Reader], (Func<int, ValueTask<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
         await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, CancellationToken, Task>)null!, cancellationToken: TestContext.Current.CancellationToken));
         await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, Task>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInValueTaskAsync([channel.Reader], (Func<int, CancellationToken, ValueTask>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInValueTaskAsync([channel.Reader], (Func<int, ValueTask>)null!, cancellationToken: TestContext.Current.CancellationToken));
         await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Action<int>)null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 

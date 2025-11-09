@@ -37,6 +37,17 @@ public class TimerTests
     }
 
     [Fact]
+    public async Task AfterValueTaskAsync_WithZeroDelay_ShouldCompleteImmediately()
+    {
+        var provider = new FakeTimeProvider();
+        ValueTask<DateTimeOffset> task = AfterValueTaskAsync(TimeSpan.Zero, provider, TestContext.Current.CancellationToken);
+
+        Assert.True(task.IsCompleted);
+        var timestamp = await task;
+        Assert.Equal(provider.GetUtcNow(), timestamp);
+    }
+
+    [Fact]
     public void After_ShouldThrow_WhenDelayIsInfinite() =>
         Assert.Throws<ArgumentOutOfRangeException>(static () => After(Timeout.InfiniteTimeSpan, provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
 
@@ -55,6 +66,19 @@ public class TimerTests
         await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task);
+    }
+
+    [Fact]
+    public async Task AfterValueTaskAsync_ShouldRespectCancellation()
+    {
+        var provider = new FakeTimeProvider();
+        using var cts = new CancellationTokenSource();
+
+        ValueTask<DateTimeOffset> task = AfterValueTaskAsync(TimeSpan.FromSeconds(5), provider, cts.Token);
+
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task.AsTask());
     }
 
     [Fact]

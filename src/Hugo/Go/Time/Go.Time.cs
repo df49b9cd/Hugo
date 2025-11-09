@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using System.Threading.Tasks;
 
 namespace Hugo;
 
@@ -93,6 +94,19 @@ public static partial class Go
     {
         ChannelReader<DateTimeOffset> reader = After(delay, provider, cancellationToken);
         return reader.ReadAsync(cancellationToken).AsTask();
+    }
+
+    /// <summary>
+    /// Returns a value task that completes once the provided delay has elapsed.
+    /// </summary>
+    /// <param name="delay">The delay before completing the task.</param>
+    /// <param name="provider">The optional time provider used to schedule the delay.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A value task completing with the timestamp when the delay finished.</returns>
+    public static ValueTask<DateTimeOffset> AfterValueTaskAsync(TimeSpan delay, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    {
+        ChannelReader<DateTimeOffset> reader = After(delay, provider, cancellationToken);
+        return reader.ReadAsync(cancellationToken);
     }
 
     /// <summary>Represents a timer-backed ticker that publishes periodic timestamps.</summary>

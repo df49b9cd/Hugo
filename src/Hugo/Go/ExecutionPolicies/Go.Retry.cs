@@ -1,3 +1,5 @@
+using System.Threading.Tasks;
+
 using Hugo.Policies;
 
 using Microsoft.Extensions.Logging;
@@ -20,8 +22,37 @@ public static partial class Go
     /// <param name="logger">The optional logger that receives retry telemetry.</param>
     /// <param name="cancellationToken">The token used to cancel the retries.</param>
     /// <returns>A result containing the final operation outcome.</returns>
-    public static async Task<Result<T>> RetryAsync<T>(
+    public static Task<Result<T>> RetryAsync<T>(
         Func<int, CancellationToken, Task<Result<T>>> operation,
+        int maxAttempts = 3,
+        TimeSpan? initialDelay = null,
+        TimeProvider? timeProvider = null,
+        ILogger? logger = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        return RetryValueTaskAsync(
+            (attempt, ct) => new ValueTask<Result<T>>(operation(attempt, ct)),
+            maxAttempts,
+            initialDelay,
+            timeProvider,
+            logger,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Retries an operation with exponential backoff using <see cref="Result.RetryWithPolicyAsync{T}(Func{ResultPipelineStepContext, CancellationToken, ValueTask{Result{T}}}, ResultExecutionPolicy, CancellationToken, TimeProvider?)"/>.
+    /// </summary>
+    /// <typeparam name="T">The result type produced by the operation.</typeparam>
+    /// <param name="operation">The operation to execute with retry semantics.</param>
+    /// <param name="maxAttempts">The maximum number of attempts to perform.</param>
+    /// <param name="initialDelay">The initial delay between attempts; subsequent delays grow exponentially.</param>
+    /// <param name="timeProvider">The optional time provider used for delay calculations.</param>
+    /// <param name="logger">The optional logger that receives retry telemetry.</param>
+    /// <param name="cancellationToken">The token used to cancel the retries.</param>
+    /// <returns>A result containing the final operation outcome.</returns>
+    public static async Task<Result<T>> RetryValueTaskAsync<T>(
+        Func<int, CancellationToken, ValueTask<Result<T>>> operation,
         int maxAttempts = 3,
         TimeSpan? initialDelay = null,
         TimeProvider? timeProvider = null,

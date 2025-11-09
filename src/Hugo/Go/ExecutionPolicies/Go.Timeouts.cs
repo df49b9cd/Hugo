@@ -1,3 +1,5 @@
+using System.Threading.Tasks;
+
 namespace Hugo;
 
 /// <content>
@@ -14,8 +16,32 @@ public static partial class Go
     /// <param name="timeProvider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result containing the operation outcome or a timeout error.</returns>
-    public static async Task<Result<T>> WithTimeoutAsync<T>(
+    public static Task<Result<T>> WithTimeoutAsync<T>(
         Func<CancellationToken, Task<Result<T>>> operation,
+        TimeSpan timeout,
+        TimeProvider? timeProvider = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        return WithTimeoutValueTaskAsync(
+            ct => new ValueTask<Result<T>>(operation(ct)),
+            timeout,
+            timeProvider,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates a timeout result if the operation does not complete within the specified duration.
+    /// </summary>
+    /// <typeparam name="T">The result type produced by the operation.</typeparam>
+    /// <param name="operation">The operation to execute.</param>
+    /// <param name="timeout">The duration to wait before timing out.</param>
+    /// <param name="timeProvider">The optional time provider used for timeout calculations.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>A result containing the operation outcome or a timeout error.</returns>
+    public static async Task<Result<T>> WithTimeoutValueTaskAsync<T>(
+        Func<CancellationToken, ValueTask<Result<T>>> operation,
         TimeSpan timeout,
         TimeProvider? timeProvider = null,
         CancellationToken cancellationToken = default)
@@ -51,7 +77,8 @@ public static partial class Go
         Task<Result<T>> operationTask;
         try
         {
-            operationTask = operation(operationCts.Token);
+            ValueTask<Result<T>> operationValueTask = operation(operationCts.Token);
+            operationTask = ToTask(operationValueTask);
         }
         catch (OperationCanceledException oce)
         {
@@ -123,5 +150,15 @@ public static partial class Go
         }
 
         return Result.Fail<T>(Error.Timeout(timeout));
+    }
+
+    private static Task<TResult> ToTask<TResult>(ValueTask<TResult> valueTask)
+    {
+        if (valueTask.IsCompletedSuccessfully)
+        {
+            return Task.FromResult(valueTask.Result);
+        }
+
+        return valueTask.AsTask();
     }
 }

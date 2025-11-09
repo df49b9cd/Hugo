@@ -23,10 +23,33 @@ public partial class GoTests
             }
         };
 
-        var result = await FanOutAsync(operations, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await FanOutAsync<int>(operations, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal([1, 2], result.Value);
+    }
+
+    [Fact]
+    public async Task FanOutAsync_ValueTaskDelegates_ShouldReturnAllResults()
+    {
+        var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
+        {
+            static async ct =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(10), ct);
+                return Ok(10);
+            },
+            static async ct =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(5), ct);
+                return Ok(20);
+            }
+        };
+
+        var result = await FanOutValueTaskAsync<int>(operations, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal([10, 20], result.Value);
     }
 
     [Fact]
@@ -51,10 +74,33 @@ public partial class GoTests
             }
         };
 
-        var result = await RaceAsync(operations, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await RaceAsync<int>(operations, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value);
+    }
+
+    [Fact]
+    public async Task RaceAsync_ValueTaskDelegates_ShouldReturnFirstSuccessfulResult()
+    {
+        var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
+        {
+            static async ct =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(20), ct);
+                return Err<int>("slow failure", ErrorCodes.Validation);
+            },
+            static async ct =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(5), ct);
+                return Ok(7);
+            }
+        };
+
+        var result = await RaceValueTaskAsync<int>(operations, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(7, result.Value);
     }
 
     [Fact]
@@ -138,11 +184,30 @@ public partial class GoTests
     }
 
     [Fact]
+    public async Task WithTimeoutAsync_ValueTaskDelegate_ShouldReturnSuccess()
+    {
+        var provider = new FakeTimeProvider();
+
+        var result = await WithTimeoutValueTaskAsync(
+            async ct =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(50), ct);
+                return Ok(5);
+            },
+            TimeSpan.FromSeconds(1),
+            provider,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(5, result.Value);
+    }
+
+    [Fact]
     public async Task RetryAsync_ShouldRetryUntilSuccess()
     {
         var attempts = new List<int>();
 
-        var result = await RetryAsync(
+        var result = await RetryValueTaskAsync(
             async (attempt, ct) =>
             {
                 attempts.Add(attempt);
@@ -161,6 +226,32 @@ public partial class GoTests
         Assert.True(result.IsSuccess);
         Assert.Equal(99, result.Value);
         Assert.Equal(new[] { 1, 2, 3 }, attempts);
+    }
+
+    [Fact]
+    public async Task RetryAsync_ValueTaskDelegate_ShouldRetryUntilSuccess()
+    {
+        int attempt = 0;
+
+        var result = await RetryAsync(
+            async (currentAttempt, ct) =>
+            {
+                await Task.Delay(5, ct);
+                attempt = currentAttempt;
+                if (currentAttempt < 2)
+                {
+                    return Err<int>("retry", ErrorCodes.Validation);
+                }
+
+                return Ok(123);
+            },
+            maxAttempts: 3,
+            initialDelay: TimeSpan.Zero,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(123, result.Value);
+        Assert.Equal(2, attempt);
     }
 
     [Fact]
