@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Channels;
 
 namespace Hugo;
@@ -38,32 +39,42 @@ public static partial class Go
     /// <param name="fullMode">The strategy used when the channel is full.</param>
     /// <param name="singleReader"><see langword="true"/> to optimize for a single reader; otherwise <see langword="false"/>.</param>
     /// <param name="singleWriter"><see langword="true"/> to optimize for a single writer; otherwise <see langword="false"/>.</param>
+    /// <param name="configureBounded">An optional delegate that mutates the bounded channel builder before creation.</param>
+    /// <param name="configureUnbounded">An optional delegate that mutates the unbounded channel builder before creation.</param>
     /// <returns>A configured channel instance.</returns>
     public static Channel<T> MakeChannel<T>(
         int? capacity = null,
         BoundedChannelFullMode fullMode = BoundedChannelFullMode.Wait,
         bool singleReader = false,
-        bool singleWriter = false)
+        bool singleWriter = false,
+        Func<BoundedChannelBuilder<T>, BoundedChannelBuilder<T>>? configureBounded = null,
+        Func<UnboundedChannelBuilder<T>, UnboundedChannelBuilder<T>>? configureUnbounded = null)
     {
         if (capacity is > 0)
         {
-            BoundedChannelOptions options = new(capacity.Value)
-            {
-                FullMode = fullMode,
-                SingleReader = singleReader,
-                SingleWriter = singleWriter
-            };
+            BoundedChannelBuilder<T> builder = new BoundedChannelBuilder<T>(capacity.Value)
+                .WithFullMode(fullMode)
+                .SingleReader(singleReader)
+                .SingleWriter(singleWriter);
 
-            return Channel.CreateBounded<T>(options);
+            if (configureBounded is not null)
+            {
+                builder = configureBounded(builder) ?? throw new ArgumentException("Bounded channel builder delegate must not return null.", nameof(configureBounded));
+            }
+
+            return builder.Build();
         }
 
-        UnboundedChannelOptions unboundedOptions = new()
-        {
-            SingleReader = singleReader,
-            SingleWriter = singleWriter
-        };
+        UnboundedChannelBuilder<T> unboundedBuilder = new UnboundedChannelBuilder<T>()
+            .SingleReader(singleReader)
+            .SingleWriter(singleWriter);
 
-        return Channel.CreateUnbounded<T>(unboundedOptions);
+        if (configureUnbounded is not null)
+        {
+            unboundedBuilder = configureUnbounded(unboundedBuilder) ?? throw new ArgumentException("Unbounded channel builder delegate must not return null.", nameof(configureUnbounded));
+        }
+
+        return unboundedBuilder.Build();
     }
 
     /// <summary>Creates a bounded channel using the supplied options.</summary>

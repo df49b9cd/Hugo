@@ -99,6 +99,70 @@ public sealed class BoundedChannelBuilder<T>
     public Channel<T> Build() => Channel.CreateBounded<T>(CreateOptions());
 }
 
+/// <summary>Provides a fluent API for configuring unbounded channels before creation.</summary>
+public sealed class UnboundedChannelBuilder<T>
+{
+    private bool _singleReader;
+    private bool _singleWriter;
+    private bool _allowSynchronousContinuations;
+    private Action<UnboundedChannelOptions>? _configure;
+
+    /// <summary>Flags whether the channel is optimized for a single reader.</summary>
+    /// <param name="enabled"><see langword="true"/> to optimize for a single reader; otherwise <see langword="false"/>.</param>
+    /// <returns>The current builder for chaining additional configuration.</returns>
+    public UnboundedChannelBuilder<T> SingleReader(bool enabled = true)
+    {
+        _singleReader = enabled;
+        return this;
+    }
+
+    /// <summary>Flags whether the channel is optimized for a single writer.</summary>
+    /// <param name="enabled"><see langword="true"/> to optimize for a single writer; otherwise <see langword="false"/>.</param>
+    /// <returns>The current builder for chaining additional configuration.</returns>
+    public UnboundedChannelBuilder<T> SingleWriter(bool enabled = true)
+    {
+        _singleWriter = enabled;
+        return this;
+    }
+
+    /// <summary>Enables synchronous continuations on channel operations.</summary>
+    /// <param name="enabled"><see langword="true"/> to allow synchronous continuations; otherwise <see langword="false"/>.</param>
+    /// <returns>The current builder for chaining additional configuration.</returns>
+    public UnboundedChannelBuilder<T> AllowSynchronousContinuations(bool enabled = true)
+    {
+        _allowSynchronousContinuations = enabled;
+        return this;
+    }
+
+    /// <summary>Adds a custom configuration delegate that runs against the channel options.</summary>
+    /// <param name="configure">The callback used to tweak <see cref="UnboundedChannelOptions"/>.</param>
+    /// <returns>The current builder for chaining additional configuration.</returns>
+    public UnboundedChannelBuilder<T> Configure(Action<UnboundedChannelOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        _configure += configure;
+        return this;
+    }
+
+    internal UnboundedChannelOptions CreateOptions()
+    {
+        var options = new UnboundedChannelOptions
+        {
+            SingleReader = _singleReader,
+            SingleWriter = _singleWriter,
+            AllowSynchronousContinuations = _allowSynchronousContinuations
+        };
+
+        _configure?.Invoke(options);
+        return options;
+    }
+
+    /// <summary>Creates a <see cref="Channel{T}"/> using the accumulated configuration.</summary>
+    /// <returns>The configured unbounded channel.</returns>
+    public Channel<T> Build() => Channel.CreateUnbounded<T>(CreateOptions());
+}
+
 /// <summary>Provides configuration helpers for prioritized channels.</summary>
 public sealed class PrioritizedChannelBuilder<T>
 {

@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Channels;
 
 namespace Hugo;
@@ -62,6 +63,7 @@ public static partial class Go
     /// <param name="completeBranches"><see langword="true"/> to complete each branch when the operation finishes.</param>
     /// <param name="deadline">The optional deadline applied to individual writes.</param>
     /// <param name="provider">The optional time provider used for deadline calculations.</param>
+    /// <param name="channelFactory">An optional delegate that creates the branch channels; defaults to an unbounded channel per branch.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A collection of readers that receive the broadcast values.</returns>
     public static IReadOnlyList<ChannelReader<T>> FanOut<T>(
@@ -70,6 +72,7 @@ public static partial class Go
         bool completeBranches = true,
         TimeSpan? deadline = null,
         TimeProvider? provider = null,
+        Func<int, Channel<T>>? channelFactory = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -80,7 +83,7 @@ public static partial class Go
         ChannelWriter<T>[] writers = new ChannelWriter<T>[branchCount];
         for (int i = 0; i < branchCount; i++)
         {
-            Channel<T> channel = Channel.CreateUnbounded<T>();
+            Channel<T> channel = CreateBranchChannel(i, channelFactory);
             channels[i] = channel;
             writers[i] = channel.Writer;
         }
@@ -108,5 +111,11 @@ public static partial class Go
         }
 
         return readers;
+
+        static Channel<T> CreateBranchChannel(int index, Func<int, Channel<T>>? factory)
+        {
+            Channel<T>? channel = factory?.Invoke(index);
+            return channel ?? Channel.CreateUnbounded<T>();
+        }
     }
 }

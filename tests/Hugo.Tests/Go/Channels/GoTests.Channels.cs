@@ -30,6 +30,37 @@ public partial class GoTests
     }
 
     [Fact]
+    public void MakeChannel_ShouldApplyBoundedBuilderDelegate()
+    {
+        BoundedChannelOptions? capturedOptions = null;
+
+        Channel<int> channel = MakeChannel<int>(
+            capacity: 4,
+            configureBounded: builder => builder
+                .AllowSynchronousContinuations()
+                .Configure(options => capturedOptions = options));
+
+        Assert.NotNull(channel);
+        Assert.NotNull(capturedOptions);
+        Assert.True(capturedOptions!.AllowSynchronousContinuations);
+    }
+
+    [Fact]
+    public void MakeChannel_ShouldApplyUnboundedBuilderDelegate()
+    {
+        UnboundedChannelOptions? capturedOptions = null;
+
+        Channel<int> channel = MakeChannel<int>(
+            configureUnbounded: builder => builder
+                .AllowSynchronousContinuations()
+                .Configure(options => capturedOptions = options));
+
+        Assert.NotNull(channel);
+        Assert.NotNull(capturedOptions);
+        Assert.True(capturedOptions!.AllowSynchronousContinuations);
+    }
+
+    [Fact]
     public void MakeChannel_WithZeroCapacity_UsesUnboundedConfiguration()
     {
         var channel = MakeChannel<int>(capacity: 0, singleReader: true, singleWriter: true);
@@ -472,6 +503,28 @@ public partial class GoTests
     [Fact]
     public void FanOut_WithInvalidBranchCount_Throws() =>
         Assert.Throws<ArgumentOutOfRangeException>(static () => FanOut(MakeChannel<int>().Reader, 0, cancellationToken: TestContext.Current.CancellationToken));
+
+    [Fact]
+    public void FanOut_ShouldUseChannelFactory()
+    {
+        var source = MakeChannel<int>();
+        int invocationCount = 0;
+
+        IReadOnlyList<ChannelReader<int>> branches = FanOut(
+            source.Reader,
+            branchCount: 2,
+            cancellationToken: TestContext.Current.CancellationToken,
+            channelFactory: index =>
+            {
+                invocationCount++;
+                return BoundedChannel<int>(index + 1)
+                    .AllowSynchronousContinuations()
+                    .Build();
+            });
+
+        Assert.Equal(2, invocationCount);
+        Assert.Equal(2, branches.Count);
+    }
 
     [Fact]
     public async Task FanOut_WithCompleteBranchesFalse_DoesNotCompleteBranches()
