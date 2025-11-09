@@ -74,6 +74,10 @@ await foreach (TaskQueueLease<TelemetryWorkItem> lease in adapter.Reader.ReadAll
 
 `SafeTaskQueueLease` exposes `CompleteAsync`, `HeartbeatAsync`, and `FailAsync` helpers that convert `ObjectDisposedException` and `InvalidOperationException` into structured errors (`error.taskqueue.disposed`, `error.taskqueue.lease_inactive`). Unhandled exceptions are wrapped with `Error.FromException`.
 
+## Health and readiness
+
+`Program.cs` registers `AddTaskQueueHealthCheck` for the telemetry queue and exposes `/health/ready` plus `/health/live` endpoints via `MapHealthChecks`. Kubernetes-style orchestrators can now block rollouts until `PendingCount` drops below the configured degraded/unhealthy thresholds, preventing data loss during upgrades. The same backpressure callbacks (configured through `TaskQueueOptions.Backpressure`) log warnings whenever depth crosses the high watermark so producers can throttle before the health probe flips to `Degraded`.
+
 ## Running the Sample
 
 ```bash
