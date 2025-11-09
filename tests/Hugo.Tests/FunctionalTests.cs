@@ -88,6 +88,35 @@ public class FunctionalTests
     }
 
     [Fact]
+    public async Task ThenAsync_ShouldComposeValueTaskBinder()
+    {
+        var result = await Ok("start")
+            .ThenValueTaskAsync(
+                static async ValueTask<Result<string>> (value, token) =>
+                {
+                    await Task.Delay(1, token);
+                    return Result.Ok(value + "-valuetask");
+                },
+                TestContext.Current.CancellationToken
+            );
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("start-valuetask", result.Value);
+    }
+
+    [Fact]
+    public async Task ThenAsync_ShouldComposeValueTaskResultSource()
+    {
+        static ValueTask<Result<string>> Stage() => ValueTask.FromResult(Result.Ok("begin"));
+
+        var result = await Stage()
+            .ThenAsync(static value => Result.Ok(value + "-done"), TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("begin-done", result.Value);
+    }
+
+    [Fact]
     public void Map_ShouldTransformValue()
     {
         var result = Ok(5).Map(static v => v * 2);
@@ -104,6 +133,30 @@ public class FunctionalTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(15, result.Value);
+    }
+
+    [Fact]
+    public async Task MapAsync_ShouldSupportValueTaskMapper()
+    {
+        var result = await Ok(7)
+            .MapValueTaskAsync(static async ValueTask<int> (value, token) =>
+            {
+                await Task.Delay(1, token);
+                return value * 2;
+            }, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(14, result.Value);
+    }
+
+    [Fact]
+    public async Task MapAsync_ShouldSupportValueTaskResultSource()
+    {
+        var mapped = await ValueTask.FromResult(Result.Ok(3))
+            .MapAsync(static value => value + 1, TestContext.Current.CancellationToken);
+
+        Assert.True(mapped.IsSuccess);
+        Assert.Equal(4, mapped.Value);
     }
 
     [Fact]
@@ -145,6 +198,42 @@ public class FunctionalTests
     }
 
     [Fact]
+    public async Task TapAsync_ShouldSupportValueTaskSideEffects()
+    {
+        var callCount = 0;
+        var result = await Ok(2)
+            .TapValueTaskAsync(
+                async ValueTask (value, token) =>
+                {
+                    await Task.Delay(1, token);
+                    callCount += value;
+                },
+                TestContext.Current.CancellationToken
+            );
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, callCount);
+    }
+
+    [Fact]
+    public async Task TapErrorAsync_ShouldSupportValueTaskSideEffects()
+    {
+        var observed = 0;
+        var result = await ValueTask.FromResult(Result.Fail<int>(Error.From("fail", ErrorCodes.Validation)))
+            .TapErrorValueTaskAsync(
+                async ValueTask (error, token) =>
+                {
+                    await Task.Delay(1, token);
+                    observed = error.Message.Length;
+                },
+                TestContext.Current.CancellationToken
+            );
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("fail".Length, observed);
+    }
+
+    [Fact]
     public void Recover_ShouldConvertFailure()
     {
         var recovered = Err<int>("whoops").Recover(static err => Ok(err.Message.Length));
@@ -160,6 +249,32 @@ public class FunctionalTests
             static (error, _) => Task.FromResult(Ok(error.Message.Length)),
             TestContext.Current.CancellationToken
         );
+
+        Assert.True(recovered.IsSuccess);
+        Assert.Equal(4, recovered.Value);
+    }
+
+    [Fact]
+    public async Task RecoverAsync_ShouldSupportValueTaskRecover()
+    {
+        var recovered = await Err<int>("boom").RecoverValueTaskAsync(
+            static async ValueTask<Result<int>> (error, token) =>
+            {
+                await Task.Delay(1, token);
+                return Result.Ok(error.Message.Length);
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True(recovered.IsSuccess);
+        Assert.Equal(4, recovered.Value);
+    }
+
+    [Fact]
+    public async Task RecoverAsync_ShouldSupportValueTaskResultSource()
+    {
+        var recovered = await ValueTask.FromResult(Result.Fail<int>(Error.From("oops")))
+            .RecoverAsync(static error => Result.Ok(error.Message.Length), TestContext.Current.CancellationToken);
 
         Assert.True(recovered.IsSuccess);
         Assert.Equal(4, recovered.Value);
@@ -197,6 +312,31 @@ public class FunctionalTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+    }
+
+    [Fact]
+    public async Task EnsureAsync_ShouldSupportValueTaskPredicate()
+    {
+        var result = await Ok(42).EnsureValueTaskAsync(
+            static async ValueTask<bool> (value, token) =>
+            {
+                await Task.Delay(1, token);
+                return value > 10;
+            },
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task EnsureAsync_ShouldSupportValueTaskResultSource()
+    {
+        var evaluation = await ValueTask.FromResult(Result.Ok(1))
+            .EnsureValueTaskAsync(static (value, _) => new ValueTask<bool>(value > 10), cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(evaluation.IsFailure);
+        Assert.Equal(ErrorCodes.Validation, evaluation.Error?.Code);
     }
 
     [Fact]
@@ -369,6 +509,40 @@ public class FunctionalTests
 
         Assert.True(result.IsSuccess);
         Assert.True(invoked);
+    }
+
+    [Fact]
+    public async Task OnSuccessAsync_ShouldSupportValueTaskAction()
+    {
+        var invoked = false;
+        var result = await Ok(9).OnSuccessValueTaskAsync(
+            async ValueTask (value, token) =>
+            {
+                await Task.Delay(1, token);
+                invoked = value == 9;
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True(result.IsSuccess);
+        Assert.True(invoked);
+    }
+
+    [Fact]
+    public async Task OnFailureAsync_ShouldSupportValueTaskAction()
+    {
+        Error? observed = null;
+        var result = await Err<int>("fail").OnFailureValueTaskAsync(
+            async ValueTask (error, token) =>
+            {
+                await Task.Delay(1, token);
+                observed = error;
+            },
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.True(result.IsFailure);
+        Assert.NotNull(observed);
     }
 
     [Fact]
@@ -580,6 +754,27 @@ public class FunctionalTests
         );
 
         Assert.Equal(ErrorCodes.Canceled, result);
+    }
+
+    [Fact]
+    public async Task FinallyAsync_ValueTaskResult_ShouldSupportValueTaskContinuations()
+    {
+        var outcome = await ValueTask.FromResult(Result.Ok("value"))
+            .FinallyValueTaskAsync(
+                async ValueTask<string> (value, token) =>
+                {
+                    await Task.Delay(1, token);
+                    return value + "-ok";
+                },
+                async ValueTask<string> (error, token) =>
+                {
+                    await Task.Delay(1, token);
+                    return error.Message;
+                },
+                TestContext.Current.CancellationToken
+            );
+
+        Assert.Equal("value-ok", outcome);
     }
 
     [Fact]
