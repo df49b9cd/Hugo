@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 namespace Hugo;
@@ -13,6 +14,8 @@ namespace Hugo;
 /// <param name="store">Backing store used to persist side-effect outcomes.</param>
 /// <param name="timeProvider">Optional time provider used for timestamping.</param>
 /// <param name="serializerOptions">Serializer options used when materializing values.</param>
+[RequiresUnreferencedCode("DeterministicEffectStore serializes arbitrary effect payloads using System.Text.Json. Preserve the captured types or provide a compatible JsonSerializerOptions instance.")]
+[RequiresDynamicCode("DeterministicEffectStore relies on System.Text.Json to materialize captured payloads at runtime.")]
 public sealed class DeterministicEffectStore(IDeterministicStateStore store, TimeProvider? timeProvider = null, JsonSerializerOptions? serializerOptions = null)
 {
     private const string RecordKind = "hugo.effect";
@@ -204,5 +207,5 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
         return JsonSerializer.Deserialize<T>(payload, _serializerOptions)!;
     }
 
-    private sealed record EffectEnvelope(bool IsSuccess, string TypeName, byte[]? SerializedValue, Error? Error, DateTimeOffset RecordedAt);
+    internal sealed record EffectEnvelope(bool IsSuccess, string TypeName, byte[]? SerializedValue, Error? Error, DateTimeOffset RecordedAt);
 }

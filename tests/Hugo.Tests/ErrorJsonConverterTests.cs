@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 
@@ -8,6 +9,8 @@ namespace Hugo.Tests;
 public class ErrorJsonConverterTests
 {
     [Fact]
+    [RequiresUnreferencedCode()]
+    [RequiresDynamicCode()]
     public void SerializeAndDeserialize_ShouldRoundTripError()
     {
         var metadata = new Dictionary<string, object?>
@@ -41,6 +44,7 @@ public class ErrorJsonConverterTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public void Serialize_ShouldEmitJsonStructure()
     {
         var error = Error.From("oops", ErrorCodes.Unspecified, metadata: new Dictionary<string, object?>
@@ -63,6 +67,7 @@ public class ErrorJsonConverterTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public void Deserialize_ShouldHandleNestedAggregateErrors()
     {
         var json = """
@@ -88,6 +93,7 @@ public class ErrorJsonConverterTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public void SerializeAndDeserialize_ShouldPreserveDecimalAndUnsignedNumericMetadata()
     {
         var precise = 1234567890.1234567890123456789M;
@@ -129,6 +135,7 @@ public class ErrorJsonConverterTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public void Deserialize_ShouldHydrateCauseExceptionDetails()
     {
         const string json = """
@@ -156,6 +163,7 @@ public class ErrorJsonConverterTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public void Deserialize_ShouldInterpretWellKnownStringMetadataTypes()
     {
         var guid = Guid.NewGuid();
@@ -191,6 +199,7 @@ public class ErrorJsonConverterTests
 
 
     [Fact]
+    [RequiresDynamicCode()]
     public void Serialize_ShouldHandleComplexMetadataShapes()
     {
         using var jsonDoc = JsonDocument.Parse("""{"flag": true, "number": 7}""");
@@ -251,6 +260,7 @@ public class ErrorJsonConverterTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public void Serialize_ShouldSanitizeCancellationTokenMetadata()
     {
         using var cts = new CancellationTokenSource();

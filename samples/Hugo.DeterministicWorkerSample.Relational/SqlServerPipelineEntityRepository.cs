@@ -16,7 +16,7 @@ namespace Hugo.DeterministicWorkerSample.Relational;
 /// <summary>
 /// Options controlling how the relational pipeline repository connects to SQL Server.
 /// </summary>
-public sealed class SqlServerPipelineOptions
+internal sealed class SqlServerPipelineOptions
 {
     /// <summary>
     /// Gets or sets the connection string used for both migrations and data access.
@@ -37,7 +37,7 @@ public sealed class SqlServerPipelineOptions
 /// <summary>
 /// Ensures the relational pipeline projection table exists before the worker runs.
 /// </summary>
-public sealed class SqlServerPipelineSchemaMigrator
+internal sealed class SqlServerPipelineSchemaMigrator
 {
     private readonly SqlServerPipelineOptions _options;
     private readonly ILogger<SqlServerPipelineSchemaMigrator> _logger;
@@ -66,7 +66,7 @@ public sealed class SqlServerPipelineSchemaMigrator
                 return;
             }
 
-            await using SqlConnection connection = new(_options.ConnectionString);
+            await using SqlConnection connection = new(_options.ConnectionString).ConfigureAwait(false);
             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
             const string ExistsSql =
@@ -77,7 +77,7 @@ public sealed class SqlServerPipelineSchemaMigrator
                 WHERE t.name = @tableName AND s.name = @schemaName
                 """;
 
-            await using SqlCommand exists = new(ExistsSql, connection);
+            await using SqlCommand exists = new(ExistsSql, connection).ConfigureAwait(false);
             exists.Parameters.Add(new SqlParameter("@tableName", SqlDbType.NVarChar, 128) { Value = _options.TableName });
             exists.Parameters.Add(new SqlParameter("@schemaName", SqlDbType.NVarChar, 128) { Value = _options.Schema });
 
@@ -100,7 +100,7 @@ public sealed class SqlServerPipelineSchemaMigrator
                     _options.Schema,
                     _options.TableName);
 
-                await using SqlCommand createTable = new(createTableSql, connection);
+                await using SqlCommand createTable = new(createTableSql, connection).ConfigureAwait(false);
                 await createTable.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
                 _logger.LogInformation("Created pipeline entity table {Table}.", qualifiedTable);
             }
@@ -119,7 +119,7 @@ public sealed class SqlServerPipelineSchemaMigrator
 /// <summary>
 /// SQL Server implementation of <see cref="IPipelineEntityRepository"/>.
 /// </summary>
-public sealed class SqlServerPipelineEntityRepository : IPipelineEntityRepository
+internal sealed class SqlServerPipelineEntityRepository : IPipelineEntityRepository
 {
     private readonly SqlServerPipelineOptions _options;
     private readonly SqlServerPipelineSchemaMigrator _migrator;
@@ -141,7 +141,7 @@ public sealed class SqlServerPipelineEntityRepository : IPipelineEntityRepositor
         ArgumentException.ThrowIfNullOrWhiteSpace(entityId);
         await _migrator.EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-        await using SqlConnection connection = new(_options.ConnectionString);
+        await using SqlConnection connection = new(_options.ConnectionString).ConfigureAwait(false);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
         const string Sql =
@@ -151,10 +151,10 @@ public sealed class SqlServerPipelineEntityRepository : IPipelineEntityRepositor
             WHERE EntityId = @entityId;
             """;
 
-        await using SqlCommand command = new(string.Format(CultureInfo.InvariantCulture, Sql, QualifiedTable()), connection);
+        await using SqlCommand command = new(string.Format(CultureInfo.InvariantCulture, Sql, QualifiedTable()), connection).ConfigureAwait(false);
         command.Parameters.Add(new SqlParameter("@entityId", SqlDbType.NVarChar, 128) { Value = entityId });
 
-        await using SqlDataReader reader = await command.ExecuteReaderAsync(CommandBehavior.SingleResult, cancellationToken).ConfigureAwait(false);
+        await using SqlDataReader reader = (await command.ExecuteReaderAsync(CommandBehavior.SingleResult, cancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
         if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             double runningTotal = reader.GetDouble(0);
@@ -172,10 +172,10 @@ public sealed class SqlServerPipelineEntityRepository : IPipelineEntityRepositor
         ArgumentNullException.ThrowIfNull(entity);
         await _migrator.EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
 
-        await using SqlConnection connection = new(_options.ConnectionString);
+        await using SqlConnection connection = new(_options.ConnectionString).ConfigureAwait(false);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-        await using SqlTransaction transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using SqlTransaction transaction = ((SqlTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
         try
         {
             int updated = await ExecuteUpdateAsync(entity, connection, transaction, cancellationToken).ConfigureAwait(false);
@@ -250,7 +250,7 @@ public sealed class SqlServerPipelineEntityRepository : IPipelineEntityRepositor
             WHERE EntityId = @entityId;
             """;
 
-        await using SqlCommand command = new(string.Format(CultureInfo.InvariantCulture, Sql, QualifiedTable()), connection, transaction);
+        await using SqlCommand command = new(string.Format(CultureInfo.InvariantCulture, Sql, QualifiedTable()), connection, transaction).ConfigureAwait(false);
         AddEntityParameters(command, entity);
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -268,7 +268,7 @@ public sealed class SqlServerPipelineEntityRepository : IPipelineEntityRepositor
             VALUES (@entityId, @runningTotal, @processedCount, @lastAmount, @lastUpdated);
             """;
 
-        await using SqlCommand command = new(string.Format(CultureInfo.InvariantCulture, Sql, QualifiedTable()), connection, transaction);
+        await using SqlCommand command = new(string.Format(CultureInfo.InvariantCulture, Sql, QualifiedTable()), connection, transaction).ConfigureAwait(false);
         AddEntityParameters(command, entity);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 
@@ -53,6 +54,16 @@ public static class GoDiagnostics
     private static Histogram<long>? _workflowReplayCount;
     private static Histogram<long>? _workflowLogicalClock;
     private static Histogram<double>? _workflowDuration;
+
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicConstructors
+                       | DynamicallyAccessedMemberTypes.NonPublicConstructors
+                       | DynamicallyAccessedMemberTypes.PublicProperties
+                       | DynamicallyAccessedMemberTypes.NonPublicProperties,
+                       "System.Diagnostics.ActivitySourceOptions",
+                       "System.Diagnostics.DiagnosticSource")]
+    static GoDiagnostics()
+    {
+    }
 
     /// <summary>Gets the semantic version applied to exported telemetry.</summary>
     public static string InstrumentationVersion => DefaultInstrumentationVersion;
@@ -202,6 +213,7 @@ public static class GoDiagnostics
         return options;
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "MeterOptions members are part of the runtime surface area and are preserved on all supported target frameworks.")]
     private static void TryApplySchema(MeterOptions options, string schemaUrl)
     {
         var type = options.GetType();
@@ -226,7 +238,15 @@ public static class GoDiagnostics
             ? Array.Empty<KeyValuePair<string, object?>>()
             : [new KeyValuePair<string, object?>("otel.scope.schema_url", schemaUrl)];
 
-    private static object? CreateActivitySourceOptions(Type optionsType, string name, string version, string schemaUrl)
+    private static object? CreateActivitySourceOptions(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors
+                                    | DynamicallyAccessedMemberTypes.NonPublicConstructors
+                                    | DynamicallyAccessedMemberTypes.PublicProperties
+                                    | DynamicallyAccessedMemberTypes.NonPublicProperties)]
+        Type optionsType,
+        string name,
+        string version,
+        string schemaUrl)
     {
         object? optionsInstance = null;
 

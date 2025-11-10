@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Microsoft.Extensions.Time.Testing;
 
 using static Hugo.Go;
@@ -7,6 +9,8 @@ namespace Hugo.Tests;
 public class DeterministicEffectStoreTests
 {
     [Fact]
+    [RequiresUnreferencedCode()]
+    [RequiresDynamicCode()]
     public async Task CaptureAsync_ShouldRecordAndReplaySuccessfulResult()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -34,6 +38,8 @@ public class DeterministicEffectStoreTests
     }
 
     [Fact]
+    [RequiresUnreferencedCode()]
+    [RequiresDynamicCode()]
     public async Task CaptureAsync_ShouldRecordAndReplayFailure()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -62,6 +68,7 @@ public class DeterministicEffectStoreTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public async Task CaptureAsync_ShouldFail_WhenTypeMismatchDetected()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -89,6 +96,7 @@ public class DeterministicEffectStoreTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public async Task CaptureAsync_ShouldCaptureThrownExceptions()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -118,6 +126,7 @@ public class DeterministicEffectStoreTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public async Task CaptureAsync_ShouldFail_WhenRecordKindMismatch()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -134,6 +143,7 @@ public class DeterministicEffectStoreTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public async Task CaptureAsync_ShouldRethrowCancellationWithoutRecording()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -155,6 +165,7 @@ public class DeterministicEffectStoreTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public async Task CaptureAsync_SynchronousOverload_ShouldPersistAndReplayValue()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -185,6 +196,7 @@ public class DeterministicEffectStoreTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public async Task CaptureAsync_ShouldSanitizeCancellationTokenMetadata()
     {
         var store = new InMemoryDeterministicStateStore();

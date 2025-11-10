@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests;
@@ -5,6 +7,8 @@ namespace Hugo.Tests;
 public class DeterministicGateTests
 {
     [Fact]
+    [RequiresUnreferencedCode()]
+    [RequiresDynamicCode()]
     public async Task ExecuteAsync_ShouldPreferUpgradedPath_WhenVersionMatches()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -59,6 +63,7 @@ public class DeterministicGateTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public async Task ExecuteAsync_ShouldBridgeLegacyPath()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -113,6 +118,7 @@ public class DeterministicGateTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public async Task ExecuteAsync_ShouldSurfaceVersionGateFailures()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -135,6 +141,7 @@ public class DeterministicGateTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public async Task Workflow_ShouldReplayDeterministicBranch()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -173,6 +180,7 @@ public class DeterministicGateTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public async Task Workflow_ShouldRespectFallbackWhenNoBranchMatches()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -193,6 +201,7 @@ public class DeterministicGateTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public async Task Workflow_ShouldErrorWhenNoMatchingBranchOrFallback()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -214,6 +223,7 @@ public class DeterministicGateTests
     }
 
     [Fact]
+    [RequiresDynamicCode()]
     public async Task Workflow_ShouldHonorPredicateOrdering()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -338,6 +348,7 @@ public class DeterministicGateTests
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
     }
 
+    [RequiresDynamicCode("Calls Hugo.VersionGate.VersionGate(IDeterministicStateStore, TimeProvider, JsonSerializerOptions)")]
     private static (DeterministicGate Gate, InMemoryDeterministicStateStore Store, FakeTimeProvider TimeProvider) CreateGate()
     {
         var store = new InMemoryDeterministicStateStore();

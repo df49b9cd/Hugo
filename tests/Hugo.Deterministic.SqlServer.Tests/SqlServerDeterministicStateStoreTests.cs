@@ -7,7 +7,7 @@ using Testcontainers.MsSql;
 
 using Xunit;
 
-public sealed class SqlServerDeterministicStateStoreTests : IAsyncLifetime
+internal sealed class SqlServerDeterministicStateStoreTests : IAsyncLifetime
 {
     private readonly MsSqlContainer _container;
     private bool _skip;

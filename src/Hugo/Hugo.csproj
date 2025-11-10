@@ -19,6 +19,10 @@
         <IncludeSymbols>true</IncludeSymbols>
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
         <PackageIcon>branding/hugo-icon.png</PackageIcon>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <EnableAotAnalyzer>true</EnableAotAnalyzer>
+        <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
     </PropertyGroup>
 
     <ItemGroup>
@@ -37,8 +41,11 @@
         <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" />
     </ItemGroup>
 
-    <ItemGroup>
-        <ProjectReference Include="..\Hugo.SourceGenerators/Hugo.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ItemGroup Condition="'$(RunAnalyzersDuringBuild)' != 'false' or '$(RunAnalyzersDuringPublish)' != 'false'">
+        <ProjectReference Include="..\Hugo.SourceGenerators/Hugo.SourceGenerators.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"
+                          AdditionalProperties="PublishAot=false;PublishTrimmed=false;IsAotCompatible=false" />
     </ItemGroup>
 
 </Project>

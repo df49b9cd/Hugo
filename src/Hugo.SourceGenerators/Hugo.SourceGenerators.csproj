@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;PublishTrimmed;IsAotCompatible">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
@@ -16,6 +16,11 @@
 
   <PropertyGroup>
     <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PublishAot>false</PublishAot>
+    <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
 
   <ItemGroup>

@@ -15,7 +15,7 @@ namespace Hugo.DeterministicWorkerSample.CloudQueue;
 /// <summary>
 /// Options controlling how pipeline projections are stored in Azure Cosmos DB.
 /// </summary>
-public sealed class CosmosPipelineOptions
+internal sealed class CosmosPipelineOptions
 {
     /// <summary>
     /// Gets or sets the database identifier.
@@ -41,7 +41,7 @@ public sealed class CosmosPipelineOptions
 /// <summary>
 /// Cosmos DB implementation of <see cref="IPipelineEntityRepository"/> used by the cloud queue sample.
 /// </summary>
-public sealed class CosmosPipelineEntityRepository : IPipelineEntityRepository
+internal sealed class CosmosPipelineEntityRepository : IPipelineEntityRepository
 {
     private readonly CosmosClient _client;
     private readonly CosmosPipelineOptions _options;

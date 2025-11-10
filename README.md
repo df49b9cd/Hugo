@@ -13,6 +13,7 @@
 - [Highlights](#highlights)
 - [When to use Hugo](#when-to-use-hugo)
 - [Supported runtimes](#supported-runtimes)
+- [Trimming & AOT considerations](#trimming--aot-considerations)
 - [Install](#install)
 - [Quick start](#quick-start)
 - [Observability in one call](#observability-in-one-call)
@@ -45,6 +46,21 @@
 - Targets `net9.0` and `net10.0`.
 - Works with generic host builders, ASP.NET background services, worker services, and isolated Azure Functions workers.
 - Verified with the .NET 10 preview SDK; install it alongside .NET 9 for the same coverage as CI.
+
+## Trimming & AOT considerations
+
+Hugo is tested with the .NET NativeAOT toolchain and ships with trimming/AOT analyzers enabled, but two APIs depend on `System.Text.Json` to round-trip arbitrary runtime types:
+
+- `DeterministicEffectStore` and `VersionGate` persist workflow payloads as JSON.
+- `Error`/`ErrorJsonConverter` preserve metadata dictionaries that can contain any CLR object.
+
+When publishing with `PublishTrimmed=true` or `PublishAot=true`, make sure the types you capture in effect stores or error metadata aren’t trimmed away. Typical approaches include:
+
+1. **Prefer source generation** – register a `JsonSerializerContext` that lists the effect payloads and pass it to `DeterministicEffectStore`/`VersionGate`.
+2. **Root the types manually** – use `DynamicDependency`, `PreserveDependency`, or reflection registration files to keep rare payloads alive.
+3. **Keep metadata simple** – favor primitive types, records, or known DTOs in `Error.Metadata` so the linker can see them.
+
+If the linker/AOT compiler warns about `RequiresUnreferencedCode` on these APIs, it means a payload needs to be preserved before trimming continues.
 
 ## Install
 

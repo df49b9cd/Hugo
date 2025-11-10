@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -60,6 +61,8 @@ public sealed class RedisDeterministicStateStore : IDeterministicStateStore
     }
 
     /// <inheritdoc />
+    [RequiresUnreferencedCode()]
+    [RequiresDynamicCode()]
     public bool TryGet(string key, out DeterministicRecord record)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
@@ -84,6 +87,8 @@ public sealed class RedisDeterministicStateStore : IDeterministicStateStore
     }
 
     /// <inheritdoc />
+    [RequiresUnreferencedCode()]
+    [RequiresDynamicCode()]
     public void Set(string key, DeterministicRecord record)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
@@ -97,6 +102,7 @@ public sealed class RedisDeterministicStateStore : IDeterministicStateStore
     }
 
     /// <inheritdoc />
+    [RequiresDynamicCode()]
     public bool TryAdd(string key, DeterministicRecord record)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);

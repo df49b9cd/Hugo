@@ -81,6 +81,10 @@ jobs:
       - name: Build
         run: dotnet build Hugo.slnx --configuration Release --no-restore /p:Version=${{ steps.gitversion.outputs.semVer }}
 
+      - name: Verify NativeAOT publish (linux-x64)
+        if: matrix.targetFramework == 'net10.0'
+        run: dotnet publish src/Hugo/Hugo.csproj --configuration Release --no-restore --no-build --framework ${{ matrix.targetFramework }} --runtime linux-x64 -p:PublishAot=true -p:StripSymbols=true -p:InvariantGlobalization=true
+
       - name: Test ${{ matrix.targetFramework }} with coverage
         run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory ${{ matrix.resultsDirectory }}
 

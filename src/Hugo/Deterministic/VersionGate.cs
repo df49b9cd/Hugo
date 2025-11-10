@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 namespace Hugo;
@@ -11,6 +12,8 @@ namespace Hugo;
 /// <param name="store">Backing store used to persist version markers.</param>
 /// <param name="timeProvider">Optional <see cref="TimeProvider"/> for deterministic timestamps.</param>
 /// <param name="serializerOptions">Serializer options used for payload persistence.</param>
+[RequiresUnreferencedCode("VersionGate uses System.Text.Json to persist version markers. Preserve the VersionGate payload types or provide a compatible JsonSerializerOptions instance.")]
+[RequiresDynamicCode("VersionGate uses System.Text.Json to materialize version markers at runtime.")]
 public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? timeProvider = null, JsonSerializerOptions? serializerOptions = null)
 {
     private const string RecordKind = "hugo.version";
@@ -165,7 +168,7 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
         return Result.Ok(new VersionDecision(persistedVersion, false, record.RecordedAt));
     }
 
-    private sealed record VersionMarker(int Version);
+    internal sealed record VersionMarker(int Version);
 }
 
 /// <summary>

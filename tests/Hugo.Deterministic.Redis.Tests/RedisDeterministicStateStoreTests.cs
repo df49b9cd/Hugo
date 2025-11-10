@@ -7,7 +7,7 @@ using Testcontainers.Redis;
 
 using Xunit;
 
-public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
+internal sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
 {
     private readonly RedisContainer _container = new RedisBuilder()
         .WithImage("redis:7-alpine")

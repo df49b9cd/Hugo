@@ -14,7 +14,7 @@ using Testcontainers.CosmosDb;
 
 using Xunit;
 
-public sealed class CosmosDeterministicStateStoreTests : IAsyncLifetime
+internal sealed class CosmosDeterministicStateStoreTests : IAsyncLifetime
 {
     private const string PrimaryKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4DG8q0wE=";
     private const string DatabaseId = "hugo-deterministic-tests";

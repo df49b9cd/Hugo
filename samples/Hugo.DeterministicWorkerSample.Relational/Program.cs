@@ -1,11 +1,12 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
 using Hugo;
-using Hugo.Diagnostics.OpenTelemetry;
 using Hugo.Deterministic.SqlServer;
 using Hugo.DeterministicWorkerSample.Core;
 using Hugo.DeterministicWorkerSample.Relational;
+using Hugo.Diagnostics.OpenTelemetry;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,7 @@ using Microsoft.Extensions.Logging;
 
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using System.Diagnostics.CodeAnalysis;
 
 // Program entry point wires together the worker pipeline:
 //  SampleScenario publishes scripted messages -> SimulatedKafkaTopic ->
@@ -148,6 +150,8 @@ static string ResolveConnectionString(IConfiguration configuration)
 /// Configures serializer options used across deterministic stores in the sample.
 /// </summary>
 /// <returns>Serializer options that include sample-specific metadata.</returns>
+[RequiresUnreferencedCode("Calls System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver.DefaultJsonTypeInfoResolver()")]
+[RequiresDynamicCode("Calls System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver.DefaultJsonTypeInfoResolver()")]
 static JsonSerializerOptions CreateSampleSerializerOptions()
 {
     JsonSerializerOptions options = new(JsonSerializerDefaults.Web);
