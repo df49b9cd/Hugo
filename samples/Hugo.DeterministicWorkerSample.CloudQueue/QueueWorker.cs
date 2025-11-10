@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -26,6 +27,8 @@ internal sealed class QueueWorker(
     private readonly DeterministicPipelineProcessor _processor = processor ?? throw new ArgumentNullException(nameof(processor));
     private readonly ILogger<QueueWorker> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
+    [RequiresUnreferencedCode("Calls Hugo.DeterministicWorkerSample.CloudQueue.QueueMessageSerializer.TryDeserialize(String, out SimulatedKafkaMessage)")]
+    [RequiresDynamicCode("Calls Hugo.DeterministicWorkerSample.CloudQueue.QueueMessageSerializer.TryDeserialize(String, out SimulatedKafkaMessage)")]
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await _queueClient.CreateIfNotExistsAsync(cancellationToken: stoppingToken).ConfigureAwait(false);

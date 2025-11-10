@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 using Azure.Storage.Queues;
 
@@ -82,6 +83,8 @@ internal sealed class QueuePublisher(
         }
     }
 
+    [RequiresUnreferencedCode("Calls Hugo.DeterministicWorkerSample.CloudQueue.QueueMessageSerializer.Serialize(SimulatedKafkaMessage)")]
+    [RequiresDynamicCode("Calls Hugo.DeterministicWorkerSample.CloudQueue.QueueMessageSerializer.Serialize(SimulatedKafkaMessage)")]
     private async Task EnqueueAsync(SimulatedKafkaMessage message, string scenario, CancellationToken cancellationToken)
     {
         string payload = QueueMessageSerializer.Serialize(message);
