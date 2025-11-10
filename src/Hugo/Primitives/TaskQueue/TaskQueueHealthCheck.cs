@@ -53,7 +53,7 @@ public sealed class TaskQueueHealthCheck<T> : IHealthCheck
         long pending = _queue.PendingCount;
         int active = _queue.ActiveLeaseCount;
 
-        Dictionary<string, object?> data = new(StringComparer.OrdinalIgnoreCase)
+        Dictionary<string, object> data = new(StringComparer.OrdinalIgnoreCase)
         {
             ["taskqueue.pending"] = pending,
             ["taskqueue.activeLeases"] = active

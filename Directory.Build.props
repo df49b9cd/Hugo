@@ -7,6 +7,6 @@
 
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>
-</PropertyGroup>
+  </PropertyGroup>
 
 </Project>
