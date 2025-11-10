@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Hugo;
 
@@ -12,17 +14,60 @@ namespace Hugo;
 /// <param name="store">Backing store used to persist version markers.</param>
 /// <param name="timeProvider">Optional <see cref="TimeProvider"/> for deterministic timestamps.</param>
 /// <param name="serializerOptions">Serializer options used for payload persistence.</param>
-public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? timeProvider = null, JsonSerializerOptions? serializerOptions = null)
+/// <param name="serializerContext">Serialization metadata used for version markers.</param>
+public sealed class VersionGate
 {
     private const string RecordKind = "hugo.version";
 
-    private static readonly JsonSerializerOptions DefaultSerializerOptions = DeterministicJsonSerializerOptions.Create();
+    private static readonly JsonSerializerContext DefaultSerializerContext = DeterministicJsonSerialization.DefaultContext;
 
-    private readonly IDeterministicStateStore _store = store ?? throw new ArgumentNullException(nameof(store));
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-    private readonly JsonSerializerOptions _serializerOptions = serializerOptions is null
-        ? DefaultSerializerOptions
-        : DeterministicJsonSerializerOptions.Create(serializerOptions);
+    private readonly IDeterministicStateStore _store;
+    private readonly TimeProvider _timeProvider;
+    private readonly JsonSerializerContext _serializerContext;
+    private readonly JsonTypeInfo<VersionMarker> _versionMarkerTypeInfo;
+
+    /// <summary>
+    /// Gets the <see cref="JsonSerializerContext"/> used for version marker serialization.
+    /// </summary>
+    public JsonSerializerContext SerializerContext => _serializerContext;
+
+    /// <summary>
+    /// Gets the shared deterministic serializer context that includes Hugo's helper metadata.
+    /// </summary>
+    public static JsonSerializerContext DefaultDeterministicContext => DefaultSerializerContext;
+
+    /// <summary>
+    /// Creates a gate that uses <see cref="DefaultDeterministicContext"/>.
+    /// </summary>
+    /// <param name="store">The deterministic state store.</param>
+    /// <param name="timeProvider">Optional time provider.</param>
+    /// <param name="serializerOptions">Optional serializer options used for context creation.</param>
+    /// <returns>A configured <see cref="VersionGate"/>.</returns>
+    public static VersionGate CreateDefault(
+        IDeterministicStateStore store,
+        TimeProvider? timeProvider = null,
+        JsonSerializerOptions? serializerOptions = null) =>
+        new(
+            store,
+            timeProvider,
+            serializerOptions,
+            serializerOptions is null ? DefaultSerializerContext : DeterministicJsonSerialization.CreateContext(serializerOptions));
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="VersionGate"/> class.
+    /// </summary>
+    public VersionGate(
+        IDeterministicStateStore store,
+        TimeProvider? timeProvider = null,
+        JsonSerializerOptions? serializerOptions = null,
+        JsonSerializerContext? serializerContext = null)
+    {
+        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _serializerContext = serializerContext
+            ?? (serializerOptions is null ? DefaultSerializerContext : DeterministicJsonSerialization.CreateContext(serializerOptions));
+        _versionMarkerTypeInfo = RequireTypeInfo<VersionMarker>(_serializerContext);
+    }
 
     /// <summary>
     /// Sentinel value that mirrors Temporal's <c>DefaultVersion</c> and indicates the absence of a recorded version.
@@ -120,7 +165,7 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
     /// <returns>The serialized payload.</returns>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Version markers serialize a known record type.")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Version markers serialize a known record type.")]
-    private byte[] SerializeVersion(int version) => JsonSerializer.SerializeToUtf8Bytes(new VersionMarker(version), _serializerOptions);
+    private byte[] SerializeVersion(int version) => JsonSerializer.SerializeToUtf8Bytes(new VersionMarker(version), _versionMarkerTypeInfo);
 
     /// <summary>
     /// Deserializes a persisted version marker payload.
@@ -131,7 +176,7 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Version markers serialize a known record type.")]
     private int DeserializeVersion(ReadOnlySpan<byte> payload)
     {
-        var marker = JsonSerializer.Deserialize<VersionMarker>(payload, _serializerOptions);
+        var marker = JsonSerializer.Deserialize(payload, _versionMarkerTypeInfo);
         if (marker is null)
         {
             throw new InvalidOperationException("Unable to deserialize persisted version marker.");
@@ -171,6 +216,18 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
     }
 
     internal sealed record VersionMarker(int Version);
+    private static JsonTypeInfo<T> RequireTypeInfo<T>(JsonSerializerContext context)
+    {
+        if (context.GetTypeInfo(typeof(T)) is JsonTypeInfo<T> typeInfo)
+        {
+            return typeInfo;
+        }
+
+        throw new InvalidOperationException(
+            $"The provided JsonSerializerContext '{context.GetType().Name}' does not expose metadata for '{typeof(T)}'. " +
+            $"Use {nameof(DeterministicJsonSerialization)}.{nameof(DeterministicJsonSerialization.DefaultContext)} or pass a context that includes deterministic helper types.");
+    }
+
 }
 
 /// <summary>

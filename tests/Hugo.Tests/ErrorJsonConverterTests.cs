@@ -190,6 +190,24 @@ public class ErrorJsonConverterTests
         Assert.Equal("value", Assert.IsType<string>(plainValue));
     }
 
+    [Fact]
+    public void Serialize_ShouldPreserveNestedMetadataObjects()
+    {
+        var error = Error.From("outer", metadata: new Dictionary<string, object?>
+        {
+            ["container"] = new Dictionary<string, object?>
+            {
+                ["child"] = Error.From("inner")
+            }
+        });
+
+        var json = JsonSerializer.Serialize(error);
+        using var document = JsonDocument.Parse(json);
+        var container = document.RootElement.GetProperty("metadata").GetProperty("container");
+
+        Assert.Equal("inner", container.GetProperty("child").GetProperty("message").GetString());
+    }
+
 
     [Fact]
     public void Serialize_ShouldHandleComplexMetadataShapes()

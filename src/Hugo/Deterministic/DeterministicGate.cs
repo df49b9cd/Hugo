@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Hugo;
 
@@ -9,6 +11,32 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
 {
     private readonly VersionGate _versionGate = versionGate ?? throw new ArgumentNullException(nameof(versionGate));
     private readonly DeterministicEffectStore _effectStore = effectStore ?? throw new ArgumentNullException(nameof(effectStore));
+
+    /// <summary>
+    /// Creates a deterministic gate that wires the supplied deterministic state store into default Hugo serializers.
+    /// </summary>
+    /// <param name="store">The deterministic state store.</param>
+    /// <param name="timeProvider">Optional time provider used by the underlying primitives.</param>
+    /// <param name="serializerOptions">Serializer options applied to effect values.</param>
+    /// <param name="serializerContext">Serializer context applied to deterministic helper types.</param>
+    /// <returns>A configured <see cref="DeterministicGate"/>.</returns>
+    public static DeterministicGate CreateDefault(
+        IDeterministicStateStore store,
+        TimeProvider? timeProvider = null,
+        JsonSerializerOptions? serializerOptions = null,
+        JsonSerializerContext? serializerContext = null)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+
+        var context = serializerContext
+            ?? (serializerOptions is null
+                ? DeterministicJsonSerialization.DefaultContext
+                : DeterministicJsonSerialization.CreateContext(serializerOptions));
+
+        var effect = new DeterministicEffectStore(store, timeProvider, serializerOptions, context);
+        var gate = new VersionGate(store, timeProvider, serializerOptions, context);
+        return new DeterministicGate(gate, effect);
+    }
 
     /// <summary>
     /// Executes the upgraded or legacy branch for the supplied change identifier based on the resolved version gate decision.

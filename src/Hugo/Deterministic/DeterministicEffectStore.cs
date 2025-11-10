@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Hugo;
 
@@ -14,17 +16,65 @@ namespace Hugo;
 /// <param name="store">Backing store used to persist side-effect outcomes.</param>
 /// <param name="timeProvider">Optional time provider used for timestamping.</param>
 /// <param name="serializerOptions">Serializer options used when materializing values.</param>
-public sealed class DeterministicEffectStore(IDeterministicStateStore store, TimeProvider? timeProvider = null, JsonSerializerOptions? serializerOptions = null)
+/// <param name="serializerContext">Serialization metadata used for deterministic envelopes.</param>
+public sealed class DeterministicEffectStore
 {
     private const string RecordKind = "hugo.effect";
 
     private static readonly JsonSerializerOptions DefaultSerializerOptions = DeterministicJsonSerializerOptions.Create();
+    private static readonly JsonSerializerContext DefaultSerializerContext = DeterministicJsonSerialization.DefaultContext;
 
-    private readonly IDeterministicStateStore _store = store ?? throw new ArgumentNullException(nameof(store));
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
-    private readonly JsonSerializerOptions _serializerOptions = serializerOptions is null
-        ? DefaultSerializerOptions
-        : DeterministicJsonSerializerOptions.Create(serializerOptions);
+    private readonly IDeterministicStateStore _store;
+    private readonly TimeProvider _timeProvider;
+    private readonly JsonSerializerContext _serializerContext;
+    private readonly JsonSerializerOptions _serializerOptions;
+    private readonly JsonTypeInfo<EffectEnvelope> _effectEnvelopeTypeInfo;
+
+    /// <summary>
+    /// Gets the <see cref="JsonSerializerContext"/> used for deterministic helper types.
+    /// </summary>
+    public JsonSerializerContext SerializerContext => _serializerContext;
+
+    /// <summary>
+    /// Gets the shared deterministic serializer context that includes Hugo's helper metadata.
+    /// </summary>
+    public static JsonSerializerContext DefaultDeterministicContext => DefaultSerializerContext;
+
+    /// <summary>
+    /// Creates an effect store that uses <see cref="DefaultDeterministicContext"/>.
+    /// </summary>
+    /// <param name="store">The deterministic state store.</param>
+    /// <param name="timeProvider">Optional time provider.</param>
+    /// <param name="serializerOptions">Serializer options used for effect values.</param>
+    /// <returns>A configured <see cref="DeterministicEffectStore"/>.</returns>
+    public static DeterministicEffectStore CreateDefault(
+        IDeterministicStateStore store,
+        TimeProvider? timeProvider = null,
+        JsonSerializerOptions? serializerOptions = null) =>
+        new(
+            store,
+            timeProvider,
+            serializerOptions,
+            serializerOptions is null ? DefaultSerializerContext : DeterministicJsonSerialization.CreateContext(serializerOptions));
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DeterministicEffectStore"/> class.
+    /// </summary>
+    public DeterministicEffectStore(
+        IDeterministicStateStore store,
+        TimeProvider? timeProvider = null,
+        JsonSerializerOptions? serializerOptions = null,
+        JsonSerializerContext? serializerContext = null)
+    {
+        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _serializerContext = serializerContext
+            ?? (serializerOptions is null ? DefaultSerializerContext : DeterministicJsonSerialization.CreateContext(serializerOptions));
+        _serializerOptions = serializerOptions is null
+            ? (_serializerContext.Options ?? DefaultSerializerOptions)
+            : DeterministicJsonSerializerOptions.Create(serializerOptions);
+        _effectEnvelopeTypeInfo = RequireTypeInfo<EffectEnvelope>(_serializerContext);
+    }
 
     /// <summary>
     /// Executes the provided side-effect once and replays the persisted outcome on subsequent invocations.
@@ -159,7 +209,14 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
 
         if (outcome.IsSuccess)
         {
-            valuePayload = JsonSerializer.SerializeToUtf8Bytes(outcome.Value, _serializerOptions);
+            if (TryGetTypeInfo<T>() is { } typeInfo)
+            {
+                valuePayload = JsonSerializer.SerializeToUtf8Bytes(outcome.Value, typeInfo);
+            }
+            else
+            {
+                valuePayload = JsonSerializer.SerializeToUtf8Bytes(outcome.Value, _serializerOptions);
+            }
         }
 
         var sanitizedError = DeterministicErrorSanitizer.Sanitize(outcome.Error);
@@ -171,7 +228,7 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
             sanitizedError,
             now);
 
-        var payload = JsonSerializer.SerializeToUtf8Bytes(envelope, _serializerOptions);
+        var payload = JsonSerializer.SerializeToUtf8Bytes(envelope, _effectEnvelopeTypeInfo);
         var record = new DeterministicRecord(RecordKind, version: 0, payload, now);
         _store.Set(effectId, record);
         return Task.CompletedTask;
@@ -186,7 +243,7 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Effect payloads serialize arbitrary user types.")]
     private EffectEnvelope DeserializeEnvelope(ReadOnlySpan<byte> payload)
     {
-        var envelope = JsonSerializer.Deserialize<EffectEnvelope>(payload, _serializerOptions);
+        var envelope = JsonSerializer.Deserialize(payload, _effectEnvelopeTypeInfo);
         if (envelope is null)
         {
             throw new InvalidOperationException("Unable to deserialize deterministic effect envelope.");
@@ -210,8 +267,35 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
             return default!;
         }
 
+        if (TryGetTypeInfo<T>() is { } typeInfo)
+        {
+            return JsonSerializer.Deserialize(payload, typeInfo)!;
+        }
+
         return JsonSerializer.Deserialize<T>(payload, _serializerOptions)!;
     }
 
     internal sealed record EffectEnvelope(bool IsSuccess, string TypeName, byte[]? SerializedValue, Error? Error, DateTimeOffset RecordedAt);
+
+    private JsonTypeInfo<T>? TryGetTypeInfo<T>()
+    {
+        if (_serializerContext.GetTypeInfo(typeof(T)) is JsonTypeInfo<T> typeInfo)
+        {
+            return typeInfo;
+        }
+
+        return null;
+    }
+
+    private static JsonTypeInfo<T> RequireTypeInfo<T>(JsonSerializerContext context)
+    {
+        if (context.GetTypeInfo(typeof(T)) is JsonTypeInfo<T> typeInfo)
+        {
+            return typeInfo;
+        }
+
+        throw new InvalidOperationException(
+            $"The provided JsonSerializerContext '{context.GetType().Name}' does not expose metadata for '{typeof(T)}'. " +
+            $"Use {nameof(DeterministicJsonSerialization)}.{nameof(DeterministicJsonSerialization.DefaultContext)} or pass a context that includes deterministic helper types.");
+    }
 }

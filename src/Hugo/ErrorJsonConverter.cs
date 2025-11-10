@@ -6,6 +6,18 @@ using System.Text.Json.Serialization;
 
 namespace Hugo;
 
+/// <summary>
+/// Serializes <see cref="Error"/> instances into Hugo's canonical JSON shape:
+/// <code>
+/// {
+///   "message": "...",
+///   "code": "...",
+///   "cause": { "type": "...", "message": "...", "stackTrace": "..." },
+///   "metadata": { "key": &lt;value&gt;, ... }
+/// }
+/// </code>
+/// Metadata entries preserve nested dictionaries, enumerables, and nested <see cref="Error"/> instances.
+/// </summary>
 internal sealed class ErrorJsonConverter : JsonConverter<Error>
 {
     public override Error? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
