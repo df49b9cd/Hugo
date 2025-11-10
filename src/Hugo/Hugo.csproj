@@ -31,21 +31,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <AdditionalFiles Include="Primitives/ErrorCatalog.hugo.errorcodes.json" />
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
         <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" />
-    </ItemGroup>
-
-    <ItemGroup Condition="'$(RunAnalyzersDuringBuild)' != 'false' or '$(RunAnalyzersDuringPublish)' != 'false'">
-        <ProjectReference Include="..\Hugo.SourceGenerators/Hugo.SourceGenerators.csproj"
-                          OutputItemType="Analyzer"
-                          ReferenceOutputAssembly="false"
-                          AdditionalProperties="PublishAot=false;PublishTrimmed=false;IsAotCompatible=false" />
     </ItemGroup>
 
 </Project>

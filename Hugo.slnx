@@ -49,7 +49,6 @@
     <Project Path="src/Hugo.Diagnostics.OpenTelemetry/Hugo.Diagnostics.OpenTelemetry.csproj" />
     <Project Path="src/Hugo.Profiling/Hugo.Profiling.csproj" />
     <Project Path="src/Hugo/Hugo.csproj" />
-    <Project Path="src\Hugo.SourceGenerators\Hugo.SourceGenerators.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Hugo.Deterministic.Cosmos.Tests/Hugo.Deterministic.Cosmos.Tests.csproj" />
