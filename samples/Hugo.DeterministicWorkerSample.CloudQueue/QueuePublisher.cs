@@ -24,6 +24,8 @@ internal sealed class QueuePublisher(
     private readonly ILogger<QueuePublisher> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private static readonly string[] EntityIds = ["trend-042", "trend-107", "trend-204", "trend-314"];
 
+    [RequiresDynamicCode("Calls Hugo.DeterministicWorkerSample.CloudQueue.QueuePublisher.EnqueueAsync(SimulatedKafkaMessage, String, CancellationToken)")]
+    [RequiresUnreferencedCode("Calls Hugo.DeterministicWorkerSample.CloudQueue.QueuePublisher.EnqueueAsync(SimulatedKafkaMessage, String, CancellationToken)")]
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await _queueClient.CreateIfNotExistsAsync(cancellationToken: stoppingToken).ConfigureAwait(false);
