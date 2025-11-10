@@ -12,8 +12,6 @@ namespace Hugo;
 /// <param name="store">Backing store used to persist version markers.</param>
 /// <param name="timeProvider">Optional <see cref="TimeProvider"/> for deterministic timestamps.</param>
 /// <param name="serializerOptions">Serializer options used for payload persistence.</param>
-[RequiresUnreferencedCode("VersionGate uses System.Text.Json to persist version markers. Preserve the VersionGate payload types or provide a compatible JsonSerializerOptions instance.")]
-[RequiresDynamicCode("VersionGate uses System.Text.Json to materialize version markers at runtime.")]
 public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? timeProvider = null, JsonSerializerOptions? serializerOptions = null)
 {
     private const string RecordKind = "hugo.version";
@@ -120,6 +118,8 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
     /// </summary>
     /// <param name="version">The version to serialize.</param>
     /// <returns>The serialized payload.</returns>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Version markers serialize a known record type.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Version markers serialize a known record type.")]
     private byte[] SerializeVersion(int version) => JsonSerializer.SerializeToUtf8Bytes(new VersionMarker(version), _serializerOptions);
 
     /// <summary>
@@ -127,6 +127,8 @@ public sealed class VersionGate(IDeterministicStateStore store, TimeProvider? ti
     /// </summary>
     /// <param name="payload">The serialized payload.</param>
     /// <returns>The materialized version value.</returns>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Version markers serialize a known record type.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Version markers serialize a known record type.")]
     private int DeserializeVersion(ReadOnlySpan<byte> payload)
     {
         var marker = JsonSerializer.Deserialize<VersionMarker>(payload, _serializerOptions);

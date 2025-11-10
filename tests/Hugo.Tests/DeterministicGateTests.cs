@@ -7,8 +7,6 @@ namespace Hugo.Tests;
 public class DeterministicGateTests
 {
     [Fact]
-    [RequiresUnreferencedCode()]
-    [RequiresDynamicCode()]
     public async Task ExecuteAsync_ShouldPreferUpgradedPath_WhenVersionMatches()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -63,7 +61,6 @@ public class DeterministicGateTests
     }
 
     [Fact]
-    [RequiresDynamicCode()]
     public async Task ExecuteAsync_ShouldBridgeLegacyPath()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -118,7 +115,6 @@ public class DeterministicGateTests
     }
 
     [Fact]
-    [RequiresDynamicCode()]
     public async Task ExecuteAsync_ShouldSurfaceVersionGateFailures()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -141,7 +137,6 @@ public class DeterministicGateTests
     }
 
     [Fact]
-    [RequiresDynamicCode()]
     public async Task Workflow_ShouldReplayDeterministicBranch()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -180,7 +175,6 @@ public class DeterministicGateTests
     }
 
     [Fact]
-    [RequiresDynamicCode()]
     public async Task Workflow_ShouldRespectFallbackWhenNoBranchMatches()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -201,7 +195,6 @@ public class DeterministicGateTests
     }
 
     [Fact]
-    [RequiresDynamicCode()]
     public async Task Workflow_ShouldErrorWhenNoMatchingBranchOrFallback()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -223,7 +216,6 @@ public class DeterministicGateTests
     }
 
     [Fact]
-    [RequiresDynamicCode()]
     public async Task Workflow_ShouldHonorPredicateOrdering()
     {
         var store = new InMemoryDeterministicStateStore();

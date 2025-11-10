@@ -14,8 +14,6 @@ namespace Hugo;
 /// <param name="store">Backing store used to persist side-effect outcomes.</param>
 /// <param name="timeProvider">Optional time provider used for timestamping.</param>
 /// <param name="serializerOptions">Serializer options used when materializing values.</param>
-[RequiresUnreferencedCode("DeterministicEffectStore serializes arbitrary effect payloads using System.Text.Json. Preserve the captured types or provide a compatible JsonSerializerOptions instance.")]
-[RequiresDynamicCode("DeterministicEffectStore relies on System.Text.Json to materialize captured payloads at runtime.")]
 public sealed class DeterministicEffectStore(IDeterministicStateStore store, TimeProvider? timeProvider = null, JsonSerializerOptions? serializerOptions = null)
 {
     private const string RecordKind = "hugo.effect";
@@ -109,6 +107,8 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
     /// <param name="effectId">The effect identifier.</param>
     /// <param name="record">The persisted record.</param>
     /// <returns>The replayed result or a failure when the stored payload is incompatible.</returns>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Effect payloads serialize arbitrary user types.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Effect payloads serialize arbitrary user types.")]
     private Result<T> Replay<T>(string effectId, DeterministicRecord record)
     {
         if (!string.Equals(record.Kind, RecordKind, StringComparison.Ordinal))
@@ -150,6 +150,8 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
     /// <typeparam name="T">The result type.</typeparam>
     /// <param name="effectId">The effect identifier.</param>
     /// <param name="outcome">The outcome to persist.</param>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Effect payloads serialize arbitrary user types.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Effect payloads serialize arbitrary user types.")]
     private Task PersistAsync<T>(string effectId, Result<T> outcome)
     {
         var now = _timeProvider.GetUtcNow();
@@ -180,6 +182,8 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
     /// </summary>
     /// <param name="payload">The serialized envelope.</param>
     /// <returns>The deserialized envelope.</returns>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Effect payloads serialize arbitrary user types.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Effect payloads serialize arbitrary user types.")]
     private EffectEnvelope DeserializeEnvelope(ReadOnlySpan<byte> payload)
     {
         var envelope = JsonSerializer.Deserialize<EffectEnvelope>(payload, _serializerOptions);
@@ -197,6 +201,8 @@ public sealed class DeterministicEffectStore(IDeterministicStateStore store, Tim
     /// <typeparam name="T">The expected result type.</typeparam>
     /// <param name="payload">The serialized value.</param>
     /// <returns>The materialized value, or the default when the payload is <c>null</c>.</returns>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Effect payloads serialize arbitrary user types.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Effect payloads serialize arbitrary user types.")]
     private T DeserializeValue<T>(byte[]? payload)
     {
         if (payload is null)

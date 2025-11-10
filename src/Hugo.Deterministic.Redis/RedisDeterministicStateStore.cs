@@ -61,8 +61,6 @@ public sealed class RedisDeterministicStateStore : IDeterministicStateStore
     }
 
     /// <inheritdoc />
-    [RequiresUnreferencedCode()]
-    [RequiresDynamicCode()]
     public bool TryGet(string key, out DeterministicRecord record)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
@@ -75,7 +73,7 @@ public sealed class RedisDeterministicStateStore : IDeterministicStateStore
             return false;
         }
 
-        DeterministicPayload? payload = JsonSerializer.Deserialize<DeterministicPayload>(value!.ToString(), _serializerOptions);
+        DeterministicPayload? payload = DeserializePayload(value);
         if (payload is null)
         {
             record = null!;
@@ -87,8 +85,6 @@ public sealed class RedisDeterministicStateStore : IDeterministicStateStore
     }
 
     /// <inheritdoc />
-    [RequiresUnreferencedCode()]
-    [RequiresDynamicCode()]
     public void Set(string key, DeterministicRecord record)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
@@ -97,12 +93,11 @@ public sealed class RedisDeterministicStateStore : IDeterministicStateStore
         IDatabase database = GetDatabase();
         DeterministicPayload payload = DeterministicPayload.FromRecord(record);
 
-        string json = JsonSerializer.Serialize(payload, _serializerOptions);
+        string json = SerializePayload(payload);
         database.StringSet(BuildKey(key), json, _options.Expiry);
     }
 
     /// <inheritdoc />
-    [RequiresDynamicCode()]
     public bool TryAdd(string key, DeterministicRecord record)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
@@ -110,9 +105,18 @@ public sealed class RedisDeterministicStateStore : IDeterministicStateStore
 
         IDatabase database = GetDatabase();
         DeterministicPayload payload = DeterministicPayload.FromRecord(record);
-        string json = JsonSerializer.Serialize(payload, _serializerOptions);
+        string json = SerializePayload(payload);
         return database.StringSet(BuildKey(key), json, _options.Expiry, When.NotExists);
     }
+
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Deterministic payload serialization uses System.Text.Json.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Deterministic payload serialization uses System.Text.Json.")]
+    private string SerializePayload(DeterministicPayload payload) => JsonSerializer.Serialize(payload, _serializerOptions);
+
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Deterministic payload serialization uses System.Text.Json.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Deterministic payload serialization uses System.Text.Json.")]
+    private DeterministicPayload? DeserializePayload(RedisValue value) =>
+        JsonSerializer.Deserialize<DeterministicPayload>(value!.ToString(), _serializerOptions);
 
     private IDatabase GetDatabase() =>
         _options.ConnectionMultiplexer!.GetDatabase(_options.Database);

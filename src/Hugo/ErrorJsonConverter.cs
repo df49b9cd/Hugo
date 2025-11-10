@@ -95,8 +95,8 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
         writer.WriteEndObject();
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Metadata serialization intentionally defers to JsonSerializer for arbitrary runtime types.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Metadata serialization intentionally defers to JsonSerializer for arbitrary runtime types.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Metadata serialization depends on System.Text.Json reflection.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Metadata serialization depends on System.Text.Json reflection.")]
     private static void WriteMetadataValue(Utf8JsonWriter writer, object? value, JsonSerializerOptions options)
     {
         value = DeterministicErrorSanitizer.SanitizeMetadataValue(value);
@@ -211,8 +211,8 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
         }
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Metadata deserialization intentionally defers to JsonSerializer for arbitrary runtime types.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Metadata deserialization intentionally defers to JsonSerializer for arbitrary runtime types.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Metadata deserialization depends on System.Text.Json reflection.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Metadata deserialization depends on System.Text.Json reflection.")]
     private static object? DeserializeMetadataValue(JsonElement element, JsonSerializerOptions options) => element.ValueKind switch
     {
         JsonValueKind.Null => null,
@@ -281,8 +281,8 @@ internal sealed class ErrorJsonConverter : JsonConverter<Error>
         return value;
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Metadata deserialization intentionally defers to JsonSerializer for arbitrary runtime types.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Metadata deserialization intentionally defers to JsonSerializer for arbitrary runtime types.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Metadata deserialization depends on System.Text.Json reflection.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Metadata deserialization depends on System.Text.Json reflection.")]
     private static object?[]? DeserializeArray(JsonElement element, JsonSerializerOptions options)
     {
         var list = new List<object?>(element.GetArrayLength());

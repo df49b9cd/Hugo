@@ -7,8 +7,6 @@ namespace Hugo.Tests;
 public class VersionGateTests
 {
     [Fact]
-    [RequiresUnreferencedCode()]
-    [RequiresDynamicCode()]
     public void Require_ShouldRecordMaxVersion_WhenMissing()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -22,8 +20,6 @@ public class VersionGateTests
     }
 
     [Fact]
-    [RequiresUnreferencedCode()]
-    [RequiresDynamicCode()]
     public void Require_ShouldReturnPersistedVersion_OnSubsequentInvocations()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -40,7 +36,6 @@ public class VersionGateTests
     }
 
     [Fact]
-    [RequiresDynamicCode()]
     public void Require_ShouldFail_WhenPersistedVersionOutsideRange()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -56,7 +51,6 @@ public class VersionGateTests
     }
 
     [Fact]
-    [RequiresDynamicCode()]
     public void Require_ShouldUseInitialVersionProvider()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -73,7 +67,6 @@ public class VersionGateTests
     }
 
     [Fact]
-    [RequiresDynamicCode()]
     public void Require_ShouldFail_WhenMinExceedsMax()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -86,7 +79,6 @@ public class VersionGateTests
     }
 
     [Fact]
-    [RequiresDynamicCode()]
     public void Require_ShouldFail_WhenRecordKindMismatch()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -101,7 +93,6 @@ public class VersionGateTests
     }
 
     [Fact]
-    [RequiresDynamicCode()]
     public void Require_ShouldFail_WhenInitialProviderThrows()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -120,7 +111,6 @@ public class VersionGateTests
     }
 
     [Fact]
-    [RequiresDynamicCode()]
     public void Require_ShouldFail_WhenInitialVersionOutsideRange()
     {
         var store = new InMemoryDeterministicStateStore();

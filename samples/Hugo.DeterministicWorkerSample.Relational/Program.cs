@@ -15,7 +15,6 @@ using Microsoft.Extensions.Logging;
 
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
-using System.Diagnostics.CodeAnalysis;
 
 // Program entry point wires together the worker pipeline:
 //  SampleScenario publishes scripted messages -> SimulatedKafkaTopic ->
