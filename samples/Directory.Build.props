@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <PublishAot>false</PublishAot>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+</Project>

@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Hugo.Profiling/Hugo.Profiling.csproj" />
+    <ProjectReference Include="../../benchmarks/Hugo.Profiling/Hugo.Profiling.csproj" />
   </ItemGroup>
 
   <ItemGroup>

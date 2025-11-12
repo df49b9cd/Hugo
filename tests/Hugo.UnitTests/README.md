@@ -4,7 +4,7 @@ This document explains the scope, goals, and day-to-day practices for `tests/Hug
 
 ## Scope
 
-- Guard the public contracts in `src/Hugo` and `src/Hugo.Profiling` that can be validated in isolation: `Result`/`Optional`, error materialization, deterministic records/stores, synchronization primitives, and profiling analyzers.
+- Guard the public contracts in `src/Hugo` and `benchmarks/Hugo.Profiling` that can be validated in isolation: `Result`/`Optional`, error materialization, deterministic records/stores, synchronization primitives, and profiling analyzers.
 - Keep coverage focused on pure or in-memory components (no durable stores, background pumps, or multi-service orchestration).
 - Defer boundary, queue, workflow, or Go-style concurrency scenarios to `tests/Hugo.IntegrationTests` and `tests/Hugo.FeatureTests`.
 

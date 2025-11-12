@@ -33,8 +33,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\Hugo\Hugo.csproj" />
-        <ProjectReference Include="..\..\src\Hugo.Profiling\Hugo.Profiling.csproj" />
+      <ProjectReference Include="..\..\src\Hugo\Hugo.csproj" />
+        <ProjectReference Include="..\..\benchmarks\Hugo.Profiling\Hugo.Profiling.csproj" />
     </ItemGroup>
 
 </Project>

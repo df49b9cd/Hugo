@@ -1,12 +1,13 @@
 <Project>
   <PropertyGroup>
-    <AnalysisMode>AllEnabledByDefault</AnalysisMode>
+    <AnalysisMode>Recommended</AnalysisMode>
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>
+    <PublishAot>true</PublishAot>
   </PropertyGroup>
 
 </Project>
