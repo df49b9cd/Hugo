@@ -319,6 +319,7 @@ public class TaskQueueTests
     [Fact]
     public async Task BackpressureCallbacks_ShouldFireOnThresholdTransitions()
     {
+        var provider = new FakeTimeProvider();
         var notifications = new List<TaskQueueBackpressureState>();
         TaskQueueBackpressureOptions backpressure = new()
         {
@@ -334,11 +335,14 @@ public class TaskQueueTests
             Backpressure = backpressure
         };
 
-        await using var queue = new TaskQueue<int>(options);
+        await using var queue = new TaskQueue<int>(options, provider);
         await queue.EnqueueAsync(1, TestContext.Current.CancellationToken);
         await queue.EnqueueAsync(2, TestContext.Current.CancellationToken);
 
+        provider.Advance(TimeSpan.FromMilliseconds(2));
         var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+
+        provider.Advance(TimeSpan.FromMilliseconds(2));
         await lease.CompleteAsync(TestContext.Current.CancellationToken);
 
         Assert.Collection(

@@ -35,5 +35,5 @@
 2. **Design for determinism**: Prefer `TimeProvider` and dependency injection to keep tests repeatable.
 3. **Guard null inputs**: Follow the guard-first style and convert exceptions to `Result<T>` failures.
 4. **Cancellation-first**: Every async API must accept a `CancellationToken` and propagate `Error.Canceled` consistently.
-5. **Tests & coverage**: Add integration and edge-case tests; run `dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --collect:"XPlat Code Coverage"` before submitting a PR.
+5. **Tests & coverage**: Add integration and edge-case tests; run all suites (`tests/Hugo.UnitTests`, `tests/Hugo.IntegrationTests`, `tests/Hugo.FeatureTests`) with `dotnet test --collect:"XPlat Code Coverage"` before submitting a PR.
 6. **Documentation**: Update tutorials, how-to guides, and reference pages alongside code changes.

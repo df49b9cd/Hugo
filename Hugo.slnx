@@ -54,7 +54,9 @@
     <Project Path="tests/Hugo.Deterministic.Cosmos.Tests/Hugo.Deterministic.Cosmos.Tests.csproj" />
     <Project Path="tests/Hugo.Deterministic.Redis.Tests/Hugo.Deterministic.Redis.Tests.csproj" />
     <Project Path="tests/Hugo.Deterministic.SqlServer.Tests/Hugo.Deterministic.SqlServer.Tests.csproj" />
-    <Project Path="tests/Hugo.Tests/Hugo.Tests.csproj" />
+    <Project Path="tests/Hugo.UnitTests/Hugo.UnitTests.csproj" />
+    <Project Path="tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj" />
+    <Project Path="tests/Hugo.FeatureTests/Hugo.FeatureTests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Hugo.ProfilingAnalyzer/Hugo.ProfilingAnalyzer.csproj" />

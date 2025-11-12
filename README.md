@@ -256,7 +256,7 @@ Benchmark results are written to `BenchmarkDotNet.Artifacts/results/`.
 ## Contributing
 
 - Review [CONTRIBUTING.md](CONTRIBUTING.md) for environment setup, coding standards, and workflow expectations.
-- Run `dotnet build Hugo.slnx` and `dotnet test tests/Hugo.Tests/Hugo.Tests.csproj` before submitting a pull request.
+- Run `dotnet build Hugo.slnx` and `dotnet test` for `tests/Hugo.UnitTests`, `tests/Hugo.IntegrationTests`, and `tests/Hugo.FeatureTests` before submitting a pull request.
 - Collect coverage with `dotnet test --collect:"XPlat Code Coverage"` to match CI.
 - Update tutorials/how-to/reference docs alongside code changes and log strategic work in [`docs/meta/roadmap.md`](docs/meta/roadmap.md).
 

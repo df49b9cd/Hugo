@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 - `Hugo` mirrors Go-style concurrency and Result workflows for .NET 10; the primary sources live in `src/Hugo`.
-- Pull helpers into scope with `using static Hugo.Go;`, matching usage across `tests/Hugo.Tests/GoTests.cs`.
+- Pull helpers into scope with `using static Hugo.Go;`, matching usage across `tests/Hugo.FeatureTests/Go/General/GoTests.General.cs`.
 - Keep the library aligned with .NET parallel programming guidance; review Microsoft's parallel programming overview when extending primitives.
 
 ## Result Pipelines
@@ -33,7 +33,9 @@ var result = Ok(input)
 - Rely on these commands during routine development:
 ```
 dotnet build Hugo.sln
-dotnet test tests/Hugo.Tests/Hugo.Tests.csproj
+dotnet test tests/Hugo.UnitTests/Hugo.UnitTests.csproj
+dotnet test tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj
+dotnet test tests/Hugo.FeatureTests/Hugo.FeatureTests.csproj
 ```
 - Tests depend on `TestContext.Current.CancellationToken`; avoid helpers that block without honoring cancellation.
 - New primitives should keep sync/async parity and ship with tests similar to `GoTests.RWMutex_ShouldProvide_ExclusiveWriteLock`.

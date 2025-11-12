@@ -94,8 +94,8 @@ Optional: enable the OpenTelemetry pipeline by uncommenting the block in `Progra
 
 ### Tests
 
-`SafeTaskQueueWrapper<T>` is covered by unit tests in `tests/Hugo.Tests/SafeTaskQueueTests.cs`. Run the full suite:
+`SafeTaskQueueWrapper<T>` is covered by integration tests in `tests/Hugo.IntegrationTests/SafeTaskQueueTests.cs`. Run the full suite:
 
 ```bash
-dotnet test
+dotnet test tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj
 ```

@@ -32,7 +32,9 @@ By participating in this project, you agree to maintain a respectful and inclusi
 git clone https://github.com/df49b9cd/Hugo.git
 cd Hugo
 dotnet build Hugo.slnx
-dotnet test tests/Hugo.Tests/Hugo.Tests.csproj
+dotnet test tests/Hugo.UnitTests/Hugo.UnitTests.csproj
+dotnet test tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj
+dotnet test tests/Hugo.FeatureTests/Hugo.FeatureTests.csproj
 ```
 
 If all tests pass, you're ready to contribute!
@@ -69,10 +71,12 @@ Use clear branch names:
 
 ```bash
 # Run all tests
-dotnet test tests/Hugo.Tests/Hugo.Tests.csproj
+dotnet test tests/Hugo.UnitTests/Hugo.UnitTests.csproj
+dotnet test tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj
+dotnet test tests/Hugo.FeatureTests/Hugo.FeatureTests.csproj
 
-# Collect coverage
-dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --collect:"XPlat Code Coverage"
+# Collect coverage (swap the project path as needed)
+dotnet test tests/Hugo.UnitTests/Hugo.UnitTests.csproj --collect:"XPlat Code Coverage"
 
 # Run benchmarks (optional but recommended for performance-sensitive changes)
 dotnet run --project benchmarks/Hugo.Benchmarks/Hugo.Benchmarks.csproj -c Release
@@ -157,7 +161,9 @@ All public APIs require XML docs:
 
 ### Test Organization
 
-- **Unit tests**: Fast, isolated tests in `tests/Hugo.Tests/`
+- **Unit tests**: Fast, isolated tests in `tests/Hugo.UnitTests/`
+- **Integration tests**: Multi-component contracts under `tests/Hugo.IntegrationTests/`
+- **Feature tests**: Scenario and concurrency coverage in `tests/Hugo.FeatureTests/`
 - **Test collections**: Use xUnit collections for tests requiring serialization (e.g., timing-sensitive tests)
 - **Fake time providers**: Use `Microsoft.Extensions.TimeProvider.Testing` for deterministic timing
 

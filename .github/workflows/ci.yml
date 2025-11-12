@@ -31,13 +31,9 @@ jobs:
       matrix:
         include:
           - targetFramework: net9.0
-            resultsDirectory: tests/Hugo.Tests/TestResults/net9
-            coverageArtifact: coverage-net9
             packageArtifact: nugetPackage-net9
             sdkVersion: 10.0.x
           - targetFramework: net10.0
-            resultsDirectory: tests/Hugo.Tests/TestResults/net10
-            coverageArtifact: coverage-net10
             packageArtifact: nugetPackage-net10
             sdkVersion: 10.0.x
     steps:
@@ -85,21 +81,41 @@ jobs:
         if: matrix.targetFramework == 'net10.0'
         run: dotnet publish src/Hugo/Hugo.csproj --configuration Release --framework ${{ matrix.targetFramework }} --runtime linux-x64 -p:PublishAot=true -p:StripSymbols=true -p:InvariantGlobalization=true
 
-      - name: Test ${{ matrix.targetFramework }} with coverage
-        run: dotnet test tests/Hugo.Tests/Hugo.Tests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory ${{ matrix.resultsDirectory }}
+      - name: Test Hugo.UnitTests (${{ matrix.targetFramework }})
+        run: dotnet test tests/Hugo.UnitTests/Hugo.UnitTests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory tests/Hugo.UnitTests/TestResults/${{ matrix.targetFramework }}
+
+      - name: Upload Hugo.UnitTests coverage (${{ matrix.targetFramework }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit-${{ matrix.targetFramework }}
+          path: tests/Hugo.UnitTests/TestResults/${{ matrix.targetFramework }}/**/*coverage.cobertura.xml
+          if-no-files-found: error
+
+      - name: Test Hugo.IntegrationTests (${{ matrix.targetFramework }})
+        run: dotnet test tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory tests/Hugo.IntegrationTests/TestResults/${{ matrix.targetFramework }}
+
+      - name: Upload Hugo.IntegrationTests coverage (${{ matrix.targetFramework }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-integration-${{ matrix.targetFramework }}
+          path: tests/Hugo.IntegrationTests/TestResults/${{ matrix.targetFramework }}/**/*coverage.cobertura.xml
+          if-no-files-found: error
+
+      - name: Test Hugo.FeatureTests (${{ matrix.targetFramework }})
+        run: dotnet test tests/Hugo.FeatureTests/Hugo.FeatureTests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory tests/Hugo.FeatureTests/TestResults/${{ matrix.targetFramework }}
+
+      - name: Upload Hugo.FeatureTests coverage (${{ matrix.targetFramework }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-feature-${{ matrix.targetFramework }}
+          path: tests/Hugo.FeatureTests/TestResults/${{ matrix.targetFramework }}/**/*coverage.cobertura.xml
+          if-no-files-found: error
 
       - name: Pack
         if: matrix.targetFramework == 'net10.0'
         run: |
           dotnet pack src/Hugo/Hugo.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
           dotnet pack src/Hugo.Diagnostics.OpenTelemetry/Hugo.Diagnostics.OpenTelemetry.csproj --configuration Release --no-build -p:Version=${{ steps.gitversion.outputs.semVer }} -o ./artifacts/${{ matrix.targetFramework }}
-
-      - name: Upload Coverage Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.coverageArtifact }}
-          path: ${{ matrix.resultsDirectory }}/**/*coverage.cobertura.xml
-          if-no-files-found: error
 
       - name: Upload NuGet Package
         if: matrix.targetFramework == 'net10.0'
