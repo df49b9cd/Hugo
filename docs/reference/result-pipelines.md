@@ -138,9 +138,18 @@ group.Go((ctx, ct) =>
 }, stepName: "ship-order", policy: retryPolicy);
 
 var completion = await group.WaitAsync(cancellationToken);
+if (completion.IsFailure && completion.Error?.Code == ErrorCodes.Canceled)
+{
+    // Handle the aborted pipeline (e.g., user-initiated cancellation) and exit early.
+}
+else
+{
+    completion.ValueOrThrow();
+}
 ```
 
 Reusing the same `ErrGroup` instance outside of its `using` scope is unsupported. Once disposed, any `Go(...)` call throws `ObjectDisposedException`, while the exposed `Token` remains valid for listeners already awaiting cancellation.
+Manual calls to `Cancel()` set a structured cancellation error, so `WaitAsync` completes as a failure with `ErrorCodes.Canceled`.
 
 ## Error metadata
 

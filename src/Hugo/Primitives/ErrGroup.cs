@@ -115,7 +115,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         RegisterAndRun(() => ExecutePipelineAsync(resolvedName, work, effectivePolicy, provider));
     }
 
-    /// <summary>Waits for all registered operations to complete and returns the first error, if any.</summary>
+    /// <summary>Waits for all registered operations to complete and returns the first error, if any; manual cancellation results in a failed outcome with <see cref="ErrorCodes.Canceled"/>.</summary>
     /// <param name="cancellationToken">The token used to cancel the wait.</param>
     /// <returns>A result describing the group outcome.</returns>
     public async Task<Result<Unit>> WaitAsync(CancellationToken cancellationToken = default)
@@ -138,6 +138,12 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     /// <summary>Cancels the group, notifying all registered delegates.</summary>
     public void Cancel()
     {
+        if (Volatile.Read(ref _error) is null)
+        {
+            var cancellationError = Error.Canceled("ErrGroup was canceled.", Token);
+            TrySetError(cancellationError);
+        }
+
         try
         {
             _cts.Cancel();

@@ -183,6 +183,7 @@ public class ErrGroupTests
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
         Assert.True(group.Token.IsCancellationRequested);
+        Assert.Same(group.Error, result.Error);
     }
 
     [Fact]
@@ -206,6 +207,44 @@ public class ErrGroupTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
 
         group.Cancel();
+    }
+
+    [Fact]
+    public async Task Cancel_ShouldReturnCanceledResult_WhenNoWorkStarted()
+    {
+        using var group = new ErrGroup();
+
+        group.Cancel();
+
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        Assert.True(group.Token.IsCancellationRequested);
+        Assert.Same(group.Error, result.Error);
+    }
+
+    [Fact]
+    public async Task Cancel_ShouldNotOverwriteExistingError()
+    {
+        using var group = new ErrGroup();
+        var failureRecorded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        group.Go(() =>
+        {
+            failureRecorded.TrySetResult();
+            throw new InvalidOperationException("boom");
+        });
+
+        await failureRecorded.Task;
+        SpinWait.SpinUntil(() => group.Error is not null, TimeSpan.FromSeconds(1));
+        group.Cancel();
+
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+        Assert.Equal("boom", result.Error?.Message);
     }
 
     [Theory]
