@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
@@ -341,18 +340,11 @@ public sealed class PrioritizedChannel<T>
                     }
 
                     var wait = _readers[priority].WaitToReadAsync(cancellationToken);
-                    if (wait.IsCompletedSuccessfully)
+                    if (wait.IsCompleted)
                     {
-                        if (wait.Result)
+                        if (HandleCompletedWait(priority, wait, laneCompleted))
                         {
-                            if (TryStageFromPriority(priority) || HasBufferedItems)
-                            {
-                                return true;
-                            }
-                        }
-                        else
-                        {
-                            laneCompleted[priority] = true;
+                            return true;
                         }
 
                         continue;
@@ -367,6 +359,29 @@ public sealed class PrioritizedChannel<T>
                 }
 
                 await completionSignal.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            bool HandleCompletedWait(int priority, ValueTask<bool> wait, bool[] completionStates)
+            {
+                var awaiter = wait.GetAwaiter();
+                bool hasItems;
+                try
+                {
+                    hasItems = awaiter.GetResult();
+                }
+                catch (Exception ex)
+                {
+                    ExceptionDispatchInfo.Capture(ex).Throw();
+                    throw;
+                }
+
+                if (hasItems)
+                {
+                    return TryStageFromPriority(priority) || HasBufferedItems;
+                }
+
+                completionStates[priority] = true;
+                return false;
             }
 
             bool DrainCompletions(LaneWaitRegistration[] laneRegistrations, bool[] completionStates)

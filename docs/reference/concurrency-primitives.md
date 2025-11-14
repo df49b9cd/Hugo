@@ -140,6 +140,7 @@ services.AddPrioritizedChannel<Job>(priorityLevels: 3, builder => builder
 - `AddPrioritizedChannel<T>` registers `PrioritizedChannel<T>`, the prioritized reader/writer helpers, and the base `ChannelReader<T>`/`ChannelWriter<T>` facades.
 - Prioritized channels prefetch at most `PrefetchPerPriority` items per lane (default 1). Tune it through `PrioritizedChannelOptions.PrefetchPerPriority` or `WithPrefetchPerPriority` to balance throughput against backpressure.
 - The prioritized reader’s slow path now reuses wait registrations instead of `Task.WhenAny` arrays, so `WaitToReadAsync` stays effectively allocation-free when lanes run hot.
+- Exceptions or cancellations from individual priority lanes are observed immediately and surfaced through the unified reader, preventing `UnobservedTaskException` warnings when a single lane faults.
 - Builders expose `.Build()` when you need an inline channel instance without DI.
 
 ## Task queue leasing

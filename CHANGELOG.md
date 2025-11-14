@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Result.WhenAny` now deterministically returns the first successful result even if other operations fail or cancel after the winner is selected.
 - `PrioritizedChannelReader` stops draining entire priority queues into its buffer, ensuring `BoundedChannelFullMode` and per-level capacity apply under sustained load (PA-010).
+- `PrioritizedChannelReader.WaitToReadAsync` now observes and rethrows exceptions or cancellations from individual priority lanes, eliminating `UnobservedTaskException` crashes when one lane faults (PA-012).
 
 ## [1.0.0] - 2025-10-21
 
