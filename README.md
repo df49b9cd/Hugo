@@ -43,7 +43,7 @@
 
 ## Supported runtimes
 
-- Targets `net9.0` and `net10.0`.
+- Targets `net10.0`.
 - Works with generic host builders, ASP.NET background services, worker services, and isolated Azure Functions workers.
 - Verified with the .NET 10 preview SDK; install it alongside .NET 9 for the same coverage as CI.
 

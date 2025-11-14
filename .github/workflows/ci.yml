@@ -30,9 +30,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - targetFramework: net9.0
-            packageArtifact: nugetPackage-net9
-            sdkVersion: 10.0.x
           - targetFramework: net10.0
             packageArtifact: nugetPackage-net10
             sdkVersion: 10.0.x
@@ -69,10 +66,6 @@ jobs:
 
       - name: Restore
         run: dotnet restore Hugo.slnx --nologo
-
-      - name: Check formatting
-        if: matrix.targetFramework == 'net9.0'
-        run: dotnet format whitespace --verify-no-changes --no-restore
 
       - name: Build
         run: dotnet build Hugo.slnx --configuration Release --no-restore /p:Version=${{ steps.gitversion.outputs.semVer }}
