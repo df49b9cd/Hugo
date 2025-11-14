@@ -36,6 +36,7 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
         <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" />
+        <PackageReference Include="System.Threading.RateLimiting" />
     </ItemGroup>
 
 </Project>

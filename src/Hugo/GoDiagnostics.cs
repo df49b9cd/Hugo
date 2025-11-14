@@ -3,6 +3,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 
+using Hugo.TaskQueues.Backpressure;
+
 namespace Hugo;
 
 /// <summary>
@@ -45,6 +47,10 @@ public static class GoDiagnostics
     private static Histogram<long>? _taskQueueActiveDepth;
     private static Histogram<double>? _taskQueueLeaseDuration;
     private static Histogram<double>? _taskQueueHeartbeatExtension;
+    private static UpDownCounter<long>? _taskQueueBackpressureActive;
+    private static Histogram<long>? _taskQueueBackpressurePending;
+    private static Counter<long>? _taskQueueBackpressureTransitions;
+    private static Histogram<double>? _taskQueueBackpressureDuration;
     private static Counter<long>? _workflowStarted;
     private static Counter<long>? _workflowCompleted;
     private static Counter<long>? _workflowFailed;
@@ -117,6 +123,10 @@ public static class GoDiagnostics
             _taskQueueActiveDepth = meter.CreateHistogram<long>("taskqueue.active.depth", unit: "leases", description: "Observed active lease count when queue operations occur.");
             _taskQueueLeaseDuration = meter.CreateHistogram<double>("taskqueue.lease.duration", unit: "ms", description: "Observed durations between lease grant and completion.");
             _taskQueueHeartbeatExtension = meter.CreateHistogram<double>("taskqueue.heartbeat.extension", unit: "ms", description: "Observed extensions granted by lease heartbeats.");
+            _taskQueueBackpressureActive = meter.CreateUpDownCounter<long>("hugo.taskqueue.backpressure.active", unit: "queues", description: "Number of task queues currently under backpressure.");
+            _taskQueueBackpressurePending = meter.CreateHistogram<long>("hugo.taskqueue.backpressure.pending", unit: "items", description: "Pending depth observed when backpressure transitions occur.");
+            _taskQueueBackpressureTransitions = meter.CreateCounter<long>("hugo.taskqueue.backpressure.transitions", unit: "events", description: "Number of task queue backpressure transitions.");
+            _taskQueueBackpressureDuration = meter.CreateHistogram<double>("hugo.taskqueue.backpressure.duration", unit: "ms", description: "Duration of the previous backpressure state.");
             _workflowStarted = meter.CreateCounter<long>("workflow.started", unit: "workflows", description: "Number of workflow executions started.");
             _workflowCompleted = meter.CreateCounter<long>("workflow.completed", unit: "workflows", description: "Number of workflow executions that completed successfully.");
             _workflowFailed = meter.CreateCounter<long>("workflow.failed", unit: "workflows", description: "Number of workflow executions that failed.");
@@ -434,6 +444,10 @@ public static class GoDiagnostics
             _taskQueueActiveDepth = null;
             _taskQueueLeaseDuration = null;
             _taskQueueHeartbeatExtension = null;
+            _taskQueueBackpressureActive = null;
+            _taskQueueBackpressurePending = null;
+            _taskQueueBackpressureTransitions = null;
+            _taskQueueBackpressureDuration = null;
             _workflowStarted = null;
             _workflowCompleted = null;
             _workflowFailed = null;
@@ -580,6 +594,17 @@ public static class GoDiagnostics
 
         activity.SetEndTime(completedAt.UtcDateTime);
         activity.Stop();
+    }
+
+    private static TagList CreateTaskQueueTags(string? queueName)
+    {
+        var tags = new TagList();
+        if (!string.IsNullOrWhiteSpace(queueName))
+        {
+            tags.Add("taskqueue.name", queueName);
+        }
+
+        return tags;
     }
 
     private static TagList CreateWorkflowTags(WorkflowExecutionContext context)
@@ -827,6 +852,23 @@ public static class GoDiagnostics
         _ = attempt;
         _taskQueueDeadLettered?.Add(1);
         _taskQueueActiveDepth?.Record(activeLeases);
+    }
+
+    internal static void RecordTaskQueueBackpressureSignal(string? queueName, TaskQueueBackpressureSignal signal, TimeSpan previousStateDuration)
+    {
+        var tags = CreateTaskQueueTags(queueName);
+        _taskQueueBackpressureTransitions?.Add(1, tags);
+        _taskQueueBackpressurePending?.Record(signal.PendingCount, tags);
+        _taskQueueBackpressureDuration?.Record(Math.Max(previousStateDuration.TotalMilliseconds, 0d), tags);
+
+        if (signal.IsActive)
+        {
+            _taskQueueBackpressureActive?.Add(1, tags);
+        }
+        else
+        {
+            _taskQueueBackpressureActive?.Add(-1, tags);
+        }
     }
 
     internal static Activity? StartTaskQueueActivity(string operation, string? queueName, long? sequenceId = null, int? attempt = null, TaskQueueOwnershipToken? ownershipToken = null)

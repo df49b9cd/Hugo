@@ -351,7 +351,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     private readonly CancellationTokenSource _monitorCts = new();
     private readonly Task _monitorTask;
     private readonly string? _queueName;
-    private readonly TaskQueueBackpressureOptions? _backpressureOptions;
+    private TaskQueueBackpressureOptions? _backpressureOptions;
     private long _pendingCount;
     private long _sequenceCounter;
     private int _backpressureState;
@@ -390,6 +390,29 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     /// Gets the number of active leases.
     /// </summary>
     public int ActiveLeaseCount => _leases.Count;
+
+    /// <summary>
+    /// Gets the configured queue name used for diagnostics and instrumentation.
+    /// </summary>
+    public string QueueName => _queueName ?? typeof(T).Name;
+
+    /// <summary>
+    /// Updates the queue-level backpressure configuration at runtime.
+    /// </summary>
+    /// <param name="options">The backpressure options to apply, or <see langword="null"/> to disable notifications.</param>
+    public void ConfigureBackpressure(TaskQueueBackpressureOptions? options)
+    {
+        Volatile.Write(ref _backpressureOptions, options);
+        Volatile.Write(ref _backpressureState, 0);
+        Volatile.Write(ref _lastBackpressureNotificationTicks, DateTimeOffset.MinValue.UtcTicks);
+
+        if (options is null)
+        {
+            return;
+        }
+
+        ObserveBackpressure(Math.Max(0, Volatile.Read(ref _pendingCount)));
+    }
 
     /// <summary>Enqueues a work item for processing.</summary>
     /// <param name="value">The work item to enqueue.</param>
@@ -849,7 +872,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         out TimeSpan cooldown,
         out Action<TaskQueueBackpressureState>? callback)
     {
-        TaskQueueBackpressureOptions? options = _backpressureOptions;
+        TaskQueueBackpressureOptions? options = Volatile.Read(ref _backpressureOptions);
         if (options is null || options.HighWatermark <= 0)
         {
             high = low = 0;

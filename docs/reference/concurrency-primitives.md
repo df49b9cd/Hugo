@@ -203,7 +203,7 @@ await queue.RestorePendingItemsAsync(await durableStore.LoadAsync(ct), ct);
 - Expired leases are detected by a background sweep and automatically requeued with an `error.taskqueue.lease_expired` payload.
 - Every lease exposes a monotonic `OwnershipToken` (`sequence`, `attempt`, `leaseId`) that you can log or persist as a fencing token.
 - `DrainPendingItemsAsync`/`RestorePendingItemsAsync` make rolling upgrades safe by snapshotting in-flight work without losing metadata.
-- Configure `TaskQueueBackpressureOptions` to receive callbacks when `PendingCount` crosses high/low watermarks and throttle producers proactively.
+- `ConfigureBackpressure` or `TaskQueueBackpressureMonitor<T>` keep backlog transitions observable without recreating queues; `QueueName` exposes the resolved name for diagnostics.
 
 ### Task queue health checks
 
@@ -222,6 +222,54 @@ builder.Services.AddTaskQueueHealthCheck<Job>(
 ```
 
 Expose `/health/ready` via `app.MapHealthChecks` so orchestrators wait for pending work to drain before terminating replicas.
+
+### TaskQueue backpressure monitor
+
+`TaskQueueBackpressureMonitor<T>` exports SafeTaskQueue-compatible backpressure signals, rate limiter switches, diagnostics channels, and `WaitForDrainingAsync` helpers so producers can await relief before enqueueing more work. Monitors reconfigure the queue’s backpressure thresholds at runtime and publish typed `TaskQueueBackpressureSignal` instances whenever depth crosses the configured watermarks.
+
+```csharp
+await using var queue = new TaskQueue<Job>(new TaskQueueOptions { Name = "telemetry", Capacity = 2048 });
+await using var monitor = new TaskQueueBackpressureMonitor<Job>(queue, new TaskQueueBackpressureMonitorOptions
+{
+    HighWatermark = 512,
+    LowWatermark = 128,
+    Cooldown = TimeSpan.FromSeconds(5)
+});
+
+await using var diagnostics = new TaskQueueBackpressureDiagnosticsListener(capacity: 256);
+using var diagnosticsSubscription = monitor.RegisterListener(diagnostics);
+
+var limiter = new BackpressureAwareRateLimiter(
+    unthrottledLimiter: new ConcurrencyLimiter(new ConcurrencyLimiterOptions(permitLimit: 256, queueLimit: 0, queueProcessingOrder: QueueProcessingOrder.OldestFirst)),
+    backpressureLimiter: new ConcurrencyLimiter(new ConcurrencyLimiterOptions(permitLimit: 16, queueLimit: 512, queueProcessingOrder: QueueProcessingOrder.OldestFirst)),
+    disposeUnthrottledLimiter: true,
+    disposeBackpressureLimiter: true);
+using var limiterSubscription = monitor.RegisterListener(limiter);
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(_ =>
+        RateLimitPartition.Get("taskqueue", _ => limiter.LimiterSelector()));
+});
+
+app.UseRateLimiter();
+app.MapGet("/control-plane/backpressure", async context =>
+{
+    await foreach (var signal in diagnostics.Reader.ReadAllAsync(context.RequestAborted))
+    {
+        await context.Response.WriteAsJsonAsync(signal, context.RequestAborted);
+    }
+});
+
+// Enqueueers can await relief instead of blindly retrying.
+if (monitor.IsActive)
+{
+    await monitor.WaitForDrainingAsync(ct);
+}
+```
+
+Metrics emitted via `GoDiagnostics` include `hugo.taskqueue.backpressure.active` (up/down gauge per queue), `hugo.taskqueue.backpressure.pending` (histogram of pending depth), `hugo.taskqueue.backpressure.transitions` (counter), and `hugo.taskqueue.backpressure.duration` (histogram of state durations). Attach a `TaskQueueBackpressureDiagnosticsListener` to expose current/streamed signals over HTTP or gRPC for control-plane automation.
 
 ### TaskQueueChannelAdapter usage
 
