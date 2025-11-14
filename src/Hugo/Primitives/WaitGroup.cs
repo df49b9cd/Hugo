@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Hugo;
 
 /// <summary>
@@ -9,6 +11,8 @@ namespace Hugo;
 /// </remarks>
 public sealed class WaitGroup
 {
+    private const TaskCreationOptions DefaultGoOptions = TaskCreationOptions.DenyChildAttach;
+
     private static TaskCompletionSource<bool> CreateCompletedSource()
     {
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -59,11 +63,18 @@ public sealed class WaitGroup
     }
 
     /// <summary>
-    /// Runs the supplied delegate via <see cref="Task.Run(Action)"/> and tracks it.
+    /// Runs the supplied delegate via <see cref="Go.Run(Func{Task}, TaskScheduler?, TaskCreationOptions)"/> and tracks it.
     /// </summary>
     /// <param name="work">The asynchronous delegate to execute.</param>
     /// <param name="cancellationToken">The token used to cancel the queued work.</param>
-    public void Go(Func<Task> work, CancellationToken cancellationToken = default)
+    /// <param name="scheduler">Optional scheduler that controls how the work is dispatched.</param>
+    /// <param name="creationOptions">Task creation flags applied to the scheduled work.</param>
+    [SuppressMessage("Design", "CA1068:CancellationTokenParametersShouldComeLast", Justification = "Scheduler and creation options must remain optional parameters for backward compatibility.")]
+    public void Go(
+        Func<Task> work,
+        CancellationToken cancellationToken = default,
+        TaskScheduler? scheduler = null,
+        TaskCreationOptions creationOptions = DefaultGoOptions)
     {
         ArgumentNullException.ThrowIfNull(work);
 
@@ -72,7 +83,7 @@ public sealed class WaitGroup
         Task task;
         try
         {
-            task = Task.Run(work, cancellationToken);
+            task = global::Hugo.Go.Run(_ => work(), cancellationToken, scheduler, creationOptions);
         }
         catch
         {
@@ -81,6 +92,25 @@ public sealed class WaitGroup
         }
 
         ObserveTask(task);
+    }
+
+    /// <summary>
+    /// Tracks an already created <see cref="Task"/> without re-scheduling it.
+    /// </summary>
+    /// <param name="task">The task to observe.</param>
+    public void Go(Task task)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+        Add(task);
+    }
+
+    /// <summary>
+    /// Tracks an existing <see cref="ValueTask"/> without allocating an additional <see cref="Task.Run(Action)"/> wrapper.
+    /// </summary>
+    /// <param name="task">The value task to observe.</param>
+    public void Go(ValueTask task)
+    {
+        Go(global::Hugo.Go.Run(task));
     }
 
     private void ObserveTask(Task task) => task.ContinueWith(static (_, state) => ((WaitGroup)state!).Done(), this, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);

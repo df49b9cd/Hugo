@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Hugo.Tests;
 
 public class GoWaitGroupExtensionsTests
@@ -74,5 +76,46 @@ public class GoWaitGroupExtensionsTests
 
         Assert.False(invoked);
         Assert.Equal(0, wg.Count);
+    }
+
+    [Fact]
+    public async Task Go_WithScheduler_ShouldRunOnCustomScheduler()
+    {
+        var wg = new WaitGroup();
+        var scheduler = new InlineTaskScheduler();
+        var executed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        GoWaitGroupExtensions.Go(wg, async () =>
+        {
+            Assert.Equal(scheduler, TaskScheduler.Current);
+            executed.TrySetResult();
+            await Task.CompletedTask;
+        }, scheduler: scheduler);
+
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
+        await executed.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, scheduler.ExecutionCount);
+    }
+
+    private sealed class InlineTaskScheduler : TaskScheduler
+    {
+        private int _executionCount;
+
+        public int ExecutionCount => Volatile.Read(ref _executionCount);
+
+        protected override void QueueTask(Task task)
+        {
+            Interlocked.Increment(ref _executionCount);
+            TryExecuteTask(task);
+        }
+
+        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
+        {
+            Interlocked.Increment(ref _executionCount);
+            return TryExecuteTask(task);
+        }
+
+        protected override IEnumerable<Task>? GetScheduledTasks() => null;
     }
 }

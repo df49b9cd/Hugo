@@ -1,4 +1,5 @@
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Channels;
 
@@ -537,6 +538,89 @@ public partial class GoTests
         await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Run(_ => Task.Delay(1000, _), cts.Token));
+    }
+
+    [Fact]
+    public async Task Run_ShouldAcceptExistingTask()
+    {
+        var existing = Task.Delay(10, TestContext.Current.CancellationToken);
+        var tracked = Run(existing);
+
+        Assert.Same(existing, tracked);
+        await tracked;
+    }
+
+    [Fact]
+    public async Task Run_ShouldAcceptExistingValueTask()
+    {
+        var invoked = 0;
+        async ValueTask WorkAsync()
+        {
+            await Task.Yield();
+            Interlocked.Increment(ref invoked);
+        }
+
+        var tracked = Run(WorkAsync());
+        await tracked;
+
+        Assert.Equal(1, invoked);
+    }
+
+    [Fact]
+    public async Task Run_ShouldRespectCustomScheduler()
+    {
+        var scheduler = new InlineTaskScheduler();
+        var executedOnScheduler = 0;
+
+        await Run(() =>
+        {
+            if (TaskScheduler.Current == scheduler)
+            {
+                Interlocked.Increment(ref executedOnScheduler);
+            }
+
+            return Task.CompletedTask;
+        }, scheduler: scheduler);
+
+        Assert.Equal(1, executedOnScheduler);
+        Assert.Equal(1, scheduler.ExecutionCount);
+    }
+
+    [Fact]
+    public async Task WaitGroup_Go_ShouldRespectCustomScheduler()
+    {
+        var wg = new WaitGroup();
+        var scheduler = new InlineTaskScheduler();
+        var executedOnScheduler = 0;
+
+        wg.Go(() =>
+        {
+            if (TaskScheduler.Current == scheduler)
+            {
+                Interlocked.Increment(ref executedOnScheduler);
+            }
+            return Task.CompletedTask;
+        }, cancellationToken: TestContext.Current.CancellationToken, scheduler: scheduler);
+
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, executedOnScheduler);
+        Assert.Equal(1, scheduler.ExecutionCount);
+    }
+
+    [Fact]
+    public async Task WaitGroup_Go_ShouldAcceptExistingTask()
+    {
+        var wg = new WaitGroup();
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        wg.Go(tcs.Task);
+        Assert.Equal(1, wg.Count);
+
+        tcs.TrySetResult();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, wg.Count);
     }
 
     [Fact]
@@ -1272,5 +1356,26 @@ public partial class GoTests
 
         ActivitySource.AddActivityListener(listener);
         return listener;
+    }
+
+    private sealed class InlineTaskScheduler : TaskScheduler
+    {
+        private int _executionCount;
+
+        public int ExecutionCount => Volatile.Read(ref _executionCount);
+
+        protected override void QueueTask(Task task)
+        {
+            Interlocked.Increment(ref _executionCount);
+            TryExecuteTask(task);
+        }
+
+        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued)
+        {
+            Interlocked.Increment(ref _executionCount);
+            return TryExecuteTask(task);
+        }
+
+        protected override IEnumerable<Task>? GetScheduledTasks() => null;
     }
 }

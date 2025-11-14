@@ -90,7 +90,7 @@ The companion static class `Optional` offers convenience factories (`FromNullabl
 - Channel builders: `BoundedChannel<T>(capacity)`, `PrioritizedChannel<T>()`, `PrioritizedChannel<T>(levels)` return fluent builders (see [Channel composition](#channel-composition)).
 - Channel fan-in/out: `SelectFanInAsync` (task-first overloads), `SelectFanInValueTaskAsync` (ValueTask-friendly overloads), `FanInAsync`/`FanIn`, `FanOutAsync`/`FanOut`. Each method propagates `Error.Canceled`, ensures writers are completed appropriately while completing writers/readers deterministically, and interprets any supplied timeout as an overall session deadline measured once with the active `TimeProvider`.
 - Pipeline orchestration: `FanOutAsync` / `FanOutValueTaskAsync` materialise concurrent `Result<T>` operations via `Result.WhenAll`, `RaceAsync` / `RaceValueTaskAsync` surface the first success through `Result.WhenAny`, `WithTimeoutAsync` / `WithTimeoutValueTaskAsync` wrap work with deadline-aware cancellation (returning `Error.Timeout` on deadline expiry and `Error.Canceled` when the caller’s token is triggered), and `RetryAsync` / `RetryValueTaskAsync` execute delegates under an exponential backoff policy built from `ResultExecutionPolicy` (cancellations — even from linked tokens — short-circuit retries and surface `Error.Canceled`).
-- Task runners: `Run(Func<Task>)`, `Run(Func<CancellationToken, Task>)` wrap `Task.Run`, keeping syntax consistent with Go’s `go func()` idiom.
+- Task runners: `Run(Func<Task>)` / `Run(Func<CancellationToken, Task>)` expose optional `TaskScheduler` + `TaskCreationOptions` parameters so you can specify long-running or inline schedulers, while `Run(Task)`, `Run(Task<T>)`, and the `ValueTask` overloads allow callers to register already-started work without additional `Task.Run` allocations.
 - Channel factories: `MakeChannel` overloads accept optional capacity/`BoundedChannelOptions`/`UnboundedChannelOptions` or `PrioritizedChannelOptions`. `MakePrioritizedChannel` creates multi-level queues with default priority support.
 - Result helpers: `Ok<T>` and `Err<T>` wrap `Result.Ok`/`Result.Fail`. `CancellationError` exposes `Error.Canceled()` for convenience.
 
@@ -99,13 +99,13 @@ Additional types:
 - `Go.Unit`: value-type sentinel (`Unit.Value`).
 - `Go.GoTicker`: wrapper over `TimerChannel`; exposes `Reader`, `ReadAsync`, `TryRead`, `Stop`, `StopAsync`.
 - `Defer`: RAII helper mirroring Go’s `defer`, executing the supplied `Action` when disposed.
-- `GoWaitGroupExtensions.Go`: extension overloads for `WaitGroup` (async and cancellation-aware) that apply the `Go.Run` semantic.
+- `GoWaitGroupExtensions.Go`: extension overloads for `WaitGroup` (async and cancellation-aware) that forward optional `TaskScheduler`/`TaskCreationOptions` hints into the core `WaitGroup.Go` pipeline.
 
 #### Synchronisation primitives
 
 | Type | Highlights |
 | --- | --- |
-| `WaitGroup` | Tracks outstanding async operations. `Add(int)`, `Add(Task)`, `Go(Func<Task>, CancellationToken = default)`, `Done()`, `WaitAsync(CancellationToken)` plus `WaitAsync(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default)` (returns `bool`). Diagnostics emit `waitgroup.*` metrics. Avoid negative counters — the implementation guards against it. |
+| `WaitGroup` | Tracks outstanding async operations. `Add(int)`, `Add(Task)`, `Go(Func<Task>, CancellationToken = default, TaskScheduler? scheduler = null, TaskCreationOptions creationOptions = TaskCreationOptions.DenyChildAttach)`, `Go(Task)`, `Go(ValueTask)`, `Done()`, `WaitAsync(CancellationToken)` plus `WaitAsync(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default)` (returns `bool`). Diagnostics emit `waitgroup.*` metrics. Avoid negative counters — the implementation guards against it. |
 | `Mutex` | Hybrid mutex with synchronous `EnterScope()` (returns a disposable scope) and asynchronous `LockAsync`. Always dispose the returned scope/releaser. |
 | `RwMutex` | Reader/writer lock with sync (`EnterReadScope`, `EnterWriteScope`) and async (`RLockAsync`, `LockAsync`) APIs. Cancelled acquisitions propagate `OperationCanceledException`. |
 | `Once` | Executes an `Action` at most once. Subsequent calls no-op. |
