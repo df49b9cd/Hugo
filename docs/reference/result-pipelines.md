@@ -140,6 +140,8 @@ group.Go((ctx, ct) =>
 var completion = await group.WaitAsync(cancellationToken);
 ```
 
+Reusing the same `ErrGroup` instance outside of its `using` scope is unsupported. Once disposed, any `Go(...)` call throws `ObjectDisposedException`, while the exposed `Token` remains valid for listeners already awaiting cancellation.
+
 ## Error metadata
 
 - `Error.WithMetadata(string key, object? value)` / `Error.WithMetadata(IEnumerable<KeyValuePair<string, object?>> metadata)`

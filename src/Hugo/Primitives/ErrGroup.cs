@@ -8,7 +8,7 @@ using Unit = Hugo.Go.Unit;
 /// Coordinates asynchronous operations, propagating the first failure and cancelling remaining work, similar to Go's errgroup package.
 /// </summary>
 /// <remarks>
-/// Initializes a new instance of the <see cref="ErrGroup"/> class.
+/// Reusing an <see cref="ErrGroup"/> after <see cref="Dispose"/> is unsupported and results in an <see cref="ObjectDisposedException"/> from any <c>Go(...)</c> overload.
 /// </remarks>
 /// <param name="cancellationToken">An optional cancellation token that cancels the group when signaled.</param>
 public sealed class ErrGroup(CancellationToken cancellationToken = default) : IDisposable
@@ -18,9 +18,10 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
             : new CancellationTokenSource();
     private readonly WaitGroup _waitGroup = new();
     private Error? _error;
+    private int _disposed;
 
     /// <summary>
-    /// Gets a cancellation token that is signaled when the group is canceled or a task fails.
+    /// Gets a cancellation token that is signaled when the group is canceled or a task fails; remains usable even after the group is disposed.
     /// </summary>
     public CancellationToken Token => _cts.Token;
 
@@ -33,6 +34,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     /// <param name="work">The delegate to execute.</param>
     public void Go(Func<CancellationToken, Task<Result<Unit>>> work)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(work);
 
         RegisterAndRun(() => ExecuteAsync(work));
@@ -42,6 +44,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     /// <param name="work">The delegate to execute.</param>
     public void Go(Func<CancellationToken, Task> work)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(work);
 
         RegisterAndRun(() => ExecuteAsync(async ct =>
@@ -55,6 +58,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     /// <param name="work">The delegate to execute.</param>
     public void Go(Func<Task<Result<Unit>>> work)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(work);
 
         RegisterAndRun(() => ExecuteAsync(_ => work()));
@@ -64,6 +68,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     /// <param name="work">The delegate to execute.</param>
     public void Go(Func<Task> work)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(work);
 
         RegisterAndRun(() => ExecuteAsync(async _ =>
@@ -77,6 +82,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     /// <param name="work">The action to execute.</param>
     public void Go(Action work)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(work);
 
         RegisterAndRun(() => ExecuteAsync(_ =>
@@ -99,6 +105,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         ResultExecutionPolicy? policy = null,
         TimeProvider? timeProvider = null)
     {
+        ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(work);
 
         var effectivePolicy = policy ?? ResultExecutionPolicy.None;
@@ -129,7 +136,20 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     }
 
     /// <summary>Cancels the group, notifying all registered delegates.</summary>
-    public void Cancel() => _cts.Cancel();
+    public void Cancel()
+    {
+        try
+        {
+            _cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            if (Volatile.Read(ref _disposed) == 0)
+            {
+                throw;
+            }
+        }
+    }
 
     private void RegisterAndRun(Func<Task> runner)
     {
@@ -137,6 +157,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
 
         try
         {
+            ThrowIfDisposed();
             Task.Run(async () =>
             {
                 try
@@ -233,5 +254,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     }
 
     /// <inheritdoc />
-    public void Dispose() => _cts.Dispose();
+    public void Dispose() => Interlocked.Exchange(ref _disposed, 1);
+
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 }

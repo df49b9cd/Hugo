@@ -207,4 +207,86 @@ public class ErrGroupTests
 
         group.Cancel();
     }
+
+    [Theory]
+    [MemberData(nameof(DisposedGoOverloads))]
+    public void Go_ShouldThrowObjectDisposedException_WhenDisposed(Action<ErrGroup> register)
+    {
+        var group = new ErrGroup();
+        group.Dispose();
+
+        var exception = Assert.Throws<ObjectDisposedException>(() => register(group));
+
+        Assert.Equal(typeof(ErrGroup).FullName, exception.ObjectName);
+    }
+
+    [Fact]
+    public async Task Go_ShouldNotRunWork_WhenDisposeRacesWithRegistration()
+    {
+        var group = new ErrGroup();
+        using var ready = new ManualResetEventSlim(false);
+        using var disposed = new ManualResetEventSlim(false);
+        var executed = 0;
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var registration = Task.Run(() =>
+        {
+            ready.Set();
+            disposed.Wait(cancellationToken);
+            return Assert.Throws<ObjectDisposedException>(() => group.Go(() =>
+            {
+                Interlocked.Increment(ref executed);
+            }));
+        }, cancellationToken);
+
+        var tearDown = Task.Run(() =>
+        {
+            ready.Wait(cancellationToken);
+            group.Dispose();
+            disposed.Set();
+        }, cancellationToken);
+
+        var exception = await registration;
+        await tearDown;
+
+        Assert.Equal(typeof(ErrGroup).FullName, exception.ObjectName);
+        Assert.Equal(0, Volatile.Read(ref executed));
+    }
+
+    [Fact]
+    public async Task Token_ShouldRemainAwaitableAfterDispose()
+    {
+        var group = new ErrGroup();
+        var token = group.Token;
+        group.Dispose();
+
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var waitingTask = Task.Run(async () =>
+        {
+            started.TrySetResult();
+            await Task.Delay(TimeSpan.FromSeconds(30), token);
+        }, TestContext.Current.CancellationToken);
+
+        await started.Task;
+        group.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waitingTask);
+    }
+
+    public static IEnumerable<object[]> DisposedGoOverloads()
+    {
+        yield return new object[] { new Action<ErrGroup>(group => group.Go(static ct => Task.FromResult(Result.Ok(Unit.Value)))) };
+        yield return new object[] { new Action<ErrGroup>(group => group.Go(static ct => Task.CompletedTask)) };
+        yield return new object[] { new Action<ErrGroup>(group => group.Go(static () => Task.FromResult(Result.Ok(Unit.Value)))) };
+        yield return new object[] { new Action<ErrGroup>(group => group.Go(static () => Task.CompletedTask)) };
+        yield return new object[] { new Action<ErrGroup>(group => group.Go(static () => { })) };
+        yield return new object[]
+        {
+            new Action<ErrGroup>(group => group.Go(
+                static (ctx, ct) => ValueTask.FromResult(Result.Ok(Unit.Value)),
+                stepName: "test",
+                policy: Hugo.Policies.ResultExecutionPolicy.None,
+                timeProvider: TimeProvider.System))
+        };
+    }
 }
