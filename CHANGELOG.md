@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Code coverage reporting in CI pipeline
 - SECURITY.md for vulnerability disclosure
 - CONTRIBUTING.md with development guidelines
+- Configurable prioritized channel prefetch limits via `PrioritizedChannelOptions.PrefetchPerPriority` / `PrioritizedChannelBuilder.WithPrefetchPerPriority` to balance throughput and backpressure
 
 ### Changed
 
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `Result.WhenAny` now deterministically returns the first successful result even if other operations fail or cancel after the winner is selected.
+- `PrioritizedChannelReader` stops draining entire priority queues into its buffer, ensuring `BoundedChannelFullMode` and per-level capacity apply under sustained load (PA-010).
 
 ## [1.0.0] - 2025-10-21
 

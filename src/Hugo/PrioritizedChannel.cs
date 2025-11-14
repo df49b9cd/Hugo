@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Threading;
 using System.Threading.Channels;
 
 namespace Hugo;
@@ -10,6 +11,7 @@ public sealed class PrioritizedChannelOptions
 {
     private int _priorityLevels = 3;
     private int? _defaultPriority;
+    private int _prefetchPerPriority = 1;
 
     /// <summary>
     /// Gets or sets the number of priority levels supported by the channel. Lower indices represent higher priority.
@@ -73,6 +75,19 @@ public sealed class PrioritizedChannelOptions
     }
 
     private int? _capacityPerLevel;
+
+    /// <summary>
+    /// Gets or sets the maximum number of prefetched items staged per priority before readers consume them.
+    /// </summary>
+    public int PrefetchPerPriority
+    {
+        get => _prefetchPerPriority;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            _prefetchPerPriority = value;
+        }
+    }
 
     /// <summary>
     /// Gets or sets the bounded channel full mode applied when <see cref="CapacityPerLevel"/> is specified.
@@ -143,11 +158,12 @@ public sealed class PrioritizedChannel<T>
         }
 
         var resolvedDefaultPriority = options.DefaultPriority ?? (levels - 1);
-        _reader = new PrioritizedChannelReader(readers);
+        _reader = new PrioritizedChannelReader(readers, options.PrefetchPerPriority);
         _writer = new PrioritizedChannelWriter(writers, resolvedDefaultPriority);
         PriorityLevels = levels;
         DefaultPriority = resolvedDefaultPriority;
         CapacityPerLevel = capacity;
+        PrefetchPerPriority = options.PrefetchPerPriority;
     }
 
     /// <summary>
@@ -164,6 +180,11 @@ public sealed class PrioritizedChannel<T>
     /// Gets the bounded capacity per level, when applicable.
     /// </summary>
     public int? CapacityPerLevel { get; }
+
+    /// <summary>
+    /// Gets the number of items that may be prefetched per priority before the reader yields back pressure.
+    /// </summary>
+    public int PrefetchPerPriority { get; }
 
     /// <summary>
     /// Gets the reader associated with the channel.
@@ -191,15 +212,24 @@ public sealed class PrioritizedChannel<T>
     public sealed class PrioritizedChannelReader : ChannelReader<T>
     {
         private readonly ChannelReader<T>[] _readers;
-        private readonly ConcurrentQueue<T> _buffer = new();
+        private readonly ConcurrentQueue<T>[] _buffers;
+        private readonly int[] _bufferedPerPriority;
         private readonly Task _completion;
+        private readonly int _prefetchPerPriority;
+        private int _bufferedTotal;
 
-        internal PrioritizedChannelReader(ChannelReader<T>[] readers)
+        internal PrioritizedChannelReader(ChannelReader<T>[] readers, int prefetchPerPriority)
         {
             _readers = readers ?? throw new ArgumentNullException(nameof(readers));
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(prefetchPerPriority);
+
+            _prefetchPerPriority = prefetchPerPriority;
+            _buffers = new ConcurrentQueue<T>[readers.Length];
+            _bufferedPerPriority = new int[readers.Length];
             var completions = new Task[readers.Length];
             for (var i = 0; i < readers.Length; i++)
             {
+                _buffers[i] = new ConcurrentQueue<T>();
                 completions[i] = readers[i].Completion;
             }
             _completion = Task.WhenAll(completions);
@@ -208,10 +238,22 @@ public sealed class PrioritizedChannel<T>
         /// <inheritdoc />
         public override Task Completion => _completion;
 
+        internal int BufferedItemCount => Volatile.Read(ref _bufferedTotal);
+
+        internal int GetBufferedCountForPriority(int priority)
+        {
+            if ((uint)priority >= (uint)_buffers.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(priority));
+            }
+
+            return Volatile.Read(ref _bufferedPerPriority[priority]);
+        }
+
         /// <inheritdoc />
         public override bool TryRead(out T item)
         {
-            if (_buffer.TryDequeue(out item!))
+            if (TryReadFromBuffers(out item!))
             {
                 return true;
             }
@@ -253,18 +295,14 @@ public sealed class PrioritizedChannel<T>
         /// <inheritdoc />
         public override ValueTask<bool> WaitToReadAsync(CancellationToken cancellationToken = default)
         {
-            if (!_buffer.IsEmpty)
+            if (HasBufferedItems)
             {
                 return new ValueTask<bool>(true);
             }
 
-            for (var i = 0; i < _readers.Length; i++)
+            if (TryStageFromAllPriorities())
             {
-                if (_readers[i].TryRead(out var item))
-                {
-                    _buffer.Enqueue(item);
-                    return new ValueTask<bool>(true);
-                }
+                return new ValueTask<bool>(true);
             }
 
             return WaitToReadSlowAsync(cancellationToken);
@@ -289,7 +327,7 @@ public sealed class PrioritizedChannel<T>
                     await Task.FromException(completed.Exception!).ConfigureAwait(false);
                 }
 
-                var hasItems = false;
+                var stagedItems = false;
                 for (var priority = 0; priority < _readers.Length; priority++)
                 {
                     var task = waitTasks[priority];
@@ -298,17 +336,18 @@ public sealed class PrioritizedChannel<T>
                         continue;
                     }
 
-                    if (task.IsCompletedSuccessfully && await task.ConfigureAwait(false))
+                    if (task.IsFaulted || task.IsCanceled)
                     {
-                        while (_readers[priority].TryRead(out var item))
-                        {
-                            _buffer.Enqueue(item);
-                            hasItems = true;
-                        }
+                        await task.ConfigureAwait(false);
+                    }
+
+                    if (task.IsCompletedSuccessfully && task.Result)
+                    {
+                        stagedItems |= TryStageFromPriority(priority);
                     }
                 }
 
-                if (hasItems)
+                if (stagedItems || HasBufferedItems)
                 {
                     return true;
                 }
@@ -323,18 +362,68 @@ public sealed class PrioritizedChannel<T>
                         break;
                     }
 
-                    if (task.IsCompletedSuccessfully && await task.ConfigureAwait(false))
+                    if (task.IsFaulted || task.IsCanceled)
+                    {
+                        await task.ConfigureAwait(false);
+                    }
+
+                    if (task.Result)
                     {
                         allCompleted = false;
                         break;
                     }
                 }
 
-                if (allCompleted && _buffer.IsEmpty)
+                if (allCompleted && !HasBufferedItems)
                 {
                     return false;
                 }
             }
+        }
+
+        private bool HasBufferedItems => Volatile.Read(ref _bufferedTotal) > 0;
+
+        private bool TryReadFromBuffers(out T item)
+        {
+            for (var priority = 0; priority < _buffers.Length; priority++)
+            {
+                if (_buffers[priority].TryDequeue(out item!))
+                {
+                    Interlocked.Decrement(ref _bufferedPerPriority[priority]);
+                    Interlocked.Decrement(ref _bufferedTotal);
+                    return true;
+                }
+            }
+
+            item = default!;
+            return false;
+        }
+
+        private bool TryStageFromAllPriorities()
+        {
+            var staged = false;
+            for (var priority = 0; priority < _readers.Length; priority++)
+            {
+                staged |= TryStageFromPriority(priority);
+            }
+
+            return staged;
+        }
+
+        private bool TryStageFromPriority(int priority)
+        {
+            var staged = false;
+            var buffered = Volatile.Read(ref _bufferedPerPriority[priority]);
+            while (buffered < _prefetchPerPriority && _readers[priority].TryRead(out var item))
+            {
+                _buffers[priority].Enqueue(item);
+                Interlocked.Increment(ref _bufferedPerPriority[priority]);
+                Interlocked.Increment(ref _bufferedTotal);
+                buffered++;
+                staged = true;
+            }
+
+            return staged;
         }
     }
 

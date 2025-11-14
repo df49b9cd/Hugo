@@ -169,6 +169,7 @@ public sealed class PrioritizedChannelBuilder<T>
     private int _priorityLevels;
     private int? _defaultPriority;
     private int? _capacityPerLevel;
+    private int _prefetchPerPriority = 1;
     private BoundedChannelFullMode _fullMode = BoundedChannelFullMode.Wait;
     private bool _singleReader;
     private bool _singleWriter;
@@ -242,6 +243,17 @@ public sealed class PrioritizedChannelBuilder<T>
         return this;
     }
 
+    /// <summary>Limits how many items are prefetched per priority before yielding backpressure.</summary>
+    /// <param name="prefetchPerPriority">The number of staged items per priority.</param>
+    /// <returns>The current builder for chaining additional configuration.</returns>
+    public PrioritizedChannelBuilder<T> WithPrefetchPerPriority(int prefetchPerPriority)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(prefetchPerPriority);
+
+        _prefetchPerPriority = prefetchPerPriority;
+        return this;
+    }
+
     /// <summary>Configures how the channel handles writers when the target priority queue is full.</summary>
     /// <param name="fullMode">The backpressure mode applied to the prioritized channel.</param>
     /// <returns>The current builder for chaining additional configuration.</returns>
@@ -286,6 +298,7 @@ public sealed class PrioritizedChannelBuilder<T>
         {
             PriorityLevels = _priorityLevels,
             CapacityPerLevel = _capacityPerLevel,
+            PrefetchPerPriority = _prefetchPerPriority,
             FullMode = _fullMode,
             SingleReader = _singleReader,
             SingleWriter = _singleWriter
