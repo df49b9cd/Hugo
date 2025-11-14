@@ -34,11 +34,11 @@ public sealed class TaskQueueReplicationFeatureTests
             return events;
         });
 
-        await queue.EnqueueAsync(42);
-        TaskQueueLease<int> lease = await queue.LeaseAsync();
-        await lease.FailAsync(Error.From("transient", ErrorCodes.TaskQueueAbandoned), requeue: true);
-        TaskQueueLease<int> retry = await queue.LeaseAsync();
-        await retry.CompleteAsync();
+        await queue.EnqueueAsync(42, TestContext.Current.CancellationToken);
+        TaskQueueLease<int> lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        await lease.FailAsync(Error.From("transient", ErrorCodes.TaskQueueAbandoned), requeue: true, TestContext.Current.CancellationToken);
+        TaskQueueLease<int> retry = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        await retry.CompleteAsync(TestContext.Current.CancellationToken);
 
         List<TaskQueueReplicationEvent<int>> events = await reader;
 
@@ -50,13 +50,13 @@ public sealed class TaskQueueReplicationFeatureTests
         var coordinator = new TaskQueueDeterministicCoordinator<int>(effectStore);
 
         var sink = new DeterministicRecordingSink("feature-stream", checkpointStore, coordinator, provider);
-        await sink.ProcessAsync(ToAsyncEnumerable(events));
+        await sink.ProcessAsync(ToAsyncEnumerable(events), TestContext.Current.CancellationToken);
 
         Assert.All(events, evt => Assert.Equal(1, sink.ExecutionCounts[evt.SequenceNumber]));
 
         // Simulate checkpoint loss but reuse deterministic store for replay safety.
         var replaySink = new DeterministicRecordingSink("feature-stream", new InMemoryReplicationCheckpointStore(), coordinator, provider);
-        await replaySink.ProcessAsync(ToAsyncEnumerable(events));
+        await replaySink.ProcessAsync(ToAsyncEnumerable(events), TestContext.Current.CancellationToken);
 
         Assert.Empty(replaySink.ExecutionCounts);
     }
@@ -106,7 +106,7 @@ public sealed class TaskQueueReplicationFeatureTests
 
         public ValueTask<TaskQueueReplicationCheckpoint> ReadAsync(string streamId, CancellationToken cancellationToken = default)
         {
-            if (_checkpoints.TryGetValue(streamId, out TaskQueueReplicationCheckpoint checkpoint))
+            if (_checkpoints.TryGetValue(streamId, out TaskQueueReplicationCheckpoint? checkpoint) && checkpoint is not null)
             {
                 return ValueTask.FromResult(checkpoint);
             }

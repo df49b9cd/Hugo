@@ -8,6 +8,8 @@ using Hugo.TaskQueues.Backpressure;
 using Hugo.TaskQueues.Diagnostics;
 using Hugo.TaskQueues.Replication;
 
+JsonSerializerOptions serializerOptions = new(JsonSerializerDefaults.Web);
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<IMeterFactory, DefaultMeterFactory>();
@@ -60,15 +62,13 @@ app.MapGet("/diagnostics/taskqueue", async (TaskQueueDiagnosticsHost diagnostics
 
     await foreach (TaskQueueDiagnosticsEvent evt in diagnostics.Events.ReadAllAsync(token))
     {
-        string payload = JsonSerializer.Serialize(evt, SerializerOptions);
+        string payload = JsonSerializer.Serialize(evt, serializerOptions);
         await response.WriteAsync($"data: {payload}\n\n", token);
         await response.Body.FlushAsync(token);
     }
 });
 
 await app.RunAsync();
-
-static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
 sealed class TaskQueueDiagnosticsBootstrapper(
     TaskQueueDiagnosticsHost diagnostics,

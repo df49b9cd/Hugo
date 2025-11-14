@@ -130,7 +130,7 @@ public sealed class TaskQueueReplicationIntegrationTests
 
         public ValueTask<TaskQueueReplicationCheckpoint> ReadAsync(string streamId, CancellationToken cancellationToken = default)
         {
-            if (_checkpoints.TryGetValue(streamId, out TaskQueueReplicationCheckpoint checkpoint))
+            if (_checkpoints.TryGetValue(streamId, out TaskQueueReplicationCheckpoint? checkpoint) && checkpoint is not null)
             {
                 return ValueTask.FromResult(checkpoint);
             }

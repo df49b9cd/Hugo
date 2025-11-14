@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
@@ -13,6 +14,8 @@ public static class TaskQueueReplicationJsonSerialization
     /// </summary>
     /// <typeparam name="T">Payload type.</typeparam>
     /// <param name="template">Optional options to clone.</param>
+    [RequiresUnreferencedCode("Uses DefaultJsonTypeInfoResolver to configure replication metadata.")]
+    [RequiresDynamicCode("DefaultJsonTypeInfoResolver relies on runtime code generation.")]
     public static JsonSerializerOptions CreateOptions<T>(JsonSerializerOptions? template = null)
     {
         JsonSerializerOptions options = template is null ? new JsonSerializerOptions(JsonSerializerDefaults.Web) : new JsonSerializerOptions(template);
@@ -24,6 +27,8 @@ public static class TaskQueueReplicationJsonSerialization
     /// Creates an <see cref="IJsonTypeInfoResolver"/> for replication events without cloning options.
     /// </summary>
     /// <typeparam name="T">Payload type.</typeparam>
+    [RequiresUnreferencedCode("Uses DefaultJsonTypeInfoResolver to configure replication metadata.")]
+    [RequiresDynamicCode("DefaultJsonTypeInfoResolver relies on runtime code generation.")]
     public static IJsonTypeInfoResolver CreateResolver<T>() => new TaskQueueReplicationJsonTypeInfoResolver<T>();
 
     private sealed class TaskQueueReplicationJsonTypeInfoResolver<T> : DefaultJsonTypeInfoResolver
