@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Channels;
 
 namespace Hugo.Tests.Primitives;
@@ -77,5 +78,51 @@ public sealed class PrioritizedChannelTests
         Assert.Equal(1, prioritizedReader.GetBufferedCountForPriority(0));
         Assert.Equal(1, prioritizedReader.GetBufferedCountForPriority(1));
         Assert.Equal(0, prioritizedReader.GetBufferedCountForPriority(2));
+    }
+
+    [Fact]
+    public async Task PrioritizedChannel_WaitToReadAsync_ShouldRespectCancellation()
+    {
+        var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
+        {
+            PriorityLevels = 1,
+            PrefetchPerPriority = 1
+        });
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        {
+            _ = await channel.Reader.WaitToReadAsync(cts.Token);
+        });
+    }
+
+    [Fact]
+    public async Task PrioritizedChannel_WaitToReadSlowPath_ShouldAvoidExtraAllocations()
+    {
+        var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
+        {
+            PriorityLevels = 2,
+            PrefetchPerPriority = 1
+        });
+
+        var reader = channel.Reader;
+        var writer = channel.PrioritizedWriter;
+        var ct = TestContext.Current.CancellationToken;
+
+        var waitTask = reader.WaitToReadAsync(ct);
+        var baseline = GC.GetAllocatedBytesForCurrentThread();
+
+        var producer = Task.Run(async () =>
+        {
+            await Task.Delay(10, ct);
+            await writer.WriteAsync(42, priority: 1, ct);
+        }, ct);
+
+        Assert.True(await waitTask.AsTask());
+        await producer;
+
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - baseline;
+        Assert.InRange(allocated, 0, 4 * 1024);
     }
 }

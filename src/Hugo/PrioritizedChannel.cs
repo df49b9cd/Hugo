@@ -1,6 +1,10 @@
+using System.Buffers;
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Channels;
+using System.Threading.Tasks.Sources;
 
 namespace Hugo;
 
@@ -310,73 +314,290 @@ public sealed class PrioritizedChannel<T>
 
         private async ValueTask<bool> WaitToReadSlowAsync(CancellationToken cancellationToken)
         {
+            var completions = new ConcurrentQueue<int>();
+            using var completionSignal = new AsyncAutoResetEvent();
+            var registrations = new LaneWaitRegistration[_readers.Length];
+            var laneCompleted = new bool[_readers.Length];
+
+            for (var priority = 0; priority < _readers.Length; priority++)
+            {
+                registrations[priority] = new LaneWaitRegistration(priority, completions, completionSignal);
+            }
+
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var waitTasks = new Task<bool>[_readers.Length];
-                for (var i = 0; i < _readers.Length; i++)
-                {
-                    waitTasks[i] = _readers[i].WaitToReadAsync(cancellationToken).AsTask();
-                }
-
-                var completed = await Task.WhenAny(waitTasks).ConfigureAwait(false);
-
-                if (completed.IsFaulted)
-                {
-                    await Task.FromException(completed.Exception!).ConfigureAwait(false);
-                }
-
-                var stagedItems = false;
-                for (var priority = 0; priority < _readers.Length; priority++)
-                {
-                    var task = waitTasks[priority];
-                    if (!task.IsCompleted)
-                    {
-                        continue;
-                    }
-
-                    if (task.IsFaulted || task.IsCanceled)
-                    {
-                        await task.ConfigureAwait(false);
-                    }
-
-                    if (task.IsCompletedSuccessfully && task.Result)
-                    {
-                        stagedItems |= TryStageFromPriority(priority);
-                    }
-                }
-
-                if (stagedItems || HasBufferedItems)
+                if (DrainCompletions(registrations, laneCompleted))
                 {
                     return true;
                 }
 
-                var allCompleted = true;
-                for (var i = 0; i < waitTasks.Length; i++)
+                for (var priority = 0; priority < _readers.Length; priority++)
                 {
-                    var task = waitTasks[i];
-                    if (!task.IsCompleted)
+                    if (laneCompleted[priority] || registrations[priority].IsPending)
                     {
-                        allCompleted = false;
-                        break;
+                        continue;
                     }
 
-                    if (task.IsFaulted || task.IsCanceled)
+                    var wait = _readers[priority].WaitToReadAsync(cancellationToken);
+                    if (wait.IsCompletedSuccessfully)
                     {
-                        await task.ConfigureAwait(false);
+                        if (wait.Result)
+                        {
+                            if (TryStageFromPriority(priority) || HasBufferedItems)
+                            {
+                                return true;
+                            }
+                        }
+                        else
+                        {
+                            laneCompleted[priority] = true;
+                        }
+
+                        continue;
                     }
 
-                    if (task.Result)
+                    registrations[priority].Attach(wait);
+                }
+
+                if (AllCompleted(laneCompleted) && !HasBufferedItems)
+                {
+                    return false;
+                }
+
+                await completionSignal.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            bool DrainCompletions(LaneWaitRegistration[] laneRegistrations, bool[] completionStates)
+            {
+                var staged = false;
+                while (completions.TryDequeue(out var priority))
+                {
+                    if (!laneRegistrations[priority].TryConsume(out var completion))
                     {
-                        allCompleted = false;
-                        break;
+                        continue;
+                    }
+
+                    completion.Fault?.Throw();
+                    if (completion.HasItems)
+                    {
+                        staged |= TryStageFromPriority(priority);
+                    }
+                    else
+                    {
+                        completionStates[priority] = true;
                     }
                 }
 
-                if (allCompleted && !HasBufferedItems)
+                return staged || HasBufferedItems;
+            }
+
+            static bool AllCompleted(bool[] completionStates)
+            {
+                for (var i = 0; i < completionStates.Length; i++)
                 {
+                    if (!completionStates[i])
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+        }
+
+        private sealed class LaneWaitRegistration
+        {
+            private readonly int _priority;
+            private readonly ConcurrentQueue<int> _completions;
+            private readonly AsyncAutoResetEvent _signal;
+            private readonly Action _continuation;
+            private ValueTaskAwaiter<bool> _awaiter;
+            private volatile bool _pending;
+            private volatile bool _hasCompletion;
+            private bool _hasItems;
+            private ExceptionDispatchInfo? _fault;
+
+            public LaneWaitRegistration(int priority, ConcurrentQueue<int> completions, AsyncAutoResetEvent signal)
+            {
+                _priority = priority;
+                _completions = completions;
+                _signal = signal;
+                _continuation = OnWaitCompleted;
+            }
+
+            public bool IsPending => _pending;
+
+            public void Attach(ValueTask<bool> waitTask)
+            {
+                var awaiter = waitTask.GetAwaiter();
+                if (awaiter.IsCompleted)
+                {
+                    CompleteAwaiter(awaiter);
+                    return;
+                }
+
+                _pending = true;
+                _awaiter = awaiter;
+                awaiter.UnsafeOnCompleted(_continuation);
+            }
+
+            public bool TryConsume(out LaneCompletion completion)
+            {
+                if (!_hasCompletion)
+                {
+                    completion = default;
                     return false;
+                }
+
+                completion = new LaneCompletion(_priority, _hasItems, _fault);
+                _hasCompletion = false;
+                _fault = null;
+                return true;
+            }
+
+            private void OnWaitCompleted() => CompleteAwaiter(_awaiter);
+
+            private void CompleteAwaiter(ValueTaskAwaiter<bool> awaiter)
+            {
+                bool hasItems;
+                ExceptionDispatchInfo? fault = null;
+
+                try
+                {
+                    hasItems = awaiter.GetResult();
+                }
+                catch (Exception ex)
+                {
+                    fault = ExceptionDispatchInfo.Capture(ex);
+                    hasItems = false;
+                }
+
+                _pending = false;
+                _hasCompletion = true;
+                _hasItems = hasItems;
+                _fault = fault;
+
+                _completions.Enqueue(_priority);
+                _signal.Set();
+            }
+        }
+
+        private readonly struct LaneCompletion
+        {
+            public LaneCompletion(int priority, bool hasItems, ExceptionDispatchInfo? fault)
+            {
+                Priority = priority;
+                HasItems = hasItems;
+                Fault = fault;
+            }
+
+            public int Priority { get; }
+            public bool HasItems { get; }
+            public ExceptionDispatchInfo? Fault { get; }
+        }
+
+        private sealed class AsyncAutoResetEvent : IValueTaskSource<bool>, IDisposable
+        {
+            private readonly ManualResetValueTaskSourceCore<bool> _core = new() { RunContinuationsAsynchronously = true };
+            private readonly object _gate = new();
+            private CancellationTokenRegistration _registration;
+            private bool _isSignaled;
+            private bool _waiting;
+
+            public ValueTask<bool> WaitAsync(CancellationToken cancellationToken)
+            {
+                lock (_gate)
+                {
+                    if (_isSignaled)
+                    {
+                        _isSignaled = false;
+                        return ValueTask.FromResult(true);
+                    }
+
+                    if (_waiting)
+                    {
+                        throw new InvalidOperationException("Only a single waiter is supported.");
+                    }
+
+                    _waiting = true;
+                    if (cancellationToken.CanBeCanceled)
+                    {
+                        _registration = cancellationToken.Register(static state => ((AsyncAutoResetEvent)state!).Cancel(), this);
+                    }
+
+                    return new ValueTask<bool>(this, _core.Version);
+                }
+            }
+
+            public void Set()
+            {
+                lock (_gate)
+                {
+                    if (_waiting)
+                    {
+                        _waiting = false;
+                        _registration.Dispose();
+                        _core.SetResult(true);
+                    }
+                    else
+                    {
+                        _isSignaled = true;
+                    }
+                }
+            }
+
+            public void Dispose()
+            {
+                lock (_gate)
+                {
+                    _registration.Dispose();
+                }
+            }
+
+            private void Cancel()
+            {
+                lock (_gate)
+                {
+                    if (!_waiting)
+                    {
+                        return;
+                    }
+
+                    _waiting = false;
+                    _core.SetException(new OperationCanceledException());
+                }
+            }
+
+            ValueTaskSourceStatus IValueTaskSource<bool>.GetStatus(short token)
+            {
+                lock (_gate)
+                {
+                    return _core.GetStatus(token);
+                }
+            }
+
+            void IValueTaskSource<bool>.OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags)
+            {
+                lock (_gate)
+                {
+                    _core.OnCompleted(continuation, state, token, flags);
+                }
+            }
+
+            bool IValueTaskSource<bool>.GetResult(short token)
+            {
+                lock (_gate)
+                {
+                    try
+                    {
+                        return _core.GetResult(token);
+                    }
+                    finally
+                    {
+                        _core.Reset();
+                    }
                 }
             }
         }

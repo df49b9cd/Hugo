@@ -39,6 +39,9 @@ internal class PrioritizedChannelBenchmarks
     [Benchmark]
     public Task StandardUnboundedChannelAsync() => ExecuteStandardAsync(bounded: false);
 
+    [Benchmark]
+    public Task PrioritizedChannelWaitSlowAsync() => MeasureWaitSlowAsync();
+
     private async Task ExecutePrioritizedAsync()
     {
         if (_priorities is null)
@@ -84,6 +87,38 @@ internal class PrioritizedChannelBenchmarks
         });
 
         await Task.WhenAll(producer, consumer).ConfigureAwait(false);
+    }
+
+    private static async Task MeasureWaitSlowAsync()
+    {
+        var options = new PrioritizedChannelOptions
+        {
+            PriorityLevels = 2,
+            CapacityPerLevel = 4,
+            PrefetchPerPriority = 1,
+            FullMode = BoundedChannelFullMode.Wait
+        };
+
+        var channel = new PrioritizedChannel<int>(options);
+        var reader = channel.Reader;
+        var writer = channel.PrioritizedWriter;
+
+        var wait = reader.WaitToReadAsync();
+
+        var producer = Task.Run(async () =>
+        {
+            await Task.Delay(10).ConfigureAwait(false);
+            await writer.WriteAsync(1, priority: 0).ConfigureAwait(false);
+            writer.TryComplete();
+        });
+
+        var ready = await wait.ConfigureAwait(false);
+        if (ready && channel.Reader.TryRead(out _))
+        {
+            GC.KeepAlive(0);
+        }
+
+        await producer.ConfigureAwait(false);
     }
 
     private async Task ExecuteStandardAsync(bool bounded)

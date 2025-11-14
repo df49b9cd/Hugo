@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Result.WhenAll` now replays compensation for partially completed operations when cancellation occurs (including when `Task.WhenAll` throws `OperationCanceledException`), ensuring side effects are rolled back before returning `Error.Canceled`
 - `Go.Run` and `WaitGroup.Go` accept custom `TaskScheduler`/`TaskCreationOptions` hints and can now track existing `Task`/`ValueTask` instances without paying an extra `Task.Run` allocation
 - `ErrGroup` manual cancellations now set `Error.Canceled` before signaling the linked token and pipeline failures notify peers prior to running compensation, preventing “success” results after aborts
+- `PrioritizedChannelReader` avoids allocating `Task<bool>[]` arrays and `.AsTask()` conversions on each wait by reusing lightweight registrations, eliminating per-iteration heap churn on the slow path (PA-011)
 
 ### Fixed
 
