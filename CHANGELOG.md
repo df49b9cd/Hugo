@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ErrGroup now throws `ObjectDisposedException` for any `Go(...)` call after disposal, preventing background failures when reusing disposed instances
 - Manual calls to `ErrGroup.Cancel()` now record a structured cancellation error so `WaitAsync` deterministically reports the group as aborted
 - Policy-backed `ErrGroup.Go` overloads now cancel peer work before compensation completes so slow cleanup no longer delays cancellation propagation
-- `Result.WhenAll` now replays compensation for partially completed operations when cancellation occurs, ensuring side effects are rolled back before returning `Error.Canceled`
+- `Result.WhenAll` now replays compensation for partially completed operations when cancellation occurs (including when `Task.WhenAll` throws `OperationCanceledException`), ensuring side effects are rolled back before returning `Error.Canceled`
 - `ErrGroup` manual cancellations now set `Error.Canceled` before signaling the linked token and pipeline failures notify peers prior to running compensation, preventing “success” results after aborts
 
 ### Fixed

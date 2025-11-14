@@ -73,54 +73,7 @@ public static partial class Result
         }
         catch (OperationCanceledException oce)
         {
-            var partialErrors = new List<Error>();
-            for (var i = 0; i < tasks.Length; i++)
-            {
-                var task = tasks[i];
-                if (task is null)
-                {
-                    continue;
-                }
-
-                if (task.IsCompletedSuccessfully)
-                {
-                    var entry = task.Result;
-                    if (entry.Result.IsSuccess)
-                    {
-                        pipelineScope.Absorb(entry.Compensation);
-                    }
-                    else
-                    {
-                        entry.Compensation.Clear();
-                        partialErrors.Add(entry.Result.Error ?? Error.Unspecified());
-                    }
-
-                    continue;
-                }
-
-                if (task.IsFaulted && task.Exception is { } exception)
-                {
-                    var flattened = exception.Flatten();
-                    foreach (var inner in flattened.InnerExceptions)
-                    {
-                        partialErrors.Add(Error.FromException(inner));
-                    }
-                }
-            }
-
-            var cancellationCompensationError = await RunCompensationAsync(effectivePolicy, pipelineScope, CancellationToken.None).ConfigureAwait(false);
-            if (cancellationCompensationError is not null)
-            {
-                partialErrors.Add(cancellationCompensationError);
-            }
-
-            var cancellationTokenSource = oce.CancellationToken.CanBeCanceled ? oce.CancellationToken : cancellationToken;
-            var cancellationError = Error.Canceled(token: cancellationTokenSource);
-            if (partialErrors.Count > 0)
-            {
-                cancellationError = cancellationError.WithMetadata("whenall.partialFailures", partialErrors.ToArray());
-            }
-
+            var cancellationError = await BuildWhenAllCancellationErrorAsync(tasks, pipelineScope, effectivePolicy, oce, cancellationToken).ConfigureAwait(false);
             return Fail<IReadOnlyList<T>>(cancellationError);
         }
 
@@ -302,6 +255,64 @@ public static partial class Result
         }
 
         return winner.Value.Result;
+    }
+
+    private static async Task<Error> BuildWhenAllCancellationErrorAsync<T>(
+        Task<PipelineOperationResult<T>>[] tasks,
+        CompensationScope pipelineScope,
+        ResultExecutionPolicy policy,
+        OperationCanceledException exception,
+        CancellationToken fallbackToken)
+    {
+        var partialErrors = new List<Error>();
+        for (var i = 0; i < tasks.Length; i++)
+        {
+            var task = tasks[i];
+            if (task is null)
+            {
+                continue;
+            }
+
+            if (task.Status == TaskStatus.RanToCompletion)
+            {
+                var entry = task.Result;
+                if (entry.Result.IsSuccess)
+                {
+                    pipelineScope.Absorb(entry.Compensation);
+                }
+                else
+                {
+                    entry.Compensation.Clear();
+                    partialErrors.Add(entry.Result.Error ?? Error.Unspecified());
+                }
+
+                continue;
+            }
+
+            if (task.IsFaulted && task.Exception is { } taskException)
+            {
+                var flattened = taskException.Flatten();
+                foreach (var inner in flattened.InnerExceptions)
+                {
+                    partialErrors.Add(Error.FromException(inner));
+                }
+            }
+        }
+
+        var compensationError = await RunCompensationAsync(policy, pipelineScope, CancellationToken.None).ConfigureAwait(false);
+        if (compensationError is not null)
+        {
+            partialErrors.Add(compensationError);
+        }
+
+        var cancellationToken = exception.CancellationToken.CanBeCanceled ? exception.CancellationToken : fallbackToken;
+        var cancellationError = Error.Canceled(token: cancellationToken);
+        if (partialErrors.Count > 0)
+        {
+            cancellationError = cancellationError.WithMetadata("whenall.partialFailures", partialErrors.ToArray());
+        }
+
+        return cancellationError;
     }
 
     internal static async Task<PipelineOperationResult<T>> ExecuteWithPolicyAsync<T>(
