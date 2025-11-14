@@ -85,7 +85,7 @@ Writers are completed automatically (with the originating error when appropriate
 
 ## Parallel orchestration and retries
 
-- `Result.WhenAll` executes result-aware operations concurrently, applying the supplied `ResultExecutionPolicy` (retries + compensation) to each step.
+- `Result.WhenAll` executes result-aware operations concurrently, applying the supplied `ResultExecutionPolicy` (retries + compensation) to each step. When cancellation interrupts execution, previously completed operations have their compensation scopes replayed before the aggregated result returns `Error.Canceled`, so side effects are rolled back deterministically.
 - `Result.WhenAny` resolves once the first success arrives, compensating secondary successes and aggregating errors when every branch fails.
 - `Result.RetryWithPolicyAsync` runs a delegate under a retry/compensation policy, surfacing structured failure metadata when attempts are exhausted.
 - `Result.TieredFallbackAsync` evaluates `ResultFallbackTier<T>` instances sequentially; strategies within a tier run concurrently and cancel once a peer succeeds. Metadata keys (`fallbackTier`, `tierIndex`, `strategyIndex`) are attached to failures for observability.
