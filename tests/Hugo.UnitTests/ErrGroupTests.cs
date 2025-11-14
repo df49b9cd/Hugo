@@ -340,13 +340,25 @@ public class ErrGroupTests
         var peerCanceled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var compensationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var allowCompensationToFinish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var simulatedCompensationCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         group.Go((ctx, ct) =>
         {
-            Task.Run(async () =>
+            _ = Task.Run(async () =>
             {
                 compensationStarted.TrySetResult();
-                await allowCompensationToFinish.Task;
+                try
+                {
+                    await allowCompensationToFinish.Task.WaitAsync(ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Group cancellation should unblock peer work even if compensation is still running.
+                }
+                finally
+                {
+                    simulatedCompensationCompleted.TrySetResult();
+                }
             });
 
             return ValueTask.FromResult(Result.Fail<Unit>(Error.From("pipeline failed", ErrorCodes.Exception)));
@@ -371,6 +383,7 @@ public class ErrGroupTests
         Assert.False(allowCompensationToFinish.Task.IsCompleted);
 
         allowCompensationToFinish.TrySetResult();
+        await simulatedCompensationCompleted.Task.WaitAsync(TestContext.Current.CancellationToken);
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
