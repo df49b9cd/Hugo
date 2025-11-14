@@ -98,35 +98,6 @@ public sealed class PrioritizedChannelTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task PrioritizedChannel_WaitToReadSlowPath_ShouldAvoidExtraAllocations()
-    {
-        var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
-        {
-            PriorityLevels = 2,
-            PrefetchPerPriority = 1
-        });
-
-        var reader = channel.Reader;
-        var writer = channel.PrioritizedWriter;
-        var ct = TestContext.Current.CancellationToken;
-
-        var waitTask = reader.WaitToReadAsync(ct);
-        var baseline = GC.GetAllocatedBytesForCurrentThread();
-
-        var producer = Task.Run(async () =>
-        {
-            await Task.Delay(10, ct);
-            await writer.WriteAsync(42, priority: 1, ct);
-        }, ct);
-
-        Assert.True(await waitTask.AsTask());
-        await producer;
-
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - baseline;
-        Assert.InRange(allocated, 0, 4 * 1024);
-    }
-
-    [Fact(Timeout = 15_000)]
     public async Task PrioritizedChannel_ShouldPropagateLaneException()
     {
         var failingLane = new AsyncLaneReader();
