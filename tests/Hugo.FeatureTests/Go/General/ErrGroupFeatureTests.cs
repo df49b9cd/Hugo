@@ -73,4 +73,47 @@ public class ErrGroupFeatureTests
 
         Assert.True(cancellationHandled);
     }
+
+    [Fact]
+    public async Task ErrGroupPipeline_ShouldCancelPeersBeforeCompensationCompletes()
+    {
+        using var group = new ErrGroup();
+        var compensationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseCompensation = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancellationObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        group.Go((ctx, ct) =>
+        {
+            Task.Run(async () =>
+            {
+                compensationStarted.TrySetResult();
+                await releaseCompensation.Task;
+            });
+
+            return ValueTask.FromResult(Result.Fail<Unit>(Error.From("step-failure", ErrorCodes.Exception)));
+        }, stepName: "doc-step", policy: ResultExecutionPolicy.None);
+
+        group.Go(async ct =>
+        {
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                cancellationObserved.TrySetResult(true);
+            }
+        });
+
+        await compensationStarted.Task;
+        var completed = await Task.WhenAny(cancellationObserved.Task, Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        Assert.Same(cancellationObserved.Task, completed);
+
+        releaseCompensation.TrySetResult();
+
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+    }
 }

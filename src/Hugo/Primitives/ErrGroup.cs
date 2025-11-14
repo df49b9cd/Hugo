@@ -16,6 +16,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     private readonly CancellationTokenSource _cts = cancellationToken.CanBeCanceled
             ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
             : new CancellationTokenSource();
+    private readonly CancellationToken _linkedToken = cancellationToken;
     private readonly WaitGroup _waitGroup = new();
     private Error? _error;
     private int _disposed;
@@ -220,14 +221,21 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
 
             var compensationScope = result.Compensation;
             var failure = result.Result.Error ?? Error.Unspecified();
-            var compensationError = await Result.RunCompensationAsync(policy, compensationScope, Token).ConfigureAwait(false);
+            var ownsError = TrySetError(failure);
+            var compensationError = await Result.RunCompensationAsync(policy, compensationScope, _linkedToken).ConfigureAwait(false);
             compensationScope.Clear();
             if (compensationError is not null)
             {
-                failure = Error.Aggregate("ErrGroup step failed with compensation error.", failure, compensationError);
+                var aggregated = Error.Aggregate("ErrGroup step failed with compensation error.", failure, compensationError);
+                if (ownsError)
+                {
+                    UpdateError(failure, aggregated);
+                }
+                else
+                {
+                    TrySetError(aggregated);
+                }
             }
-
-            TrySetError(failure);
         }
         catch (OperationCanceledException oce)
         {
@@ -239,11 +247,11 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         }
     }
 
-    private void TrySetError(Error error)
+    private bool TrySetError(Error error)
     {
         if (error is null)
         {
-            return;
+            return false;
         }
 
         if (Interlocked.CompareExchange(ref _error, error, null) is null)
@@ -256,11 +264,25 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
             {
                 // The group is being disposed; ignore cancellation during teardown.
             }
+
+            return true;
         }
+
+        return false;
     }
 
     /// <inheritdoc />
     public void Dispose() => Interlocked.Exchange(ref _disposed, 1);
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+
+    private void UpdateError(Error expected, Error replacement)
+    {
+        if (expected is null || replacement is null || ReferenceEquals(expected, replacement))
+        {
+            return;
+        }
+
+        Interlocked.CompareExchange(ref _error, replacement, expected);
+    }
 }

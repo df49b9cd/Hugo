@@ -150,6 +150,7 @@ else
 
 Reusing the same `ErrGroup` instance outside of its `using` scope is unsupported. Once disposed, any `Go(...)` call throws `ObjectDisposedException`, while the exposed `Token` remains valid for listeners already awaiting cancellation.
 Manual calls to `Cancel()` set a structured cancellation error, so `WaitAsync` completes as a failure with `ErrorCodes.Canceled`.
+Policy-backed `Go(...)` overloads cancel peer operations before their compensation handlers finish executing, ensuring cleanup can run while remaining work stops promptly.
 
 ## Error metadata
 

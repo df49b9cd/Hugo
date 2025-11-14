@@ -1,3 +1,7 @@
+using System.Reflection;
+
+using Hugo.Policies;
+
 using Unit = Hugo.Go.Unit;
 
 namespace Hugo.Tests;
@@ -327,5 +331,90 @@ public class ErrGroupTests
                 policy: Hugo.Policies.ResultExecutionPolicy.None,
                 timeProvider: TimeProvider.System))
         };
+    }
+
+    [Fact]
+    public async Task Go_Pipeline_ShouldCancelPeersBeforeCompensationCompletes()
+    {
+        using var group = new ErrGroup();
+        var peerCanceled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var compensationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowCompensationToFinish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        group.Go((ctx, ct) =>
+        {
+            Task.Run(async () =>
+            {
+                compensationStarted.TrySetResult();
+                await allowCompensationToFinish.Task;
+            });
+
+            return ValueTask.FromResult(Result.Fail<Unit>(Error.From("pipeline failed", ErrorCodes.Exception)));
+        }, timeProvider: TimeProvider.System, policy: ResultExecutionPolicy.None);
+
+        group.Go(async ct =>
+        {
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                peerCanceled.TrySetResult(true);
+            }
+        });
+
+        await compensationStarted.Task;
+        var completed = await Task.WhenAny(peerCanceled.Task, Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+
+        Assert.Same(peerCanceled.Task, completed);
+        Assert.False(allowCompensationToFinish.Task.IsCompleted);
+
+        allowCompensationToFinish.TrySetResult();
+
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+    }
+
+    [Fact]
+    public void Go_Pipeline_ShouldAggregateCompensationFailures()
+    {
+        var group = new ErrGroup();
+        var failure = Error.From("pipeline failed", ErrorCodes.Exception);
+        var aggregated = Error.Aggregate("ErrGroup step failed with compensation error.", failure, Error.From("compensation failed", ErrorCodes.Exception));
+
+        var trySetError = typeof(ErrGroup).GetMethod("TrySetError", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(trySetError);
+        var setResult = (bool?)trySetError!.Invoke(group, new object?[] { failure });
+        Assert.True(setResult);
+
+        var updateError = typeof(ErrGroup).GetMethod("UpdateError", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(updateError);
+        updateError!.Invoke(group, new object?[] { failure, aggregated });
+
+        var errorField = typeof(ErrGroup).GetField("_error", BindingFlags.Instance | BindingFlags.NonPublic);
+        var recorded = (Error?)errorField?.GetValue(group);
+
+        Assert.Equal(aggregated, recorded);
+    }
+
+    [Fact]
+    public async Task Go_Pipeline_ShouldExecuteCompensationPolicyOncePerScope()
+    {
+        var scope = new CompensationScope();
+        scope.Register(static _ => ValueTask.CompletedTask);
+        var invocationCount = 0;
+        var policy = ResultExecutionPolicy.None.WithCompensation(new ResultCompensationPolicy(context =>
+        {
+            Interlocked.Increment(ref invocationCount);
+            return context.ExecuteAsync();
+        }));
+
+        var error = await Result.RunCompensationAsync(policy, scope, CancellationToken.None);
+
+        Assert.Null(error);
+        Assert.Equal(1, invocationCount);
     }
 }
