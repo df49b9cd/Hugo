@@ -42,6 +42,7 @@ Key members:
 - `ValueOr`, `ValueOr(Func<Error, T>)`, `ValueOrThrow()`, and `ToOptional()`.
 - Implicit conversions to/from `(T Value, Error? Error)` maintain backward compatibility.
 - `ResultException` is thrown by `ValueOrThrow()` and carries the originating `Error`.
+- `CastFailure<TOut>()` reuses the existing error when you need to re-type a failure without incrementing diagnostics or allocating a new `Result`.
 
 All factory methods ultimately increment success/failure counters through `GoDiagnostics`, so configure diagnostics before producing large volumes of results when you need metrics.
 

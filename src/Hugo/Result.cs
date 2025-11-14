@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
@@ -422,6 +423,8 @@ public readonly record struct Result<T>
         return new(default!, error ?? Error.Unspecified(), false);
     }
 
+    internal static Result<T> FromExistingFailure(Error error) => new(default!, error ?? Error.Unspecified(), false);
+
     /// <summary>
     /// Gets the value. When the result represents a failure this will be the default value of <typeparamref name="T"/>.
     /// Prefer using <see cref="ValueOr(T)"/> or <see cref="ValueOrThrow()"/> to handle failure cases explicitly.
@@ -442,6 +445,22 @@ public readonly record struct Result<T>
     /// Indicates whether the result represents failure.
     /// </summary>
     public bool IsFailure => !IsSuccess;
+
+    /// <summary>
+    /// Reuses the current error when converting the result into another failure type without recording diagnostics again.
+    /// </summary>
+    /// <typeparam name="TOut">The destination result type.</typeparam>
+    /// <returns>A failed result containing the same error.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the result represents success.</exception>
+    public Result<TOut> CastFailure<TOut>()
+    {
+        if (IsSuccess)
+        {
+            throw new InvalidOperationException("Cannot cast a successful result to a failure.");
+        }
+
+        return Result<TOut>.FromExistingFailure(Error ?? Error.Unspecified());
+    }
 
     /// <summary>Attempts to extract the successful value.</summary>
     /// <param name="value">When this method returns, contains the value if successful; otherwise the default.</param>

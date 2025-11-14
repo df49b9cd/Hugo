@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using System.Globalization;
 
 using static Hugo.Go;
@@ -62,6 +63,29 @@ public class FunctionalTests
 
         Assert.True(result.IsFailure);
         Assert.Same(error, result.Error);
+    }
+
+    [Fact]
+    public void Then_ShouldNotIncrementDiagnostics_OnFailurePropagation()
+    {
+        var error = Error.From("boom", ErrorCodes.Exception);
+        var (failures, propagated) = CaptureFailureDiagnostics(() => Err<int>(error).Then(static _ => Ok(42)));
+
+        Assert.True(propagated.IsFailure);
+        Assert.Same(error, propagated.Error);
+        Assert.Equal(1, failures);
+    }
+
+    [Fact]
+    public void SelectMany_ShouldReuseOriginalError()
+    {
+        var error = Error.From("boom", ErrorCodes.Exception);
+        var (failures, propagated) = CaptureFailureDiagnostics(() =>
+            Err<int>(error).SelectMany(static _ => Ok("ignored"), static (_, projection) => projection));
+
+        Assert.True(propagated.IsFailure);
+        Assert.Same(error, propagated.Error);
+        Assert.Equal(1, failures);
     }
 
     [Fact]
@@ -784,5 +808,41 @@ public class FunctionalTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+    }
+
+    private static (long FailureCount, Result<T> Result) CaptureFailureDiagnostics<T>(Func<Result<T>> pipeline)
+    {
+        GoDiagnostics.Reset();
+
+        using var listener = new MeterListener();
+        using var meter = new Meter(GoDiagnostics.MeterName);
+        long failures = 0;
+
+        listener.InstrumentPublished += (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == GoDiagnostics.MeterName && instrument.Name == "result.failures")
+            {
+                meterListener.EnableMeasurementEvents(instrument);
+            }
+        };
+
+        listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
+        {
+            if (instrument.Meter.Name == GoDiagnostics.MeterName && instrument.Name == "result.failures")
+            {
+                failures += measurement;
+            }
+        });
+
+        listener.Start();
+        GoDiagnostics.Configure(meter);
+
+        var result = pipeline();
+
+        listener.RecordObservableInstruments();
+        listener.Dispose();
+        GoDiagnostics.Reset();
+
+        return (failures, result);
     }
 }
