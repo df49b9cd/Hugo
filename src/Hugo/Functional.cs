@@ -18,7 +18,7 @@ public static class Functional
     /// <returns>A result produced by <paramref name="next"/> or the original failure.</returns>
     public static Result<TOut> Then<TIn, TOut>(this Result<TIn> result, Func<TIn, Result<TOut>> next) => next is null
             ? throw new ArgumentNullException(nameof(next))
-            : result.IsFailure ? Result.Fail<TOut>(result.Error!) : next(result.Value);
+            : result.IsFailure ? result.CastFailure<TOut>() : next(result.Value);
 
     /// <summary>
     /// Transforms the successful value of the result while preserving failures.
@@ -30,7 +30,7 @@ public static class Functional
     /// <returns>A result containing the mapped value or the original failure.</returns>
     public static Result<TOut> Map<TIn, TOut>(this Result<TIn> result, Func<TIn, TOut> mapper) => mapper is null
             ? throw new ArgumentNullException(nameof(mapper))
-            : result.IsFailure ? Result.Fail<TOut>(result.Error!) : Result.Ok(mapper(result.Value));
+            : result.IsFailure ? result.CastFailure<TOut>() : Result.Ok(mapper(result.Value));
 
     /// <summary>
     /// Executes a side-effect for successful results without altering the pipeline.
@@ -208,7 +208,7 @@ public static class Functional
 
         if (result.IsFailure)
         {
-            return Result.Fail<TOut>(result.Error!);
+            return result.CastFailure<TOut>();
         }
 
         var intermediate = binder(result.Value);
@@ -236,7 +236,7 @@ public static class Functional
 
         if (result.IsFailure)
         {
-            return Result.Fail<TOut>(result.Error!);
+            return result.CastFailure<TOut>();
         }
 
         try
@@ -273,7 +273,7 @@ public static class Functional
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
             {
-                return Result.Fail<TOut>(result.Error!);
+                return result.CastFailure<TOut>();
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -308,7 +308,7 @@ public static class Functional
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
             {
-                return Result.Fail<TOut>(result.Error!);
+                return result.CastFailure<TOut>();
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -337,7 +337,7 @@ public static class Functional
 
         if (result.IsFailure)
         {
-            return Result.Fail<TOut>(result.Error!);
+            return result.CastFailure<TOut>();
         }
 
         try
@@ -374,7 +374,7 @@ public static class Functional
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
             {
-                return Result.Fail<TOut>(result.Error!);
+                return result.CastFailure<TOut>();
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -407,7 +407,7 @@ public static class Functional
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
             {
-                return Result.Fail<TOut>(result.Error!);
+                return result.CastFailure<TOut>();
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -440,7 +440,7 @@ public static class Functional
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
             {
-                return Result.Fail<TOut>(result.Error!);
+                return result.CastFailure<TOut>();
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -473,7 +473,7 @@ public static class Functional
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
             {
-                return Result.Fail<TOut>(result.Error!);
+                return result.CastFailure<TOut>();
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -508,7 +508,7 @@ public static class Functional
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
             {
-                return Result.Fail<TOut>(result.Error!);
+                return result.CastFailure<TOut>();
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -543,7 +543,7 @@ public static class Functional
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
             {
-                return Result.Fail<TOut>(result.Error!);
+                return result.CastFailure<TOut>();
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -579,7 +579,7 @@ public static class Functional
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
             {
-                return Result.Fail<TOut>(result.Error!);
+                return result.CastFailure<TOut>();
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -609,7 +609,7 @@ public static class Functional
 
         if (result.IsFailure)
         {
-            return Result.Fail<TOut>(result.Error!);
+            return result.CastFailure<TOut>();
         }
 
         try
@@ -641,7 +641,7 @@ public static class Functional
 
         if (result.IsFailure)
         {
-            return Result.Fail<TOut>(result.Error!);
+            return result.CastFailure<TOut>();
         }
 
         try
@@ -677,7 +677,7 @@ public static class Functional
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
             {
-                return Result.Fail<TOut>(result.Error!);
+                return result.CastFailure<TOut>();
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -710,7 +710,7 @@ public static class Functional
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
             {
-                return Result.Fail<TOut>(result.Error!);
+                return result.CastFailure<TOut>();
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -744,7 +744,7 @@ public static class Functional
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsFailure)
             {
-                return Result.Fail<TOut>(result.Error!);
+                return result.CastFailure<TOut>();
             }
 
             cancellationToken.ThrowIfCancellationRequested();

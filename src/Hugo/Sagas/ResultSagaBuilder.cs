@@ -45,7 +45,7 @@ public sealed class ResultSagaBuilder
                 return Result.Ok<object?>(value);
             }
 
-            return Result.Fail<object?>(result.Error);
+            return result.CastFailure<object?>();
         }
 
         _steps.Add(new ResultSagaStep(name, Execute));

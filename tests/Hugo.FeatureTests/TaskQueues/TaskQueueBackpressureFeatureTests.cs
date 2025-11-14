@@ -8,6 +8,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests.TaskQueues;
 
+[Collection("TaskQueueConcurrency")]
 public class TaskQueueBackpressureFeatureTests
 {
     [Fact]
