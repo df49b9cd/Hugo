@@ -1,4 +1,4 @@
-using static Hugo.Go;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Hugo;
 
@@ -14,30 +14,25 @@ public static class GoWaitGroupExtensions
     /// <param name="wg">The WaitGroup to add the task to.</param>
     /// <param name="func">The async function to execute.</param>
     /// <example>wg.Go(async () => { ... });</example>
-    public static void Go(this WaitGroup wg, Func<Task> func)
+    public static void Go(this WaitGroup wg, Func<Task> func, TaskScheduler? scheduler = null, TaskCreationOptions creationOptions = TaskCreationOptions.DenyChildAttach)
     {
         ArgumentNullException.ThrowIfNull(wg);
         ArgumentNullException.ThrowIfNull(func);
 
-        wg.Add(Run(func));
+        wg.Go(func, cancellationToken: default, scheduler, creationOptions);
     }
 
     /// <summary>
     /// Runs a cancellation-aware function on a background thread and adds it to the WaitGroup.
     /// </summary>
-    public static void Go(this WaitGroup wg, Func<CancellationToken, Task> func, CancellationToken cancellationToken)
+    /// <param name="scheduler">Optional scheduler used for dispatch.</param>
+    /// <param name="creationOptions">Task creation flags applied to the scheduled work.</param>
+    [SuppressMessage("Design", "CA1068:CancellationTokenParametersShouldComeLast", Justification = "Scheduler and creation options must remain optional parameters for backward compatibility.")]
+    public static void Go(this WaitGroup wg, Func<CancellationToken, Task> func, CancellationToken cancellationToken, TaskScheduler? scheduler = null, TaskCreationOptions creationOptions = TaskCreationOptions.DenyChildAttach)
     {
         ArgumentNullException.ThrowIfNull(wg);
         ArgumentNullException.ThrowIfNull(func);
 
-        wg.Go(() => func(cancellationToken), cancellationToken);
-    }
-
-    private static void Go(this WaitGroup wg, Func<Task> func, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(wg);
-        ArgumentNullException.ThrowIfNull(func);
-
-        wg.Add(Run(_ => func(), cancellationToken));
+        wg.Go(() => func(cancellationToken), cancellationToken, scheduler, creationOptions);
     }
 }

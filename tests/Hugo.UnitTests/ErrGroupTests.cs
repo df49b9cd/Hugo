@@ -168,7 +168,7 @@ public class ErrGroupTests
     }
 
     [Fact]
-    public async Task Cancel_ShouldSignalRunningWork()
+    public async Task Cancel_ShouldCancelRunningWork()
     {
         using var group = new ErrGroup();
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -181,6 +181,8 @@ public class ErrGroupTests
 
         await started.Task;
         group.Cancel();
+        Assert.NotNull(group.Error);
+        Assert.Equal(ErrorCodes.Canceled, group.Error?.Code);
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -214,11 +216,13 @@ public class ErrGroupTests
     }
 
     [Fact]
-    public async Task Cancel_ShouldReturnCanceledResult_WhenNoWorkStarted()
+    public async Task Cancel_ShouldSurfaceCanceledResult_WhenNoWorkStarted()
     {
         using var group = new ErrGroup();
 
         group.Cancel();
+        Assert.NotNull(group.Error);
+        Assert.Equal(ErrorCodes.Canceled, group.Error?.Code);
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -243,12 +247,15 @@ public class ErrGroupTests
         await failureRecorded.Task;
         SpinWait.SpinUntil(() => group.Error is not null, TimeSpan.FromSeconds(1));
         group.Cancel();
+        Assert.Equal(ErrorCodes.Exception, group.Error?.Code);
+        Assert.Equal("boom", group.Error?.Message);
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
         Assert.Equal("boom", result.Error?.Message);
+        Assert.Same(group.Error, result.Error);
     }
 
     [Theory]
@@ -334,7 +341,7 @@ public class ErrGroupTests
     }
 
     [Fact]
-    public async Task Go_Pipeline_ShouldCancelPeersBeforeCompensationCompletes()
+    public async Task PipelineFailure_ShouldCancelPeersBeforeCompensation()
     {
         using var group = new ErrGroup();
         var peerCanceled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);

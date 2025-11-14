@@ -85,7 +85,7 @@ Writers are completed automatically (with the originating error when appropriate
 
 ## Parallel orchestration and retries
 
-- `Result.WhenAll` executes result-aware operations concurrently, applying the supplied `ResultExecutionPolicy` (retries + compensation) to each step. When cancellation interrupts execution, previously completed operations have their compensation scopes replayed before the aggregated result returns `Error.Canceled`, so side effects are rolled back deterministically.
+- `Result.WhenAll` executes result-aware operations concurrently, applying the supplied `ResultExecutionPolicy` (retries + compensation) to each step. When cancellation interrupts execution—even if `Task.WhenAll` short-circuits with `OperationCanceledException`—previously completed operations have their compensation scopes replayed before the aggregated result returns `Error.Canceled`, so side effects are rolled back deterministically.
 - `Result.WhenAny` resolves once the first success arrives, compensating secondary successes and aggregating errors when every branch fails.
 - `Result.RetryWithPolicyAsync` runs a delegate under a retry/compensation policy, surfacing structured failure metadata when attempts are exhausted.
 - `Result.TieredFallbackAsync` evaluates `ResultFallbackTier<T>` instances sequentially; strategies within a tier run concurrently and cancel once a peer succeeds. Metadata keys (`fallbackTier`, `tierIndex`, `strategyIndex`) are attached to failures for observability.
@@ -149,8 +149,8 @@ else
 ```
 
 Reusing the same `ErrGroup` instance outside of its `using` scope is unsupported. Once disposed, any `Go(...)` call throws `ObjectDisposedException`, while the exposed `Token` remains valid for listeners already awaiting cancellation.
-Manual calls to `Cancel()` set a structured cancellation error, so `WaitAsync` completes as a failure with `ErrorCodes.Canceled`.
-Policy-backed `Go(...)` overloads cancel peer operations before their compensation handlers finish executing, ensuring cleanup can run while remaining work stops promptly.
+Manual calls to `Cancel()` record `Error.Canceled` before the linked `CancellationTokenSource` is signaled, so `WaitAsync` deterministically returns `Result.Fail<Unit>` and `ErrGroup.Error` surfaces the same payload.
+Policy-backed `Go(...)` overloads now cancel peer operations as soon as a failure is captured—before compensation handlers execute—so slow cleanup work cannot mask cancellation from the remaining steps.
 
 ## Error metadata
 

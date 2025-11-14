@@ -389,10 +389,7 @@ public partial class GoTests
         Result<IReadOnlyList<int>> result = await task;
 
         Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Aggregate, result.Error?.Code);
-        Assert.True(result.Error!.TryGetMetadata("errors", out Error[]? errors));
-        Assert.NotNull(errors);
-        Assert.All(errors!, error => Assert.Equal(ErrorCodes.Canceled, error.Code));
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
     [Fact]

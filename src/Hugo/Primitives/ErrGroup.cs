@@ -9,6 +9,7 @@ using Unit = Hugo.Go.Unit;
 /// </summary>
 /// <remarks>
 /// Reusing an <see cref="ErrGroup"/> after <see cref="Dispose"/> is unsupported and results in an <see cref="ObjectDisposedException"/> from any <c>Go(...)</c> overload.
+/// Manual invocations of <see cref="Cancel"/> record an <see cref="Error.Canceled(string?, CancellationToken)"/> outcome so <see cref="WaitAsync(CancellationToken)"/> deterministically fails with <see cref="Result{Unit}"/>.
 /// </remarks>
 /// <param name="cancellationToken">An optional cancellation token that cancels the group when signaled.</param>
 public sealed class ErrGroup(CancellationToken cancellationToken = default) : IDisposable
@@ -190,18 +191,24 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         try
         {
             var result = await work(Token).ConfigureAwait(false);
-            if (result.IsFailure)
+            if (result.IsFailure && TrySetError(result.Error ?? Error.Unspecified()))
             {
-                TrySetError(result.Error ?? Error.Unspecified());
+                SignalCancellation();
             }
         }
         catch (OperationCanceledException oce)
         {
-            TrySetError(Error.Canceled(token: oce.CancellationToken.CanBeCanceled ? oce.CancellationToken : null));
+            if (TrySetError(Error.Canceled(token: oce.CancellationToken.CanBeCanceled ? oce.CancellationToken : null)))
+            {
+                SignalCancellation();
+            }
         }
         catch (Exception ex)
         {
-            TrySetError(Error.FromException(ex));
+            if (TrySetError(Error.FromException(ex)))
+            {
+                SignalCancellation();
+            }
         }
     }
 
@@ -223,6 +230,10 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
             var compensationScope = result.Compensation;
             var failure = result.Result.Error ?? Error.Unspecified();
             var ownsError = TrySetError(failure);
+            if (ownsError)
+            {
+                SignalCancellation();
+            }
             var compensationError = await Result.RunCompensationAsync(policy, compensationScope, _linkedToken).ConfigureAwait(false);
             compensationScope.Clear();
             if (compensationError is not null)
@@ -240,11 +251,17 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         }
         catch (OperationCanceledException oce)
         {
-            TrySetError(Error.Canceled(token: oce.CancellationToken.CanBeCanceled ? oce.CancellationToken : Token));
+            if (TrySetError(Error.Canceled(token: oce.CancellationToken.CanBeCanceled ? oce.CancellationToken : Token)))
+            {
+                SignalCancellation();
+            }
         }
         catch (Exception ex)
         {
-            TrySetError(Error.FromException(ex));
+            if (TrySetError(Error.FromException(ex)))
+            {
+                SignalCancellation();
+            }
         }
     }
 
@@ -255,21 +272,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
             return false;
         }
 
-        if (Interlocked.CompareExchange(ref _error, error, null) is null)
-        {
-            try
-            {
-                _cts.Cancel();
-            }
-            catch (ObjectDisposedException)
-            {
-                // The group is being disposed; ignore cancellation during teardown.
-            }
-
-            return true;
-        }
-
-        return false;
+        return Interlocked.CompareExchange(ref _error, error, null) is null;
     }
 
     /// <inheritdoc />
@@ -285,5 +288,17 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         }
 
         Interlocked.CompareExchange(ref _error, replacement, expected);
+    }
+
+    private void SignalCancellation()
+    {
+        try
+        {
+            _cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The group is being disposed; ignore cancellation during teardown.
+        }
     }
 }

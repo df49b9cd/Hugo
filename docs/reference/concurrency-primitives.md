@@ -23,11 +23,12 @@ Tracks asynchronous operations and delays shutdown until every task completes.
 ### Key members
 
 - `WaitGroup.Add(int delta)` / `Add(Task task)`
-- `WaitGroup.Go(Func<Task> work, CancellationToken cancellationToken = default)` (runs the delegate via `Task.Run`)
+- `WaitGroup.Go(Func<Task> work, CancellationToken cancellationToken = default, TaskScheduler? scheduler = null, TaskCreationOptions creationOptions = TaskCreationOptions.DenyChildAttach)`
+- `WaitGroup.Go(Task task)` / `WaitGroup.Go(ValueTask task)`
 - `WaitGroup.Done()`
 - `WaitGroup.WaitAsync(CancellationToken cancellationToken = default)`
 - `WaitGroup.WaitAsync(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default)` (returns `bool`)
-- `GoWaitGroupExtensions.Go(Func<CancellationToken, Task> work, CancellationToken cancellationToken)` when you prefer to pass an explicit token
+- `GoWaitGroupExtensions.Go(Func<CancellationToken, Task> work, CancellationToken cancellationToken, TaskScheduler? scheduler = null, TaskCreationOptions creationOptions = TaskCreationOptions.DenyChildAttach)` when you prefer to pass an explicit token along with scheduling hints
 
 ### WaitGroup usage
 
@@ -50,6 +51,7 @@ var completed = await wg.WaitAsync(
 - `WaitAsync(TimeSpan, ...)` returns `false` when a timeout elapses; the parameterless overload completes when the counter reaches zero.
 - Cancellation surfaces as `Error.Canceled` in result pipelines and `OperationCanceledException` otherwise.
 - Diagnostics: `waitgroup.additions`, `waitgroup.completions`, `waitgroup.outstanding`.
+- Prefer the scheduler-aware `Go` overloads when you need `TaskCreationOptions.LongRunning` or a custom `TaskScheduler`, and use `Go(Task)` / `Go(ValueTask)` (or `Go.Run(ValueTask)` + `WaitGroup.Add`) when you already have a running operation that should be tracked without an extra `Task.Run`.
 
 ## Mutex
 
