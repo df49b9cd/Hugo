@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
+using Hugo.TaskQueues;
+
 namespace Hugo;
 
 /// <summary>
@@ -351,6 +353,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     private readonly CancellationTokenSource _monitorCts = new();
     private readonly Task _monitorTask;
     private readonly string? _queueName;
+    private TaskQueueLifecycleDispatcher<T>? _lifecycleDispatcher;
     private TaskQueueBackpressureOptions? _backpressureOptions;
     private long _pendingCount;
     private long _sequenceCounter;
@@ -397,6 +400,17 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     public string QueueName => _queueName ?? typeof(T).Name;
 
     /// <summary>
+    /// Registers a lifecycle listener that observes queue mutations.
+    /// </summary>
+    /// <param name="listener">Listener to register.</param>
+    /// <returns>An <see cref="IDisposable"/> used to unregister the listener.</returns>
+    public IDisposable RegisterLifecycleListener(ITaskQueueLifecycleListener<T> listener)
+    {
+        ArgumentNullException.ThrowIfNull(listener);
+        return EnsureLifecycleDispatcher().Register(listener);
+    }
+
+    /// <summary>
     /// Updates the queue-level backpressure configuration at runtime.
     /// </summary>
     /// <param name="options">The backpressure options to apply, or <see langword="null"/> to disable notifications.</param>
@@ -433,6 +447,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             GoDiagnostics.RecordTaskQueueQueued(depth);
             ObserveBackpressure(depth);
             GoDiagnostics.CompleteTaskQueueActivity(activity);
+            PublishLifecycleEvent(TaskQueueLifecycleEventKind.Enqueued, envelope, occurrence: enqueuedAt);
         }
         catch (Exception ex)
         {
@@ -485,6 +500,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
         GoDiagnostics.RecordTaskQueueLeased(envelope.Attempt, PendingCount, _leases.Count);
         GoDiagnostics.CompleteTaskQueueActivity(activity);
+        PublishLifecycleEvent(TaskQueueLifecycleEventKind.LeaseGranted, state.Envelope, state.OwnershipToken, leaseExpiration: expiration, occurrence: now);
         return new TaskQueueLease<T>(this, leaseId, envelope.SequenceId, envelope.Value, envelope.Attempt, envelope.EnqueuedAt, envelope.LastError);
     }
 
@@ -507,6 +523,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             state.OwnershipToken);
         GoDiagnostics.RecordTaskQueueCompleted(state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
         GoDiagnostics.CompleteTaskQueueActivity(activity);
+        PublishLifecycleEvent(TaskQueueLifecycleEventKind.Completed, state.Envelope, state.OwnershipToken, occurrence: now);
         return ValueTask.CompletedTask;
     }
 
@@ -544,6 +561,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
         GoDiagnostics.RecordTaskQueueHeartbeat(state.Envelope.Attempt, newExpiration - now, _leases.Count);
         GoDiagnostics.CompleteTaskQueueActivity(activity);
+        PublishLifecycleEvent(TaskQueueLifecycleEventKind.Heartbeat, state.Envelope, state.OwnershipToken, leaseExpiration: newExpiration, occurrence: now);
         return ValueTask.CompletedTask;
     }
 
@@ -561,6 +579,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         DateTimeOffset now = _timeProvider.GetUtcNow();
         GoDiagnostics.RecordTaskQueueFailed(state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
         QueueEnvelope envelopeWithToken = state.Envelope with { LastOwnershipToken = state.OwnershipToken };
+        PublishLifecycleEvent(TaskQueueLifecycleEventKind.Failed, envelopeWithToken, state.OwnershipToken, error);
 
         using Activity? activity = GoDiagnostics.StartTaskQueueActivity(
             requeue ? "fail.requeue" : "fail.deadletter",
@@ -633,11 +652,17 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
             GoDiagnostics.RecordTaskQueueExpired(state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
             QueueEnvelope expiredEnvelope = state.Envelope with { LastOwnershipToken = state.OwnershipToken };
-            await RequeueAsync(expiredEnvelope, expiredError, state.OwnershipToken, cancellationToken).ConfigureAwait(false);
+            PublishLifecycleEvent(TaskQueueLifecycleEventKind.Expired, expiredEnvelope, state.OwnershipToken, expiredError, occurrence: now, flags: TaskQueueLifecycleEventMetadata.FromExpiration);
+            await RequeueAsync(expiredEnvelope, expiredError, state.OwnershipToken, cancellationToken, TaskQueueLifecycleEventMetadata.FromExpiration).ConfigureAwait(false);
         }
     }
 
-    private async ValueTask RequeueAsync(QueueEnvelope envelope, Error error, TaskQueueOwnershipToken? ownershipToken, CancellationToken cancellationToken)
+    private async ValueTask RequeueAsync(
+        QueueEnvelope envelope,
+        Error error,
+        TaskQueueOwnershipToken? ownershipToken,
+        CancellationToken cancellationToken,
+        TaskQueueLifecycleEventMetadata flags = TaskQueueLifecycleEventMetadata.None)
     {
         int nextAttempt = envelope.Attempt + 1;
         if (nextAttempt > _options.MaxDeliveryAttempts)
@@ -676,6 +701,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
             GoDiagnostics.RecordTaskQueueRequeued(nextAttempt, depth, _leases.Count);
             ObserveBackpressure(depth);
+            PublishLifecycleEvent(TaskQueueLifecycleEventKind.Requeued, requeued, recordedToken, error, flags: flags);
         }
         catch (ChannelClosedException)
         {
@@ -695,11 +721,26 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
         if (_deadLetter is null)
         {
+            PublishLifecycleEvent(TaskQueueLifecycleEventKind.DeadLettered, envelope, envelope.LastOwnershipToken, error, flags: TaskQueueLifecycleEventMetadata.DeadLetter);
             return;
         }
 
         TaskQueueDeadLetterContext<T> context = new(envelope.Value, error, envelope.Attempt, envelope.EnqueuedAt, envelope.SequenceId, envelope.LastOwnershipToken);
         await _deadLetter(context, CancellationToken.None).ConfigureAwait(false);
+        PublishLifecycleEvent(TaskQueueLifecycleEventKind.DeadLettered, envelope, envelope.LastOwnershipToken, error, flags: TaskQueueLifecycleEventMetadata.DeadLetter);
+    }
+
+    private TaskQueueLifecycleDispatcher<T> EnsureLifecycleDispatcher()
+    {
+        TaskQueueLifecycleDispatcher<T>? dispatcher = Volatile.Read(ref _lifecycleDispatcher);
+        if (dispatcher is not null)
+        {
+            return dispatcher;
+        }
+
+        TaskQueueLifecycleDispatcher<T> created = new();
+        TaskQueueLifecycleDispatcher<T>? existing = Interlocked.CompareExchange(ref _lifecycleDispatcher, created, null);
+        return existing ?? created;
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(IsDisposed, nameof(TaskQueue<T>));
@@ -732,6 +773,11 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         for (int i = 0; i < drained.Count; i++)
         {
             snapshot[i] = ToPendingItem(drained[i]);
+        }
+
+        foreach (QueueEnvelope envelope in drained)
+        {
+            PublishLifecycleEvent(TaskQueueLifecycleEventKind.Drained, envelope, envelope.LastOwnershipToken, envelope.LastError, flags: TaskQueueLifecycleEventMetadata.FromDrain);
         }
 
         return snapshot;
@@ -907,6 +953,39 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         }
     }
 
+    private void PublishLifecycleEvent(
+        TaskQueueLifecycleEventKind kind,
+        QueueEnvelope envelope,
+        TaskQueueOwnershipToken? ownershipToken = null,
+        Error? error = null,
+        DateTimeOffset? occurrence = null,
+        DateTimeOffset? leaseExpiration = null,
+        TaskQueueLifecycleEventMetadata flags = TaskQueueLifecycleEventMetadata.None)
+    {
+        TaskQueueLifecycleDispatcher<T>? dispatcher = Volatile.Read(ref _lifecycleDispatcher);
+        if (dispatcher is null)
+        {
+            return;
+        }
+
+        DateTimeOffset timestamp = occurrence ?? _timeProvider.GetUtcNow();
+        TaskQueueLifecycleEvent<T> lifecycleEvent = new(
+            dispatcher.NextEventId(),
+            kind,
+            QueueName,
+            envelope.SequenceId,
+            envelope.Attempt,
+            timestamp,
+            envelope.EnqueuedAt,
+            envelope.Value,
+            error,
+            ownershipToken ?? envelope.LastOwnershipToken,
+            leaseExpiration,
+            flags);
+
+        dispatcher.Publish(lifecycleEvent);
+    }
+
     private sealed record QueueEnvelope(
         T Value,
         long SequenceId,
@@ -994,6 +1073,63 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
                 _status = 3;
                 return true;
+            }
+        }
+    }
+
+    private sealed class TaskQueueLifecycleDispatcher<TPayload>
+    {
+        private readonly ConcurrentDictionary<long, ITaskQueueLifecycleListener<TPayload>> _listeners = new();
+        private long _listenerId;
+        private long _eventId;
+
+        internal IDisposable Register(ITaskQueueLifecycleListener<TPayload> listener)
+        {
+            long id = Interlocked.Increment(ref _listenerId);
+            _listeners[id] = listener;
+            return new Subscription(this, id);
+        }
+
+        internal long NextEventId() => Interlocked.Increment(ref _eventId);
+
+        internal void Publish(in TaskQueueLifecycleEvent<TPayload> lifecycleEvent)
+        {
+            foreach (ITaskQueueLifecycleListener<TPayload> listener in _listeners.Values)
+            {
+                try
+                {
+                    listener.OnEvent(lifecycleEvent);
+                }
+                catch
+                {
+                    // Listener failures should not disrupt queue operations.
+                }
+            }
+        }
+
+        private void Unregister(long id) => _listeners.TryRemove(id, out _);
+
+        private sealed class Subscription : IDisposable
+        {
+            private TaskQueueLifecycleDispatcher<TPayload>? _dispatcher;
+            private long _id;
+
+            internal Subscription(TaskQueueLifecycleDispatcher<TPayload> dispatcher, long id)
+            {
+                _dispatcher = dispatcher;
+                _id = id;
+            }
+
+            public void Dispose()
+            {
+                TaskQueueLifecycleDispatcher<TPayload>? dispatcher = Interlocked.Exchange(ref _dispatcher, null);
+                if (dispatcher is null)
+                {
+                    return;
+                }
+
+                dispatcher.Unregister(_id);
+                _id = 0;
             }
         }
     }

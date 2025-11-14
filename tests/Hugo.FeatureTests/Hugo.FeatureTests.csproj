@@ -34,7 +34,8 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\src\Hugo\Hugo.csproj" />
-        <ProjectReference Include="..\..\benchmarks\Hugo.Profiling\Hugo.Profiling.csproj" />
+      <ProjectReference Include="..\..\src\Hugo.TaskQueues.Replication\Hugo.TaskQueues.Replication.csproj" />
+      <ProjectReference Include="..\..\benchmarks\Hugo.Profiling\Hugo.Profiling.csproj" />
     </ItemGroup>
 
 </Project>

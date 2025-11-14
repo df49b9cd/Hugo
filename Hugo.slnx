@@ -47,6 +47,7 @@
     <Project Path="src/Hugo.Deterministic.Redis/Hugo.Deterministic.Redis.csproj" />
     <Project Path="src/Hugo.Deterministic.SqlServer/Hugo.Deterministic.SqlServer.csproj" />
     <Project Path="src/Hugo.Diagnostics.OpenTelemetry/Hugo.Diagnostics.OpenTelemetry.csproj" />
+    <Project Path="src/Hugo.TaskQueues.Replication/Hugo.TaskQueues.Replication.csproj" />
     <Project Path="benchmarks/Hugo.Profiling/Hugo.Profiling.csproj" />
     <Project Path="src/Hugo/Hugo.csproj" />
   </Folder>
