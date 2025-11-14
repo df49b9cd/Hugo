@@ -311,94 +311,67 @@ public sealed class PrioritizedChannel<T>
 
         private async ValueTask<bool> WaitToReadSlowAsync(CancellationToken cancellationToken)
         {
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            Channel<Result<LaneSignal>> signalChannel = Channel.CreateBounded<Result<LaneSignal>>(_readers.Length);
-            WaitGroup waitGroup = new();
+            cancellationToken.ThrowIfCancellationRequested();
 
-            for (var priority = 0; priority < _readers.Length; priority++)
+            ChannelCase[] laneCases = CreateLaneCases();
+            if (laneCases.Length == 0)
             {
-                var lane = priority;
-                waitGroup.Go(() => ObserveLaneAsync(lane, linkedCts.Token, signalChannel.Writer));
+                return false;
             }
 
-            bool[] completionStates = new bool[_readers.Length];
-            int completed = 0;
-
-            try
+            Result<Go.Unit> selectResult = await Go.SelectAsync(provider: null, cancellationToken, laneCases).ConfigureAwait(false);
+            if (selectResult.IsSuccess)
             {
-                while (completed < _readers.Length)
-                {
-                    Result<LaneSignal> signalResult = await signalChannel.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-
-                    LaneSignal signal = signalResult
-                        .OnFailure(error =>
-                        {
-                            linkedCts.Cancel();
-                            throw error.Cause ?? new InvalidOperationException(error.Message);
-                        })
-                        .Value;
-
-                    if (signal.HasItems)
-                    {
-                        linkedCts.Cancel();
-                        return TryStageFromPriority(signal.Priority) || HasBufferedItems;
-                    }
-
-                    if (!completionStates[signal.Priority])
-                    {
-                        completionStates[signal.Priority] = true;
-                        completed++;
-                    }
-
-                    if (completed == _readers.Length)
-                    {
-                        linkedCts.Cancel();
-                        return HasBufferedItems;
-                    }
-                }
-
                 return HasBufferedItems;
             }
-            finally
+
+            Error error = selectResult.Error ?? Error.Unspecified();
+            if (string.Equals(error.Code, ErrorCodes.SelectDrained, StringComparison.Ordinal))
             {
-                try
-                {
-                    await waitGroup.WaitAsync().ConfigureAwait(false);
-                }
-                finally
-                {
-                    signalChannel.Writer.TryComplete();
-                }
+                return HasBufferedItems;
             }
+
+            if (string.Equals(error.Code, ErrorCodes.Canceled, StringComparison.Ordinal))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                throw error.Cause ?? new OperationCanceledException(error.Message, cancellationToken);
+            }
+
+            throw error.Cause ?? new InvalidOperationException(error.Message);
         }
 
-
-        private async Task ObserveLaneAsync(int priority, CancellationToken cancellationToken, ChannelWriter<Result<LaneSignal>> writer)
+        private ChannelCase[] CreateLaneCases()
         {
-            var result = await Result.TryAsync(
-                async ct =>
-                {
-                    var hasItems = await _readers[priority].WaitToReadAsync(ct).ConfigureAwait(false);
-                    return new LaneSignal(priority, hasItems);
-                },
-                cancellationToken: cancellationToken).ConfigureAwait(false);
-
-            if (result.IsFailure && string.Equals(result.Error?.Code, ErrorCodes.Canceled, StringComparison.Ordinal))
+            ChannelCase[] cases = new ChannelCase[_readers.Length];
+            for (var priority = 0; priority < _readers.Length; priority++)
             {
-                return;
+                cases[priority] = CreateLaneCase(priority);
             }
 
-            try
-            {
-                await writer.WriteAsync(result, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (ChannelClosedException)
-            {
-                // Reader already completed; ignore.
-            }
+            return cases;
         }
 
-        private readonly record struct LaneSignal(int Priority, bool HasItems);
+        private ChannelCase CreateLaneCase(int priority) =>
+            ChannelCase
+                .Create(_readers[priority], (value, ct) => StageLaneValueAsync(priority, value, ct))
+                .WithPriority(priority);
+
+        private Task<Result<Go.Unit>> StageLaneValueAsync(int priority, T value, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            BufferItem(priority, value);
+            TryStageFromPriority(priority);
+
+            return Task.FromResult(Result.Ok(Go.Unit.Value));
+        }
+
+        private void BufferItem(int priority, T item)
+        {
+            _buffers[priority].Enqueue(item);
+            Interlocked.Increment(ref _bufferedPerPriority[priority]);
+            Interlocked.Increment(ref _bufferedTotal);
+        }
 
         private bool HasBufferedItems => Volatile.Read(ref _bufferedTotal) > 0;
 
@@ -435,9 +408,7 @@ public sealed class PrioritizedChannel<T>
             var buffered = Volatile.Read(ref _bufferedPerPriority[priority]);
             while (buffered < _prefetchPerPriority && _readers[priority].TryRead(out var item))
             {
-                _buffers[priority].Enqueue(item);
-                Interlocked.Increment(ref _bufferedPerPriority[priority]);
-                Interlocked.Increment(ref _bufferedTotal);
+                BufferItem(priority, item);
                 buffered++;
                 staged = true;
             }
