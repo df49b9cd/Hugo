@@ -62,6 +62,8 @@
 | `taskqueue.lease.duration` | `Histogram<double>` | ms | Lease durations from grant to completion. |
 | `taskqueue.heartbeat.extension` | `Histogram<double>` | ms | Durations granted by heartbeat renewals. |
 
+All TaskQueue instruments emit a `taskqueue.name` tag. When the `Hugo.TaskQueues.Diagnostics` package is configured, additional tags such as `service.name`, `taskqueue.shard`, and any custom enrichers from `TaskQueueMetricsOptions` are applied to every measurement.
+
 ### Workflow execution
 
 | Name | Type | Unit | Description |
@@ -85,6 +87,26 @@ Each workflow measurement includes metric tags for `workflow.namespace`, `workfl
 - Use `GoDiagnostics.Configure(Meter meter)` when DI already exposes a pre-built `Meter`.
 - Create a schema-aware activity source with `GoDiagnostics.CreateActivitySource(string? name = GoDiagnostics.ActivitySourceName)` and optionally throttle spans via `GoDiagnostics.UseRateLimitedSampling(...)` when your workload emits high volumes of internal activities.
 - Invoke `GoDiagnostics.Reset()` (typically in unit tests) to dispose existing meters before registering new ones.
+
+## TaskQueue diagnostics package
+
+`Hugo.TaskQueues.Diagnostics` builds on the primitives above to make TaskQueue instrumentation turnkey:
+
+- `TaskQueueMetricsOptions` toggles `TaskQueueMetricGroups` and configures tag enrichers (`service.name`, shards, tenant tags, etc.).
+- `TaskQueueActivityOptions` mirrors the .NET 10 sampling guidance so TaskQueue spans honor rate limits by default.
+- `IMeterFactory.AddTaskQueueDiagnostics(...)` wires both options in a single call and returns a `TaskQueueDiagnosticsRegistration` (or use the `IServiceProvider` extension).
+
+```csharp
+await using var registration = meterFactory.AddTaskQueueDiagnostics(options =>
+{
+    options.MeterName = "OmniRelay.Dispatcher";
+    options.Metrics.ServiceName = "omnirelay-control-plane";
+    options.Metrics.DefaultShard = Environment.GetEnvironmentVariable("REGION");
+    options.Metrics.EnabledGroups = TaskQueueMetricGroups.QueueDepth | TaskQueueMetricGroups.Backpressure;
+});
+```
+
+For control-plane endpoints, instantiate `TaskQueueDiagnosticsHost`, attach your `TaskQueueBackpressureMonitor<T>` and `TaskQueueReplicationSource<T>` instances via `Attach(...)`, then stream `TaskQueueDiagnosticsEvent` values over HTTP/gRPC. The sample at `samples/Hugo.TaskQueueDiagnosticsHostSample/Program.cs` exposes a `/diagnostics/taskqueue` SSE endpoint that CLI tooling (for example `omnirelay control watch backpressure`) can subscribe to with zero custom plumbing.
 
 ## Usage guidelines
 

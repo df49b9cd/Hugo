@@ -4,6 +4,7 @@ using System.Diagnostics.Metrics;
 using System.Reflection;
 
 using Hugo.TaskQueues.Backpressure;
+using Hugo.TaskQueues.Diagnostics;
 
 namespace Hugo;
 
@@ -22,6 +23,8 @@ public static class GoDiagnostics
 
     private static Meter? _meter;
     private static ActivitySource? _activitySource;
+    private static TaskQueueTagEnricher? _taskQueueTagEnrichers;
+    private static int _taskQueueMetricGroups = (int)TaskQueueMetricGroups.All;
     private static Counter<long>? _waitGroupAdditions;
     private static Counter<long>? _waitGroupCompletions;
     private static Counter<long>? _resultSuccesses;
@@ -78,16 +81,27 @@ public static class GoDiagnostics
     public static string InstrumentationVersion => DefaultInstrumentationVersion;
 
     /// <summary>
+    /// Creates a meter using the supplied factory and Hugo defaults.
+    /// </summary>
+    /// <param name="factory">Factory used to create meters.</param>
+    /// <param name="meterName">Optional meter name override.</param>
+    /// <returns>The created meter instance.</returns>
+    public static Meter CreateMeter(IMeterFactory factory, string? meterName = null)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+
+        var options = CreateMeterOptions(meterName, TelemetrySchemaUrl);
+        return factory.Create(options);
+    }
+
+    /// <summary>
     /// Configures instrumentation using the supplied <see cref="IMeterFactory"/>.
     /// </summary>
     /// <param name="factory">The factory used to create meters.</param>
     /// <param name="meterName">An optional meter name override.</param>
     public static void Configure(IMeterFactory factory, string? meterName = null)
     {
-        ArgumentNullException.ThrowIfNull(factory);
-
-        var options = CreateMeterOptions(meterName, TelemetrySchemaUrl);
-        Configure(factory.Create(options));
+        Configure(CreateMeter(factory, meterName));
     }
 
     /// <summary>
@@ -212,6 +226,81 @@ public static class GoDiagnostics
 
         Configure(meter);
         Configure(activitySource);
+    }
+
+    /// <summary>
+    /// Registers a tag enricher invoked for every TaskQueue measurement.
+    /// </summary>
+    /// <param name="enricher">Enricher delegate.</param>
+    /// <returns>A disposable used to unregister the enricher.</returns>
+    public static IDisposable RegisterTaskQueueTagEnricher(TaskQueueTagEnricher enricher)
+    {
+        ArgumentNullException.ThrowIfNull(enricher);
+
+        lock (Sync)
+        {
+            _taskQueueTagEnrichers = (TaskQueueTagEnricher?)Delegate.Combine(_taskQueueTagEnrichers, enricher);
+        }
+
+        return new TaskQueueTagEnricherSubscription(enricher);
+    }
+
+    /// <summary>
+    /// Configures which TaskQueue metric groups emit measurements.
+    /// </summary>
+    /// <param name="groups">Enabled metric groups.</param>
+    /// <returns>A disposable handle that reverts to the previous configuration.</returns>
+    public static IDisposable ConfigureTaskQueueMetrics(TaskQueueMetricGroups groups)
+    {
+        var previous = (TaskQueueMetricGroups)Volatile.Read(ref _taskQueueMetricGroups);
+        Volatile.Write(ref _taskQueueMetricGroups, (int)groups);
+        return new TaskQueueMetricGroupSubscription(previous, groups);
+    }
+
+    private sealed class TaskQueueTagEnricherSubscription(TaskQueueTagEnricher enricher) : IDisposable
+    {
+        private TaskQueueTagEnricher? _enricher = enricher;
+
+        public void Dispose()
+        {
+            TaskQueueTagEnricher? enricher = Interlocked.Exchange(ref _enricher, null);
+            if (enricher is null)
+            {
+                return;
+            }
+
+            lock (Sync)
+            {
+                _taskQueueTagEnrichers = (TaskQueueTagEnricher?)Delegate.Remove(_taskQueueTagEnrichers, enricher);
+            }
+        }
+    }
+
+    private sealed class TaskQueueMetricGroupSubscription : IDisposable
+    {
+        private readonly TaskQueueMetricGroups _previous;
+        private readonly TaskQueueMetricGroups _applied;
+        private int _disposed;
+
+        internal TaskQueueMetricGroupSubscription(TaskQueueMetricGroups previous, TaskQueueMetricGroups applied)
+        {
+            _previous = previous;
+            _applied = applied;
+        }
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            {
+                return;
+            }
+
+            var current = (TaskQueueMetricGroups)Volatile.Read(ref _taskQueueMetricGroups);
+            if (current == _applied)
+            {
+                Volatile.Write(ref _taskQueueMetricGroups, (int)_previous);
+            }
+        }
     }
 
     private static MeterOptions CreateMeterOptions(string? meterName, string schemaUrl)
@@ -425,6 +514,8 @@ public static class GoDiagnostics
             _meter?.Dispose();
             _meter = null;
             _activitySource = null;
+            _taskQueueTagEnrichers = null;
+            Volatile.Write(ref _taskQueueMetricGroups, (int)TaskQueueMetricGroups.All);
             _waitGroupAdditions = null;
             _waitGroupCompletions = null;
             _resultSuccesses = null;
@@ -605,12 +696,25 @@ public static class GoDiagnostics
         activity.Stop();
     }
 
+    private static bool IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups group)
+    {
+        var enabled = (TaskQueueMetricGroups)Volatile.Read(ref _taskQueueMetricGroups);
+        return (enabled & group) != 0;
+    }
+
     private static TagList CreateTaskQueueTags(string? queueName)
     {
         var tags = new TagList();
         if (!string.IsNullOrWhiteSpace(queueName))
         {
             tags.Add("taskqueue.name", queueName);
+        }
+
+        TaskQueueTagEnricher? enricher = _taskQueueTagEnrichers;
+        if (enricher is not null)
+        {
+            var context = new TaskQueueTagContext(queueName);
+            enricher.Invoke(in context, ref tags);
         }
 
         return tags;
@@ -787,84 +891,216 @@ public static class GoDiagnostics
         _channelDepth?.Record(depth);
     }
 
-    internal static void RecordTaskQueueQueued(long pendingDepth)
+    internal static void RecordTaskQueueQueued(string? queueName, long pendingDepth)
     {
         if (pendingDepth < 0)
         {
             return;
         }
 
-        _taskQueueEnqueued?.Add(1);
-        _taskQueuePending?.Add(1);
-        _taskQueuePendingDepth?.Record(pendingDepth);
+        bool throughputEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.Throughput);
+        bool depthEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.QueueDepth);
+        if (!throughputEnabled && !depthEnabled)
+        {
+            return;
+        }
+
+        TagList tags = CreateTaskQueueTags(queueName);
+        if (throughputEnabled)
+        {
+            _taskQueueEnqueued?.Add(1, tags);
+        }
+
+        if (depthEnabled)
+        {
+            _taskQueuePending?.Add(1, tags);
+            _taskQueuePendingDepth?.Record(pendingDepth, tags);
+        }
     }
 
-    internal static void RecordTaskQueueLeased(int attempt, long pendingDepth, int activeLeases)
+    internal static void RecordTaskQueueLeased(string? queueName, int attempt, long pendingDepth, int activeLeases)
     {
         _ = attempt;
-        _taskQueueLeased?.Add(1);
-        _taskQueuePending?.Add(-1);
-        _taskQueueActive?.Add(1);
-        _taskQueuePendingDepth?.Record(pendingDepth);
-        _taskQueueActiveDepth?.Record(activeLeases);
+
+        bool throughputEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.Throughput);
+        bool depthEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.QueueDepth);
+        if (!throughputEnabled && !depthEnabled)
+        {
+            return;
+        }
+
+        TagList tags = CreateTaskQueueTags(queueName);
+        if (throughputEnabled)
+        {
+            _taskQueueLeased?.Add(1, tags);
+        }
+
+        if (depthEnabled)
+        {
+            _taskQueuePending?.Add(-1, tags);
+            _taskQueueActive?.Add(1, tags);
+            _taskQueuePendingDepth?.Record(pendingDepth, tags);
+            _taskQueueActiveDepth?.Record(activeLeases, tags);
+        }
     }
 
-    internal static void RecordTaskQueueCompleted(int attempt, TimeSpan leaseDuration, long pendingDepth, int activeLeases)
+    internal static void RecordTaskQueueCompleted(string? queueName, int attempt, TimeSpan leaseDuration, long pendingDepth, int activeLeases)
     {
         _ = attempt;
-        _taskQueueCompleted?.Add(1);
-        _taskQueueActive?.Add(-1);
-        _taskQueueLeaseDuration?.Record(leaseDuration.TotalMilliseconds);
-        _taskQueuePendingDepth?.Record(pendingDepth);
-        _taskQueueActiveDepth?.Record(activeLeases);
+
+        bool throughputEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.Throughput);
+        bool depthEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.QueueDepth);
+        if (!throughputEnabled && !depthEnabled)
+        {
+            return;
+        }
+
+        TagList tags = CreateTaskQueueTags(queueName);
+        if (throughputEnabled)
+        {
+            _taskQueueCompleted?.Add(1, tags);
+            _taskQueueLeaseDuration?.Record(Math.Max(leaseDuration.TotalMilliseconds, 0d), tags);
+        }
+
+        if (depthEnabled)
+        {
+            _taskQueueActive?.Add(-1, tags);
+            _taskQueuePendingDepth?.Record(pendingDepth, tags);
+            _taskQueueActiveDepth?.Record(activeLeases, tags);
+        }
     }
 
-    internal static void RecordTaskQueueHeartbeat(int attempt, TimeSpan extension, int activeLeases)
+    internal static void RecordTaskQueueHeartbeat(string? queueName, int attempt, TimeSpan extension, int activeLeases)
     {
         _ = attempt;
-        _taskQueueHeartbeats?.Add(1);
-        _taskQueueHeartbeatExtension?.Record(extension.TotalMilliseconds);
-        _taskQueueActiveDepth?.Record(activeLeases);
+
+        bool throughputEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.Throughput);
+        bool depthEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.QueueDepth);
+        if (!throughputEnabled && !depthEnabled)
+        {
+            return;
+        }
+
+        TagList tags = CreateTaskQueueTags(queueName);
+        if (throughputEnabled)
+        {
+            _taskQueueHeartbeats?.Add(1, tags);
+            _taskQueueHeartbeatExtension?.Record(Math.Max(extension.TotalMilliseconds, 0d), tags);
+        }
+
+        if (depthEnabled)
+        {
+            _taskQueueActiveDepth?.Record(activeLeases, tags);
+        }
     }
 
-    internal static void RecordTaskQueueFailed(int attempt, TimeSpan leaseDuration, long pendingDepth, int activeLeases)
+    internal static void RecordTaskQueueFailed(string? queueName, int attempt, TimeSpan leaseDuration, long pendingDepth, int activeLeases)
     {
         _ = attempt;
-        _taskQueueFailed?.Add(1);
-        _taskQueueActive?.Add(-1);
-        _taskQueueLeaseDuration?.Record(leaseDuration.TotalMilliseconds);
-        _taskQueuePendingDepth?.Record(pendingDepth);
-        _taskQueueActiveDepth?.Record(activeLeases);
+
+        bool throughputEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.Throughput);
+        bool depthEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.QueueDepth);
+        if (!throughputEnabled && !depthEnabled)
+        {
+            return;
+        }
+
+        TagList tags = CreateTaskQueueTags(queueName);
+        if (throughputEnabled)
+        {
+            _taskQueueFailed?.Add(1, tags);
+            _taskQueueLeaseDuration?.Record(Math.Max(leaseDuration.TotalMilliseconds, 0d), tags);
+        }
+
+        if (depthEnabled)
+        {
+            _taskQueueActive?.Add(-1, tags);
+            _taskQueuePendingDepth?.Record(pendingDepth, tags);
+            _taskQueueActiveDepth?.Record(activeLeases, tags);
+        }
     }
 
-    internal static void RecordTaskQueueExpired(int attempt, TimeSpan leaseDuration, long pendingDepth, int activeLeases)
+    internal static void RecordTaskQueueExpired(string? queueName, int attempt, TimeSpan leaseDuration, long pendingDepth, int activeLeases)
     {
         _ = attempt;
-        _taskQueueExpired?.Add(1);
-        _taskQueueActive?.Add(-1);
-        _taskQueueLeaseDuration?.Record(leaseDuration.TotalMilliseconds);
-        _taskQueuePendingDepth?.Record(pendingDepth);
-        _taskQueueActiveDepth?.Record(activeLeases);
+
+        bool throughputEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.Throughput);
+        bool depthEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.QueueDepth);
+        if (!throughputEnabled && !depthEnabled)
+        {
+            return;
+        }
+
+        TagList tags = CreateTaskQueueTags(queueName);
+        if (throughputEnabled)
+        {
+            _taskQueueExpired?.Add(1, tags);
+            _taskQueueLeaseDuration?.Record(Math.Max(leaseDuration.TotalMilliseconds, 0d), tags);
+        }
+
+        if (depthEnabled)
+        {
+            _taskQueueActive?.Add(-1, tags);
+            _taskQueuePendingDepth?.Record(pendingDepth, tags);
+            _taskQueueActiveDepth?.Record(activeLeases, tags);
+        }
     }
 
-    internal static void RecordTaskQueueRequeued(int attempt, long pendingDepth, int activeLeases)
+    internal static void RecordTaskQueueRequeued(string? queueName, int attempt, long pendingDepth, int activeLeases)
     {
         _ = attempt;
-        _taskQueueRequeued?.Add(1);
-        _taskQueuePending?.Add(1);
-        _taskQueuePendingDepth?.Record(pendingDepth);
-        _taskQueueActiveDepth?.Record(activeLeases);
+
+        bool throughputEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.Throughput);
+        bool depthEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.QueueDepth);
+        if (!throughputEnabled && !depthEnabled)
+        {
+            return;
+        }
+
+        TagList tags = CreateTaskQueueTags(queueName);
+        if (throughputEnabled)
+        {
+            _taskQueueRequeued?.Add(1, tags);
+        }
+
+        if (depthEnabled)
+        {
+            _taskQueuePending?.Add(1, tags);
+            _taskQueuePendingDepth?.Record(pendingDepth, tags);
+            _taskQueueActiveDepth?.Record(activeLeases, tags);
+        }
     }
 
-    internal static void RecordTaskQueueDeadLettered(int attempt, long pendingDepth, int activeLeases)
+    internal static void RecordTaskQueueDeadLettered(string? queueName, int attempt, long pendingDepth, int activeLeases)
     {
         _ = attempt;
-        _taskQueueDeadLettered?.Add(1);
-        _taskQueueActiveDepth?.Record(activeLeases);
+
+        bool throughputEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.Throughput);
+        bool depthEnabled = IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.QueueDepth);
+        if (!throughputEnabled && !depthEnabled)
+        {
+            return;
+        }
+
+        TagList tags = CreateTaskQueueTags(queueName);
+        if (throughputEnabled)
+        {
+            _taskQueueDeadLettered?.Add(1, tags);
+        }
+
+        if (depthEnabled)
+        {
+            _taskQueueActiveDepth?.Record(activeLeases, tags);
+        }
     }
 
     internal static void RecordTaskQueueBackpressureSignal(string? queueName, TaskQueueBackpressureSignal signal, TimeSpan previousStateDuration)
     {
+        if (!IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.Backpressure))
+        {
+            return;
+        }
+
         var tags = CreateTaskQueueTags(queueName);
         _taskQueueBackpressureTransitions?.Add(1, tags);
         _taskQueueBackpressurePending?.Record(signal.PendingCount, tags);
@@ -882,6 +1118,11 @@ public static class GoDiagnostics
 
     internal static void RecordTaskQueueReplicationEvent(string? queueName, string? kind)
     {
+        if (!IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.Replication))
+        {
+            return;
+        }
+
         TagList tags = CreateTaskQueueTags(queueName);
         if (!string.IsNullOrWhiteSpace(kind))
         {
@@ -893,6 +1134,11 @@ public static class GoDiagnostics
 
     internal static void RecordTaskQueueReplicationLag(string? queueName, long sequenceLag, TimeSpan wallClockLag)
     {
+        if (!IsTaskQueueMetricGroupEnabled(TaskQueueMetricGroups.Replication))
+        {
+            return;
+        }
+
         var tags = CreateTaskQueueTags(queueName);
         _taskQueueReplicationSequenceLag?.Record(Math.Max(sequenceLag, 0L), tags);
         _taskQueueReplicationWallClockLag?.Record(Math.Max(wallClockLag.TotalMilliseconds, 0d), tags);

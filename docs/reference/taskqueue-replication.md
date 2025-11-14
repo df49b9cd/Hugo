@@ -23,6 +23,7 @@ await foreach (TaskQueueReplicationEvent<ResourceLease> evt in source.ReadEvents
 }
 ```
 
+When you need to observe events without draining the main channel (for example, diagnostics taps), call `source.RegisterObserver(ITaskQueueReplicationObserver<T> observer)`. `TaskQueueDiagnosticsHost` uses this hook to forward replication metadata to the `/diagnostics/taskqueue` SSE endpoint without interfering with the checkpoints powering sinks.
 The source exposes both an `IAsyncEnumerable<TaskQueueReplicationEvent<T>>` and a `ChannelReader<TaskQueueReplicationEvent<T>>` so you can choose the streaming primitive that best fits your transport. Every event contains:
 
 - Queue name, original sequence id, replication sequence number, and attempt count.

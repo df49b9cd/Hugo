@@ -170,6 +170,10 @@ Task queue internals honour cancellation tokens, propagate `Error.Canceled`, and
 - Combined setup: `Configure(Meter meter, ActivitySource activitySource)`.
 - Rate limiting: `UseRateLimitedSampling(ActivitySource source, int maxActivitiesPerInterval, TimeSpan interval, ActivitySamplingResult unsampledResult = PropagationData)` returns an `IDisposable` that installs an `ActivityListener` throttling span creation. This aligns with the .NET 10 behavioral change described in [Activity sampling guidance](https://learn.microsoft.com/en-us/dotnet/core/compatibility/core-libraries/10.0/activity-sampling).
 - Reset for tests: `Reset()` disposes all registered meters/sources and clears instrument references.
+- TaskQueue instrumentation: `ConfigureTaskQueueMetrics(TaskQueueMetricGroups groups)` toggles the metric families emitted by `TaskQueue<T>`/`SafeTaskQueueWrapper<T>`, while `RegisterTaskQueueTagEnricher(TaskQueueTagEnricher enricher)` appends additional tags (`service.name`, shard identifiers, tenant metadata, etc.) to each measurement.
+- Tag enrichers receive a `TaskQueueTagContext` (exposes the queue name) and mutate a `TagList` via the `TaskQueueTagEnricher` delegate.
+- `TaskQueueMetricsOptions`, `TaskQueueActivityOptions`, and `TaskQueueDiagnosticsOptions` collect the knobs exposed by the `Hugo.TaskQueues.Diagnostics` package. Call `IMeterFactory.AddTaskQueueDiagnostics(...)` (or the `IServiceProvider` overload) to configure meters, activity sources, rate-limited sampling, metric groups, and tag enrichers in one statement. The helper returns a `TaskQueueDiagnosticsRegistration` (an `IAsyncDisposable`) that tears down the instrumentation when disposed.
+- `TaskQueueDiagnosticsHost` aggregates `TaskQueueBackpressureMonitor<T>` and `TaskQueueReplicationSource<T>` signals. Use `Attach` overloads to register monitors/sources, then stream the `ChannelReader<TaskQueueDiagnosticsEvent>` output to HTTP/gRPC clients. `TaskQueueBackpressureDiagnosticsEvent` and `TaskQueueReplicationDiagnosticsEvent` subclasses carry the structured payloads.
 
 When configured, select operations record attempts, completions, timeouts, cancellations, latency, and channel depth; wait groups and task queues also increment their respective counters.
 
@@ -238,7 +242,8 @@ Saga execution respects cancellation tokens and leverages compensation scopes fr
 
 | Type | Description |
 | --- | --- |
-| `TaskQueueReplicationSource<T>` | Observes `TaskQueue<T>` mutations via lifecycle listeners and emits `TaskQueueReplicationEvent<T>` instances through `IAsyncEnumerable`/`ChannelReader`. Records `taskqueue.replication.events` and lag histograms through `GoDiagnostics`. |
+| `TaskQueueReplicationSource<T>` | Observes `TaskQueue<T>` mutations via lifecycle listeners and emits `TaskQueueReplicationEvent<T>` instances through `IAsyncEnumerable`/`ChannelReader`. Records `taskqueue.replication.events` and lag histograms through `GoDiagnostics`. `RegisterObserver(ITaskQueueReplicationObserver<T>)` mirrors the event stream to diagnostics hosts or custom sinks without draining the primary channel. |
+| `ITaskQueueReplicationObserver<T>` | Observer interface invoked for every replication event (`ValueTask OnReplicationEventAsync(TaskQueueReplicationEvent<T> evt, CancellationToken token)`). Used by `TaskQueueDiagnosticsHost` to tap the stream without consuming the primary reader. |
 | `TaskQueueReplicationSourceOptions<T>` | Configures a replication source (`SourcePeerId`, `DefaultOwnerPeerId`, `OwnerPeerResolver`, `TimeProvider`). |
 | `TaskQueueReplicationEvent<T>` / `TaskQueueReplicationEventKind` | Transport-neutral event contract covering queue name, replication sequence, lifecycle kind, payload, ownership tokens, timestamps, and replication flags. The static `Create` helper enforces monotonic sequences and stamps timestamps with the configured `TimeProvider`. |
 | `CheckpointingTaskQueueReplicationSink<T>` | Base class that consumes replication streams with per-peer/global checkpoints backed by an `ITaskQueueReplicationCheckpointStore`. Override `ApplyEventAsync` to forward events to HTTP writers, gRPC relays, etc. |

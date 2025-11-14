@@ -17,7 +17,7 @@ Hugo brings Go-inspired concurrency primitives, deterministic workflows, and fun
 ## Choose your path
 
 - **Just installed Hugo?** Start with the [tutorial](tutorials/getting-started.md), then wire observability via [Publish metrics to OpenTelemetry](how-to/observe-with-opentelemetry.md).
-- **Shipping a feature?** Follow the relevant how-to: timeout/retry playbooks, fan-in coordination, workflow visibility, or profiling.
+- **Shipping a feature?** Follow the relevant how-to: timeout/retry playbooks, fan-in coordination, workflow visibility, [TaskQueue diagnostics streaming](how-to/taskqueue-diagnostics.md), or profiling.
 - **Auditing behaviour?** Jump to the reference for `WaitGroup`, `SelectAsync`, result pipelines, deterministic gate helpers, or diagnostics instruments.
 - **Explaining trade-offs to your team?** Point them to [Design principles](explanation/design-principles.md) and the linked blog-inspired commentary.
 

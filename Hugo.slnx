@@ -36,6 +36,7 @@
     <Project Path="samples/Hugo.DeterministicWorkerSample.Relational/Hugo.DeterministicWorkerSample.Relational.csproj" />
     <Project Path="samples/Hugo.DeterministicWorkerSample/Hugo.DeterministicWorkerSample.csproj" />
     <Project Path="samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj" />
+    <Project Path="samples/Hugo.TaskQueueDiagnosticsHostSample/Hugo.TaskQueueDiagnosticsHostSample.csproj" />
   </Folder>
   <Folder Name="/solution/">
     <File Path="Directory.Packages.props" />
@@ -48,6 +49,7 @@
     <Project Path="src/Hugo.Deterministic.SqlServer/Hugo.Deterministic.SqlServer.csproj" />
     <Project Path="src/Hugo.Diagnostics.OpenTelemetry/Hugo.Diagnostics.OpenTelemetry.csproj" />
     <Project Path="src/Hugo.TaskQueues.Replication/Hugo.TaskQueues.Replication.csproj" />
+    <Project Path="src/Hugo.TaskQueues.Diagnostics/Hugo.TaskQueues.Diagnostics.csproj" />
     <Project Path="benchmarks/Hugo.Profiling/Hugo.Profiling.csproj" />
     <Project Path="src/Hugo/Hugo.csproj" />
   </Folder>
