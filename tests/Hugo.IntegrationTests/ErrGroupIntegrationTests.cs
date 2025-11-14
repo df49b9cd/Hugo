@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 
 public class ErrGroupIntegrationTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TieredFallbackAsync_ShouldSurfaceErrGroupDisposalAsFailure()
     {
         var tiers = new[]
@@ -40,7 +40,7 @@ public class ErrGroupIntegrationTests
         Assert.Contains(nameof(ErrGroup), result.Error?.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TieredFallbackAsync_ShouldSucceedWhenPrimaryCancelsPeers()
     {
         var tiers = new[]
@@ -76,7 +76,7 @@ public class ErrGroupIntegrationTests
         Assert.Equal(7, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task PipelineGo_ShouldCancelPeersBeforeCompensationCompletes()
     {
         using var group = new ErrGroup();

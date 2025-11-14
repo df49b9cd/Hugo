@@ -4,15 +4,15 @@ namespace Hugo.Tests;
 
 public class GoWaitGroupExtensionsTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Go_ShouldThrow_WhenWaitGroupNull() =>
         Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static () => Task.CompletedTask));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Go_ShouldThrow_WhenFuncNull() =>
         Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<Task>)null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Go_ShouldRunFunctionAndTrackWaitGroup()
     {
         var wg = new WaitGroup();
@@ -30,15 +30,15 @@ public class GoWaitGroupExtensionsTests
         Assert.Equal(0, wg.Count);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Go_WithCancellationToken_ShouldThrow_WhenWaitGroupNull() =>
         Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static _ => Task.CompletedTask, CancellationToken.None));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Go_WithCancellationToken_ShouldThrow_WhenFuncNull() =>
         Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<CancellationToken, Task>)null!, CancellationToken.None));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Go_WithCancellationToken_ShouldPassTokenAndComplete()
     {
         var wg = new WaitGroup();
@@ -58,7 +58,7 @@ public class GoWaitGroupExtensionsTests
         Assert.Equal(0, wg.Count);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Go_WithCancellationToken_ShouldHandlePreCanceledToken()
     {
         var wg = new WaitGroup();
@@ -78,7 +78,7 @@ public class GoWaitGroupExtensionsTests
         Assert.Equal(0, wg.Count);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Go_WithScheduler_ShouldRunOnCustomScheduler()
     {
         var wg = new WaitGroup();

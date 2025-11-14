@@ -8,7 +8,7 @@ namespace Hugo.Tests.Primitives;
 
 public class TaskQueueBackpressureMonitorTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Monitor_ShouldEmitSignals_WhenThresholdsCrossed()
     {
         var provider = new FakeTimeProvider();
@@ -52,7 +52,7 @@ public class TaskQueueBackpressureMonitorTests
         Assert.Equal(1, queue.PendingCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitForDrainingAsync_ShouldCompleteOrCancel()
     {
         var provider = new FakeTimeProvider();
@@ -95,7 +95,7 @@ public class TaskQueueBackpressureMonitorTests
         Assert.False(cleared.IsActive);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task DiagnosticsListener_ShouldBoundHistory()
     {
         await using var diagnostics = new TaskQueueBackpressureDiagnosticsListener(capacity: 2);
@@ -122,7 +122,7 @@ public class TaskQueueBackpressureMonitorTests
         Assert.Equal(4, diagnostics.Latest.PendingCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task BackpressureAwareRateLimiter_ShouldSwapLimiters()
     {
         using var baseline = new ConcurrencyLimiter(new ConcurrencyLimiterOptions

@@ -9,7 +9,7 @@ namespace Hugo.Tests;
 
 public partial class GoTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_WithCapacity_UsesBoundedConfiguration()
     {
         var channel = MakeChannel<int>(
@@ -29,7 +29,7 @@ public partial class GoTests
         Assert.False(channel.Reader.TryRead(out _));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_ShouldApplyBoundedBuilderDelegate()
     {
         BoundedChannelOptions? capturedOptions = null;
@@ -45,7 +45,7 @@ public partial class GoTests
         Assert.True(capturedOptions!.AllowSynchronousContinuations);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_ShouldApplyUnboundedBuilderDelegate()
     {
         UnboundedChannelOptions? capturedOptions = null;
@@ -60,7 +60,7 @@ public partial class GoTests
         Assert.True(capturedOptions!.AllowSynchronousContinuations);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_WithZeroCapacity_UsesUnboundedConfiguration()
     {
         var channel = MakeChannel<int>(capacity: 0, singleReader: true, singleWriter: true);
@@ -77,7 +77,7 @@ public partial class GoTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_WithBoundedOptions_AppliesSettings()
     {
         var options = new BoundedChannelOptions(1)
@@ -93,11 +93,11 @@ public partial class GoTests
         Assert.Equal(20, value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_WithBoundedOptionsNull_Throws() =>
         Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((BoundedChannelOptions)null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_WithUnboundedOptions_CreatesChannel()
     {
         var options = new UnboundedChannelOptions
@@ -120,11 +120,11 @@ public partial class GoTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_WithUnboundedOptionsNull_Throws() =>
         Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((UnboundedChannelOptions)null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MakeChannel_WithPrioritizedOptions_UsesDefaultPriority()
     {
         var options = new PrioritizedChannelOptions
@@ -146,11 +146,11 @@ public partial class GoTests
         Assert.Equal(99, second);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_WithPrioritizedOptionsNull_Throws() =>
         Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((PrioritizedChannelOptions)null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MakePrioritizedChannel_ConfiguresOptions()
     {
         var channel = MakePrioritizedChannel<int>(
@@ -172,7 +172,7 @@ public partial class GoTests
         Assert.Equal(100, second);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectFanInAsync_ShouldDrainAllCases()
     {
         var channel1 = MakeChannel<int>();
@@ -210,7 +210,7 @@ public partial class GoTests
         Assert.Equal(2, observed.Count);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectFanInAsync_WithValueTaskContinuation_ShouldDrainAllCases()
     {
         var channel = MakeChannel<int>();
@@ -236,7 +236,7 @@ public partial class GoTests
         Assert.Contains(42, observed);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectFanInAsync_ShouldPropagateCaseFailure()
     {
         var channel = MakeChannel<int>();
@@ -255,7 +255,7 @@ public partial class GoTests
         Assert.Equal("boom", result.Error?.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectFanInAsync_ShouldRespectCancellation()
     {
         var channel = MakeChannel<int>();
@@ -271,7 +271,7 @@ public partial class GoTests
         channel.Writer.TryComplete();
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectFanInAsync_ShouldTimeoutAfterOverallDeadline()
     {
         var provider = new FakeTimeProvider();
@@ -310,13 +310,13 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectFanInAsync_WithNullReaders_Throws()
     {
         await Assert.ThrowsAsync<ArgumentNullException>(static async () => await SelectFanInAsync<object>(null!, static (_, _) => Task.FromResult(Result.Ok(Unit.Value)), cancellationToken: TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectFanInAsync_WithNullDelegate_Throws()
     {
         var channel = MakeChannel<int>();
@@ -366,7 +366,7 @@ public partial class GoTests
         Assert.Equal(expected, observed);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanInAsync_ShouldReturnFailure_WhenDestinationClosed()
     {
         var source = MakeChannel<int>();
@@ -385,7 +385,7 @@ public partial class GoTests
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await destination.Reader.Completion);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanInAsync_WithEmptySources_CompletesDestinationWhenRequested()
     {
         var destination = MakeChannel<int>();
@@ -396,7 +396,7 @@ public partial class GoTests
         Assert.True(destination.Reader.Completion.IsCompleted);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanInAsync_WithEmptySources_DoesNotCompleteWhenRequested()
     {
         var destination = MakeChannel<int>();
@@ -407,14 +407,14 @@ public partial class GoTests
         Assert.False(destination.Reader.Completion.IsCompleted);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanInAsync_WithNullSources_Throws()
     {
         var destination = MakeChannel<int>();
         await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanInAsync(null!, destination.Writer, cancellationToken: TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanInAsync_WithNullDestination_Throws()
     {
         var source = MakeChannel<int>();
@@ -451,25 +451,25 @@ public partial class GoTests
         Assert.Equal(expected, values);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void FanIn_WithNullSources_Throws() =>
         Assert.Throws<ArgumentNullException>(static () => FanIn<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_WithNullSource_Throws()
     {
         var destination = MakeChannel<int>();
         await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync(null!, [destination.Writer], cancellationToken: TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_WithNullDestinations_Throws()
     {
         var source = MakeChannel<int>();
         await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync(source.Reader, null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_WithNullDestinationEntry_Throws()
     {
         var source = MakeChannel<int>();
@@ -478,7 +478,7 @@ public partial class GoTests
         await Assert.ThrowsAsync<ArgumentException>(async () => await FanOutAsync(source.Reader, destinations, cancellationToken: TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_WithNegativeDeadline_Throws()
     {
         var source = MakeChannel<int>();
@@ -487,7 +487,7 @@ public partial class GoTests
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await FanOutAsync(source.Reader, [destination.Writer], deadline: TimeSpan.FromSeconds(-1), cancellationToken: TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_WithNoDestinations_ReturnsSuccess()
     {
         var source = MakeChannel<int>();
@@ -496,15 +496,15 @@ public partial class GoTests
         Assert.True(result.IsSuccess);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void FanOut_WithNullSource_Throws() =>
         Assert.Throws<ArgumentNullException>(static () => FanOut<int>(null!, 1, cancellationToken: TestContext.Current.CancellationToken));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void FanOut_WithInvalidBranchCount_Throws() =>
         Assert.Throws<ArgumentOutOfRangeException>(static () => FanOut(MakeChannel<int>().Reader, 0, cancellationToken: TestContext.Current.CancellationToken));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void FanOut_ShouldUseChannelFactory()
     {
         var source = MakeChannel<int>();
@@ -526,7 +526,7 @@ public partial class GoTests
         Assert.Equal(2, branches.Count);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOut_WithCompleteBranchesFalse_DoesNotCompleteBranches()
     {
         var source = MakeChannel<int>();
@@ -540,7 +540,7 @@ public partial class GoTests
         Assert.False(branches[0].Completion.IsCompleted);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOut_WithCompleteBranchesTrue_CompletesReaders()
     {
         var source = MakeChannel<int>();
@@ -554,7 +554,7 @@ public partial class GoTests
         await branches[0].Completion;
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanIn_ShouldPropagateCancellation()
     {
         var source = MakeChannel<int>();
@@ -567,7 +567,7 @@ public partial class GoTests
         source.Writer.TryComplete();
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_ShouldBroadcastToAllDestinations()
     {
         var source = MakeChannel<int>();
@@ -589,7 +589,7 @@ public partial class GoTests
         Assert.Equal(17, await destination2.Reader.ReadAsync(TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_ShouldTimeoutWhenDeadlineExpires()
     {
         var provider = new FakeTimeProvider();
@@ -640,7 +640,7 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_ShouldRespectCancellation()
     {
         var source = MakeChannel<int>();
@@ -660,7 +660,7 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOut_ShouldReturnBranchReaders()
     {
         var source = MakeChannel<int>();

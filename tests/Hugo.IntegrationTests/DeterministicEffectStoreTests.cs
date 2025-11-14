@@ -8,7 +8,7 @@ namespace Hugo.Tests;
 
 public class DeterministicEffectStoreTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task CaptureAsync_ShouldRecordAndReplaySuccessfulResult()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -35,7 +35,7 @@ public class DeterministicEffectStoreTests
         Assert.Equal(1, executionCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task CaptureAsync_ShouldRecordAndReplayFailure()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -63,7 +63,7 @@ public class DeterministicEffectStoreTests
         Assert.False(executed);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task CaptureAsync_ShouldFail_WhenTypeMismatchDetected()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -90,7 +90,7 @@ public class DeterministicEffectStoreTests
         Assert.False(mismatchExecuted);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task CaptureAsync_ShouldCaptureThrownExceptions()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -119,7 +119,7 @@ public class DeterministicEffectStoreTests
         Assert.False(exceptionExecuted);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task CaptureAsync_ShouldFail_WhenRecordKindMismatch()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -135,7 +135,7 @@ public class DeterministicEffectStoreTests
         Assert.Equal(ErrorCodes.DeterministicReplay, mismatch.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task CaptureAsync_ShouldRethrowCancellationWithoutRecording()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -156,7 +156,7 @@ public class DeterministicEffectStoreTests
         Assert.False(store.TryGet("effect.canceled", out _));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task CaptureAsync_SynchronousOverload_ShouldPersistAndReplayValue()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -186,7 +186,7 @@ public class DeterministicEffectStoreTests
         Assert.Equal(1, executions);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task CaptureAsync_ShouldSanitizeCancellationTokenMetadata()
     {
         var store = new InMemoryDeterministicStateStore();

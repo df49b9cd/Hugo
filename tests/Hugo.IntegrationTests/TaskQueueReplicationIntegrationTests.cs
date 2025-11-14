@@ -8,7 +8,7 @@ namespace Hugo.IntegrationTests;
 [Collection("TaskQueueConcurrency")]
 public sealed class TaskQueueReplicationIntegrationTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ReplicationSource_ShouldEmitOrderedEvents()
     {
         var provider = new FakeTimeProvider();
@@ -53,7 +53,7 @@ public sealed class TaskQueueReplicationIntegrationTests
         Assert.All(captured, evt => Assert.Equal("replication.integration", evt.QueueName));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task CheckpointingSink_ShouldResumeFromPersistedCheckpoint()
     {
         var provider = new FakeTimeProvider();

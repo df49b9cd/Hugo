@@ -6,7 +6,7 @@ namespace Hugo.Tests.Profiling;
 
 public sealed class SpeedscopeAnalyzerTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Analyze_ComputesFrameAndProfileSummaries()
     {
         var json = """
@@ -58,7 +58,7 @@ public sealed class SpeedscopeAnalyzerTests
         Assert.Equal(1, worker.CallCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Analyze_ReturnsWarningsForMismatchedEvents()
     {
         var json = """

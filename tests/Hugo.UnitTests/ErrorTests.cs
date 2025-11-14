@@ -2,7 +2,7 @@ namespace Hugo.Tests;
 
 public class ErrorTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void WithMetadata_ShouldAddEntry()
     {
         var error = Error.From("boom", ErrorCodes.Exception);
@@ -13,7 +13,7 @@ public class ErrorTests
         Assert.Equal(123, enriched.Metadata["key"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void WithMetadata_ShouldThrow_WhenKeyIsInvalid()
     {
         var error = Error.From("message");
@@ -21,7 +21,7 @@ public class ErrorTests
         Assert.Throws<ArgumentException>(() => error.WithMetadata(" ", 1));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void WithMetadataCollection_ShouldMergeCaseInsensitive()
     {
         var error = Error.From("boom").WithMetadata("Key", 1);
@@ -30,7 +30,7 @@ public class ErrorTests
         Assert.Equal(2, enriched.Metadata["key"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void WithMetadataCollection_ShouldThrow_WhenMetadataIsNull()
     {
         var error = Error.From("message");
@@ -38,7 +38,7 @@ public class ErrorTests
         Assert.Throws<ArgumentNullException>(() => error.WithMetadata((IEnumerable<KeyValuePair<string, object?>>)null!));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void WithCode_ShouldReturnNewInstance()
     {
         var error = Error.From("message");
@@ -48,7 +48,7 @@ public class ErrorTests
         Assert.Null(error.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void WithCause_ShouldAttachException()
     {
         var error = Error.From("message");
@@ -58,10 +58,10 @@ public class ErrorTests
         Assert.Same(cause, enriched.Cause);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void FromException_ShouldThrow_WhenExceptionIsNull() => Assert.Throws<ArgumentNullException>(static () => Error.FromException(null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void TryGetMetadata_ShouldReturnValue()
     {
         var error = Error.From("message").WithMetadata("count", 5);
@@ -70,7 +70,7 @@ public class ErrorTests
         Assert.Equal(5, value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void TryGetMetadata_ShouldReturnFalseWhenMissing()
     {
         var error = Error.From("message");
@@ -78,7 +78,7 @@ public class ErrorTests
         Assert.False(error.TryGetMetadata("missing", out int _));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Timeout_ShouldIncludeDuration()
     {
         var duration = TimeSpan.FromSeconds(5);
@@ -89,7 +89,7 @@ public class ErrorTests
         Assert.Equal(duration, value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Canceled_WithToken_ShouldCaptureMetadata()
     {
         using var cts = new CancellationTokenSource();
@@ -100,7 +100,7 @@ public class ErrorTests
         Assert.IsType<OperationCanceledException>(error.Cause);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Aggregate_ShouldIncludeChildErrors()
     {
         var first = Error.From("one");
@@ -113,7 +113,7 @@ public class ErrorTests
         Assert.Contains(second, (Error[])value!);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void From_ShouldAttachDescriptorMetadata_ForKnownCode()
     {
         var error = Error.From("invalid payload", ErrorCodes.Validation);
@@ -123,7 +123,7 @@ public class ErrorTests
         Assert.Equal("General", error.Metadata["error.category"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ErrorCodes_ShouldExposeDescriptors()
     {
         Assert.True(ErrorCodes.TryGetDescriptor(ErrorCodes.Timeout, out var descriptor));

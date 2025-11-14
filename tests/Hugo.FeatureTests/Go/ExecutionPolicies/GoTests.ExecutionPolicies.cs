@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 
 public partial class GoTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_Delegates_ShouldReturnAllResults()
     {
         var operations = new List<Func<CancellationToken, Task<Result<int>>>>
@@ -29,7 +29,7 @@ public partial class GoTests
         Assert.Equal([1, 2], result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_ValueTaskDelegates_ShouldReturnAllResults()
     {
         var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
@@ -52,7 +52,7 @@ public partial class GoTests
         Assert.Equal([10, 20], result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RaceAsync_ShouldReturnFirstSuccessfulResult()
     {
         var operations = new List<Func<CancellationToken, Task<Result<int>>>>
@@ -80,7 +80,7 @@ public partial class GoTests
         Assert.Equal(2, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RaceAsync_ValueTaskDelegates_ShouldReturnFirstSuccessfulResult()
     {
         var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
@@ -103,7 +103,7 @@ public partial class GoTests
         Assert.Equal(7, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WithTimeoutAsync_ShouldReturnTimeoutError()
     {
         var provider = new FakeTimeProvider();
@@ -126,7 +126,7 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WithTimeoutAsync_ShouldReturnCanceled_WhenTokenCancelled()
     {
         using var cts = new CancellationTokenSource();
@@ -153,7 +153,7 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WithTimeoutAsync_ShouldReturnFailure_WhenOperationThrows()
     {
         var provider = new FakeTimeProvider();
@@ -169,7 +169,7 @@ public partial class GoTests
         Assert.Contains("boom", result.Error?.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WithTimeoutAsync_ShouldReturnFailure_WhenOperationThrows_WithInfiniteTimeout()
     {
         var result = await WithTimeoutAsync<int>(
@@ -183,7 +183,7 @@ public partial class GoTests
         Assert.Contains("boom infinite", result.Error?.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WithTimeoutAsync_ValueTaskDelegate_ShouldReturnSuccess()
     {
         var provider = new FakeTimeProvider();
@@ -202,7 +202,7 @@ public partial class GoTests
         Assert.Equal(5, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RetryAsync_ShouldRetryUntilSuccess()
     {
         var attempts = new List<int>();
@@ -228,7 +228,7 @@ public partial class GoTests
         Assert.Equal(new[] { 1, 2, 3 }, attempts);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RetryAsync_ValueTaskDelegate_ShouldRetryUntilSuccess()
     {
         int attempt = 0;
@@ -254,7 +254,7 @@ public partial class GoTests
         Assert.Equal(2, attempt);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RetryAsync_ShouldSurfaceFinalFailure()
     {
         var attempts = 0;
@@ -310,14 +310,14 @@ public partial class GoTests
         Assert.Equal(new[] { 1 }, attempts);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_ShouldThrowWhenOperationsNull()
     {
         await Assert.ThrowsAsync<ArgumentNullException>(static async () =>
             await FanOutAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_ShouldThrowWhenOperationEntryNull()
     {
         var operations = new Func<CancellationToken, Task<Result<int>>>?[]
@@ -332,7 +332,7 @@ public partial class GoTests
         Assert.Equal("operations", exception.ParamName);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_ShouldReturnEmptyWhenNoOperations()
     {
         var result = await FanOutAsync(Array.Empty<Func<CancellationToken, Task<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
@@ -341,7 +341,7 @@ public partial class GoTests
         Assert.Empty(result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_ShouldPropagateFailure()
     {
         var operations = new List<Func<CancellationToken, Task<Result<int>>>>
@@ -356,7 +356,7 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_WithExecutionPolicy_ShouldRespectCancellation()
     {
         using var cts = new CancellationTokenSource();
@@ -392,14 +392,14 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RaceAsync_ShouldThrowWhenOperationsNull()
     {
         await Assert.ThrowsAsync<ArgumentNullException>(static async () =>
             await RaceAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RaceAsync_ShouldThrowWhenOperationEntryNull()
     {
         var operations = new Func<CancellationToken, Task<Result<int>>>?[]
@@ -414,7 +414,7 @@ public partial class GoTests
         Assert.Equal("operations", exception.ParamName);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RaceAsync_ShouldReturnFailureWhenAllFail()
     {
         var operations = new List<Func<CancellationToken, Task<Result<int>>>>
@@ -429,7 +429,7 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Aggregate, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RaceAsync_ShouldReturnCanceledWhenOperationsCanceled()
     {
         using var cts = new CancellationTokenSource();
@@ -465,7 +465,7 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WithTimeoutAsync_ShouldReturnSuccessWhenOperationCompletes()
     {
         var result = await WithTimeoutAsync(
@@ -478,7 +478,7 @@ public partial class GoTests
         Assert.Equal(5, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WithTimeoutAsync_ShouldReturnSuccessWithInfiniteTimeout()
     {
         var result = await WithTimeoutAsync(
@@ -490,14 +490,14 @@ public partial class GoTests
         Assert.Equal(7, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WithTimeoutAsync_ShouldThrowWhenTimeoutNegative()
     {
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(static async () =>
             await WithTimeoutAsync(static _ => Task.FromResult(Ok(1)), TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WithTimeoutAsync_ShouldPropagateOperationFailure()
     {
         var result = await WithTimeoutAsync(
@@ -510,7 +510,7 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WithTimeoutAsync_ShouldReturnCanceledWhenOperationThrowsWithoutToken()
     {
         var result = await WithTimeoutAsync<int>(
@@ -524,7 +524,7 @@ public partial class GoTests
         Assert.False(result.Error!.TryGetMetadata("cancellationToken", out CancellationToken _));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RetryAsync_ShouldThrowWhenOperationNull()
     {
         await Assert.ThrowsAsync<ArgumentNullException>(static async () =>
@@ -540,7 +540,7 @@ public partial class GoTests
             await RetryAsync((_, _) => Task.FromResult(Ok(1)), maxAttempts, initialDelay: TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RetryAsync_ShouldReturnFailureWhenOperationThrows()
     {
         var result = await RetryAsync<int>(

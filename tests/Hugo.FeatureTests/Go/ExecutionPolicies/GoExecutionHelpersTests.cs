@@ -4,7 +4,7 @@ namespace Hugo.Tests;
 
 public class GoExecutionHelpersTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ResolveCancellationToken_ReturnsPreferred_WhenPreferredCancelable()
     {
         using var preferred = new CancellationTokenSource();
@@ -16,7 +16,7 @@ public class GoExecutionHelpersTests
         Assert.Equal(preferred.Token, resolved.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ResolveCancellationToken_ReturnsAlternate_WhenPreferredNotCancelable()
     {
         using var alternate = new CancellationTokenSource();
@@ -27,7 +27,7 @@ public class GoExecutionHelpersTests
         Assert.Equal(alternate.Token, resolved.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ResolveCancellationToken_ReturnsNull_WhenNeitherCancelable()
     {
         CancellationToken? resolved = ResolveCancellationToken(CancellationToken.None, CancellationToken.None);

@@ -7,7 +7,7 @@ namespace Hugo.UnitTests.TaskQueues;
 
 public sealed class TaskQueueReplicationEventTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Create_ShouldIncrementSequenceAndStampTime()
     {
         var provider = new FakeTimeProvider();

@@ -11,7 +11,7 @@ namespace Hugo.Tests;
 
 public class TaskQueueDiagnosticsIntegrationTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task DiagnosticsHost_ShouldStreamBackpressureAndReplication()
     {
         await using var meterFactory = new TestMeterFactory();

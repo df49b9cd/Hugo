@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 
 public class GoSharpTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitGroup_Go_WithCancellationAwareWork_ShouldComplete()
     {
         var wg = new WaitGroup();
@@ -26,7 +26,7 @@ public class GoSharpTests
         Assert.Equal(3, counter);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitGroup_Go_WithFaultedTask_ShouldStillComplete()
     {
         var wg = new WaitGroup();
@@ -44,7 +44,7 @@ public class GoSharpTests
 
     private static readonly int[] expected = [0, 2, 1];
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Defer_ShouldExecuteInReverseOrder()
     {
         var order = new List<int>();
@@ -58,11 +58,11 @@ public class GoSharpTests
         Assert.Equal(expected, order);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Defer_ShouldThrow_WhenActionNull() =>
         Assert.Throws<ArgumentNullException>(static () => new Defer(null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Err_WithExceptionAndCode_ShouldCaptureMetadata()
     {
         var ex = new InvalidOperationException("boom");
@@ -73,7 +73,7 @@ public class GoSharpTests
         Assert.True(result.Error?.Metadata.ContainsKey("exceptionType"));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MakeChannel_BoundedOptions_ShouldDropOldestWhenFull()
     {
         var options = new BoundedChannelOptions(1)
@@ -93,7 +93,7 @@ public class GoSharpTests
         Assert.Equal(2, value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MakeChannel_UnboundedOptions_ShouldAllowMultipleWrites()
     {
         var options = new UnboundedChannelOptions { SingleReader = true, SingleWriter = true };

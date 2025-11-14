@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 
 public class ErrGroupFeatureTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ErrGroupDocSample_ShouldCompleteSuccessfully()
     {
         using var group = new ErrGroup();
@@ -42,7 +42,7 @@ public class ErrGroupFeatureTests
         Assert.Equal(3, attempts);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ErrGroupDocSample_ShouldHandleCancellationResult()
     {
         using var group = new ErrGroup();
@@ -74,7 +74,7 @@ public class ErrGroupFeatureTests
         Assert.True(cancellationHandled);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ErrGroupPipeline_ShouldCancelPeersBeforeCompensationCompletes()
     {
         using var group = new ErrGroup();

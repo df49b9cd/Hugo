@@ -209,7 +209,6 @@ public sealed class TaskQueueLease<T>
     private readonly Guid _leaseId;
     private readonly long _sequenceId;
     private readonly TaskQueueOwnershipToken _ownershipToken;
-    private int _status; // 0 = active, 1 = completed, 2 = failed
 
     internal TaskQueueLease(TaskQueue<T> queue, Guid leaseId, long sequenceId, T value, int attempt, DateTimeOffset enqueuedAt, Error? lastError)
     {
@@ -258,8 +257,7 @@ public sealed class TaskQueueLease<T>
     /// <returns>A task that completes once the lease is acknowledged.</returns>
     public ValueTask CompleteAsync(CancellationToken cancellationToken = default)
     {
-        EnsureActive();
-        return Interlocked.CompareExchange(ref _status, 1, 0) != 0 ? throw new InvalidOperationException("Lease is no longer active.") : _queue.CompleteAsync(_leaseId, cancellationToken);
+        return _queue.CompleteAsync(_leaseId, cancellationToken);
     }
 
     /// <summary>Sends a heartbeat to extend the lease expiration.</summary>
@@ -267,7 +265,6 @@ public sealed class TaskQueueLease<T>
     /// <returns>A task that completes once the heartbeat is acknowledged.</returns>
     public ValueTask HeartbeatAsync(CancellationToken cancellationToken = default)
     {
-        EnsureActive();
         return _queue.HeartbeatAsync(_leaseId, cancellationToken);
     }
 
@@ -280,18 +277,7 @@ public sealed class TaskQueueLease<T>
     {
         ArgumentNullException.ThrowIfNull(error);
 
-        EnsureActive();
-        return Interlocked.CompareExchange(ref _status, 2, 0) != 0
-            ? throw new InvalidOperationException("Lease is no longer active.")
-            : _queue.FailAsync(_leaseId, error, requeue, cancellationToken);
-    }
-
-    private void EnsureActive()
-    {
-        if (Volatile.Read(ref _status) != 0)
-        {
-            throw new InvalidOperationException("Lease is no longer active.");
-        }
+        return _queue.FailAsync(_leaseId, error, requeue, cancellationToken);
     }
 }
 
@@ -356,6 +342,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     private TaskQueueLifecycleDispatcher<T>? _lifecycleDispatcher;
     private TaskQueueBackpressureOptions? _backpressureOptions;
     private long _pendingCount;
+    private int _activeLeaseCount;
     private long _sequenceCounter;
     private int _backpressureState;
     private long _lastBackpressureNotificationTicks = DateTimeOffset.MinValue.UtcTicks;
@@ -392,7 +379,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     /// <summary>
     /// Gets the number of active leases.
     /// </summary>
-    public int ActiveLeaseCount => _leases.Count;
+    public int ActiveLeaseCount => Math.Max(0, Volatile.Read(ref _activeLeaseCount));
 
     /// <summary>
     /// Gets the configured queue name used for diagnostics and instrumentation.
@@ -498,7 +485,9 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             throw new InvalidOperationException("Failed to track lease state.");
         }
 
-        GoDiagnostics.RecordTaskQueueLeased(_queueName, envelope.Attempt, PendingCount, _leases.Count);
+        Interlocked.Increment(ref _activeLeaseCount);
+
+        GoDiagnostics.RecordTaskQueueLeased(_queueName, envelope.Attempt, PendingCount, ActiveLeaseCount);
         GoDiagnostics.CompleteTaskQueueActivity(activity);
         PublishLifecycleEvent(TaskQueueLifecycleEventKind.LeaseGranted, state.Envelope, state.OwnershipToken, leaseExpiration: expiration, occurrence: now);
         return new TaskQueueLease<T>(this, leaseId, envelope.SequenceId, envelope.Value, envelope.Attempt, envelope.EnqueuedAt, envelope.LastError);
@@ -513,7 +502,10 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             throw new InvalidOperationException("Lease is no longer active.");
         }
 
-        _leases.TryRemove(leaseId, out _);
+        if (_leases.TryRemove(leaseId, out _))
+        {
+            Interlocked.Decrement(ref _activeLeaseCount);
+        }
         DateTimeOffset now = _timeProvider.GetUtcNow();
         using Activity? activity = GoDiagnostics.StartTaskQueueActivity(
             "complete",
@@ -521,7 +513,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             state.Envelope.SequenceId,
             state.Envelope.Attempt,
             state.OwnershipToken);
-        GoDiagnostics.RecordTaskQueueCompleted(_queueName, state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
+        GoDiagnostics.RecordTaskQueueCompleted(_queueName, state.Envelope.Attempt, now - state.GrantedAt, PendingCount, ActiveLeaseCount);
         GoDiagnostics.CompleteTaskQueueActivity(activity);
         PublishLifecycleEvent(TaskQueueLifecycleEventKind.Completed, state.Envelope, state.OwnershipToken, occurrence: now);
         return ValueTask.CompletedTask;
@@ -559,7 +551,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             throw new InvalidOperationException("Lease is no longer active.");
         }
 
-        GoDiagnostics.RecordTaskQueueHeartbeat(_queueName, state.Envelope.Attempt, newExpiration - now, _leases.Count);
+        GoDiagnostics.RecordTaskQueueHeartbeat(_queueName, state.Envelope.Attempt, newExpiration - now, ActiveLeaseCount);
         GoDiagnostics.CompleteTaskQueueActivity(activity);
         PublishLifecycleEvent(TaskQueueLifecycleEventKind.Heartbeat, state.Envelope, state.OwnershipToken, leaseExpiration: newExpiration, occurrence: now);
         return ValueTask.CompletedTask;
@@ -574,10 +566,13 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             throw new InvalidOperationException("Lease is no longer active.");
         }
 
-        _leases.TryRemove(leaseId, out _);
+        if (_leases.TryRemove(leaseId, out _))
+        {
+            Interlocked.Decrement(ref _activeLeaseCount);
+        }
 
         DateTimeOffset now = _timeProvider.GetUtcNow();
-        GoDiagnostics.RecordTaskQueueFailed(_queueName, state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
+        GoDiagnostics.RecordTaskQueueFailed(_queueName, state.Envelope.Attempt, now - state.GrantedAt, PendingCount, ActiveLeaseCount);
         QueueEnvelope envelopeWithToken = state.Envelope with { LastOwnershipToken = state.OwnershipToken };
         PublishLifecycleEvent(TaskQueueLifecycleEventKind.Failed, envelopeWithToken, state.OwnershipToken, error);
 
@@ -618,29 +613,23 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     private async ValueTask SweepExpiredLeasesAsync(CancellationToken cancellationToken)
     {
         DateTimeOffset now = _timeProvider.GetUtcNow();
-        List<(Guid Id, LeaseState State)> expired = [];
 
         foreach (KeyValuePair<Guid, LeaseState> kvp in _leases)
         {
-            if (kvp.Value.TryExpire(now))
-            {
-                expired.Add((kvp.Key, kvp.Value));
-            }
-        }
-
-        if (expired.Count == 0)
-        {
-            return;
-        }
-
-        foreach ((Guid id, LeaseState state) in expired)
-        {
-            if (!_leases.TryRemove(new KeyValuePair<Guid, LeaseState>(id, state)))
+            LeaseState state = kvp.Value;
+            if (!state.TryExpire(now))
             {
                 continue;
             }
 
-            Dictionary<string, object?> metadata = new(StringComparer.OrdinalIgnoreCase)
+            if (!_leases.TryRemove(new KeyValuePair<Guid, LeaseState>(kvp.Key, state)))
+            {
+                continue;
+            }
+
+            Interlocked.Decrement(ref _activeLeaseCount);
+
+            Dictionary<string, object?> metadata = new(3, StringComparer.OrdinalIgnoreCase)
             {
                 ["attempt"] = state.Envelope.Attempt,
                 ["enqueuedAt"] = state.Envelope.EnqueuedAt,
@@ -650,7 +639,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             Error expiredError = Error.From("Lease expired without heartbeat.", ErrorCodes.TaskQueueLeaseExpired)
                 .WithMetadata(metadata);
 
-            GoDiagnostics.RecordTaskQueueExpired(_queueName, state.Envelope.Attempt, now - state.GrantedAt, PendingCount, _leases.Count);
+            GoDiagnostics.RecordTaskQueueExpired(_queueName, state.Envelope.Attempt, now - state.GrantedAt, PendingCount, ActiveLeaseCount);
             QueueEnvelope expiredEnvelope = state.Envelope with { LastOwnershipToken = state.OwnershipToken };
             PublishLifecycleEvent(TaskQueueLifecycleEventKind.Expired, expiredEnvelope, state.OwnershipToken, expiredError, occurrence: now, flags: TaskQueueLifecycleEventMetadata.FromExpiration);
             await RequeueAsync(expiredEnvelope, expiredError, state.OwnershipToken, cancellationToken, TaskQueueLifecycleEventMetadata.FromExpiration).ConfigureAwait(false);
@@ -699,7 +688,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
                 await _channel.Writer.WriteAsync(requeued, CancellationToken.None).ConfigureAwait(false);
             }
 
-            GoDiagnostics.RecordTaskQueueRequeued(_queueName, nextAttempt, depth, _leases.Count);
+            GoDiagnostics.RecordTaskQueueRequeued(_queueName, nextAttempt, depth, ActiveLeaseCount);
             ObserveBackpressure(depth);
             PublishLifecycleEvent(TaskQueueLifecycleEventKind.Requeued, requeued, recordedToken, error, flags: flags);
         }
@@ -717,7 +706,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
     private async ValueTask DeadLetterAsync(QueueEnvelope envelope, Error error, CancellationToken cancellationToken)
     {
-        GoDiagnostics.RecordTaskQueueDeadLettered(_queueName, envelope.Attempt, PendingCount, _leases.Count);
+        GoDiagnostics.RecordTaskQueueDeadLettered(_queueName, envelope.Attempt, PendingCount, ActiveLeaseCount);
 
         if (_deadLetter is null)
         {

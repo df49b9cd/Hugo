@@ -9,7 +9,7 @@ namespace Hugo.Tests.Diagnostics;
 
 public class TaskQueueDiagnosticsRegistrationTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task AddTaskQueueDiagnostics_ShouldApplyTagEnrichers()
     {
         using var meterListener = new MeterListener();
@@ -53,7 +53,7 @@ public class TaskQueueDiagnosticsRegistrationTests
         Assert.Contains(tags, entry => entry.Key == "custom.tag" && (string?)entry.Value == "diagnostics-test");
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ConfigureTaskQueueMetrics_ShouldGateThroughputInstruments()
     {
         using var meterListener = new MeterListener();

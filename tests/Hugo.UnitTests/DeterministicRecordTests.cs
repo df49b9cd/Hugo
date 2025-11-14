@@ -12,7 +12,7 @@ public class DeterministicRecordTests
         Assert.Throws<ArgumentException>(() => new DeterministicRecord(kind, 1, payload, DateTimeOffset.UtcNow));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Constructor_ShouldThrow_WhenKindNull()
     {
         var payload = new byte[] { 1 };
@@ -20,7 +20,7 @@ public class DeterministicRecordTests
         Assert.Throws<ArgumentException>(() => new DeterministicRecord(null!, 1, payload, DateTimeOffset.UtcNow));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Payload_ShouldBeCloned()
     {
         var payload = new byte[] { 1, 2, 3 };

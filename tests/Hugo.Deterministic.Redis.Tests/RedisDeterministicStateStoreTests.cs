@@ -40,7 +40,7 @@ public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
             KeyPrefix = "hugo:test:"
         });
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void SetAndGetRoundTripsRecord()
     {
         RedisDeterministicStateStore store = CreateStore();
@@ -55,7 +55,7 @@ public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
         Assert.Equal(record.Payload.ToArray(), stored.Payload.ToArray());
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void SetOverwritesExistingRecord()
     {
         RedisDeterministicStateStore store = CreateStore();

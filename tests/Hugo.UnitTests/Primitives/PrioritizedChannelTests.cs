@@ -8,7 +8,7 @@ public sealed class PrioritizedChannelTests
     private static readonly TimeSpan ShortDelay = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan WriteReleaseTimeout = TimeSpan.FromSeconds(1);
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task PrioritizedChannel_ShouldRespectCapacity_WhenReaderSlow()
     {
         var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
@@ -48,7 +48,7 @@ public sealed class PrioritizedChannelTests
         Assert.Equal(4, fourth);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task PrioritizedChannel_ShouldDrainSingleItemPerLane()
     {
         var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
@@ -80,7 +80,7 @@ public sealed class PrioritizedChannelTests
         Assert.Equal(0, prioritizedReader.GetBufferedCountForPriority(2));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task PrioritizedChannel_WaitToReadAsync_ShouldRespectCancellation()
     {
         var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
@@ -97,7 +97,7 @@ public sealed class PrioritizedChannelTests
         });
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task PrioritizedChannel_WaitToReadSlowPath_ShouldAvoidExtraAllocations()
     {
         var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
@@ -126,7 +126,7 @@ public sealed class PrioritizedChannelTests
         Assert.InRange(allocated, 0, 4 * 1024);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task PrioritizedChannel_ShouldPropagateLaneException()
     {
         var failingLane = new AsyncLaneReader();
@@ -140,7 +140,7 @@ public sealed class PrioritizedChannelTests
         Assert.Equal("lane failed", ex.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task PrioritizedChannel_ShouldObserveCancelledLane()
     {
         var cancelingLane = new AsyncLaneReader();
@@ -153,7 +153,7 @@ public sealed class PrioritizedChannelTests
         await Assert.ThrowsAsync<OperationCanceledException>(() => waitTask);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task PrioritizedChannel_ShouldPropagateSynchronousLaneFault()
     {
         var lane = new ImmediateFaultLaneReader(new InvalidOperationException("sync fault"));

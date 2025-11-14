@@ -2,7 +2,7 @@ namespace Hugo.Tests;
 
 public class InMemoryDeterministicStateStoreTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void TryGet_ShouldThrow_WhenKeyMissing()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -10,7 +10,7 @@ public class InMemoryDeterministicStateStoreTests
         Assert.Throws<ArgumentException>(() => store.TryGet("", out _));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Set_ShouldThrow_WhenKeyMissing()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -19,7 +19,7 @@ public class InMemoryDeterministicStateStoreTests
         Assert.Throws<ArgumentException>(() => store.Set(" ", record));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Set_ShouldThrow_WhenRecordNull()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -27,7 +27,7 @@ public class InMemoryDeterministicStateStoreTests
         Assert.Throws<ArgumentNullException>(() => store.Set("key", null!));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void SetAndTryGet_ShouldReturnStoredRecord()
     {
         var store = new InMemoryDeterministicStateStore();

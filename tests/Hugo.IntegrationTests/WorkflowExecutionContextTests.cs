@@ -12,7 +12,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
     {
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Tick_ShouldIncrementLogicalClock()
     {
         var context = CreateContext();
@@ -24,7 +24,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Equal(2, context.LogicalClock);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Observe_ShouldAdvanceToObservedValue()
     {
         var context = CreateContext(initialLogicalClock: 5);
@@ -35,7 +35,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Equal(11, context.LogicalClock);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Observe_WithLowerValue_ShouldStillIncrement()
     {
         var context = CreateContext(initialLogicalClock: 5);
@@ -46,7 +46,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Equal(6, context.LogicalClock);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Observe_WithNegativeValue_ShouldThrow()
     {
         var context = CreateContext();
@@ -54,20 +54,20 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => context.Observe(-1));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Constructor_WithNegativeLogicalClock_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => CreateContext(initialLogicalClock: -1));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Constructor_WithNegativeReplayCount_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => CreateContext(replayCount: -1));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Constructor_WithEmptyNamespace_ShouldThrow() => Assert.Throws<ArgumentException>(static () => new WorkflowExecutionContext(
                                                                          string.Empty,
                                                                          "workflow",
                                                                          "run",
                                                                          "queue"));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Constructor_WithInvalidMetadataKey_ShouldThrow()
     {
         var metadata = new Dictionary<string, string> { [" "] = "value" };
@@ -75,7 +75,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Throws<ArgumentException>(() => CreateContext(metadata: metadata));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void SnapshotVisibility_BeforeCompletion_ShouldReportActive()
     {
         var metadata = new Dictionary<string, string> { ["region"] = "us-east" };
@@ -89,7 +89,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Equal("us-east", snapshot.Attributes["region"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void TryGetMetadata_ShouldReturnExistingValue()
     {
         var context = CreateContext(metadata: new Dictionary<string, string> { ["region"] = "eu-west" });
@@ -99,7 +99,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.False(context.TryGetMetadata("missing", out _));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Complete_ShouldPopulateVisibilityRecordAndErrorMetadata()
     {
         var provider = new FakeTimeProvider();
@@ -124,7 +124,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Equal("contoso", tenant);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Complete_WithAttributes_ShouldMergeMetadata()
     {
         var provider = new FakeTimeProvider();
@@ -149,7 +149,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Equal("group-1", record.ScheduleGroup);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void TryComplete_ShouldPreventDoubleCompletion()
     {
         var context = CreateContext();
@@ -162,7 +162,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => context.Complete(WorkflowCompletionStatus.Completed));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void SnapshotVisibility_AfterCompletion_ShouldReportFinalState()
     {
         var provider = new FakeTimeProvider();
@@ -178,7 +178,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.NotNull(snapshot.CompletedAt);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ResetLogicalClock_ShouldUpdateValue()
     {
         var context = CreateContext(initialLogicalClock: 2);
@@ -188,7 +188,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Equal(10, context.LogicalClock);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ResetLogicalClock_WithNegativeValue_ShouldThrow()
     {
         var context = CreateContext();
@@ -196,7 +196,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => context.ResetLogicalClock(-5));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void IncrementReplayCount_ShouldUpdateProperty()
     {
         var context = CreateContext(replayCount: 1);
@@ -207,7 +207,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Equal(2, context.ReplayCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Scope_ShouldManageAmbientContextLifecycle()
     {
         var context = CreateContext();
@@ -228,13 +228,13 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Null(WorkflowExecution.Current);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void RequireCurrent_WhenMissing_ShouldThrow() => Assert.Throws<InvalidOperationException>(static () => WorkflowExecution.RequireCurrent());
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Enter_WithNullContext_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => WorkflowExecution.Enter(null!, TestContext.Current.CancellationToken));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void CurrentCancellationToken_ShouldFlowThroughAmbientScope()
     {
         var context = CreateContext();
@@ -246,7 +246,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Equal(cts.Token, WorkflowExecution.CurrentCancellationToken);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Scope_Complete_ShouldDelegateToContext()
     {
         var context = CreateContext();
@@ -258,7 +258,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Equal(WorkflowCompletionStatus.Completed, context.CompletionStatus);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Scope_TryComplete_ShouldReturnFalseAfterCompletion()
     {
         var context = CreateContext();
@@ -269,7 +269,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.False(scope.TryComplete(WorkflowCompletionStatus.Failed, Error.From("boom", "error"), null, out _));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Scope_DisposeOutOfOrder_ShouldThrow()
     {
         var outerContext = CreateContext(workflowId: "outer");
@@ -290,7 +290,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.False(WorkflowExecution.HasCurrent);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Enter_WithReplace_ShouldSwapAmbientContext()
     {
         var original = CreateContext(workflowId: "original");
@@ -307,7 +307,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => originalScope.Dispose());
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Scope_DisposeAsync_ShouldClearAmbientContext()
     {
         var context = CreateContext();

@@ -9,7 +9,7 @@ namespace Hugo.Tests;
 [Collection("TaskQueueConcurrency")]
 public class TaskQueueBackpressureIntegrationTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task LimiterSelector_ShouldFlipDuringBackpressure()
     {
         var provider = new FakeTimeProvider();
@@ -57,7 +57,7 @@ public class TaskQueueBackpressureIntegrationTests
         await EventuallyAsync(() => ReferenceEquals(listener.LimiterSelector(), unthrottled));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task DiagnosticsListener_ShouldStreamOrderedSignals()
     {
         var provider = new FakeTimeProvider();
@@ -111,7 +111,7 @@ public class TaskQueueBackpressureIntegrationTests
         Assert.True(first.ObservedAt <= second.ObservedAt);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitForDrainingAsync_ShouldWorkWithSafeTaskQueue()
     {
         var provider = new FakeTimeProvider();

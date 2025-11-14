@@ -30,7 +30,7 @@ public class TaskQueueChannelAdapterTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Create_ShouldSurfaceLeasesAndAllowCompletion()
     {
         var options = new TaskQueueOptions
@@ -53,7 +53,7 @@ public class TaskQueueChannelAdapterTests
         await adapter.DisposeAsync();
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Dispose_ShouldCompleteChannel()
     {
         await using var queue = new TaskQueue<string>();
@@ -66,7 +66,7 @@ public class TaskQueueChannelAdapterTests
         Assert.False(adapter.Reader.TryRead(out _));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Create_WithConcurrency_ShouldPumpMultipleLeases()
     {
         await using var queue = new TaskQueue<string>();
@@ -86,7 +86,7 @@ public class TaskQueueChannelAdapterTests
         await adapter.DisposeAsync();
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Adapter_ShouldRequeueExpiredLeases()
     {
         var provider = new FakeTimeProvider();
@@ -116,7 +116,7 @@ public class TaskQueueChannelAdapterTests
         await adapter.DisposeAsync();
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task QueueDisposal_ShouldCompleteChannel()
     {
         await using var queue = new TaskQueue<string>();
@@ -128,7 +128,7 @@ public class TaskQueueChannelAdapterTests
         await adapter.DisposeAsync();
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Dispose_WithOwnership_ShouldDisposeQueue()
     {
         await using var queue = new TaskQueue<string>();
@@ -139,7 +139,7 @@ public class TaskQueueChannelAdapterTests
         await Assert.ThrowsAsync<ObjectDisposedException>(async () => await queue.EnqueueAsync("delta", TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Dispose_WhileLeaseBuffered_ShouldRequeueWork()
     {
         var options = new TaskQueueOptions
@@ -173,7 +173,7 @@ public class TaskQueueChannelAdapterTests
         await lease.CompleteAsync(TestContext.Current.CancellationToken);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Create_ShouldBoundActiveLeases_WhenReaderSlow()
     {
         var options = new TaskQueueOptions

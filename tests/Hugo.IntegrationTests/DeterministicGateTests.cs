@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 
 public class DeterministicGateTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ExecuteAsync_ShouldPreferUpgradedPath_WhenVersionMatches()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -60,7 +60,7 @@ public class DeterministicGateTests
         Assert.Equal(0, legacyCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ExecuteAsync_ShouldBridgeLegacyPath()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -114,7 +114,7 @@ public class DeterministicGateTests
         Assert.Equal(1, legacyCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ExecuteAsync_ShouldSurfaceVersionGateFailures()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -136,7 +136,7 @@ public class DeterministicGateTests
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Workflow_ShouldReplayDeterministicBranch()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -174,7 +174,7 @@ public class DeterministicGateTests
         Assert.True(store.TryGet("change.workflow::v2::upgrade", out _));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Workflow_ShouldRespectFallbackWhenNoBranchMatches()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -194,7 +194,7 @@ public class DeterministicGateTests
         Assert.Equal("fallback", result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Workflow_ShouldErrorWhenNoMatchingBranchOrFallback()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -215,7 +215,7 @@ public class DeterministicGateTests
         Assert.Equal(2, Assert.IsType<int>(metadataVersion));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Workflow_ShouldHonorPredicateOrdering()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -306,7 +306,7 @@ public class DeterministicGateTests
             builder.ForRange(minVersion, maxVersion, (ctx, ct) => Task.FromResult(Result.Ok(1))));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WorkflowContext_CreateEffectId_ShouldNormalizeScope()
     {
         var (gate, store, _) = CreateGate();
@@ -326,7 +326,7 @@ public class DeterministicGateTests
         Assert.True(store.TryGet("change.workflow.scope::v1::step", out _));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Workflow_ShouldFail_WhenStepIdentifierMissing()
     {
         var (gate, _, _) = CreateGate();

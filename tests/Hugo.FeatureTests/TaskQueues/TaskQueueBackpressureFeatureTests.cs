@@ -11,7 +11,7 @@ namespace Hugo.Tests.TaskQueues;
 [Collection("TaskQueueConcurrency")]
 public class TaskQueueBackpressureFeatureTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Monitor_ShouldEmitMetricsAndDiagnostics_DuringChaos()
     {
         using var meterListener = new MeterListener();

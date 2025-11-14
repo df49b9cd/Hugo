@@ -8,7 +8,7 @@ namespace Hugo.Tests;
 
 public class ResultPipelineEnhancementsTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WhenAll_ShouldReturnValues_WhenAllStepsSucceed()
     {
         var compensations = 0;
@@ -42,7 +42,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal(0, compensations);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WhenAll_ShouldReturnEmptyResult_WhenNoOperations()
     {
         var result = await Result.WhenAll(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
@@ -51,7 +51,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Empty(result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WhenAll_ShouldThrow_WhenOperationNull()
     {
         var operations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>?[] { null };
@@ -59,7 +59,7 @@ public class ResultPipelineEnhancementsTests
         await Assert.ThrowsAsync<ArgumentNullException>(async () => await Result.WhenAll(operations!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WhenAll_ShouldRunCompensation_OnFailure()
     {
         var compensationInvoked = 0;
@@ -84,7 +84,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal(1, compensationInvoked);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WhenAny_ShouldSelectFirstSuccess_AndCompensateOthers()
     {
         var compensation = 0;
@@ -119,7 +119,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal(1, compensation); // slow compensation should fire.
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WhenAny_ShouldReturnSuccess_WhenPeerFailsAfterWinner()
     {
         var winnerReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -143,7 +143,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal("winner", result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WhenAny_ShouldIgnorePostWinnerCancellations()
     {
         var winner = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((_, _) =>
@@ -161,7 +161,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal(1, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WhenAny_ShouldReturnValidationError_WhenNoOperations()
     {
         var result = await Result.WhenAny(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
@@ -171,7 +171,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal("No operations provided for WhenAny.", result.Error?.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WhenAny_ShouldAggregateFailures_WhenNoWinner()
     {
         var operations = new[]
@@ -190,7 +190,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal(2, errors.Length);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WhenAny_ShouldReturnCanceledError_WhenAllOperationsCanceled()
     {
         var operations = new[]
@@ -207,7 +207,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal("All operations were canceled.", result.Error?.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ResultSaga_ShouldRollback_WhenStepFails()
     {
         var compensation = 0;
@@ -231,7 +231,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal(1, compensation);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WhenAll_ShouldRunCompensation_OnExternalCancellation()
     {
         using var cts = new CancellationTokenSource();
@@ -275,7 +275,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal(1, compensationInvocations);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WhenAll_ShouldRunCompensation_OnOperationCanceledException()
     {
         var compensationInvocations = 0;
@@ -314,7 +314,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal(1, compensationInvocations);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WhenAll_ShouldSkipCompensation_WhenNoTasksCompleted()
     {
         using var cts = new CancellationTokenSource();
@@ -351,7 +351,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal(0, compensationInvocations);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ResultSaga_ShouldReturnState_OnSuccess()
     {
         var saga = new ResultSagaBuilder()
@@ -369,7 +369,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal("reserveId-charged", charge);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task StreamingExtensions_ShouldBridgeChannelsAndEnumerables()
     {
         var channel = Channel.CreateUnbounded<Result<int>>();
@@ -395,7 +395,7 @@ public class ResultPipelineEnhancementsTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanInAsync_ShouldMergeSourcesAndCompleteWriter()
     {
         var channel = Channel.CreateUnbounded<Result<int>>();
@@ -422,7 +422,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal([0, 1, 2, 3], collected);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanInAsync_ShouldPropagateSourceFailure()
     {
         var channel = Channel.CreateUnbounded<Result<int>>();
@@ -456,7 +456,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Same(exception, completionException);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_ShouldBroadcastResultsToAllWriters()
     {
         var first = Channel.CreateUnbounded<Result<int>>();
@@ -478,7 +478,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal([3, 4], secondValues);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task PartitionAsync_ShouldSplitResultsAndCompleteWriters()
     {
         var source = GetSequence();
@@ -506,7 +506,7 @@ public class ResultPipelineEnhancementsTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ToChannelAsync_ShouldEmitCanceledSentinelWhenEnumerationCanceled()
     {
         var channel = Channel.CreateUnbounded<Result<int>>();
@@ -535,7 +535,7 @@ public class ResultPipelineEnhancementsTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WindowAsync_ShouldBatchValues()
     {
         var source = GetSequence(TestContext.Current.CancellationToken);
@@ -559,7 +559,7 @@ public class ResultPipelineEnhancementsTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void HigherOrderOperators_ShouldGroupPartitionAndWindow()
     {
         var data = new[]
@@ -584,7 +584,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal(2, windowed.Value.Count);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void HigherOrderOperators_ShouldSurfaceFailure()
     {
         var error = Error.From("fail");
@@ -609,7 +609,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Throws<ArgumentOutOfRangeException>(() => Result.Window(data, 0));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RetryWithPolicyAsync_ShouldRetryUntilSuccess()
     {
         var attempts = 0;
@@ -632,7 +632,7 @@ public class ResultPipelineEnhancementsTests
         Assert.Equal(3, attempts);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RetryWithPolicyAsync_ShouldReturnFailureAfterExhaustingRetries()
     {
         var attempts = 0;

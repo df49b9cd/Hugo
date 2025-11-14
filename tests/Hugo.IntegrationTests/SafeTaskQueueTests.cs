@@ -5,7 +5,7 @@ namespace Hugo.Tests;
 [Collection("TaskQueueConcurrency")]
 public sealed class SafeTaskQueueTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task EnqueueLeaseComplete_ShouldReturnSuccess()
     {
         await using var queue = new TaskQueue<string>();
@@ -23,7 +23,7 @@ public sealed class SafeTaskQueueTests
         Assert.True(complete.IsSuccess);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Lease_WhenQueueDisposed_ShouldFail()
     {
         await using var queue = new TaskQueue<string>();
@@ -40,7 +40,7 @@ public sealed class SafeTaskQueueTests
         Assert.Equal(ErrorCodes.TaskQueueDisposed, lease.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task LeaseOperations_ShouldReturnFailuresInsteadOfThrowing()
     {
         await using var queue = new TaskQueue<string>();
@@ -67,7 +67,7 @@ public sealed class SafeTaskQueueTests
         Assert.Equal(ErrorCodes.TaskQueueLeaseInactive, fail.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FailAsync_WithNullError_ShouldReturnValidationError()
     {
         await using var queue = new TaskQueue<string>();
@@ -83,7 +83,7 @@ public sealed class SafeTaskQueueTests
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FailAsync_WithRequeue_ShouldReturnSuccess()
     {
         var provider = new FakeTimeProvider();
@@ -106,7 +106,7 @@ public sealed class SafeTaskQueueTests
         Assert.Same(error, nextLease.LastError);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task LeaseAsync_WhenCanceled_ShouldReturnCanceledError()
     {
         await using var queue = new TaskQueue<string>();

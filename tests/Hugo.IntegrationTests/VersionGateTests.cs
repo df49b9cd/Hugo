@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 
 public class VersionGateTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Require_ShouldRecordMaxVersion_WhenMissing()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -19,7 +19,7 @@ public class VersionGateTests
         Assert.Equal(2, decision.Value.Version);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Require_ShouldReturnPersistedVersion_OnSubsequentInvocations()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -35,7 +35,7 @@ public class VersionGateTests
         Assert.Equal(first.Value.Version, second.Value.Version);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Require_ShouldFail_WhenPersistedVersionOutsideRange()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -50,7 +50,7 @@ public class VersionGateTests
         Assert.Equal(ErrorCodes.VersionConflict, replay.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Require_ShouldUseInitialVersionProvider()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -66,7 +66,7 @@ public class VersionGateTests
         Assert.Equal(VersionGate.DefaultVersion, decision.Value.Version);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Require_ShouldFail_WhenMinExceedsMax()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -78,7 +78,7 @@ public class VersionGateTests
         Assert.Equal(ErrorCodes.Validation, decision.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Require_ShouldFail_WhenRecordKindMismatch()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -92,7 +92,7 @@ public class VersionGateTests
         Assert.Equal(ErrorCodes.DeterministicReplay, decision.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Require_ShouldFail_WhenInitialProviderThrows()
     {
         var store = new InMemoryDeterministicStateStore();
@@ -110,7 +110,7 @@ public class VersionGateTests
         Assert.Equal("feature.initial.exception", decision.Error.Metadata["changeId"]);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Require_ShouldFail_WhenInitialVersionOutsideRange()
     {
         var store = new InMemoryDeterministicStateStore();

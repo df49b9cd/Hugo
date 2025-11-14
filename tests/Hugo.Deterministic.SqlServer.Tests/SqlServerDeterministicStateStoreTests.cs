@@ -43,7 +43,7 @@ public sealed class SqlServerDeterministicStateStoreTests : IAsyncLifetime
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void SetAndGetRoundTripsRecord()
     {
         if (SkipIfNecessary())
@@ -73,7 +73,7 @@ public sealed class SqlServerDeterministicStateStoreTests : IAsyncLifetime
         Assert.Equal(record.Payload.ToArray(), stored.Payload.ToArray());
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void SetOverwritesExistingRecord()
     {
         if (SkipIfNecessary())

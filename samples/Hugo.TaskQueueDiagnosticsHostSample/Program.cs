@@ -18,9 +18,8 @@ builder.Services.AddSingleton(sp => new TaskQueue<int>(new TaskQueueOptions
     Name = "omnirelay.dispatch",
     Capacity = 256,
     LeaseDuration = TimeSpan.FromSeconds(30),
-    RequeueDelay = TimeSpan.FromSeconds(2),
-    DeadLetter = (_, _) => ValueTask.CompletedTask
-}));
+    RequeueDelay = TimeSpan.FromSeconds(2)
+}, deadLetter: static (_, _) => ValueTask.CompletedTask));
 builder.Services.AddSingleton<TaskQueueBackpressureMonitor<int>>(sp =>
 {
     var queue = sp.GetRequiredService<TaskQueue<int>>();

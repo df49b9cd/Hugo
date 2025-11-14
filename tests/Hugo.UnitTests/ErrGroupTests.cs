@@ -8,7 +8,7 @@ namespace Hugo.Tests;
 
 public class ErrGroupTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitAsync_ShouldReturnSuccess_WhenAllOperationsComplete()
     {
         using var group = new ErrGroup();
@@ -35,7 +35,7 @@ public class ErrGroupTests
         Assert.False(group.Token.IsCancellationRequested);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitAsync_ShouldReturnFirstError_AndCancelRemainingOperations()
     {
         using var group = new ErrGroup();
@@ -75,7 +75,7 @@ public class ErrGroupTests
         Assert.True(await cancellationObserved.Task);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitAsync_ShouldSurfaceExceptionsAsStructuredErrors()
     {
         using var group = new ErrGroup();
@@ -94,7 +94,7 @@ public class ErrGroupTests
         Assert.True(group.Token.IsCancellationRequested);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitAsync_ShouldReturnCanceled_WhenLinkedTokenCancels()
     {
         using var externalCts = new CancellationTokenSource();
@@ -115,7 +115,7 @@ public class ErrGroupTests
         Assert.True(group.Token.IsCancellationRequested);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Go_WithCancellationAwareTask_ShouldCompleteSuccessfully()
     {
         using var group = new ErrGroup();
@@ -134,7 +134,7 @@ public class ErrGroupTests
         Assert.Equal(group.Token, observedToken);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Go_WithoutTokenFunction_ShouldRunSuccessfully()
     {
         using var group = new ErrGroup();
@@ -153,7 +153,7 @@ public class ErrGroupTests
         Assert.Equal(1, counter);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Go_Action_ShouldCaptureExceptionsAsErrors()
     {
         using var group = new ErrGroup();
@@ -167,7 +167,7 @@ public class ErrGroupTests
         Assert.Contains("action failed", result.Error?.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Cancel_ShouldCancelRunningWork()
     {
         using var group = new ErrGroup();
@@ -192,7 +192,7 @@ public class ErrGroupTests
         Assert.Same(group.Error, result.Error);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitAsync_ShouldReturnCanceled_WhenWaitTokenCanceled()
     {
         using var group = new ErrGroup();
@@ -215,7 +215,7 @@ public class ErrGroupTests
         group.Cancel();
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Cancel_ShouldSurfaceCanceledResult_WhenNoWorkStarted()
     {
         using var group = new ErrGroup();
@@ -232,7 +232,7 @@ public class ErrGroupTests
         Assert.Same(group.Error, result.Error);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Cancel_ShouldNotOverwriteExistingError()
     {
         using var group = new ErrGroup();
@@ -270,7 +270,7 @@ public class ErrGroupTests
         Assert.Equal(typeof(ErrGroup).FullName, exception.ObjectName);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Go_ShouldNotRunWork_WhenDisposeRacesWithRegistration()
     {
         var group = new ErrGroup();
@@ -303,7 +303,7 @@ public class ErrGroupTests
         Assert.Equal(0, Volatile.Read(ref executed));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Token_ShouldRemainAwaitableAfterDispose()
     {
         var group = new ErrGroup();
@@ -340,7 +340,7 @@ public class ErrGroupTests
         };
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task PipelineFailure_ShouldCancelPeersBeforeCompensation()
     {
         using var group = new ErrGroup();
@@ -398,7 +398,7 @@ public class ErrGroupTests
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Go_Pipeline_ShouldAggregateCompensationFailures()
     {
         var group = new ErrGroup();
@@ -420,7 +420,7 @@ public class ErrGroupTests
         Assert.Equal(aggregated, recorded);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Go_Pipeline_ShouldExecuteCompensationPolicyOncePerScope()
     {
         var scope = new CompensationScope();

@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 
 public class ResultTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Fail_WithNullError_ShouldReturnUnspecified()
     {
         var result = Result.Fail<int>(null!);
@@ -15,7 +15,7 @@ public class ResultTests
         Assert.Equal(ErrorCodes.Unspecified, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Try_ShouldReturnOperationValue()
     {
         var result = Result.Try(static () => 42);
@@ -24,7 +24,7 @@ public class ResultTests
         Assert.Equal(42, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Try_ShouldCaptureExceptionWhenOperationFails()
     {
         var exception = new InvalidOperationException("boom");
@@ -36,7 +36,7 @@ public class ResultTests
         Assert.Same(exception, result.Error?.Cause);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Try_ShouldUseErrorFactory()
     {
         var custom = Error.From("custom", ErrorCodes.Validation);
@@ -47,7 +47,7 @@ public class ResultTests
         Assert.Same(custom, result.Error);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Try_ShouldFallbackToExceptionWhenFactoryReturnsNull()
     {
         var result = Result.Try<int>(static () => throw new InvalidOperationException("fail"), static _ => null);
@@ -56,7 +56,7 @@ public class ResultTests
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TryAsync_ShouldReturnOperationValue()
     {
         var result = await Result.TryAsync(static _ => Task.FromResult(21), cancellationToken: TestContext.Current.CancellationToken);
@@ -65,7 +65,7 @@ public class ResultTests
         Assert.Equal(21, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TryAsync_ShouldCaptureExceptionWhenOperationFails()
     {
         var exception = new InvalidOperationException("boom");
@@ -77,7 +77,7 @@ public class ResultTests
         Assert.Same(exception, result.Error?.Cause);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TryAsync_ShouldRespectErrorFactory()
     {
         var custom = Error.From("async", ErrorCodes.Validation);
@@ -91,7 +91,7 @@ public class ResultTests
         Assert.Same(custom, result.Error);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TryAsync_ShouldReturnCanceledResult()
     {
         using var cts = new CancellationTokenSource();
@@ -111,7 +111,7 @@ public class ResultTests
         Assert.Equal(cts.Token, recorded);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TryAsync_ShouldFallbackToExceptionWhenFactoryReturnsNull()
     {
         var result = await Result.TryAsync(
@@ -123,7 +123,7 @@ public class ResultTests
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void FromOptional_ShouldReturnSuccessWhenValuePresent()
     {
         var optional = Optional.Some(5);
@@ -134,7 +134,7 @@ public class ResultTests
         Assert.Equal(5, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void FromOptional_ShouldInvokeErrorFactoryWhenValueMissing()
     {
         var optional = Optional.None<int>();
@@ -146,7 +146,7 @@ public class ResultTests
         Assert.Same(custom, result.Error);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void FromOptional_ShouldFallbackToUnspecifiedWhenFactoryReturnsNull()
     {
         var optional = Optional.None<int>();
@@ -157,16 +157,16 @@ public class ResultTests
         Assert.Equal(ErrorCodes.Unspecified, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void FromOptional_ShouldThrowWhenFactoryIsNull() => Assert.Throws<ArgumentNullException>(static () => Result.FromOptional(Optional.Some(1), null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Traverse_ShouldThrow_WhenSourceIsNull() => Assert.Throws<ArgumentNullException>(static () => Result.Traverse<int, int>(null!, static x => Result.Ok(x)));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Traverse_ShouldThrow_WhenSelectorIsNull() => Assert.Throws<ArgumentNullException>(static () => Result.Traverse(Array.Empty<int>(), (Func<int, Result<int>>)null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Sequence_ShouldReturnFirstFailure()
     {
         var error = Error.From("fail");
@@ -176,7 +176,7 @@ public class ResultTests
         Assert.Same(error, result.Error);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Sequence_ShouldAggregateSuccessfulValues()
     {
         var result = Result.Sequence([Result.Ok(1), Result.Ok(2), Result.Ok(3)]);
@@ -185,7 +185,7 @@ public class ResultTests
         Assert.Equal([1, 2, 3], result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Traverse_ShouldApplySelector()
     {
         var result = Result.Traverse([1, 2, 3], static n => Result.Ok(n * 2));
@@ -194,7 +194,7 @@ public class ResultTests
         Assert.Equal([2, 4, 6], result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Traverse_ShouldStopOnFailure()
     {
         var error = Error.From("fail");
@@ -204,7 +204,7 @@ public class ResultTests
         Assert.Same(error, result.Error);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TraverseAsync_ShouldAggregateSuccessfulValues()
     {
         var result = await Result.TraverseAsync([1, 2], static n => Task.FromResult(Result.Ok(n + 1)), TestContext.Current.CancellationToken);
@@ -213,13 +213,13 @@ public class ResultTests
         Assert.Equal([2, 3], result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TraverseAsync_ShouldThrow_WhenSourceIsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => Result.TraverseAsync((IEnumerable<int>)null!, static _ => Task.FromResult(Result.Ok(0)), TestContext.Current.CancellationToken));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TraverseAsync_ShouldThrow_WhenSelectorIsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => Result.TraverseAsync(Array.Empty<int>(), (Func<int, Task<Result<int>>>)null!, TestContext.Current.CancellationToken));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TraverseAsync_ShouldReturnFailure()
     {
         var error = Error.From("fail");
@@ -229,7 +229,7 @@ public class ResultTests
         Assert.Same(error, result.Error);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TraverseAsync_ShouldRespectCancellation()
     {
         using var cts = new CancellationTokenSource();
@@ -243,7 +243,7 @@ public class ResultTests
         Assert.Equal(cts.Token, recordedToken);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TraverseAsync_WithTokenAwareSelector_ShouldPassCancellationToken()
     {
         using var cts = new CancellationTokenSource();
@@ -265,7 +265,7 @@ public class ResultTests
         Assert.Equal(cts.Token, observedToken);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TraverseAsync_WithTokenAwareSelector_ShouldRespectCancellation()
     {
         using var cts = new CancellationTokenSource();
@@ -286,7 +286,7 @@ public class ResultTests
         Assert.Equal(cts.Token, recordedToken);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SequenceAsync_Stream_ShouldAggregateValues()
     {
         async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct = default)
@@ -303,7 +303,7 @@ public class ResultTests
         Assert.Equal([1, 2], result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SequenceAsync_Stream_ShouldStopAtFailure()
     {
         var error = Error.From("fail");
@@ -324,7 +324,7 @@ public class ResultTests
         Assert.False(enumeratedAfterFailure);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SequenceAsync_Stream_ShouldReturnCanceledError()
     {
         using var cts = new CancellationTokenSource();
@@ -342,7 +342,7 @@ public class ResultTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SequenceAsync_Stream_WithFakeTimeProvider_ShouldReturnCanceledError()
     {
         var provider = new FakeTimeProvider();
@@ -365,7 +365,7 @@ public class ResultTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TraverseAsync_Stream_ShouldAggregateValues()
     {
         async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
@@ -384,7 +384,7 @@ public class ResultTests
         Assert.Equal([2, 4], result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TraverseAsync_Stream_ShouldStopOnFailure()
     {
         var error = Error.From("fail");
@@ -410,7 +410,7 @@ public class ResultTests
         Assert.False(enumeratedAfterFailure);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TraverseAsync_Stream_ShouldReturnCanceledError()
     {
         using var cts = new CancellationTokenSource();
@@ -431,7 +431,7 @@ public class ResultTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MapStreamAsync_ShouldMapValues()
     {
         async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
@@ -467,7 +467,7 @@ public class ResultTests
             });
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MapStreamAsync_ShouldStopOnFailure()
     {
         var error = Error.From("fail");
@@ -502,7 +502,7 @@ public class ResultTests
         Assert.False(enumeratedAfterFailure);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MapStreamAsync_TaskSelector_ShouldMapValues()
     {
         async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
@@ -530,7 +530,7 @@ public class ResultTests
         Assert.Equal(2, collected[0].Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Match_ShouldInvokeSuccessBranch()
     {
         var result = Result.Ok(42);
@@ -540,7 +540,7 @@ public class ResultTests
         Assert.Equal(43, observed);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Match_ShouldInvokeFailureBranch()
     {
         var error = Error.From("boom");
@@ -551,7 +551,7 @@ public class ResultTests
         Assert.Equal(error.Message.Length, observed);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Switch_ShouldInvokeCorrectCallback()
     {
         var success = Result.Ok("value");
@@ -574,7 +574,7 @@ public class ResultTests
         Assert.True(failureCalled);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MatchAsync_ShouldRespectOutcome()
     {
         var success = Result.Ok(5);
@@ -595,7 +595,7 @@ public class ResultTests
         Assert.Equal(failure.Error!.Message.Length, failureValue);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void TryGetValueAndError_ShouldExposeState()
     {
         var success = Result.Ok(10);
@@ -610,7 +610,7 @@ public class ResultTests
         Assert.Same(error, observedError);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MapStreamAsync_ShouldReturnCanceledResult()
     {
         using var cts = new CancellationTokenSource();
@@ -639,7 +639,7 @@ public class ResultTests
         Assert.Equal(ErrorCodes.Canceled, collected[0].Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ValueOr_ShouldReturnFallbackWhenFailure()
     {
         var value = Result.Fail<int>(Error.From("err")).ValueOr(42);
@@ -647,7 +647,7 @@ public class ResultTests
         Assert.Equal(42, value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ValueOrFactory_ShouldInvokeWhenFailure()
     {
         var value = Result.Fail<int>(Error.From("err")).ValueOr(static error => error.Message.Length);
@@ -655,7 +655,7 @@ public class ResultTests
         Assert.Equal(3, value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ValueOrThrow_ShouldThrowOnFailure()
     {
         var result = Result.Fail<int>(Error.From("boom"));
@@ -663,7 +663,7 @@ public class ResultTests
         _ = Assert.Throws<ResultException>(() => result.ValueOrThrow());
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Deconstruct_ShouldExposeValueAndError()
     {
         var success = Result.Ok(5);
@@ -677,7 +677,7 @@ public class ResultTests
         Assert.NotNull(failureError);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ImplicitTupleConversion_ShouldRoundTrip()
     {
         Result<int> fromTuple = (10, null);
@@ -691,7 +691,7 @@ public class ResultTests
         Assert.Null(error);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ToOptional_ShouldReflectResultState()
     {
         var success = Result.Ok(7).ToOptional();
@@ -702,7 +702,7 @@ public class ResultTests
         Assert.False(failure.TryGetValue(out _));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ToString_ShouldIndicateState()
     {
         var success = Result.Ok(3).ToString();

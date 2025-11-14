@@ -33,7 +33,7 @@ public partial class GoTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Defer_ShouldExecute_OnNormalCompletion()
     {
         var executed = false;
@@ -45,7 +45,7 @@ public partial class GoTests
         Assert.True(executed);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async ValueTask Defer_ShouldExecute_OnException()
     {
         var deferredActionExecuted = false;
@@ -59,7 +59,7 @@ public partial class GoTests
         Assert.True(deferredActionExecuted);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Mutex_ShouldThrow_WhenLockIsCancelled()
     {
         using var mutex = new Mutex();
@@ -73,7 +73,7 @@ public partial class GoTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Mutex_LockAsync_WithPreCanceledToken_ShouldThrow()
     {
         using var mutex = new Mutex();
@@ -83,7 +83,7 @@ public partial class GoTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await mutex.LockAsync(cts.Token));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Mutex_ShouldThrowAfterDispose()
     {
         using var mutex = new Mutex();
@@ -93,7 +93,7 @@ public partial class GoTests
         await Assert.ThrowsAsync<ObjectDisposedException>(async () => await mutex.LockAsync(TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Mutex_ShouldNotBeReentrant()
     {
         using var mutex = new Mutex();
@@ -108,7 +108,7 @@ public partial class GoTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Mutex_AsyncReleaser_ShouldBeIdempotent()
     {
         using var mutex = new Mutex();
@@ -122,7 +122,7 @@ public partial class GoTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Mutex_AsyncReleaser_DisposeAsync_ShouldReleaseLock()
     {
         using var mutex = new Mutex();
@@ -135,7 +135,7 @@ public partial class GoTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Mutex_AsyncReleaser_DisposeAsyncTwice_ShouldNotThrow()
     {
         using var mutex = new Mutex();
@@ -145,7 +145,7 @@ public partial class GoTests
         await releaser.DisposeAsync();
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Once_ShouldExecuteAction_ExactlyOnce_Concurrently()
     {
         var once = new Once();
@@ -166,7 +166,7 @@ public partial class GoTests
         Assert.Equal(1, counter);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Pool_ShouldRecycleObjects()
     {
         var pool = new Pool<object> { New = static () => new object() };
@@ -176,14 +176,14 @@ public partial class GoTests
         Assert.Same(obj1, obj2);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Pool_Get_ShouldThrow_WhenEmptyAndNoFactory()
     {
         var pool = new Pool<object>();
         Assert.Throws<InvalidOperationException>(() => pool.Get());
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RWMutex_ShouldAllow_MultipleConcurrentReaders()
     {
         using var rwMutex = new RwMutex();
@@ -220,7 +220,7 @@ public partial class GoTests
         Assert.Equal(5, maxConcurrentReaders);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RWMutex_ShouldProvide_ExclusiveWriteLock()
     {
         using var rwMutex = new RwMutex();
@@ -272,7 +272,7 @@ public partial class GoTests
         Assert.False(writeLockHeld);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ReadFileContent_ShouldSucceed_WithValidFile()
     {
         var tempFile = Path.GetTempFileName();
@@ -283,7 +283,7 @@ public partial class GoTests
         File.Delete(tempFile);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ReadFileContent_ShouldFail_WithInvalidFile()
     {
         var result = ReadFileContent("non_existent_file.txt");
@@ -292,7 +292,7 @@ public partial class GoTests
         Assert.Contains("Could not find file", result.Error!.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Concurrency_ShouldCommunicate_ViaChannel()
     {
         var channel = MakeChannel<string>();
@@ -305,7 +305,7 @@ public partial class GoTests
         Assert.Equal("Work complete!", message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Concurrency_ShouldBlock_WhenBoundedChannelIsFull()
     {
         var channel = MakeChannel<int>(1);
@@ -329,7 +329,7 @@ public partial class GoTests
         Assert.True(writerTaskCompleted);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitGroup_ShouldWait_ForAllTasksToComplete()
     {
         var wg = new WaitGroup();
@@ -350,7 +350,7 @@ public partial class GoTests
         Assert.Equal(5, counter);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitGroup_ShouldCompleteImmediately_WhenNoTasksAreAdded()
     {
         var wg = new WaitGroup();
@@ -358,7 +358,7 @@ public partial class GoTests
         Assert.True(true);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Mutex_ShouldPreventRaceConditions()
     {
         var wg = new WaitGroup();
@@ -389,7 +389,7 @@ public partial class GoTests
         Assert.Equal(numTasks * incrementsPerTask, counter);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void WaitGroup_Add_ShouldThrow_OnNonPositiveDelta()
     {
         var wg = new WaitGroup();
@@ -398,7 +398,7 @@ public partial class GoTests
         Assert.Throws<ArgumentOutOfRangeException>(() => wg.Add(-1));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void WaitGroup_AddTask_ShouldThrow_WhenTaskIsNull()
     {
         var wg = new WaitGroup();
@@ -406,7 +406,7 @@ public partial class GoTests
         Assert.Throws<ArgumentNullException>(() => wg.Add((Task)null!));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void WaitGroup_Go_ShouldThrow_WhenWorkIsNull()
     {
         var wg = new WaitGroup();
@@ -414,7 +414,7 @@ public partial class GoTests
         Assert.Throws<ArgumentNullException>(() => wg.Go((Func<Task>)null!, TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void WaitGroup_Go_WithCancellationToken_ShouldThrow_WhenWorkIsNull()
     {
         var wg = new WaitGroup();
@@ -422,7 +422,7 @@ public partial class GoTests
         Assert.Throws<ArgumentNullException>(() => wg.Go((Func<CancellationToken, Task>)null!, TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void WaitGroup_Done_ShouldThrow_WhenCalledTooManyTimes()
     {
         var wg = new WaitGroup();
@@ -432,7 +432,7 @@ public partial class GoTests
         Assert.Throws<InvalidOperationException>(() => wg.Done());
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitGroup_WaitAsync_ShouldRespectCancellation()
     {
         var wg = new WaitGroup();
@@ -445,7 +445,7 @@ public partial class GoTests
         wg.Done();
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitGroup_AddTask_ShouldCompleteWhenTrackedTaskFinishes()
     {
         var wg = new WaitGroup();
@@ -458,7 +458,7 @@ public partial class GoTests
         Assert.Equal(0, wg.Count);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Mutex_DisposeAsync_ShouldReleaseLock()
     {
         using var mutex = new Mutex();
@@ -475,7 +475,7 @@ public partial class GoTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RwMutex_RLockAsync_ShouldCancelWhenWriterHeld()
     {
         using var rwMutex = new RwMutex();
@@ -486,7 +486,7 @@ public partial class GoTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RwMutex_LockAsync_DisposeAsync_ShouldRelease()
     {
         using var rwMutex = new RwMutex();
@@ -503,7 +503,7 @@ public partial class GoTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Pool_Put_ShouldThrowOnNull()
     {
         var pool = new Pool<object> { New = () => new object() };
@@ -511,7 +511,7 @@ public partial class GoTests
         Assert.Throws<ArgumentNullException>(() => pool.Put(null!));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Run_ShouldExecuteDelegate()
     {
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -524,14 +524,14 @@ public partial class GoTests
         await tcs.Task.WaitAsync(TestContext.Current.CancellationToken);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Run_ShouldThrowWhenFuncIsNull()
     {
         await Assert.ThrowsAsync<ArgumentNullException>(static () => Run((Func<Task>)null!));
         await Assert.ThrowsAsync<ArgumentNullException>(static () => Run((Func<CancellationToken, Task>)null!, TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Run_WithCancellationToken_ShouldPropagateCancellation()
     {
         using var cts = new CancellationTokenSource();
@@ -540,7 +540,7 @@ public partial class GoTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Run(_ => Task.Delay(1000, _), cts.Token));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Run_ShouldAcceptExistingTask()
     {
         var existing = Task.Delay(10, TestContext.Current.CancellationToken);
@@ -550,7 +550,7 @@ public partial class GoTests
         await tracked;
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Run_ShouldAcceptExistingValueTask()
     {
         var invoked = 0;
@@ -566,7 +566,7 @@ public partial class GoTests
         Assert.Equal(1, invoked);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Run_ShouldRespectCustomScheduler()
     {
         var scheduler = new InlineTaskScheduler();
@@ -586,7 +586,7 @@ public partial class GoTests
         Assert.Equal(1, scheduler.ExecutionCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitGroup_Go_ShouldRespectCustomScheduler()
     {
         var wg = new WaitGroup();
@@ -608,7 +608,7 @@ public partial class GoTests
         Assert.Equal(1, scheduler.ExecutionCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitGroup_Go_ShouldAcceptExistingTask()
     {
         var wg = new WaitGroup();
@@ -623,7 +623,7 @@ public partial class GoTests
         Assert.Equal(0, wg.Count);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task DelayAsync_WithFakeTimeProvider_ShouldCompleteWhenAdvanced()
     {
         var provider = new FakeTimeProvider();
@@ -637,11 +637,11 @@ public partial class GoTests
         await delayTask.WaitAsync(TestContext.Current.CancellationToken);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task DelayAsync_ShouldThrow_WhenDelayIsNegative() => await Assert.ThrowsAsync<ArgumentOutOfRangeException>(static () =>
                                                                                DelayAsync(TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task DelayAsync_ShouldRespectCancellation()
     {
         using var cts = new CancellationTokenSource();
@@ -653,10 +653,10 @@ public partial class GoTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await delayTask);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ChannelCase_Create_ShouldThrow_WhenReaderIsNull() => Assert.Throws<ArgumentNullException>(static () => ChannelCase.Create<int>(null!, static (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value))));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ChannelCase_Create_ShouldThrow_WhenContinuationIsNull()
     {
         var channel = MakeChannel<int>();
@@ -664,7 +664,7 @@ public partial class GoTests
         Assert.Throws<ArgumentNullException>(() => ChannelCase.Create(channel.Reader, (Func<int, CancellationToken, Task<Result<Go.Unit>>>)null!));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ChannelCase_CreateAction_ShouldThrow_WhenActionIsNull()
     {
         var channel = MakeChannel<int>();
@@ -672,13 +672,13 @@ public partial class GoTests
         Assert.Throws<ArgumentNullException>(() => ChannelCase.Create(channel.Reader, (Action<int>)null!));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldThrow_WhenCasesNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldThrow_WhenCasesEmpty() => await Assert.ThrowsAsync<ArgumentException>(static () => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: []));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldThrow_WhenTimeoutIsNegative()
     {
         var channel = MakeChannel<int>();
@@ -687,7 +687,7 @@ public partial class GoTests
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => SelectAsync(TimeSpan.FromMilliseconds(-5), cancellationToken: TestContext.Current.CancellationToken, cases: [@case]));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldReturnFailure_WhenCasesCompleteWithoutValue()
     {
         var channel = MakeChannel<int>();
@@ -699,7 +699,7 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.SelectDrained, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldInvokeDefaultCase()
     {
         var invoked = false;
@@ -720,7 +720,7 @@ public partial class GoTests
         Assert.True(result.IsSuccess);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldPropagateDefaultFailure()
     {
         var result = await SelectAsync(
@@ -735,7 +735,7 @@ public partial class GoTests
         Assert.Equal("default failure", result.Error?.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldPreferReadyCaseOverDefault()
     {
         var channel = MakeChannel<int>();
@@ -763,7 +763,7 @@ public partial class GoTests
         Assert.False(defaultInvoked);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldThrow_WhenMultipleDefaultCasesSupplied()
     {
         await Assert.ThrowsAsync<ArgumentException>(static () =>
@@ -776,7 +776,7 @@ public partial class GoTests
                 ]));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldWrapContinuationExceptions()
     {
         var channel = MakeChannel<int>();
@@ -790,7 +790,7 @@ public partial class GoTests
         Assert.Contains("boom", result.Error?.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldReturnFirstCompletedCase()
     {
         var channel1 = MakeChannel<int>();
@@ -828,7 +828,7 @@ public partial class GoTests
         Assert.False(secondExecuted);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldReturnTimeoutError_WhenDeadlineExpires()
     {
         var channel = MakeChannel<int>();
@@ -857,7 +857,7 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldRespectCancellation()
     {
         var channel = MakeChannel<int>();
@@ -878,7 +878,7 @@ public partial class GoTests
         channel.Writer.TryComplete();
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldEmitActivityTelemetry_OnSuccess()
     {
         GoDiagnostics.Reset();
@@ -922,7 +922,7 @@ public partial class GoTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldEmitActivityTelemetry_OnFailure()
     {
         GoDiagnostics.Reset();
@@ -965,7 +965,7 @@ public partial class GoTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FakeTimeProviderDelay_ShouldCompleteAfterAdvance()
     {
         var provider = new FakeTimeProvider();
@@ -1038,7 +1038,7 @@ public partial class GoTests
         Assert.Equal(expected, observed);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectBuilder_ShouldReturnProjectedResult_WhenTemplateUsed()
     {
         var channel = MakeChannel<int>();
@@ -1057,7 +1057,7 @@ public partial class GoTests
         Assert.Equal("value:7", result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectBuilder_ShouldPropagateCaseFailure()
     {
         var channel = MakeChannel<int>();
@@ -1076,7 +1076,7 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectBuilder_ShouldPropagateTimeout()
     {
         var provider = new FakeTimeProvider();
@@ -1094,7 +1094,7 @@ public partial class GoTests
         Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectBuilder_ShouldThrow_WhenNoCasesConfigured()
     {
         var builder = Select<int>(cancellationToken: TestContext.Current.CancellationToken);
@@ -1102,7 +1102,7 @@ public partial class GoTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => builder.ExecuteAsync());
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectBuilder_ShouldReturnDefaultResult_WhenNoCasesConfigured()
     {
         var result = await Select<string>(cancellationToken: TestContext.Current.CancellationToken)
@@ -1113,7 +1113,7 @@ public partial class GoTests
         Assert.Equal("fallback", result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectBuilder_ShouldPreferReadyCasesOverDefault()
     {
         var channel = MakeChannel<int>();
@@ -1129,7 +1129,7 @@ public partial class GoTests
         Assert.Equal(9, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectBuilder_ShouldHonorPriorityOrdering_WhenMultipleCasesReady()
     {
         var highPriority = MakeChannel<int>();
@@ -1149,7 +1149,7 @@ public partial class GoTests
         Assert.Equal(1, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectBuilder_ShouldHonorRegistrationOrder_WhenPrioritiesMatch()
     {
         var first = MakeChannel<int>();
@@ -1169,7 +1169,7 @@ public partial class GoTests
         Assert.Equal(7, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectBuilder_ShouldInvokeDefault_WhenCasesDrainWithoutValues()
     {
         var channel = MakeChannel<int>();
@@ -1184,7 +1184,7 @@ public partial class GoTests
         Assert.Equal("fallback", result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void SelectBuilder_Default_ShouldThrow_WhenConfiguredTwice()
     {
         var builder = Select<int>(cancellationToken: TestContext.Current.CancellationToken)
@@ -1193,7 +1193,7 @@ public partial class GoTests
         Assert.Throws<InvalidOperationException>(() => builder.Default(() => 2));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectBuilder_Deadline_ShouldYieldConfiguredResult()
     {
         var provider = new FakeTimeProvider();
@@ -1210,7 +1210,7 @@ public partial class GoTests
         Assert.Equal("expired", result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitGroup_WaitAsync_WithFakeTimeProvider_ShouldReturnFalseWhenIncomplete()
     {
         var provider = new FakeTimeProvider();
@@ -1232,7 +1232,7 @@ public partial class GoTests
         await wg.WaitAsync(TestContext.Current.CancellationToken);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitGroup_WaitAsync_WithFakeTimeProvider_ShouldReturnTrueWhenAllComplete()
     {
         var provider = new FakeTimeProvider();
@@ -1252,7 +1252,7 @@ public partial class GoTests
         await wg.WaitAsync(TestContext.Current.CancellationToken);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_WithZeroCapacity_ShouldCreateUnboundedChannel()
     {
         var channel = MakeChannel<int>(0);
@@ -1261,24 +1261,24 @@ public partial class GoTests
         Assert.True(channel.Writer.TryWrite(2));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_WithNullBoundedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((BoundedChannelOptions)null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_WithNullUnboundedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((UnboundedChannelOptions)null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_WithNullPrioritizedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((PrioritizedChannelOptions)null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakePrioritizedChannel_ShouldThrow_WhenPriorityLevelsInvalid() => Assert.Throws<ArgumentOutOfRangeException>(static () => MakePrioritizedChannel<int>(0));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakePrioritizedChannel_ShouldThrow_WhenDefaultPriorityTooHigh() => Assert.Throws<ArgumentOutOfRangeException>(static () => MakePrioritizedChannel<int>(priorityLevels: 2, defaultPriority: 2));
 
     private static readonly int[] expected = [2, 3, 1];
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MakeChannel_WithPrioritizedOptions_ShouldYieldHigherPriorityFirst()
     {
         var channel = MakeChannel<int>(new PrioritizedChannelOptions { PriorityLevels = 3 });
@@ -1300,7 +1300,7 @@ public partial class GoTests
         Assert.Equal(expected, results);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MakePrioritizedChannel_ShouldApplyDefaultPriority()
     {
         var channel = MakePrioritizedChannel<int>(priorityLevels: 2, defaultPriority: 0);
@@ -1318,7 +1318,7 @@ public partial class GoTests
         Assert.Equal(2, second);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task PrioritizedChannelWriter_ShouldRejectInvalidPriority()
     {
         var channel = MakeChannel<int>(new PrioritizedChannelOptions { PriorityLevels = 2 });
@@ -1327,7 +1327,7 @@ public partial class GoTests
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await writer.WriteAsync(42, priority: 5, TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Err_WithMessage_ShouldReturnFailure()
     {
         var result = Err<int>("message", ErrorCodes.Validation);

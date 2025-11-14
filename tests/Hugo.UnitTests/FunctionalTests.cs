@@ -7,7 +7,7 @@ namespace Hugo.Tests;
 
 public class FunctionalTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Err_ShouldReturnDefaultError_WhenGivenNull()
     {
         var (_, err) = Err<string>((Error?)null);
@@ -15,19 +15,19 @@ public class FunctionalTests
         Assert.Equal("An unspecified error occurred.", err.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Then_ShouldThrow_WhenNextIsNull() => Assert.Throws<ArgumentNullException>(static () => Ok(1).Then((Func<int, Result<int>>)null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Map_ShouldThrow_WhenMapperIsNull() => Assert.Throws<ArgumentNullException>(static () => Ok(1).Map((Func<int, int>)null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Tap_ShouldThrow_WhenActionIsNull() => Assert.Throws<ArgumentNullException>(static () => Ok(1).Tap(null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Error_From_ShouldThrow_WhenMessageIsNull() => Assert.Throws<ArgumentNullException>(static () => Error.From(null!));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Error_ShouldImplicitlyConvert_FromString()
     {
         Error? err = "message";
@@ -35,7 +35,7 @@ public class FunctionalTests
         Assert.Equal("message", err.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Error_ShouldImplicitlyConvert_FromException()
     {
         Error? err = new InvalidOperationException("boom");
@@ -44,7 +44,7 @@ public class FunctionalTests
         Assert.Equal(ErrorCodes.Exception, err.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Then_ShouldExecuteNext_OnSuccess()
     {
         var result = Ok(2)
@@ -55,7 +55,7 @@ public class FunctionalTests
         Assert.Equal("10", result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Then_ShouldBypassNext_OnFailure()
     {
         var error = Error.From("oops");
@@ -65,7 +65,7 @@ public class FunctionalTests
         Assert.Same(error, result.Error);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Then_ShouldNotIncrementDiagnostics_OnFailurePropagation()
     {
         var error = Error.From("boom", ErrorCodes.Exception);
@@ -76,7 +76,7 @@ public class FunctionalTests
         Assert.Equal(1, failures);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void SelectMany_ShouldReuseOriginalError()
     {
         var error = Error.From("boom", ErrorCodes.Exception);
@@ -88,7 +88,7 @@ public class FunctionalTests
         Assert.Equal(1, failures);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ThenAsync_ShouldComposeSyncBinder_WithAsyncResult()
     {
         var result = await Task.FromResult(Ok("start"))
@@ -98,7 +98,7 @@ public class FunctionalTests
         Assert.Equal("start-next", result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ThenAsync_ShouldComposeAsyncBinder()
     {
         var result = await Ok("start")
@@ -111,7 +111,7 @@ public class FunctionalTests
         Assert.Equal("start-async", result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ThenAsync_ShouldComposeValueTaskBinder()
     {
         var result = await Ok("start")
@@ -128,7 +128,7 @@ public class FunctionalTests
         Assert.Equal("start-valuetask", result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ThenAsync_ShouldComposeValueTaskResultSource()
     {
         static ValueTask<Result<string>> Stage() => ValueTask.FromResult(Result.Ok("begin"));
@@ -140,7 +140,7 @@ public class FunctionalTests
         Assert.Equal("begin-done", result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Map_ShouldTransformValue()
     {
         var result = Ok(5).Map(static v => v * 2);
@@ -149,7 +149,7 @@ public class FunctionalTests
         Assert.Equal(10, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MapAsync_ShouldTransformAsync()
     {
         var result = await Ok(5)
@@ -159,7 +159,7 @@ public class FunctionalTests
         Assert.Equal(15, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MapAsync_ShouldSupportValueTaskMapper()
     {
         var result = await Ok(7)
@@ -173,7 +173,7 @@ public class FunctionalTests
         Assert.Equal(14, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MapAsync_ShouldSupportValueTaskResultSource()
     {
         var mapped = await ValueTask.FromResult(Result.Ok(3))
@@ -183,7 +183,7 @@ public class FunctionalTests
         Assert.Equal(4, mapped.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Tap_ShouldRunSideEffect_WhenSuccessful()
     {
         var tapped = false;
@@ -193,7 +193,7 @@ public class FunctionalTests
         Assert.True(result.IsSuccess);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Tap_ShouldSkipSideEffect_WhenFailure()
     {
         var tapped = false;
@@ -203,7 +203,7 @@ public class FunctionalTests
         Assert.True(result.IsFailure);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TapAsync_ShouldSupportAsyncSideEffects()
     {
         var tapped = false;
@@ -221,7 +221,7 @@ public class FunctionalTests
         Assert.True(result.IsSuccess);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TapAsync_ShouldSupportValueTaskSideEffects()
     {
         var callCount = 0;
@@ -239,7 +239,7 @@ public class FunctionalTests
         Assert.Equal(2, callCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TapErrorAsync_ShouldSupportValueTaskSideEffects()
     {
         var observed = 0;
@@ -257,7 +257,7 @@ public class FunctionalTests
         Assert.Equal("fail".Length, observed);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Recover_ShouldConvertFailure()
     {
         var recovered = Err<int>("whoops").Recover(static err => Ok(err.Message.Length));
@@ -266,7 +266,7 @@ public class FunctionalTests
         Assert.Equal(6, recovered.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RecoverAsync_Result_ShouldConvertFailure()
     {
         var recovered = await Err<int>("fail").RecoverAsync(
@@ -278,7 +278,7 @@ public class FunctionalTests
         Assert.Equal(4, recovered.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RecoverAsync_ShouldSupportValueTaskRecover()
     {
         var recovered = await Err<int>("boom").RecoverValueTaskAsync(
@@ -294,7 +294,7 @@ public class FunctionalTests
         Assert.Equal(4, recovered.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RecoverAsync_ShouldSupportValueTaskResultSource()
     {
         var recovered = await ValueTask.FromResult(Result.Fail<int>(Error.From("oops")))
@@ -304,7 +304,7 @@ public class FunctionalTests
         Assert.Equal(4, recovered.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RecoverAsync_ShouldConvertFailure()
     {
         var recovered = await Task.FromResult(Err<int>("fail"))
@@ -317,7 +317,7 @@ public class FunctionalTests
         Assert.Equal(4, recovered.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Ensure_ShouldFail_WhenPredicateIsFalse()
     {
         var result = Ok(5).Ensure(static v => v > 10);
@@ -326,7 +326,7 @@ public class FunctionalTests
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task EnsureAsync_ShouldFail_WhenPredicateIsFalse()
     {
         var result = await Ok(5).EnsureAsync(
@@ -338,7 +338,7 @@ public class FunctionalTests
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task EnsureAsync_ShouldSupportValueTaskPredicate()
     {
         var result = await Ok(42).EnsureValueTaskAsync(
@@ -353,7 +353,7 @@ public class FunctionalTests
         Assert.True(result.IsSuccess);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task EnsureAsync_ShouldSupportValueTaskResultSource()
     {
         var evaluation = await ValueTask.FromResult(Result.Ok(1))
@@ -363,7 +363,7 @@ public class FunctionalTests
         Assert.Equal(ErrorCodes.Validation, evaluation.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void TapError_ShouldRunSideEffect_WhenFailure()
     {
         Error? tappedError = null;
@@ -374,7 +374,7 @@ public class FunctionalTests
         Assert.Equal("fault", tappedError!.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Finally_ShouldSelectBranch()
     {
         var success = Ok("value").Finally(static v => v.ToUpperInvariant(), static err => err.Message);
@@ -384,7 +384,7 @@ public class FunctionalTests
         Assert.Equal("fail", failure);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FinallyAsync_ShouldSelectBranch_ForTask()
     {
         var success = await Task.FromResult(Ok(1))
@@ -405,7 +405,7 @@ public class FunctionalTests
         Assert.Equal("fail", failure);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Linq_Query_Comprehension_ShouldWork()
     {
         var query =
@@ -417,7 +417,7 @@ public class FunctionalTests
         Assert.Equal(6, query.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Pipeline_ShouldHandleMixedOperations()
     {
         var result = await Ok(1)
@@ -447,7 +447,7 @@ public class FunctionalTests
         Assert.Equal(10, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Cancellation_ShouldPropagateThroughChain()
     {
         using var cts = new CancellationTokenSource(50);
@@ -466,7 +466,7 @@ public class FunctionalTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MapAsync_ShouldReturnCancellationError_WhenTaskCanceled()
     {
         using var cts = new CancellationTokenSource();
@@ -479,7 +479,7 @@ public class FunctionalTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RecoverAsync_ShouldSkip_WhenCancellationOccurs()
     {
         using var cts = new CancellationTokenSource();
@@ -492,7 +492,7 @@ public class FunctionalTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void OnSuccess_ShouldInvokeAction()
     {
         var invoked = false;
@@ -501,7 +501,7 @@ public class FunctionalTests
         Assert.True(invoked);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task OnSuccessAsync_Result_ShouldInvokeAction()
     {
         var invoked = false;
@@ -518,7 +518,7 @@ public class FunctionalTests
         Assert.True(invoked);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task OnSuccessAsync_TaskResult_WithAsyncAction_ShouldInvoke()
     {
         var invoked = false;
@@ -535,7 +535,7 @@ public class FunctionalTests
         Assert.True(invoked);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task OnSuccessAsync_ShouldSupportValueTaskAction()
     {
         var invoked = false;
@@ -552,7 +552,7 @@ public class FunctionalTests
         Assert.True(invoked);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task OnFailureAsync_ShouldSupportValueTaskAction()
     {
         Error? observed = null;
@@ -569,7 +569,7 @@ public class FunctionalTests
         Assert.NotNull(observed);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void OnFailure_ShouldInvokeAction()
     {
         Error? captured = null;
@@ -578,7 +578,7 @@ public class FunctionalTests
         Assert.NotNull(captured);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task OnFailureAsync_Result_ShouldInvokeAction()
     {
         Error? captured = null;
@@ -595,7 +595,7 @@ public class FunctionalTests
         Assert.NotNull(captured);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task OnFailureAsync_TaskResult_WithAsyncAction_ShouldInvoke()
     {
         Error? captured = null;
@@ -612,7 +612,7 @@ public class FunctionalTests
         Assert.NotNull(captured);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TapErrorAsync_TaskResult_WithAction_ShouldInvoke()
     {
         Error? captured = null;
@@ -625,7 +625,7 @@ public class FunctionalTests
         Assert.NotNull(captured);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Tee_ShouldBehaveLikeTap()
     {
         var tapped = false;
@@ -635,7 +635,7 @@ public class FunctionalTests
         Assert.True(tapped);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TeeAsync_TaskResult_WithAction_ShouldInvoke()
     {
         var tapped = false;
@@ -646,7 +646,7 @@ public class FunctionalTests
         Assert.True(tapped);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TeeAsync_TaskResult_WithAsyncSideEffect_ShouldInvoke()
     {
         var tapped = false;
@@ -661,7 +661,7 @@ public class FunctionalTests
         Assert.True(tapped);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MapAsync_TaskResult_ShouldTransformValue()
     {
         var resultTask = Task.FromResult(Ok(2));
@@ -671,7 +671,7 @@ public class FunctionalTests
         Assert.Equal(6, mapped.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task MapAsync_TaskResult_WithAsyncMapper_ShouldTransformValue()
     {
         var resultTask = Task.FromResult(Ok(3));
@@ -688,7 +688,7 @@ public class FunctionalTests
         Assert.Equal(6, mapped.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RecoverAsync_TaskResultWithAsyncRecover_ShouldReturnRecoveredResult()
     {
         var task = Task.FromResult(Err<int>("fail"));
@@ -702,7 +702,7 @@ public class FunctionalTests
         Assert.Equal(9, recovered.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task EnsureAsync_TaskResult_ShouldFailWhenPredicateFalse()
     {
         var task = Task.FromResult(Ok(1));
@@ -716,7 +716,7 @@ public class FunctionalTests
         Assert.Equal(ErrorCodes.Validation, ensured.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FinallyAsync_Result_ShouldInvokeAsyncHandlers()
     {
         var result = await Ok(1).FinallyAsync(
@@ -736,7 +736,7 @@ public class FunctionalTests
         Assert.Equal(2, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FinallyAsync_TaskResult_ShouldInvokeAsyncHandlers()
     {
         var outcome = await Task.FromResult(Ok("value")).FinallyAsync(
@@ -756,7 +756,7 @@ public class FunctionalTests
         Assert.Equal("VALUE", outcome);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FinallyAsync_TaskResult_ShouldReturnCanceledError()
     {
         using var cts = new CancellationTokenSource();
@@ -780,7 +780,7 @@ public class FunctionalTests
         Assert.Equal(ErrorCodes.Canceled, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FinallyAsync_ValueTaskResult_ShouldSupportValueTaskContinuations()
     {
         var outcome = await ValueTask.FromResult(Result.Ok("value"))
@@ -801,7 +801,7 @@ public class FunctionalTests
         Assert.Equal("value-ok", outcome);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Where_ShouldFailWhenPredicateFalse()
     {
         var result = Ok(1).Where(static v => v > 5);

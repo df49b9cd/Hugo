@@ -6,7 +6,7 @@ namespace Hugo.Tests.Profiling;
 
 public sealed class CounterAnalyzerTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Analyze_ComputesSummariesAndFindings()
     {
         const string csv = "Timestamp,Provider,Counter Name,Counter Type,Mean/Increment\n" +
@@ -37,7 +37,7 @@ public sealed class CounterAnalyzerTests
             finding.Counter.Contains("gc.pause.time", StringComparison.OrdinalIgnoreCase));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Analyze_RecordsParseErrors()
     {
         const string csv = "Timestamp,Provider,Counter Name,Counter Type,Mean/Increment\n" +

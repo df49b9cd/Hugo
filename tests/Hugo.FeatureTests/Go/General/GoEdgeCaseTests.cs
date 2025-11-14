@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 
 public class GoEdgeCaseTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitGroup_AddTask_ShouldComplete_WhenTaskCancels()
     {
         var wg = new WaitGroup();
@@ -25,7 +25,7 @@ public class GoEdgeCaseTests
         Assert.Equal(0, wg.Count);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Mutex_Contention_ShouldSerializeCriticalSection()
     {
         using var mutex = new Mutex();
@@ -49,7 +49,7 @@ public class GoEdgeCaseTests
         Assert.Equal(1, observedMax);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Channel_WriteAsync_ShouldFail_WhenCompleted()
     {
         var channel = MakeChannel<int>(capacity: 1);

@@ -11,7 +11,7 @@ namespace Hugo.Tests.TaskQueues;
 
 public class TaskQueueDiagnosticsFeatureTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task DiagnosticsHost_ShouldProduceControlPlanePayloads()
     {
         await using var meterFactory = new TestMeterFactory();

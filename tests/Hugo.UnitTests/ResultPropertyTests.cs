@@ -7,7 +7,7 @@ namespace Hugo.Tests;
 
 public class ResultPropertyTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Map_ComposesFunctionApplication() => Check.QuickThrowOnFailure(Prop.ForAll<int>(static value =>
                                                           {
                                                               static int Increment(int x) => x + 1;
@@ -19,14 +19,14 @@ public class ResultPropertyTests
                                                               return sequential.Equals(composed);
                                                           }));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Recover_ShouldNotRun_WhenResultIsSuccess() => Check.QuickThrowOnFailure(Prop.ForAll<int>(static value =>
                                                                    {
                                                                        var recovered = Ok(value).Recover(static _ => Result.Ok(-1));
                                                                        return recovered.Value == value;
                                                                    }));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Ensure_ShouldFailForOddValues() => Check.QuickThrowOnFailure(Prop.ForAll<int>(static value =>
                                                         {
                                                             var ensured = Ok(value).Ensure(static v => v % 2 == 0, static v => Error.From($"{v} is odd", ErrorCodes.Validation));
@@ -36,7 +36,7 @@ public class ResultPropertyTests
                                                                   && ensured.Error?.Message.Contains("odd", StringComparison.OrdinalIgnoreCase) == true;
                                                         }));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Sequence_ShouldAccumulate_OnSuccess() => Check.QuickThrowOnFailure(Prop.ForAll<int[]>(static values =>
                                                               {
                                                                   var results = values.Select(static v => Result.Ok(v));
@@ -45,7 +45,7 @@ public class ResultPropertyTests
                                                                   return aggregated.IsSuccess && aggregated.Value.SequenceEqual(values);
                                                               }));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Recover_ShouldRehydrateFailure() => Check.QuickThrowOnFailure(Prop.ForAll<NonEmptyString>(static message =>
                                                          {
                                                              var failure = Result.Fail<int>(Error.From(message.Item, ErrorCodes.Unspecified));

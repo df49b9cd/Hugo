@@ -9,7 +9,7 @@ namespace Hugo.Tests.TaskQueues;
 [Collection("TaskQueueConcurrency")]
 public sealed class TaskQueueReplicationFeatureTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task DeterministicCoordinator_ShouldPreventDuplicateSideEffectsOnReplay()
     {
         var provider = new FakeTimeProvider();

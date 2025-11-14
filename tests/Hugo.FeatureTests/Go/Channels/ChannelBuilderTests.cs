@@ -8,7 +8,7 @@ namespace Hugo.Tests;
 
 public sealed class ChannelBuilderTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void BoundedChannelBuilder_ShouldApplyDropOldest()
     {
         var channel = BoundedChannel<int>(capacity: 1)
@@ -21,7 +21,7 @@ public sealed class ChannelBuilderTests
         Assert.Equal(2, value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void BoundedChannelBuilder_WaitFullMode_ShouldRejectExtraWrites()
     {
         var channel = BoundedChannel<int>(capacity: 1).Build();
@@ -30,7 +30,7 @@ public sealed class ChannelBuilderTests
         Assert.False(channel.Writer.TryWrite(2));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void AddBoundedChannel_ShouldRegisterDependencies()
     {
         var services = new ServiceCollection();
@@ -46,7 +46,7 @@ public sealed class ChannelBuilderTests
         Assert.Same(channel.Writer, writer);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void AddBoundedChannel_ShouldRespectLifetime()
     {
         var services = new ServiceCollection();
@@ -64,7 +64,7 @@ public sealed class ChannelBuilderTests
         Assert.NotSame(channelScope1, channelScope2);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task PrioritizedChannelBuilder_ShouldRespectPriorityOrdering()
     {
         var channel = PrioritizedChannel<int>()
@@ -85,7 +85,7 @@ public sealed class ChannelBuilderTests
         Assert.Equal(1, third);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void AddPrioritizedChannel_ShouldRegisterComponents()
     {
         var services = new ServiceCollection();
@@ -105,10 +105,10 @@ public sealed class ChannelBuilderTests
         Assert.Same(channel.PrioritizedWriter, prioritizedWriter);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void PrioritizedChannelBuilder_WithInvalidPriorityLevels_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => PrioritizedChannel<int>(priorityLevels: 0));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void PrioritizedChannelBuilder_WithInvalidDefaultPriority_ShouldThrow()
     {
         var builder = PrioritizedChannel<int>(priorityLevels: 2);
@@ -116,9 +116,9 @@ public sealed class ChannelBuilderTests
         Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithDefaultPriority(2));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void AddBoundedChannel_WithNullServices_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => ChannelServiceCollectionExtensions.AddBoundedChannel<int>(null!, 1));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void AddPrioritizedChannel_WithNullServices_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => ChannelServiceCollectionExtensions.AddPrioritizedChannel<int>(null!));
 }

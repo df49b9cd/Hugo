@@ -8,7 +8,7 @@ namespace Hugo.Tests;
 
 public class TimerTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task After_WithFakeTimeProvider_ShouldEmitOnce()
     {
         var provider = new FakeTimeProvider();
@@ -25,7 +25,7 @@ public class TimerTests
         await Assert.ThrowsAsync<ChannelClosedException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task AfterAsync_WithZeroDelay_ShouldCompleteImmediately()
     {
         var provider = new FakeTimeProvider();
@@ -36,7 +36,7 @@ public class TimerTests
         Assert.Equal(provider.GetUtcNow(), timestamp);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task AfterValueTaskAsync_WithZeroDelay_ShouldCompleteImmediately()
     {
         var provider = new FakeTimeProvider();
@@ -47,15 +47,15 @@ public class TimerTests
         Assert.Equal(provider.GetUtcNow(), timestamp);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void After_ShouldThrow_WhenDelayIsInfinite() =>
         Assert.Throws<ArgumentOutOfRangeException>(static () => After(Timeout.InfiniteTimeSpan, provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void After_ShouldThrow_WhenDelayIsNegative() =>
         Assert.Throws<ArgumentOutOfRangeException>(static () => After(TimeSpan.FromMilliseconds(-1), provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task AfterAsync_ShouldRespectCancellation()
     {
         var provider = new FakeTimeProvider();
@@ -68,7 +68,7 @@ public class TimerTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task AfterValueTaskAsync_ShouldRespectCancellation()
     {
         var provider = new FakeTimeProvider();
@@ -81,7 +81,7 @@ public class TimerTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task.AsTask());
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task NewTicker_ShouldProduceTicksUntilStopped()
     {
         var provider = new FakeTimeProvider();
@@ -113,7 +113,7 @@ public class TimerTests
         Assert.Throws<ArgumentOutOfRangeException>(() => NewTicker(period, provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Tick_ShouldProduceTicks_AndRespectCancellation()
     {
         var provider = new FakeTimeProvider();
@@ -137,7 +137,7 @@ public class TimerTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await reader.Completion);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task GoTicker_TryRead_ShouldReflectAvailability()
     {
         var provider = new FakeTimeProvider();
@@ -168,7 +168,7 @@ public class TimerTests
         await ticker.StopAsync();
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void GoTicker_Stop_ShouldCompleteReader()
     {
         var provider = new FakeTimeProvider();

@@ -4,7 +4,7 @@ namespace Hugo.UnitTests.TaskQueues;
 
 public sealed class TaskQueueReplicationCheckpointTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Advance_ShouldTrackPeersIndependently()
     {
         TaskQueueReplicationCheckpoint checkpoint = TaskQueueReplicationCheckpoint.Empty("stream");

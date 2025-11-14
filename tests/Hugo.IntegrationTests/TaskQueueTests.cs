@@ -5,16 +5,16 @@ namespace Hugo.Tests;
 [Collection("TaskQueueConcurrency")]
 public class TaskQueueTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void TaskQueueOptions_InvalidCapacity_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { Capacity = 0 });
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void TaskQueueOptions_InvalidLeaseDuration_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { LeaseDuration = TimeSpan.Zero });
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void TaskQueueOptions_NegativeRequeueDelay_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { RequeueDelay = TimeSpan.FromMilliseconds(-1) });
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task EnqueueLeaseComplete_ShouldClearCounts()
     {
         var provider = new FakeTimeProvider();
@@ -35,7 +35,7 @@ public class TaskQueueTests
         Assert.Equal(0, queue.ActiveLeaseCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FailAsync_WithRequeue_ShouldIncrementAttempt()
     {
         var provider = new FakeTimeProvider();
@@ -59,7 +59,7 @@ public class TaskQueueTests
         await secondLease.CompleteAsync(TestContext.Current.CancellationToken);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FailAsync_WithoutRequeue_ShouldDeadLetter()
     {
         var provider = new FakeTimeProvider();
@@ -89,7 +89,7 @@ public class TaskQueueTests
         Assert.Equal(0, queue.ActiveLeaseCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FailAsync_ShouldThrowWhenErrorNull()
     {
         await using var queue = new TaskQueue<string>();
@@ -100,7 +100,7 @@ public class TaskQueueTests
         await Assert.ThrowsAsync<ArgumentNullException>(async () => await lease.FailAsync(null!, requeue: true, TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task LeaseExpiration_ShouldRequeueWithExpiredError()
     {
         var provider = new FakeTimeProvider();
@@ -136,7 +136,7 @@ public class TaskQueueTests
         await secondLease.CompleteAsync(TestContext.Current.CancellationToken);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task LeaseExpiration_PastMaxAttempts_ShouldDeadLetter()
     {
         var provider = new FakeTimeProvider();
@@ -183,7 +183,7 @@ public class TaskQueueTests
         Assert.Equal(0, queue.ActiveLeaseCount);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task LeaseOperations_ShouldRejectAfterCompletion()
     {
         await using var queue = new TaskQueue<string>();
@@ -198,7 +198,7 @@ public class TaskQueueTests
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await lease.FailAsync(Error.From("after-complete", ErrorCodes.TaskQueueAbandoned), cancellationToken: TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FailAsync_WithCanceledToken_ShouldStillRequeue()
     {
         var provider = new FakeTimeProvider();
@@ -229,7 +229,7 @@ public class TaskQueueTests
         Assert.Same(error, requeued.LastError);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task LeaseExpiration_DuringDispose_ShouldSurfaceDeadLetter()
     {
         var provider = new FakeTimeProvider();
@@ -268,7 +268,7 @@ public class TaskQueueTests
         Assert.True(context.Attempt >= 2);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TaskQueue_Disposed_ShouldThrowOnEnqueueAndLease()
     {
         await using var queue = new TaskQueue<string>();
@@ -279,7 +279,7 @@ public class TaskQueueTests
         await Assert.ThrowsAsync<ObjectDisposedException>(async () => await queue.LeaseAsync(TestContext.Current.CancellationToken));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task OwnershipToken_ShouldAdvancePerLease()
     {
         await using var queue = new TaskQueue<string>();
@@ -297,7 +297,7 @@ public class TaskQueueTests
         Assert.NotEqual(firstToken.LeaseId, secondToken.LeaseId);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task DrainAndRestore_ShouldRoundTripPendingItems()
     {
         await using var queue = new TaskQueue<string>();
@@ -316,7 +316,7 @@ public class TaskQueueTests
         Assert.Equal("alpha", lease.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task BackpressureCallbacks_ShouldFireOnThresholdTransitions()
     {
         var provider = new FakeTimeProvider();
@@ -351,7 +351,7 @@ public class TaskQueueTests
             state => Assert.False(state.IsActive));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Heartbeat_ShouldExtendLease()
     {
         var provider = new FakeTimeProvider();

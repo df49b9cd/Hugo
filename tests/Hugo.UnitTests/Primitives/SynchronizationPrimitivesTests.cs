@@ -29,7 +29,7 @@ public class SynchronizationPrimitivesTests
         }
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Mutex_EnterScope_ShouldProvideExclusiveAccess()
     {
         var cancellation = TestContext.Current.CancellationToken;
@@ -63,7 +63,7 @@ public class SynchronizationPrimitivesTests
         Assert.Equal(1, secondEntered);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RwMutex_EnterReadScope_ShouldAllowConcurrentReadersAndBlockWriter()
     {
         var cancellation = TestContext.Current.CancellationToken;
@@ -122,7 +122,7 @@ public class SynchronizationPrimitivesTests
         Assert.Equal(1, writerEntered);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task RwMutex_EnterWriteScope_ShouldBlockReadersUntilReleased()
     {
         var cancellation = TestContext.Current.CancellationToken;
@@ -150,7 +150,7 @@ public class SynchronizationPrimitivesTests
         Assert.Equal(1, readerEntered);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Once_Do_ShouldThrow_WhenActionNull()
     {
         var once = new Once();

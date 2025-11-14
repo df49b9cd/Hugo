@@ -8,7 +8,7 @@ namespace Hugo.Tests;
 
 public class ErrorJsonConverterTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void SerializeAndDeserialize_ShouldRoundTripError()
     {
         var metadata = new Dictionary<string, object?>
@@ -41,7 +41,7 @@ public class ErrorJsonConverterTests
         Assert.Equal(["one", "two"], tagArray.OfType<string>());
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Serialize_ShouldEmitJsonStructure()
     {
         var error = Error.From("oops", ErrorCodes.Unspecified, metadata: new Dictionary<string, object?>
@@ -63,7 +63,7 @@ public class ErrorJsonConverterTests
         Assert.Equal("inner", metadata.GetProperty("inner").GetProperty("message").GetString());
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Deserialize_ShouldHandleNestedAggregateErrors()
     {
         var json = """
@@ -88,7 +88,7 @@ public class ErrorJsonConverterTests
             static item => Assert.Equal("second", Assert.IsType<Error>(item).Message));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void SerializeAndDeserialize_ShouldPreserveDecimalAndUnsignedNumericMetadata()
     {
         var precise = 1234567890.1234567890123456789M;
@@ -112,7 +112,7 @@ public class ErrorJsonConverterTests
         Assert.Equal(large, largeUnsigned);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Deserialize_ShouldThrowWhenRootIsNotObject()
     {
         const string json = """["not", "an", "object"]""";
@@ -129,7 +129,7 @@ public class ErrorJsonConverterTests
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Error>(json));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Deserialize_ShouldHydrateCauseExceptionDetails()
     {
         const string json = """
@@ -156,7 +156,7 @@ public class ErrorJsonConverterTests
         Assert.Equal("at Some.Method()\n   at Other.Method()", cause.StackTrace);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Deserialize_ShouldInterpretWellKnownStringMetadataTypes()
     {
         var guid = Guid.NewGuid();
@@ -190,7 +190,7 @@ public class ErrorJsonConverterTests
         Assert.Equal("value", Assert.IsType<string>(plainValue));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Serialize_ShouldPreserveNestedMetadataObjects()
     {
         var error = Error.From("outer", metadata: new Dictionary<string, object?>
@@ -209,7 +209,7 @@ public class ErrorJsonConverterTests
     }
 
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Serialize_ShouldHandleComplexMetadataShapes()
     {
         using var jsonDoc = JsonDocument.Parse("""{"flag": true, "number": 7}""");
@@ -269,7 +269,7 @@ public class ErrorJsonConverterTests
         Assert.Equal(JsonValueKind.Null, meta.GetProperty("null").ValueKind);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Serialize_ShouldSanitizeCancellationTokenMetadata()
     {
         using var cts = new CancellationTokenSource();

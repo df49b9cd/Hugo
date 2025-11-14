@@ -4,7 +4,7 @@ namespace Hugo.Tests;
 
 public class ResultEdgeCaseTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Ensure_ShouldAttachCustomMetadata()
     {
         var result = Ok(5)
@@ -20,7 +20,7 @@ public class ResultEdgeCaseTests
         Assert.Equal(5, actual);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Recover_ShouldReceiveOriginalMetadata()
     {
         var originalError = Error.From("missing", ErrorCodes.Validation)

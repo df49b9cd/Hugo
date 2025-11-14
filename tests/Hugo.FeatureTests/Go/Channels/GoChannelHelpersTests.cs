@@ -8,7 +8,7 @@ namespace Hugo.Tests;
 
 public class GoChannelHelpersTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void CollectSources_WithArray_ReturnsSameInstance()
     {
         ChannelReader<int>[] readers = [Channel.CreateUnbounded<int>().Reader];
@@ -18,7 +18,7 @@ public class GoChannelHelpersTests
         Assert.Same(readers, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void CollectSources_WithList_ReturnsCopy()
     {
         ChannelReader<int> reader = Channel.CreateUnbounded<int>().Reader;
@@ -30,7 +30,7 @@ public class GoChannelHelpersTests
         Assert.NotSame(list, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void CollectSources_WithEnumerable_ReturnsCollected()
     {
         IEnumerable<ChannelReader<int>> CreateReaders()
@@ -44,7 +44,7 @@ public class GoChannelHelpersTests
         Assert.Equal(2, result.Length);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void CollectSources_WithEmptyEnumerable_ReturnsEmpty()
     {
         ChannelReader<int>[] result = CollectSources(Array.Empty<ChannelReader<int>>());
@@ -52,7 +52,7 @@ public class GoChannelHelpersTests
         Assert.Empty(result);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectFanInAsyncCore_ShouldReturnSuccess_WhenValuesProcessed()
     {
         Channel<int> channel = Channel.CreateUnbounded<int>();
@@ -69,7 +69,7 @@ public class GoChannelHelpersTests
         Assert.True(result.IsSuccess, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectFanInAsyncCore_ShouldReturnTimeout_WhenNoValues()
     {
         Channel<int> channel = Channel.CreateUnbounded<int>();
@@ -85,7 +85,7 @@ public class GoChannelHelpersTests
         Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectFanInAsyncCore_ShouldReturnFailure_WhenHandlerFails()
     {
         Channel<int> channel = Channel.CreateUnbounded<int>();
@@ -103,7 +103,7 @@ public class GoChannelHelpersTests
         Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task SelectFanInAsyncCore_ShouldReturnCanceled_WhenTokenCanceled()
     {
         using var cts = new CancellationTokenSource();
@@ -124,7 +124,7 @@ public class GoChannelHelpersTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanInAsyncCore_ShouldPropagateWritesAndCompleteDestination()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
@@ -154,7 +154,7 @@ public class GoChannelHelpersTests
         Assert.True(destination.Reader.Completion.IsCompletedSuccessfully);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanInAsyncCore_ShouldNotCompleteDestination_WhenFlagFalse()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
@@ -175,7 +175,7 @@ public class GoChannelHelpersTests
         Assert.False(destination.Reader.Completion.IsCompleted);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanInAsyncCore_ReturnsFailure_WhenDestinationClosed()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
@@ -197,7 +197,7 @@ public class GoChannelHelpersTests
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsyncCore_ShouldBroadcastToDestinations()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
@@ -236,7 +236,7 @@ public class GoChannelHelpersTests
         Assert.True(destination2.Reader.Completion.IsCompletedSuccessfully);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsyncCore_ReturnsFailure_WhenDestinationClosed()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
@@ -258,7 +258,7 @@ public class GoChannelHelpersTests
         Assert.Equal(ErrorCodes.ChannelCompleted, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsyncCore_ReturnsTimeout_WhenDeadlineElapsed()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
@@ -289,7 +289,7 @@ public class GoChannelHelpersTests
         Assert.True(blockingWriter.Completed);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task FanOutAsyncCore_ReturnsCanceled_WhenTokenCancelled()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
@@ -312,7 +312,7 @@ public class GoChannelHelpersTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void CompleteWriters_ShouldCompleteWithAndWithoutException()
     {
         Channel<int> channel1 = Channel.CreateUnbounded<int>();
@@ -329,7 +329,7 @@ public class GoChannelHelpersTests
         Assert.True(channel3.Reader.Completion.IsFaulted);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void CreateChannelOperationException_ShouldConvertCanceledErrorWithToken()
     {
         using CancellationTokenSource cts = new();
@@ -340,7 +340,7 @@ public class GoChannelHelpersTests
         Assert.IsType<OperationCanceledException>(exception);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void CreateChannelOperationException_ShouldReturnCause()
     {
         var cause = new InvalidOperationException("boom");

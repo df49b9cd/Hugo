@@ -8,7 +8,7 @@ namespace Hugo.Tests;
 
 public class GoFunctionalTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Err_ShouldReturnDefaultError_WhenGivenNull()
     {
         var result = Err<string>((Error?)null);
@@ -16,7 +16,7 @@ public class GoFunctionalTests
         Assert.Equal("An unspecified error occurred.", result.Error?.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Ok_ShouldWrapValue()
     {
         var result = Ok(42);
@@ -24,7 +24,7 @@ public class GoFunctionalTests
         Assert.Equal(42, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Err_ShouldWrapExceptionWithMetadata()
     {
         var ex = new InvalidOperationException("boom");
@@ -36,7 +36,7 @@ public class GoFunctionalTests
         Assert.True(result.Error?.Metadata.ContainsKey("exceptionType"));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Run_WithCancellationToken_ShouldPropagateCancellation()
     {
         using var cts = new CancellationTokenSource(50);
@@ -50,7 +50,7 @@ public class GoFunctionalTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_WithBoundedOptions_ShouldRespectSettings()
     {
         var channel = MakeChannel<int>(capacity: 1, fullMode: BoundedChannelFullMode.DropOldest, singleReader: true, singleWriter: true);
@@ -59,7 +59,7 @@ public class GoFunctionalTests
         Assert.False(channel.Reader.Completion.IsCompleted);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void MakeChannel_WithCustomUnboundedOptions_ShouldNotThrow()
     {
         var options = new UnboundedChannelOptions { SingleReader = true, SingleWriter = false };
@@ -68,7 +68,7 @@ public class GoFunctionalTests
         Assert.NotNull(channel);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task WaitGroup_Go_WithCancellationToken_ShouldStopEarly()
     {
         var wg = new WaitGroup();
@@ -83,7 +83,7 @@ public class GoFunctionalTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wg.WaitAsync(cts.Token));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Integration_Pipeline_ShouldComposeGoAndFunctionalHelpers()
     {
         var channel = MakeChannel<int>(capacity: 2);
@@ -121,7 +121,7 @@ public class GoFunctionalTests
 
     private static readonly int[] expected = [42];
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task Integration_WithFakeTimeProvider_ShouldDriveChannelWorkflow()
     {
         var provider = new FakeTimeProvider();

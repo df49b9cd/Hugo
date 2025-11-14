@@ -5,7 +5,7 @@ namespace Hugo.Tests;
 
 public class DeterministicJsonContextTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Default_ShouldExposeEffectEnvelopeMetadata()
     {
         var context = DeterministicJsonSerialization.DefaultContext;
@@ -14,7 +14,7 @@ public class DeterministicJsonContextTests
         Assert.NotNull(typeInfo);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void Default_ShouldRoundTripErrorUsingMetadata()
     {
         var context = DeterministicJsonSerialization.DefaultContext;

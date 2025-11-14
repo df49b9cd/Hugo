@@ -8,13 +8,13 @@ namespace Hugo.Tests;
 
 public class ResultFallbackTests
 {
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public void ResultFallbackTier_ShouldThrow_WhenOperationsEmpty()
     {
         Assert.Throws<ArgumentException>(static () => new ResultFallbackTier<int>("empty", Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>()));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TieredFallbackAsync_ShouldReturnValidationError_WhenNoTiersProvided()
     {
         var result = await Result.TieredFallbackAsync(Array.Empty<ResultFallbackTier<int>>(), cancellationToken: TestContext.Current.CancellationToken);
@@ -24,7 +24,7 @@ public class ResultFallbackTests
         Assert.Equal("No fallback tiers were provided.", result.Error?.Message);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TieredFallbackAsync_ShouldReturnPrimaryResult()
     {
         var tiers = new[]
@@ -38,7 +38,7 @@ public class ResultFallbackTests
         Assert.Equal(42, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TieredFallbackAsync_ShouldUseSecondaryTierWhenPrimaryFails()
     {
         var tiers = new[]
@@ -55,7 +55,7 @@ public class ResultFallbackTests
         Assert.Equal(100, result.Value);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TieredFallbackAsync_ShouldAggregateErrorsWhenAllTiersFail()
     {
         var tiers = new[]
@@ -87,7 +87,7 @@ public class ResultFallbackTests
         Assert.All(nestedErrors, static error => Assert.True(error.Metadata.ContainsKey("strategyIndex")));
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TieredFallbackAsync_ShouldPropagateCancellation()
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
@@ -104,7 +104,7 @@ public class ResultFallbackTests
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task TieredFallbackAsync_ShouldCancelRemainingStrategiesAfterSuccess()
     {
         var cancellationCount = 0;
@@ -143,7 +143,7 @@ public class ResultFallbackTests
         Assert.True(cancellationCount > 0);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ErrGroup_ShouldRespectRetryPolicyWhenRunningPipelineSteps()
     {
         using var group = new ErrGroup();
@@ -168,7 +168,7 @@ public class ResultFallbackTests
         Assert.Equal(2, attempts);
     }
 
-    [Fact]
+    [Fact(Timeout = 15_000)]
     public async Task ErrGroup_ShouldSurfaceFailureWhenAllAttemptsFail()
     {
         using var group = new ErrGroup();
