@@ -28,6 +28,9 @@ public static partial class Result
     /// <param name="cancellationToken">The token used to cancel execution.</param>
     /// <param name="timeProvider">The optional time provider used for policy timing.</param>
     /// <returns>A task that resolves to the first successful operation result, or an aggregate failure.</returns>
+    /// <remarks>
+    /// Once a successful result is observed, failures or cancellations from remaining operations do not alter the returned result.
+    /// </remarks>
     public static Task<Result<T>> WhenAny<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
@@ -217,6 +220,7 @@ public static partial class Result
                 if (winner is null)
                 {
                     winner = result;
+                    errors.Clear();
                     await linkedCts.CancelAsync().ConfigureAwait(false);
                     continue;
                 }
@@ -232,7 +236,10 @@ public static partial class Result
             }
 
             result.Compensation.Clear();
-            errors.Add(result.Result.Error ?? Error.Unspecified());
+            if (winner is null)
+            {
+                errors.Add(result.Result.Error ?? Error.Unspecified());
+            }
         }
 
         // Ensure any pending operations are awaited
@@ -247,7 +254,7 @@ public static partial class Result
                     {
                         compensationScope.Absorb(entry.Compensation);
                     }
-                    else if (entry.Result.Error is not null && entry.Result.Error.Code != ErrorCodes.Canceled)
+                    else if (entry.Result.Error is not null && entry.Result.Error.Code != ErrorCodes.Canceled && winner is null)
                     {
                         errors.Add(entry.Result.Error);
                     }

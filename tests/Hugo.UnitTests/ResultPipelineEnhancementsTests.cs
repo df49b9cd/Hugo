@@ -120,6 +120,48 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact]
+    public async Task WhenAny_ShouldReturnSuccess_WhenPeerFailsAfterWinner()
+    {
+        var winnerReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var winner = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<string>>>((_, _) =>
+        {
+            winnerReleased.TrySetResult();
+            return ValueTask.FromResult(Result.Ok("winner"));
+        });
+
+        var failingPeer = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<string>>>(async (_, _) =>
+        {
+            await winnerReleased.Task;
+            await Task.Delay(10);
+            return Result.Fail<string>(Error.From("peer failed", ErrorCodes.Exception));
+        });
+
+        var result = await Result.WhenAny([winner, failingPeer], cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("winner", result.Value);
+    }
+
+    [Fact]
+    public async Task WhenAny_ShouldIgnorePostWinnerCancellations()
+    {
+        var winner = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((_, _) =>
+            ValueTask.FromResult(Result.Ok(1)));
+
+        var canceledPeer = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>(async (_, token) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return Result.Ok(2);
+        });
+
+        var result = await Result.WhenAny([winner, canceledPeer], cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.Value);
+    }
+
+    [Fact]
     public async Task WhenAny_ShouldReturnValidationError_WhenNoOperations()
     {
         var result = await Result.WhenAny(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
@@ -130,7 +172,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact]
-    public async Task WhenAny_ShouldAggregateFailures_WhenNoSuccess()
+    public async Task WhenAny_ShouldAggregateFailures_WhenNoWinner()
     {
         var operations = new[]
         {
