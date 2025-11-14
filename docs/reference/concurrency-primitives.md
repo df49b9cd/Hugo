@@ -132,11 +132,13 @@ services.AddBoundedChannel<Job>(capacity: 64, builder => builder
 
 services.AddPrioritizedChannel<Job>(priorityLevels: 3, builder => builder
     .WithCapacityPerLevel(32)
+    .WithPrefetchPerPriority(2)
     .WithDefaultPriority(1));
 ```
 
 - `AddBoundedChannel<T>` registers a `Channel<T>` alongside its reader and writer.
 - `AddPrioritizedChannel<T>` registers `PrioritizedChannel<T>`, the prioritized reader/writer helpers, and the base `ChannelReader<T>`/`ChannelWriter<T>` facades.
+- Prioritized channels prefetch at most `PrefetchPerPriority` items per lane (default 1). Tune it through `PrioritizedChannelOptions.PrefetchPerPriority` or `WithPrefetchPerPriority` to balance throughput against backpressure.
 - Builders expose `.Build()` when you need an inline channel instance without DI.
 
 ## Task queue leasing

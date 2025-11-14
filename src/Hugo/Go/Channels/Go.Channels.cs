@@ -108,6 +108,7 @@ public static partial class Go
     /// <param name="singleReader"><see langword="true"/> to optimize for a single reader; otherwise <see langword="false"/>.</param>
     /// <param name="singleWriter"><see langword="true"/> to optimize for a single writer; otherwise <see langword="false"/>.</param>
     /// <param name="defaultPriority">The optional default priority applied when enqueueing without an explicit value.</param>
+    /// <param name="prefetchPerPriority">The number of items staged per priority before the reader yields to maintain backpressure.</param>
     /// <returns>A configured prioritized channel instance.</returns>
     public static PrioritizedChannel<T> MakePrioritizedChannel<T>(
         int priorityLevels,
@@ -115,7 +116,8 @@ public static partial class Go
         BoundedChannelFullMode fullMode = BoundedChannelFullMode.Wait,
         bool singleReader = false,
         bool singleWriter = false,
-        int? defaultPriority = null)
+        int? defaultPriority = null,
+        int prefetchPerPriority = 1)
     {
         PrioritizedChannelOptions options = new()
         {
@@ -123,7 +125,8 @@ public static partial class Go
             CapacityPerLevel = capacityPerLevel,
             FullMode = fullMode,
             SingleReader = singleReader,
-            SingleWriter = singleWriter
+            SingleWriter = singleWriter,
+            PrefetchPerPriority = prefetchPerPriority
         };
 
         if (defaultPriority.HasValue)

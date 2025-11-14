@@ -129,9 +129,9 @@ These primitives follow the .NET parallel programming recommendations — always
 | Type | Description |
 | --- | --- |
 | `BoundedChannelBuilder<T>` | Fluent API over `BoundedChannelOptions`. Configure `WithCapacity`, `WithFullMode`, `SingleReader`, `SingleWriter`, `AllowSynchronousContinuations`, and arbitrary `Configure` callbacks. Call `Build()` to produce a `Channel<T>`. |
-| `PrioritizedChannelBuilder<T>` | Fluent API for `PrioritizedChannelOptions`; configure `WithPriorityLevels`, `WithDefaultPriority`, `WithCapacityPerLevel`, `WithFullMode`, `SingleReader`, `SingleWriter`, and `Configure`. `Build()` returns a `PrioritizedChannel<T>`. |
+| `PrioritizedChannelBuilder<T>` | Fluent API for `PrioritizedChannelOptions`; configure `WithPriorityLevels`, `WithDefaultPriority`, `WithCapacityPerLevel`, `WithPrefetchPerPriority`, `WithFullMode`, `SingleReader`, `SingleWriter`, and `Configure`. `Build()` returns a `PrioritizedChannel<T>`. |
 | `ChannelServiceCollectionExtensions` | Dependency injection helpers: `AddBoundedChannel<T>` and `AddPrioritizedChannel<T>` register the channel plus the associated reader/writer (and prioritized reader/writer) as services with a configurable `ServiceLifetime`. |
-| `PrioritizedChannel<T>` | Combines multiple channel lanes. Exposes `Reader`/`Writer`, plus `PrioritizedReader` (merges items according to priority) and `PrioritizedWriter` (explicit `WriteAsync`, `TryWrite`, `WaitToWriteAsync` per priority level). `PriorityLevels`, `DefaultPriority`, `CapacityPerLevel` expose configuration. |
+| `PrioritizedChannel<T>` | Combines multiple channel lanes. Exposes `Reader`/`Writer`, plus `PrioritizedReader` (merges items according to priority) and `PrioritizedWriter` (explicit `WriteAsync`, `TryWrite`, `WaitToWriteAsync` per priority level). `PriorityLevels`, `DefaultPriority`, `CapacityPerLevel`, and `PrefetchPerPriority` expose configuration. |
 
 Hugo follows the `.NET Channels` guidance published at [learn.microsoft.com/dotnet/core/extensions/channels](https://learn.microsoft.com/en-us/dotnet/core/extensions/channels): bounded channels apply `BoundedChannelFullMode`, unbounded channels allow synchronous continuations when requested, and `WaitToReadAsync` loops guard against race conditions.
 
