@@ -137,6 +137,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     }
 
     /// <summary>Cancels the group, notifying all registered delegates.</summary>
+    /// <remarks>Manual cancellation causes <see cref="WaitAsync(CancellationToken)"/> to return a failed <see cref="Result{Unit}"/> with <see cref="ErrorCodes.Canceled"/>.</remarks>
     public void Cancel()
     {
         if (Volatile.Read(ref _error) is null)
