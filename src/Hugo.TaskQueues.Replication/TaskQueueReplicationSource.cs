@@ -1,4 +1,7 @@
+using System.Collections.Concurrent;
+using System.Threading;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 
 using Hugo.TaskQueues;
 
@@ -15,8 +18,11 @@ public sealed class TaskQueueReplicationSource<T> : ITaskQueueLifecycleListener<
     private readonly TimeProvider _timeProvider;
     private readonly Channel<TaskQueueReplicationEvent<T>> _events;
     private readonly IDisposable _subscription;
+    private readonly CancellationTokenSource _cts = new();
+    private readonly ConcurrentDictionary<long, ITaskQueueReplicationObserver<T>> _observers = new();
     private int _disposed;
     private long _sequence;
+    private long _observerId;
 
     /// <summary>
     /// Initializes a new <see cref="TaskQueueReplicationSource{T}"/>.
@@ -62,6 +68,20 @@ public sealed class TaskQueueReplicationSource<T> : ITaskQueueLifecycleListener<
         _events.Reader.ReadAllAsync(cancellationToken);
 
     /// <summary>
+    /// Registers an observer that receives replication events as they are emitted.
+    /// </summary>
+    /// <param name="observer">Observer to register.</param>
+    /// <returns>A disposable used to unregister the observer.</returns>
+    public IDisposable RegisterObserver(ITaskQueueReplicationObserver<T> observer)
+    {
+        ArgumentNullException.ThrowIfNull(observer);
+
+        long id = Interlocked.Increment(ref _observerId);
+        _observers[id] = observer;
+        return new ObserverSubscription(this, id);
+    }
+
+    /// <summary>
     /// Pumps replication events into the provided channel writer.
     /// </summary>
     /// <param name="writer">Destination writer.</param>
@@ -84,6 +104,7 @@ public sealed class TaskQueueReplicationSource<T> : ITaskQueueLifecycleListener<
             return;
         }
 
+        NotifyObservers(replicationEvent);
         GoDiagnostics.RecordTaskQueueReplicationEvent(lifecycleEvent.QueueName, replicationEvent.Kind.ToString());
     }
 
@@ -97,6 +118,69 @@ public sealed class TaskQueueReplicationSource<T> : ITaskQueueLifecycleListener<
 
         _subscription.Dispose();
         _events.Writer.TryComplete();
+        _cts.Cancel();
+        _cts.Dispose();
         return ValueTask.CompletedTask;
+    }
+
+    private void NotifyObservers(TaskQueueReplicationEvent<T> replicationEvent)
+    {
+        foreach (ITaskQueueReplicationObserver<T> observer in _observers.Values)
+        {
+            try
+            {
+                FireAndForget(observer.OnReplicationEventAsync(replicationEvent, _cts.Token));
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private void UnregisterObserver(long id) => _observers.TryRemove(id, out _);
+
+    private static void FireAndForget(ValueTask task)
+    {
+        if (task.IsCompletedSuccessfully)
+        {
+            return;
+        }
+
+        _ = AwaitAsync(task);
+    }
+
+    private static async Task AwaitAsync(ValueTask task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+    }
+
+    private sealed class ObserverSubscription : IDisposable
+    {
+        private TaskQueueReplicationSource<T>? _source;
+        private long _observerId;
+
+        internal ObserverSubscription(TaskQueueReplicationSource<T> source, long observerId)
+        {
+            _source = source;
+            _observerId = observerId;
+        }
+
+        public void Dispose()
+        {
+            TaskQueueReplicationSource<T>? source = Interlocked.Exchange(ref _source, null);
+            if (source is null)
+            {
+                return;
+            }
+
+            source.UnregisterObserver(_observerId);
+            _observerId = 0;
+        }
     }
 }
