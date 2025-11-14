@@ -51,6 +51,9 @@ public static class GoDiagnostics
     private static Histogram<long>? _taskQueueBackpressurePending;
     private static Counter<long>? _taskQueueBackpressureTransitions;
     private static Histogram<double>? _taskQueueBackpressureDuration;
+    private static Counter<long>? _taskQueueReplicationEvents;
+    private static Histogram<long>? _taskQueueReplicationSequenceLag;
+    private static Histogram<double>? _taskQueueReplicationWallClockLag;
     private static Counter<long>? _workflowStarted;
     private static Counter<long>? _workflowCompleted;
     private static Counter<long>? _workflowFailed;
@@ -127,6 +130,9 @@ public static class GoDiagnostics
             _taskQueueBackpressurePending = meter.CreateHistogram<long>("hugo.taskqueue.backpressure.pending", unit: "items", description: "Pending depth observed when backpressure transitions occur.");
             _taskQueueBackpressureTransitions = meter.CreateCounter<long>("hugo.taskqueue.backpressure.transitions", unit: "events", description: "Number of task queue backpressure transitions.");
             _taskQueueBackpressureDuration = meter.CreateHistogram<double>("hugo.taskqueue.backpressure.duration", unit: "ms", description: "Duration of the previous backpressure state.");
+            _taskQueueReplicationEvents = meter.CreateCounter<long>("taskqueue.replication.events", unit: "events", description: "Number of task queue replication events emitted.");
+            _taskQueueReplicationSequenceLag = meter.CreateHistogram<long>("taskqueue.replication.sequence_lag", unit: "events", description: "Sequence lag between the previous checkpoint and the published event.");
+            _taskQueueReplicationWallClockLag = meter.CreateHistogram<double>("taskqueue.replication.wall_clock_lag", unit: "ms", description: "Wall-clock delay between when a queue mutation occurred and when replication processed it.");
             _workflowStarted = meter.CreateCounter<long>("workflow.started", unit: "workflows", description: "Number of workflow executions started.");
             _workflowCompleted = meter.CreateCounter<long>("workflow.completed", unit: "workflows", description: "Number of workflow executions that completed successfully.");
             _workflowFailed = meter.CreateCounter<long>("workflow.failed", unit: "workflows", description: "Number of workflow executions that failed.");
@@ -448,6 +454,9 @@ public static class GoDiagnostics
             _taskQueueBackpressurePending = null;
             _taskQueueBackpressureTransitions = null;
             _taskQueueBackpressureDuration = null;
+            _taskQueueReplicationEvents = null;
+            _taskQueueReplicationSequenceLag = null;
+            _taskQueueReplicationWallClockLag = null;
             _workflowStarted = null;
             _workflowCompleted = null;
             _workflowFailed = null;
@@ -869,6 +878,24 @@ public static class GoDiagnostics
         {
             _taskQueueBackpressureActive?.Add(-1, tags);
         }
+    }
+
+    internal static void RecordTaskQueueReplicationEvent(string? queueName, string? kind)
+    {
+        TagList tags = CreateTaskQueueTags(queueName);
+        if (!string.IsNullOrWhiteSpace(kind))
+        {
+            tags.Add("taskqueue.replication.kind", kind);
+        }
+
+        _taskQueueReplicationEvents?.Add(1, tags);
+    }
+
+    internal static void RecordTaskQueueReplicationLag(string? queueName, long sequenceLag, TimeSpan wallClockLag)
+    {
+        var tags = CreateTaskQueueTags(queueName);
+        _taskQueueReplicationSequenceLag?.Record(Math.Max(sequenceLag, 0L), tags);
+        _taskQueueReplicationWallClockLag?.Record(Math.Max(wallClockLag.TotalMilliseconds, 0d), tags);
     }
 
     internal static Activity? StartTaskQueueActivity(string operation, string? queueName, long? sequenceId = null, int? attempt = null, TaskQueueOwnershipToken? ownershipToken = null)

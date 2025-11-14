@@ -15,6 +15,7 @@ This document enumerates every public type shipped with the Hugo library and its
 - [Hugo.Policies namespace](#hugopolicies-namespace)
 - [Hugo.Sagas namespace](#hugosagas-namespace)
 - [Hugo.Diagnostics.OpenTelemetry namespace](#hugodiagnosticsopentelemetry-namespace)
+- [Hugo.TaskQueues.Replication namespace](#hugotaskqueuesreplication-namespace)
 - [Usage guidance and external references](#usage-guidance-and-external-references)
 
 ## Hugo namespace
@@ -145,6 +146,8 @@ Hugo follows the `.NET Channels` guidance published at [learn.microsoft.com/dotn
 | `TaskQueueDeadLetterContext<T>` | Payload delivered to dead-letter handlers when the queue cannot retry an item. Includes `Value`, `Error`, `Attempt`, `EnqueuedAt`, `SequenceId`, and the last `OwnershipToken`. |
 | `TaskQueueOwnershipToken` | Monotonic lease identifier composed of `SequenceId`, `Attempt`, and the active `LeaseId`. Useful as a fencing token for metadata stores. |
 | `TaskQueuePendingItem<T>` | Serializable snapshot captured by `DrainPendingItemsAsync`. Contains the payload, attempt, timestamps, last error, and ownership token so work can be restored losslessly. |
+| `TaskQueueLifecycleEvent<T>` | Immutable payload describing queue mutations observed by replication sources. Includes event and queue sequence numbers, timestamps, payload, errors, ownership tokens, and lifecycle flags. |
+| `ITaskQueueLifecycleListener<T>` | Observer interface invoked synchronously for every lifecycle event. Used by replication sources and diagnostics to subscribe to queue mutations without wrapping the queue. |
 | `TaskQueueBackpressureOptions` | Optional configuration attached to `TaskQueueOptions` or applied via `TaskQueue.ConfigureBackpressure`. Configure `HighWatermark`, `LowWatermark`, `Cooldown`, and `StateChanged(TaskQueueBackpressureState state)` to drive throttling decisions. |
 | `TaskQueueBackpressureState` | Immutable payload delivered to backpressure callbacks containing `IsActive`, `PendingCount`, and `ObservedAt`. |
 | `TaskQueueBackpressureMonitorOptions` | Configures `TaskQueueBackpressureMonitor<T>` instances (high/low watermarks and cooldown). |
@@ -230,6 +233,21 @@ Saga execution respects cancellation tokens and leverages compensation scopes fr
 | `HugoOpenTelemetryBuilderExtensions` | Adds Hugo diagnostics to an `OpenTelemetryBuilder` or `IHostApplicationBuilder`. `AddHugoDiagnostics(Action<HugoOpenTelemetryOptions>?)` configures resources, meters, trace sources, OTLP/Prometheus exporters, runtime instrumentation, and the hosted service that registers `GoDiagnostics`. The host builder overload mirrors ASP.NET Core / .NET Aspire defaults. |
 | `HugoOpenTelemetryOptions` | Options object consumed by the extension. Properties cover schema (`SchemaUrl`), service identity (`ServiceName`), instrument names (`MeterName`, `ActivitySourceName`, `ActivitySourceVersion`), toggles for meter/activity configuration, rate-limited sampling (`EnableRateLimitedSampling`, `MaxActivitiesPerInterval`, `SamplingInterval`, `UnsampledActivityResult`), exporter settings (`AddOtlpExporter`, `OtlpProtocol`, `OtlpEndpoint`, `AddPrometheusExporter`), and runtime metrics (`AddRuntimeInstrumentation`). |
 | `HugoDiagnosticsRegistrationService` | Internal hosted service that wires `GoDiagnostics` into OpenTelemetry when the extensions are used. Automatically applies rate-limited sampling to workflows to avoid excessive spans, aligning with the [OpenTelemetry .NET best practices](https://opentelemetry.io/docs/languages/dotnet/traces/best-practices/). |
+
+## Hugo.TaskQueues.Replication namespace
+
+| Type | Description |
+| --- | --- |
+| `TaskQueueReplicationSource<T>` | Observes `TaskQueue<T>` mutations via lifecycle listeners and emits `TaskQueueReplicationEvent<T>` instances through `IAsyncEnumerable`/`ChannelReader`. Records `taskqueue.replication.events` and lag histograms through `GoDiagnostics`. |
+| `TaskQueueReplicationSourceOptions<T>` | Configures a replication source (`SourcePeerId`, `DefaultOwnerPeerId`, `OwnerPeerResolver`, `TimeProvider`). |
+| `TaskQueueReplicationEvent<T>` / `TaskQueueReplicationEventKind` | Transport-neutral event contract covering queue name, replication sequence, lifecycle kind, payload, ownership tokens, timestamps, and replication flags. The static `Create` helper enforces monotonic sequences and stamps timestamps with the configured `TimeProvider`. |
+| `CheckpointingTaskQueueReplicationSink<T>` | Base class that consumes replication streams with per-peer/global checkpoints backed by an `ITaskQueueReplicationCheckpointStore`. Override `ApplyEventAsync` to forward events to HTTP writers, gRPC relays, etc. |
+| `ITaskQueueReplicationCheckpointStore` | Abstraction for durable checkpoint persistence (SQL, Cosmos DB, blob, deterministic state). Methods read/persist `TaskQueueReplicationCheckpoint` snapshots. |
+| `TaskQueueReplicationCheckpoint` | Immutable checkpoint structure containing the stream id, global event position, last update time, and per-peer offsets. Helpers evaluate whether events should be processed and advance peer/global state safely. |
+| `TaskQueueDeterministicCoordinator<T>` | Bridges replication events with `DeterministicEffectStore`. `ExecuteAsync` captures a handler result under the event’s effect id so replays reuse the original outcome without re-running side effects. |
+| `TaskQueueReplicationJsonSerialization` / `TaskQueueReplicationJsonContext<T>` | Source-generated `JsonSerializerContext` helpers used when persisting replication events or configuring deterministic stores for replay. |
+
+Refer to `docs/reference/taskqueue-replication.md` for wiring guidance, checkpoint examples, and deterministic replay walkthroughs.
 
 ## Usage guidance and external references
 

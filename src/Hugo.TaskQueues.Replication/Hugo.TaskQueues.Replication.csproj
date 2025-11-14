@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>Hugo.TaskQueues.Replication</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Soeren Magnus Olesen</Authors>
+    <Company>df49b9cd</Company>
+    <PackageDescription>Replication helpers, deterministic coordinators, and checkpointing sinks for Hugo task queues.</PackageDescription>
+    <RepositoryUrl>https://github.com/df49b9cd/Hugo</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/df49b9cd/Hugo</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>hugo;taskqueue;replication;deterministic;checkpointing</PackageTags>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hugo\Hugo.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
