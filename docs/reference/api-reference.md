@@ -158,7 +158,7 @@ Hugo follows the `.NET Channels` guidance published at [learn.microsoft.com/dotn
 | `BackpressureAwareRateLimiter` / `TaskQueueLimiterSelector` | Default listener that swaps between two `RateLimiter` instances whenever backpressure toggles. `LimiterSelector` plugs directly into `RateLimitingMiddleware`. |
 | `TaskQueueBackpressureDiagnosticsListener` | Listener that buffers recent signals and exposes a `ChannelReader<TaskQueueBackpressureSignal>` plus `Latest` snapshot for HTTP/gRPC streaming endpoints. |
 | `TaskQueueHealthCheck<T>` / `TaskQueueHealthCheckOptions` | Health check implementation for queues. Register via `services.AddTaskQueueHealthCheck<T>(...)` to expose `/health` probes keyed off pending/active thresholds. |
-| `TaskQueueChannelAdapter<T>` | Bridges `TaskQueue<T>` into a `Channel<TaskQueueLease<T>>`. Static `Create` accepts the queue, optional channel, concurrency (number of background lease pumps), and ownership flag. Properties `Reader`, `Queue`; `DisposeAsync` stops pumps and optionally disposes the queue. |
+| `TaskQueueChannelAdapter<T>` | Bridges `TaskQueue<T>` into a `Channel<TaskQueueLease<T>>`. Static `Create` accepts the queue, optional channel, concurrency (number of background lease pumps), and ownership flag; when no channel is supplied the adapter builds a bounded channel sized to `concurrency` so at most that many leases sit in-flight. Properties `Reader`, `Queue`; `DisposeAsync` stops pumps and optionally disposes the queue. |
 
 Task queue internals honour cancellation tokens, propagate `Error.Canceled`, and surface lease expirations via `error.taskqueue.lease_expired` with metadata for `attempt`, `enqueuedAt`, and `expiredAt`.
 

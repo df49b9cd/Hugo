@@ -41,7 +41,7 @@ public class TaskQueueChannelAdapterTests
             RequeueDelay = TimeSpan.FromMilliseconds(100)
         };
 
-        await using var queue = new TaskQueue<string>(options, new FakeTimeProvider());
+        await using var queue = new TaskQueue<string>(options);
         await queue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
 
         var adapter = TaskQueueChannelAdapter<string>.Create(queue);
@@ -150,28 +150,59 @@ public class TaskQueueChannelAdapterTests
         };
 
         await using var queue = new TaskQueue<string>(options);
-        var channel = Channel.CreateUnbounded<TaskQueueLease<string>>(new UnboundedChannelOptions
+        var adapter = TaskQueueChannelAdapter<string>.Create(queue);
+        TaskQueueLease<string>? lease = null;
+
+        try
         {
-            SingleReader = false,
-            SingleWriter = false
-        });
+            await queue.EnqueueAsync("pending", TestContext.Current.CancellationToken);
+            using var waitCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            waitCts.CancelAfter(TimeSpan.FromSeconds(5));
+            await WaitForConditionAsync(() => queue.ActiveLeaseCount == 1, waitCts.Token);
+        }
+        finally
+        {
+            await adapter.DisposeAsync();
+            lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        }
 
-        await using var adapter = TaskQueueChannelAdapter<string>.Create(queue, channel);
-
-        channel.Writer.TryComplete();
-
-        await queue.EnqueueAsync("pending", TestContext.Current.CancellationToken);
-
-        await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
-
-        using var leaseCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        leaseCts.CancelAfter(TimeSpan.FromSeconds(5));
-
-        var lease = await queue.LeaseAsync(leaseCts.Token);
-
-        Assert.Equal("pending", lease.Value);
+        Assert.NotNull(lease);
+        Assert.Equal("pending", lease!.Value);
         Assert.Equal(2, lease.Attempt);
 
-        await lease.CompleteAsync(leaseCts.Token);
+        await lease.CompleteAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Create_ShouldBoundActiveLeases_WhenReaderSlow()
+    {
+        var options = new TaskQueueOptions
+        {
+            LeaseDuration = TimeSpan.FromSeconds(5),
+            HeartbeatInterval = TimeSpan.Zero,
+            LeaseSweepInterval = TimeSpan.FromMilliseconds(50)
+        };
+
+        await using var queue = new TaskQueue<string>(options, new FakeTimeProvider());
+        for (var i = 0; i < 10; i++)
+        {
+            await queue.EnqueueAsync($"payload-{i}", TestContext.Current.CancellationToken);
+        }
+
+        const int concurrency = 3;
+        await using (var adapter = TaskQueueChannelAdapter<string>.Create(queue, concurrency: concurrency))
+        {
+            var maxObserved = 0;
+            for (var i = 0; i < 25; i++)
+            {
+                var current = queue.ActiveLeaseCount;
+                maxObserved = Math.Max(maxObserved, current);
+                Assert.InRange(current, 0, concurrency);
+                await Task.Delay(TimeSpan.FromMilliseconds(40), TestContext.Current.CancellationToken);
+            }
+
+            Assert.True(maxObserved > 0, "Expected at least one outstanding lease while pumps were running.");
+        }
+
     }
 }

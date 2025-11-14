@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using System.Linq;
 
 using Hugo.TaskQueues;
 using Hugo.TaskQueues.Diagnostics;
@@ -46,7 +47,7 @@ public class TaskQueueDiagnosticsRegistrationTests
         GoDiagnostics.Reset();
 
         Assert.NotEmpty(captured);
-        var tags = captured.Last();
+        var tags = captured.Last(entry => entry.Any(tag => tag.Key == "taskqueue.name" && (string?)tag.Value == "dispatch"));
         Assert.Contains(tags, entry => entry.Key == "service.name" && (string?)entry.Value == "omnirelay.control");
         Assert.Contains(tags, entry => entry.Key == "taskqueue.shard" && (string?)entry.Value == "shard-a");
         Assert.Contains(tags, entry => entry.Key == "custom.tag" && (string?)entry.Value == "diagnostics-test");

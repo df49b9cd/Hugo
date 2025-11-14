@@ -33,7 +33,7 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
 
     /// <summary>Creates an adapter around the provided queue.</summary>
     /// <param name="queue">The queue to adapt.</param>
-    /// <param name="channel">The channel used to surface leases; defaults to a new unbounded channel.</param>
+    /// <param name="channel">The channel used to surface leases; defaults to a bounded channel sized to <paramref name="concurrency"/>.</param>
     /// <param name="concurrency">The number of concurrent lease pumps.</param>
     /// <param name="ownsQueue"><see langword="true"/> to dispose the queue when the adapter is disposed.</param>
     /// <returns>A configured task queue channel adapter.</returns>
@@ -48,10 +48,11 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
 
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(concurrency);
 
-        Channel<TaskQueueLease<T>> leaseChannel = channel ?? Channel.CreateUnbounded<TaskQueueLease<T>>(new UnboundedChannelOptions
+        Channel<TaskQueueLease<T>> leaseChannel = channel ?? Channel.CreateBounded<TaskQueueLease<T>>(new BoundedChannelOptions(concurrency)
         {
             SingleReader = false,
-            SingleWriter = false
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait
         });
 
         return new TaskQueueChannelAdapter<T>(queue, leaseChannel, concurrency, ownsQueue);
@@ -73,6 +74,18 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
         {
             while (!_cts.IsCancellationRequested)
             {
+                try
+                {
+                    if (!await _leaseChannel.Writer.WaitToWriteAsync(_cts.Token).ConfigureAwait(false))
+                    {
+                        break;
+                    }
+                }
+                catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+                {
+                    break;
+                }
+
                 TaskQueueLease<T> lease;
                 try
                 {
@@ -90,7 +103,7 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
 
                 try
                 {
-                    if (await TryPublishLeaseAsync(lease).ConfigureAwait(false))
+                    if (_leaseChannel.Writer.TryWrite(lease))
                     {
                         continue;
                     }
@@ -121,19 +134,6 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
         }
 
         return null;
-    }
-
-    private async ValueTask<bool> TryPublishLeaseAsync(TaskQueueLease<T> lease)
-    {
-        while (await _leaseChannel.Writer.WaitToWriteAsync(_cts.Token).ConfigureAwait(false))
-        {
-            if (_leaseChannel.Writer.TryWrite(lease))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static async ValueTask<Exception?> RequeueLeaseAsync(TaskQueueLease<T> lease, Error reason)

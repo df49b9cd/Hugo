@@ -300,7 +300,7 @@ await foreach (var lease in adapter.Reader.ReadAllAsync(ct))
 ### TaskQueueChannelAdapter notes
 
 - Pumps run in the background and publish leases to the channel reader. If the channel is closed or cancellation triggers before delivery, the adapter requeues the lease with `Error.Canceled` metadata.
-- `concurrency` controls the number of concurrent pumps issuing leases.
+- `concurrency` controls both the number of pumps and the number of outstanding leases; the default channel is bounded to this limit so slow consumers cannot cause `_queue._leases` to grow unchecked. Provide a custom bounded `Channel<TaskQueueLease<T>>` if you need different buffering semantics.
 - Disposing the adapter waits for pumps to finish; when `ownsQueue` is `true`, the underlying queue is disposed as well.
 
 ### SafeTaskQueueWrapper usage
