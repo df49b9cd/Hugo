@@ -28,6 +28,9 @@ public static partial class Result
     /// <param name="cancellationToken">The token used to cancel execution.</param>
     /// <param name="timeProvider">The optional time provider used for policy timing.</param>
     /// <returns>A task that resolves to the first successful operation result, or an aggregate failure.</returns>
+    /// <remarks>
+    /// Once a successful result is observed, failures or cancellations from remaining operations do not alter the returned result.
+    /// </remarks>
     public static Task<Result<T>> WhenAny<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
@@ -70,8 +73,55 @@ public static partial class Result
         }
         catch (OperationCanceledException oce)
         {
-            await RunCompensationAsync(effectivePolicy, pipelineScope, cancellationToken).ConfigureAwait(false);
-            return Fail<IReadOnlyList<T>>(Error.Canceled(token: oce.CancellationToken));
+            var partialErrors = new List<Error>();
+            for (var i = 0; i < tasks.Length; i++)
+            {
+                var task = tasks[i];
+                if (task is null)
+                {
+                    continue;
+                }
+
+                if (task.IsCompletedSuccessfully)
+                {
+                    var entry = task.Result;
+                    if (entry.Result.IsSuccess)
+                    {
+                        pipelineScope.Absorb(entry.Compensation);
+                    }
+                    else
+                    {
+                        entry.Compensation.Clear();
+                        partialErrors.Add(entry.Result.Error ?? Error.Unspecified());
+                    }
+
+                    continue;
+                }
+
+                if (task.IsFaulted && task.Exception is { } exception)
+                {
+                    var flattened = exception.Flatten();
+                    foreach (var inner in flattened.InnerExceptions)
+                    {
+                        partialErrors.Add(Error.FromException(inner));
+                    }
+                }
+            }
+
+            var cancellationCompensationError = await RunCompensationAsync(effectivePolicy, pipelineScope, CancellationToken.None).ConfigureAwait(false);
+            if (cancellationCompensationError is not null)
+            {
+                partialErrors.Add(cancellationCompensationError);
+            }
+
+            var cancellationTokenSource = oce.CancellationToken.CanBeCanceled ? oce.CancellationToken : cancellationToken;
+            var cancellationError = Error.Canceled(token: cancellationTokenSource);
+            if (partialErrors.Count > 0)
+            {
+                cancellationError = cancellationError.WithMetadata("whenall.partialFailures", partialErrors.ToArray());
+            }
+
+            return Fail<IReadOnlyList<T>>(cancellationError);
         }
 
         var values = new List<T>(results.Length);
@@ -96,10 +146,17 @@ public static partial class Result
             return Ok<IReadOnlyList<T>>(values);
         }
 
-        var compensationError = await RunCompensationAsync(effectivePolicy, pipelineScope, cancellationToken).ConfigureAwait(false);
+        var compensationCancellation = cancellationToken.IsCancellationRequested ? CancellationToken.None : cancellationToken;
+        var compensationError = await RunCompensationAsync(effectivePolicy, pipelineScope, compensationCancellation).ConfigureAwait(false);
         if (compensationError is not null)
         {
             errors.Add(compensationError);
+        }
+
+        if (cancellationToken.IsCancellationRequested && errors.TrueForAll(error => error?.Code == ErrorCodes.Canceled))
+        {
+            CancellationToken? cancellationSource = cancellationToken.CanBeCanceled ? cancellationToken : null;
+            return Fail<IReadOnlyList<T>>(Error.Canceled(token: cancellationSource));
         }
 
         var aggregate = errors.Count == 1
@@ -163,6 +220,7 @@ public static partial class Result
                 if (winner is null)
                 {
                     winner = result;
+                    errors.Clear();
                     await linkedCts.CancelAsync().ConfigureAwait(false);
                     continue;
                 }
@@ -178,7 +236,10 @@ public static partial class Result
             }
 
             result.Compensation.Clear();
-            errors.Add(result.Result.Error ?? Error.Unspecified());
+            if (winner is null)
+            {
+                errors.Add(result.Result.Error ?? Error.Unspecified());
+            }
         }
 
         // Ensure any pending operations are awaited
@@ -193,7 +254,7 @@ public static partial class Result
                     {
                         compensationScope.Absorb(entry.Compensation);
                     }
-                    else if (entry.Result.Error is not null && entry.Result.Error.Code != ErrorCodes.Canceled)
+                    else if (entry.Result.Error is not null && entry.Result.Error.Code != ErrorCodes.Canceled && winner is null)
                     {
                         errors.Add(entry.Result.Error);
                     }

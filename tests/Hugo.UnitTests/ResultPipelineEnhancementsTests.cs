@@ -120,6 +120,48 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact]
+    public async Task WhenAny_ShouldReturnSuccess_WhenPeerFailsAfterWinner()
+    {
+        var winnerReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var winner = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<string>>>((_, _) =>
+        {
+            winnerReleased.TrySetResult();
+            return ValueTask.FromResult(Result.Ok("winner"));
+        });
+
+        var failingPeer = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<string>>>(async (_, _) =>
+        {
+            await winnerReleased.Task;
+            await Task.Delay(10);
+            return Result.Fail<string>(Error.From("peer failed", ErrorCodes.Exception));
+        });
+
+        var result = await Result.WhenAny([winner, failingPeer], cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("winner", result.Value);
+    }
+
+    [Fact]
+    public async Task WhenAny_ShouldIgnorePostWinnerCancellations()
+    {
+        var winner = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((_, _) =>
+            ValueTask.FromResult(Result.Ok(1)));
+
+        var canceledPeer = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>(async (_, token) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return Result.Ok(2);
+        });
+
+        var result = await Result.WhenAny([winner, canceledPeer], cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.Value);
+    }
+
+    [Fact]
     public async Task WhenAny_ShouldReturnValidationError_WhenNoOperations()
     {
         var result = await Result.WhenAny(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
@@ -130,7 +172,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact]
-    public async Task WhenAny_ShouldAggregateFailures_WhenNoSuccess()
+    public async Task WhenAny_ShouldAggregateFailures_WhenNoWinner()
     {
         var operations = new[]
         {
@@ -187,6 +229,132 @@ public class ResultPipelineEnhancementsTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(1, compensation);
+    }
+
+    [Fact]
+    public async Task WhenAll_ShouldRunCompensation_OnCancellationAfterSuccess()
+    {
+        using var cts = new CancellationTokenSource();
+        var compensationInvocations = 0;
+        var firstCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var compensationFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var policy = ResultExecutionPolicy.None.WithCompensation(ResultCompensationPolicy.SequentialReverse);
+        var operations = new[]
+        {
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((context, token) =>
+            {
+                context.RegisterCompensation(ct =>
+                {
+                    Interlocked.Increment(ref compensationInvocations);
+                    compensationFinished.TrySetResult();
+                    return ValueTask.CompletedTask;
+                });
+
+                firstCompleted.TrySetResult();
+                return ValueTask.FromResult(Result.Ok(1));
+            }),
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>(async (_, token) =>
+            {
+                await firstCompleted.Task.WaitAsync(TestContext.Current.CancellationToken);
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                return Result.Ok(2);
+            })
+        };
+
+        var aggregateTask = Result.WhenAll(operations, policy: policy, cancellationToken: cts.Token);
+
+        await firstCompleted.Task.WaitAsync(TestContext.Current.CancellationToken);
+        cts.Cancel();
+
+        var result = await aggregateTask;
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        await compensationFinished.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        Assert.Equal(1, compensationInvocations);
+    }
+
+    [Fact]
+    public async Task WhenAll_ShouldIgnoreUncompletedTasks_OnCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        var compensationInvocations = 0;
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var policy = ResultExecutionPolicy.None.WithCompensation(ResultCompensationPolicy.SequentialReverse);
+        var operations = new[]
+        {
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>(async (context, token) =>
+            {
+                await start.Task.WaitAsync(token);
+                context.RegisterCompensation(ct =>
+                {
+                    Interlocked.Increment(ref compensationInvocations);
+                    return ValueTask.CompletedTask;
+                });
+                return Result.Ok(1);
+            }),
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>(async (context, token) =>
+            {
+                await start.Task.WaitAsync(token);
+                context.RegisterCompensation(ct =>
+                {
+                    Interlocked.Increment(ref compensationInvocations);
+                    return ValueTask.CompletedTask;
+                });
+                return Result.Ok(2);
+            })
+        };
+
+        var aggregateTask = Result.WhenAll(operations, policy: policy, cancellationToken: cts.Token);
+        cts.Cancel();
+
+        var result = await aggregateTask;
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        Assert.Equal(0, compensationInvocations);
+    }
+
+    [Fact]
+    public async Task WhenAll_ShouldRunCompensation_WhenOperationCancelsItself()
+    {
+        using var cts = new CancellationTokenSource();
+        var compensationInvocations = 0;
+        var firstCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var compensationFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var policy = ResultExecutionPolicy.None.WithCompensation(ResultCompensationPolicy.SequentialReverse);
+        var operations = new[]
+        {
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((context, token) =>
+            {
+                context.RegisterCompensation(ct =>
+                {
+                    Interlocked.Increment(ref compensationInvocations);
+                    compensationFinished.TrySetResult();
+                    return ValueTask.CompletedTask;
+                });
+
+                firstCompleted.TrySetResult();
+                return ValueTask.FromResult(Result.Ok(1));
+            }),
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>(async (_, token) =>
+            {
+                await firstCompleted.Task.WaitAsync(TestContext.Current.CancellationToken);
+                cts.Cancel();
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                return Result.Ok(2);
+            })
+        };
+
+        var result = await Result.WhenAll(operations, policy: policy, cancellationToken: cts.Token);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        await compensationFinished.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        Assert.Equal(1, compensationInvocations);
     }
 
     [Fact]
