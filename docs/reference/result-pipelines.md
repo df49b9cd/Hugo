@@ -149,8 +149,8 @@ else
 ```
 
 Reusing the same `ErrGroup` instance outside of its `using` scope is unsupported. Once disposed, any `Go(...)` call throws `ObjectDisposedException`, while the exposed `Token` remains valid for listeners already awaiting cancellation.
-Manual calls to `Cancel()` set a structured cancellation error, so `WaitAsync` completes as a failure with `ErrorCodes.Canceled`.
-Policy-backed `Go(...)` overloads cancel peer operations before their compensation handlers finish executing, ensuring cleanup can run while remaining work stops promptly.
+Manual calls to `Cancel()` record `Error.Canceled` before the linked `CancellationTokenSource` is signaled, so `WaitAsync` deterministically returns `Result.Fail<Unit>` and `ErrGroup.Error` surfaces the same payload.
+Policy-backed `Go(...)` overloads now cancel peer operations as soon as a failure is captured—before compensation handlers execute—so slow cleanup work cannot mask cancellation from the remaining steps.
 
 ## Error metadata
 
