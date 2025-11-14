@@ -1,6 +1,7 @@
 using Hugo;
 using Hugo.TaskQueues;
 using Hugo.TaskQueues.Replication;
+
 using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests.TaskQueues;
@@ -39,7 +40,7 @@ public sealed class TaskQueueReplicationFeatureTests
         TaskQueueLease<int> retry = await queue.LeaseAsync();
         await retry.CompleteAsync();
 
-        List<TaskQueueReplicationEvent<int>> events = await reader.ConfigureAwait(false);
+        List<TaskQueueReplicationEvent<int>> events = await reader;
 
         var checkpointStore = new InMemoryReplicationCheckpointStore();
         var deterministicStore = new InMemoryDeterministicStateStore();
@@ -49,13 +50,13 @@ public sealed class TaskQueueReplicationFeatureTests
         var coordinator = new TaskQueueDeterministicCoordinator<int>(effectStore);
 
         var sink = new DeterministicRecordingSink("feature-stream", checkpointStore, coordinator, provider);
-        await sink.ProcessAsync(ToAsyncEnumerable(events)).ConfigureAwait(false);
+        await sink.ProcessAsync(ToAsyncEnumerable(events));
 
         Assert.All(events, evt => Assert.Equal(1, sink.ExecutionCounts[evt.SequenceNumber]));
 
         // Simulate checkpoint loss but reuse deterministic store for replay safety.
         var replaySink = new DeterministicRecordingSink("feature-stream", new InMemoryReplicationCheckpointStore(), coordinator, provider);
-        await replaySink.ProcessAsync(ToAsyncEnumerable(events)).ConfigureAwait(false);
+        await replaySink.ProcessAsync(ToAsyncEnumerable(events));
 
         Assert.Empty(replaySink.ExecutionCounts);
     }

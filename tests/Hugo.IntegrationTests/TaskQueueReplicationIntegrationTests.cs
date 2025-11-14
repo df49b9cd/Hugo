@@ -1,5 +1,6 @@
 using Hugo.TaskQueues;
 using Hugo.TaskQueues.Replication;
+
 using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.IntegrationTests;
@@ -34,11 +35,11 @@ public sealed class TaskQueueReplicationIntegrationTests
             return events;
         });
 
-        await queue.EnqueueAsync(1);
-        TaskQueueLease<int> lease = await queue.LeaseAsync();
-        await lease.CompleteAsync();
+        await queue.EnqueueAsync(1, TestContext.Current.CancellationToken);
+        TaskQueueLease<int> lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        await lease.CompleteAsync(TestContext.Current.CancellationToken);
 
-        List<TaskQueueReplicationEvent<int>> captured = await reader.ConfigureAwait(false);
+        List<TaskQueueReplicationEvent<int>> captured = await reader;
 
         TaskQueueReplicationEventKind[] kinds =
         [
@@ -79,21 +80,21 @@ public sealed class TaskQueueReplicationIntegrationTests
 
         for (int i = 0; i < 2; i++)
         {
-            await queue.EnqueueAsync(i);
-            TaskQueueLease<int> lease = await queue.LeaseAsync();
-            await lease.CompleteAsync();
+            await queue.EnqueueAsync(i, TestContext.Current.CancellationToken);
+            TaskQueueLease<int> lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+            await lease.CompleteAsync(TestContext.Current.CancellationToken);
         }
 
-        List<TaskQueueReplicationEvent<int>> events = await reader.ConfigureAwait(false);
+        List<TaskQueueReplicationEvent<int>> events = await reader;
 
         var store = new InMemoryReplicationCheckpointStore();
         var firstSink = new RecordingReplicationSink("stream", store, provider);
-        await firstSink.ProcessAsync(ToAsyncEnumerable(events.Take(3))).ConfigureAwait(false);
+        await firstSink.ProcessAsync(ToAsyncEnumerable(events.Take(3)), TestContext.Current.CancellationToken);
 
         Assert.Equal(new long[] { 1, 2, 3 }, firstSink.Processed);
 
         var resumedSink = new RecordingReplicationSink("stream", store, provider);
-        await resumedSink.ProcessAsync(ToAsyncEnumerable(events)).ConfigureAwait(false);
+        await resumedSink.ProcessAsync(ToAsyncEnumerable(events), TestContext.Current.CancellationToken);
 
         Assert.Equal(new long[] { 4, 5, 6 }, resumedSink.Processed);
     }
