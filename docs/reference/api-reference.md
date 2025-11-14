@@ -60,10 +60,10 @@ All factory methods ultimately increment success/failure counters through `GoDia
 
 `Functional` is a static class housing the “railway oriented” fluent API. Extensions exist in synchronous and asynchronous forms and return `Result<T>` (or tasks of results) so they compose naturally.
 
-- Execution flow: `Then`, `ThenAsync` overloads (sync→sync, sync→async, async→sync, async→async) plus `Recover`, `RecoverAsync` and `Finally`, `FinallyAsync`. All async helpers now ship ValueTask-friendly variants (`*ValueTaskAsync`) so both delegates and `ValueTask<Result<T>>` sources compose without allocating extra tasks.
-- Mapping: `Map`, `MapAsync` (sync source/async mapper), `Tap`, `TapAsync`, and aliases `Tee`, `TeeAsync`.
-- Validation: `Ensure`, `EnsureAsync`, LINQ integration (`Select`, `SelectMany`, `Where`).
-- Side-effects: `OnSuccess`/`OnSuccessAsync`, `OnFailure`/`OnFailureAsync`, `TapError`/`TapErrorAsync`.
+- Execution flow: `Then`, `ThenAsync` overloads (sync→sync, sync→async, async→sync, async→async) plus `ThenValueTaskAsync` for ValueTask-based sources, along with `Recover`, `RecoverAsync`, `RecoverValueTaskAsync` and `Finally`, `FinallyAsync`, `FinallyValueTaskAsync`. All async helpers accept `ValueTask<Result<T>>` delegates without forcing extra `Task` allocations.
+- Mapping: `Map`, `MapAsync` (sync source/async mapper), `MapValueTaskAsync`, `Tap`, `TapAsync`, `TapValueTaskAsync`, and aliases `Tee`, `TeeAsync`, `TeeValueTaskAsync`.
+- Validation: `Ensure`, `EnsureAsync`, `EnsureValueTaskAsync`, LINQ integration (`Select`, `SelectMany`, `Where`).
+- Side-effects: `OnSuccess`/`OnSuccessAsync`/`OnSuccessValueTaskAsync`, `OnFailure`/`OnFailureAsync`/`OnFailureValueTaskAsync`, `TapError`/`TapErrorAsync`/`TapErrorValueTaskAsync`.
 
 Cancellations are normalised using `Error.Canceled`, preserving the triggering token in metadata where possible.
 

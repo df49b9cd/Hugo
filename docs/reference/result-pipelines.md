@@ -57,14 +57,14 @@ var outcome = Go.Ok(request)
 
 ## Async combinators
 
-Every async variation accepts a `CancellationToken` and normalises cancellations to `Error.Canceled`:
+Every async variation accepts a `CancellationToken` and normalises cancellations to `Error.Canceled`. Each helper also ships `*ValueTaskAsync` overloads, so `ValueTask<Result<T>>` sources and delegates compose without forcing an extra `Task` allocation.
 
-- `Functional.ThenAsync` overloads bridge sync→async, async→sync, and async→async pipelines.
-- `Functional.MapAsync` transforms values with synchronous or asynchronous mappers.
-- `Functional.TapAsync` / `Functional.TeeAsync` execute side-effects without altering the pipeline (sync or async).
-- `Functional.RecoverAsync` retries failures with synchronous or asynchronous recovery logic.
-- `Functional.EnsureAsync` validates successful values asynchronously.
-- `Functional.FinallyAsync` awaits success/failure continuations (sync or async callbacks).
+- Execution flow: `Functional.ThenAsync` overloads bridge sync→async, async→sync, and async→async pipelines. `Functional.ThenValueTaskAsync` mirrors the same combinations for ValueTask-based sources or continuations.
+- Mapping & instrumentation: `Functional.MapAsync` transforms values with synchronous or asynchronous mappers, while `Functional.MapValueTaskAsync` keeps ValueTask-returning mappers allocation-free.
+- Side-effects and notifications: `Functional.TapAsync` / `Functional.TeeAsync` execute side-effects without altering the pipeline. `Functional.OnSuccessAsync`, `Functional.OnFailureAsync`, and `Functional.TapErrorAsync` target lifecycle-specific side-effects. Their `*ValueTaskAsync` companions (`TapValueTaskAsync`, `TeeValueTaskAsync`, `OnSuccessValueTaskAsync`, `OnFailureValueTaskAsync`, `TapErrorValueTaskAsync`) accept ValueTask-returning delegates.
+- Recovery: `Functional.RecoverAsync` retries failures with synchronous or asynchronous recovery logic; `Functional.RecoverValueTaskAsync` takes the same inputs when the recovery delegate already returns `ValueTask<Result<T>>`.
+- Validation: `Functional.EnsureAsync` validates successful values asynchronously. Use `Functional.EnsureValueTaskAsync` to keep validation logic in `ValueTask`.
+- Cleanup/finalisation: `Functional.FinallyAsync` awaits success/failure continuations (sync or async callbacks). `Functional.FinallyValueTaskAsync` allows both the source and the continuations to stay on `ValueTask`.
 
 ## Collection helpers
 

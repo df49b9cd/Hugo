@@ -27,7 +27,7 @@
 ## Highlights
 
 - **Deterministic concurrency**: Channels, wait groups, mutexes, RW locks, timers, defer, and select-style helpers mirror Go semantics while respecting `CancellationToken` and `TimeProvider`.
-- **Railway-oriented results**: `Result<T>` pipelines keep success/failure explicit with `Then`, `Map`, `Recover`, `Ensure`, streaming helpers, sagas, and tiered fallbacks.
+- **Railway-oriented results**: `Result<T>` pipelines keep success/failure explicit with `Then`, `Map`, `Recover`, `Ensure`, streaming helpers, sagas, and tiered fallbacks. ValueTask-first extensions such as `ThenValueTaskAsync`, `MapValueTaskAsync`, and `TapValueTaskAsync` keep async pipelines allocation-free when your delegates already return `ValueTask<Result<T>>`.
 - **Observability first**: `GoDiagnostics` ships counters, histograms, and activity sources that plug directly into OpenTelemetry exporters or custom meter providers.
 - **Source-generated error catalog**: Hugo’s well-known error codes are generated at compile time, ensuring consistent metadata for logs, metrics, and documentation.
 - **Batteries included**: Prioritised channels, task queue leasing, retry policies, deterministic version gates, workflow telemetry, and profiling recipes ship alongside the core library.

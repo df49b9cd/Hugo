@@ -135,7 +135,7 @@ await foreach (var payload in merged.Reader.ReadAllAsync(cts.Token))
 
 - `Ensure` validates data without throwing.
 - `Map` transforms successful values, keeping the pipeline linear.
-- `TapAsync` instruments successes without altering the result.
+- `TapAsync` instruments successes without altering the result; switch to `TapValueTaskAsync` when the instrumentation already returns `ValueTask`.
 
 ## Step&nbsp;6 — Await completion and report failures
 
