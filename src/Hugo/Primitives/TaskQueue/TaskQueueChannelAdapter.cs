@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
 
+using Unit = Hugo.Go.Unit;
+
 namespace Hugo;
 
 /// <summary>
@@ -48,12 +50,9 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
 
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(concurrency);
 
-        Channel<TaskQueueLease<T>> leaseChannel = channel ?? Channel.CreateBounded<TaskQueueLease<T>>(new BoundedChannelOptions(concurrency)
-        {
-            SingleReader = false,
-            SingleWriter = false,
-            FullMode = BoundedChannelFullMode.Wait
-        });
+        Channel<TaskQueueLease<T>> leaseChannel = channel ?? Go.BoundedChannel<TaskQueueLease<T>>(concurrency)
+            .WithFullMode(BoundedChannelFullMode.Wait)
+            .Build();
 
         return new TaskQueueChannelAdapter<T>(queue, leaseChannel, concurrency, ownsQueue);
     }
@@ -109,18 +108,19 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
                     }
 
                     await _cts.CancelAsync().ConfigureAwait(false);
-                    Exception? completionError = await TaskQueueChannelAdapter<T>.RequeueLeaseAsync(lease, Error.Canceled("Lease could not be delivered before completion.")).ConfigureAwait(false);
-                    return completionError;
+                    Result<Unit> completionResult = await TaskQueueChannelAdapter<T>.RequeueLeaseAsync(lease, Error.Canceled("Lease could not be delivered before completion.")).ConfigureAwait(false);
+                    return ToException(completionResult);
                 }
                 catch (OperationCanceledException) when (_cts.IsCancellationRequested)
                 {
-                    Exception? cancellationError = await TaskQueueChannelAdapter<T>.RequeueLeaseAsync(lease, Error.Canceled(token: _cts.Token)).ConfigureAwait(false);
-                    return cancellationError;
+                    Result<Unit> cancellationResult = await TaskQueueChannelAdapter<T>.RequeueLeaseAsync(lease, Error.Canceled(token: _cts.Token)).ConfigureAwait(false);
+                    return ToException(cancellationResult);
                 }
                 catch (Exception ex)
                 {
-                    Exception? requeueError = await TaskQueueChannelAdapter<T>.RequeueLeaseAsync(lease, Error.FromException(ex)).ConfigureAwait(false);
-                    return requeueError ?? ex;
+                    Result<Unit> requeueResult = await TaskQueueChannelAdapter<T>.RequeueLeaseAsync(lease, Error.FromException(ex)).ConfigureAwait(false);
+                    Exception? requeueException = ToException(requeueResult);
+                    return requeueException ?? ex;
                 }
             }
         }
@@ -136,22 +136,26 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
         return null;
     }
 
-    private static async ValueTask<Exception?> RequeueLeaseAsync(TaskQueueLease<T> lease, Error reason)
+    private static async ValueTask<Result<Unit>> RequeueLeaseAsync(TaskQueueLease<T> lease, Error reason)
     {
-        try
+        Result<Unit> result = await Result.TryAsync<Unit>(
+            async _ =>
+            {
+                await lease.FailAsync(reason, requeue: true, cancellationToken: CancellationToken.None).ConfigureAwait(false);
+                return Unit.Value;
+            },
+            cancellationToken: CancellationToken.None).ConfigureAwait(false);
+
+        if (result.IsFailure && result.Error?.Cause is ObjectDisposedException)
         {
-            await lease.FailAsync(reason, requeue: true, cancellationToken: CancellationToken.None).ConfigureAwait(false);
-            return null;
+            return Result.Ok(Unit.Value);
         }
-        catch (ObjectDisposedException)
-        {
-            return null;
-        }
-        catch (Exception ex)
-        {
-            return ex;
-        }
+
+        return result;
     }
+
+    private static Exception? ToException(Result<Unit> result) =>
+        result.Finally(static _ => (Exception?)null, static error => error.Cause ?? new InvalidOperationException(error.Message));
 
     private void HandlePumpCompletion(Task<Exception?> pumpTask)
     {

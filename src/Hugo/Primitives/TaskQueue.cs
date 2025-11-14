@@ -360,14 +360,9 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         _queueName = string.IsNullOrWhiteSpace(_options.Name) ? typeof(T).Name : _options.Name;
         _backpressureOptions = _options.Backpressure;
 
-        BoundedChannelOptions channelOptions = new(_options.Capacity)
-        {
-            FullMode = BoundedChannelFullMode.Wait,
-            SingleReader = false,
-            SingleWriter = false
-        };
-
-        _channel = Channel.CreateBounded<QueueEnvelope>(channelOptions);
+        _channel = Go.BoundedChannel<QueueEnvelope>(_options.Capacity)
+            .WithFullMode(BoundedChannelFullMode.Wait)
+            .Build();
         _monitorTask = Go.Run(() => MonitorLeasesAsync(_monitorCts.Token));
     }
 

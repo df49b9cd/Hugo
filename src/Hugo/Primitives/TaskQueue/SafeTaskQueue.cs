@@ -29,23 +29,16 @@ public sealed class SafeTaskQueueWrapper<T>(TaskQueue<T> queue, bool ownsQueue =
     /// <returns>A result indicating enqueue success or failure.</returns>
     public async ValueTask<Result<Unit>> EnqueueAsync(T value, CancellationToken cancellationToken = default)
     {
-        try
-        {
-            await _queue.EnqueueAsync(value, cancellationToken).ConfigureAwait(false);
-            return Result.Ok(Unit.Value);
-        }
-        catch (OperationCanceledException oce)
-        {
-            return Result.Fail<Unit>(Error.Canceled(token: oce.CancellationToken));
-        }
-        catch (ObjectDisposedException)
-        {
-            return Result.Fail<Unit>(QueueDisposed());
-        }
-        catch (Exception ex)
-        {
-            return Result.Fail<Unit>(Error.FromException(ex));
-        }
+        return await Result
+            .TryAsync<Unit>(
+                async ct =>
+                {
+                    await _queue.EnqueueAsync(value, ct).ConfigureAwait(false);
+                    return Unit.Value;
+                },
+                errorFactory: MapQueueExceptions,
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Leases the next available work item.</summary>
@@ -53,23 +46,13 @@ public sealed class SafeTaskQueueWrapper<T>(TaskQueue<T> queue, bool ownsQueue =
     /// <returns>A result containing the leased work item when successful.</returns>
     public async ValueTask<Result<SafeTaskQueueLease<T>>> LeaseAsync(CancellationToken cancellationToken = default)
     {
-        try
-        {
-            TaskQueueLease<T> lease = await _queue.LeaseAsync(cancellationToken).ConfigureAwait(false);
-            return Result.Ok(new SafeTaskQueueLease<T>(lease));
-        }
-        catch (OperationCanceledException oce)
-        {
-            return Result.Fail<SafeTaskQueueLease<T>>(Error.Canceled(token: oce.CancellationToken));
-        }
-        catch (ObjectDisposedException)
-        {
-            return Result.Fail<SafeTaskQueueLease<T>>(QueueDisposed());
-        }
-        catch (Exception ex)
-        {
-            return Result.Fail<SafeTaskQueueLease<T>>(Error.FromException(ex));
-        }
+        return await Result
+            .TryAsync<TaskQueueLease<T>>(
+                async ct => await _queue.LeaseAsync(ct).ConfigureAwait(false),
+                errorFactory: MapQueueExceptions,
+                cancellationToken: cancellationToken)
+            .MapAsync(static lease => new SafeTaskQueueLease<T>(lease), cancellationToken)
+            .ConfigureAwait(false);
     }
 
     /// <summary>Creates a safe wrapper around an existing lease instance.</summary>
@@ -86,7 +69,12 @@ public sealed class SafeTaskQueueWrapper<T>(TaskQueue<T> queue, bool ownsQueue =
         }
     }
 
-    private static Error QueueDisposed() => Error.From("The task queue has been disposed.", ErrorCodes.TaskQueueDisposed);
+    private static Error? MapQueueExceptions(Exception exception) =>
+        exception switch
+        {
+            ObjectDisposedException => SafeTaskQueueErrors.QueueDisposed(),
+            _ => null
+        };
 }
 
 /// <summary>
@@ -131,7 +119,7 @@ public sealed class SafeTaskQueueLease<T>(TaskQueueLease<T> lease)
     /// <param name="cancellationToken">The token used to cancel the completion.</param>
     /// <returns>A result indicating completion success or failure.</returns>
     public ValueTask<Result<Unit>> CompleteAsync(CancellationToken cancellationToken = default) =>
-        ExecuteAsync(() => _lease.CompleteAsync(cancellationToken));
+        ExecuteAsync(ct => _lease.CompleteAsync(ct), cancellationToken);
 
     /// <summary>
     /// Sends a heartbeat to extend the lease duration.
@@ -139,7 +127,7 @@ public sealed class SafeTaskQueueLease<T>(TaskQueueLease<T> lease)
     /// <param name="cancellationToken">The token used to cancel the heartbeat.</param>
     /// <returns>A result indicating heartbeat success or failure.</returns>
     public ValueTask<Result<Unit>> HeartbeatAsync(CancellationToken cancellationToken = default) =>
-        ExecuteAsync(() => _lease.HeartbeatAsync(cancellationToken));
+        ExecuteAsync(ct => _lease.HeartbeatAsync(ct), cancellationToken);
 
     /// <summary>
     /// Fails the lease and optionally re-queues the work item.
@@ -155,31 +143,33 @@ public sealed class SafeTaskQueueLease<T>(TaskQueueLease<T> lease)
             return ValueTask.FromResult(Result.Fail<Unit>(Error.From("Error must be provided when failing a lease.", ErrorCodes.Validation)));
         }
 
-        return ExecuteAsync(() => _lease.FailAsync(error, requeue, cancellationToken));
+        return ExecuteAsync(ct => _lease.FailAsync(error, requeue, ct), cancellationToken);
     }
 
-    private static async ValueTask<Result<Unit>> ExecuteAsync(Func<ValueTask> operation)
-    {
-        try
+    private static async ValueTask<Result<Unit>> ExecuteAsync(Func<CancellationToken, ValueTask> operation, CancellationToken cancellationToken = default) =>
+        await Result
+            .TryAsync<Unit>(
+                async ct =>
+                {
+                    await operation(ct).ConfigureAwait(false);
+                    return Unit.Value;
+                },
+                errorFactory: MapLeaseExceptions,
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+    private static Error? MapLeaseExceptions(Exception exception) =>
+        exception switch
         {
-            await operation().ConfigureAwait(false);
-            return Result.Ok(Unit.Value);
-        }
-        catch (OperationCanceledException oce)
-        {
-            return Result.Fail<Unit>(Error.Canceled(token: oce.CancellationToken));
-        }
-        catch (ObjectDisposedException)
-        {
-            return Result.Fail<Unit>(Error.From("The task queue has been disposed.", ErrorCodes.TaskQueueDisposed));
-        }
-        catch (InvalidOperationException)
-        {
-            return Result.Fail<Unit>(Error.From("Lease is no longer active.", ErrorCodes.TaskQueueLeaseInactive));
-        }
-        catch (Exception ex)
-        {
-            return Result.Fail<Unit>(Error.FromException(ex));
-        }
-    }
+            ObjectDisposedException => SafeTaskQueueErrors.QueueDisposed(),
+            InvalidOperationException => SafeTaskQueueErrors.LeaseInactive(),
+            _ => null
+        };
+}
+
+internal static class SafeTaskQueueErrors
+{
+    internal static Error QueueDisposed() => Error.From("The task queue has been disposed.", ErrorCodes.TaskQueueDisposed);
+
+    internal static Error LeaseInactive() => Error.From("Lease is no longer active.", ErrorCodes.TaskQueueLeaseInactive);
 }
