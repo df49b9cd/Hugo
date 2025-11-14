@@ -108,31 +108,31 @@ public sealed class VersionGate
         }
 
         var context = new VersionGateContext(changeId, minSupportedVersion, maxSupportedVersion);
-        int decidedVersion;
-        try
+        Result<int> resolvedVersion = Result
+            .Try(
+                () => initialVersionProvider?.Invoke(context) ?? maxSupportedVersion,
+                ex => Error.FromException(ex).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["changeId"] = changeId
+                }))
+            .Ensure(
+                version => version >= minSupportedVersion && version <= maxSupportedVersion,
+                version => Error.From(
+                    $"Initial version {version} is outside the supported range {minSupportedVersion}..{maxSupportedVersion}.",
+                    ErrorCodes.VersionConflict).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
+                    {
+                        ["changeId"] = changeId,
+                        ["initialVersion"] = version,
+                        ["minVersion"] = minSupportedVersion,
+                        ["maxVersion"] = maxSupportedVersion
+                    }));
+
+        if (resolvedVersion.IsFailure)
         {
-            decidedVersion = initialVersionProvider?.Invoke(context) ?? maxSupportedVersion;
-        }
-        catch (Exception ex)
-        {
-            return Result.Fail<VersionDecision>(Error.FromException(ex).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["changeId"] = changeId
-            }));
+            return resolvedVersion.CastFailure<VersionDecision>();
         }
 
-        if (decidedVersion < minSupportedVersion || decidedVersion > maxSupportedVersion)
-        {
-            return Result.Fail<VersionDecision>(Error.From(
-                $"Initial version {decidedVersion} is outside the supported range {minSupportedVersion}..{maxSupportedVersion}.",
-                ErrorCodes.VersionConflict).WithMetadata(new Dictionary<string, object?>(StringComparer.Ordinal)
-                {
-                    ["changeId"] = changeId,
-                    ["initialVersion"] = decidedVersion,
-                    ["minVersion"] = minSupportedVersion,
-                    ["maxVersion"] = maxSupportedVersion
-                }));
-        }
+        int decidedVersion = resolvedVersion.Value;
 
         var now = _timeProvider.GetUtcNow();
         var payload = SerializeVersion(decidedVersion);

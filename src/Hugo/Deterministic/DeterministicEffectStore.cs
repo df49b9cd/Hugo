@@ -101,19 +101,18 @@ public sealed class DeterministicEffectStore
             return replay;
         }
 
-        Result<T> outcome;
-        try
+        Result<Result<T>> invocation = await Result
+            .TryAsync(
+                async ct => await effect(ct).ConfigureAwait(false),
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        if (invocation.IsFailure && invocation.Error?.Cause is OperationCanceledException oce)
         {
-            outcome = await effect(cancellationToken).ConfigureAwait(false);
+            throw oce;
         }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            outcome = Result.Fail<T>(Error.FromException(ex));
-        }
+
+        Result<T> outcome = invocation.Then(static inner => inner);
 
         await PersistAsync(effectId, outcome).ConfigureAwait(false);
         GoDiagnostics.CompleteDeterministicActivity(activity, outcome.Error);

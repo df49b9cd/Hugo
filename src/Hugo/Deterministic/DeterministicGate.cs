@@ -394,18 +394,13 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
 
             var context = new DeterministicWorkflowContext(_gate, _changeId, decision);
 
-            try
-            {
-                return await executor(context, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<TResult>(Error.Canceled(token: oce.CancellationToken));
-            }
-            catch (Exception ex)
-            {
-                return Result.Fail<TResult>(Error.FromException(ex));
-            }
+            Result<Result<TResult>> invocation = await Result
+                .TryAsync(
+                    async ct => await executor(context, ct).ConfigureAwait(false),
+                    cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            return invocation.Then(static branchResult => branchResult);
         }
 
         /// <summary>
