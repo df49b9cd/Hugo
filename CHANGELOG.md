@@ -27,11 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Functional result combinators reuse the originating failure via `Result<T>.CastFailure<TOut>()`, removing redundant allocations and duplicate `result.failures` diagnostics when propagating errors
 - `TaskQueueChannelAdapter` now bounds its internal channel to `concurrency` and waits for capacity before leasing, so slow consumers cannot inflate `_queue.ActiveLeaseCount`
 - `ErrGroup` manual cancellations now set `Error.Canceled` before signaling the linked token and pipeline failures notify peers prior to running compensation, preventing “success” results after aborts
+- `PrioritizedChannelReader` avoids allocating `Task<bool>[]` arrays and `.AsTask()` conversions on each wait by reusing lightweight registrations, eliminating per-iteration heap churn on the slow path (PA-011)
 
 ### Fixed
 
 - `Result.WhenAny` now deterministically returns the first successful result even if other operations fail or cancel after the winner is selected.
 - `PrioritizedChannelReader` stops draining entire priority queues into its buffer, ensuring `BoundedChannelFullMode` and per-level capacity apply under sustained load (PA-010).
+- `PrioritizedChannelReader.WaitToReadAsync` now observes and rethrows exceptions or cancellations from individual priority lanes, eliminating `UnobservedTaskException` crashes when one lane faults (PA-012).
 
 ## [1.0.0] - 2025-10-21
 

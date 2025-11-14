@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Channels;
 
 namespace Hugo.Tests.Primitives;
@@ -77,5 +78,142 @@ public sealed class PrioritizedChannelTests
         Assert.Equal(1, prioritizedReader.GetBufferedCountForPriority(0));
         Assert.Equal(1, prioritizedReader.GetBufferedCountForPriority(1));
         Assert.Equal(0, prioritizedReader.GetBufferedCountForPriority(2));
+    }
+
+    [Fact]
+    public async Task PrioritizedChannel_WaitToReadAsync_ShouldRespectCancellation()
+    {
+        var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
+        {
+            PriorityLevels = 1,
+            PrefetchPerPriority = 1
+        });
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        {
+            _ = await channel.Reader.WaitToReadAsync(cts.Token);
+        });
+    }
+
+    [Fact]
+    public async Task PrioritizedChannel_WaitToReadSlowPath_ShouldAvoidExtraAllocations()
+    {
+        var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
+        {
+            PriorityLevels = 2,
+            PrefetchPerPriority = 1
+        });
+
+        var reader = channel.Reader;
+        var writer = channel.PrioritizedWriter;
+        var ct = TestContext.Current.CancellationToken;
+
+        var waitTask = reader.WaitToReadAsync(ct);
+        var baseline = GC.GetAllocatedBytesForCurrentThread();
+
+        var producer = Task.Run(async () =>
+        {
+            await Task.Delay(10, ct);
+            await writer.WriteAsync(42, priority: 1, ct);
+        }, ct);
+
+        Assert.True(await waitTask.AsTask());
+        await producer;
+
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - baseline;
+        Assert.InRange(allocated, 0, 4 * 1024);
+    }
+
+    [Fact]
+    public async Task PrioritizedChannel_ShouldPropagateLaneException()
+    {
+        var failingLane = new AsyncLaneReader();
+        var reader = CreatePrioritizedReader(failingLane);
+        var ct = TestContext.Current.CancellationToken;
+
+        var waitTask = reader.WaitToReadAsync(ct).AsTask();
+        failingLane.Fail(new InvalidOperationException("lane failed"));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => waitTask);
+        Assert.Equal("lane failed", ex.Message);
+    }
+
+    [Fact]
+    public async Task PrioritizedChannel_ShouldObserveCancelledLane()
+    {
+        var cancelingLane = new AsyncLaneReader();
+        var reader = CreatePrioritizedReader(cancelingLane);
+        var ct = TestContext.Current.CancellationToken;
+
+        var waitTask = reader.WaitToReadAsync(ct).AsTask();
+        cancelingLane.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => waitTask);
+    }
+
+    [Fact]
+    public async Task PrioritizedChannel_ShouldPropagateSynchronousLaneFault()
+    {
+        var lane = new ImmediateFaultLaneReader(new InvalidOperationException("sync fault"));
+        var reader = CreatePrioritizedReader(lane);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => reader.WaitToReadAsync(TestContext.Current.CancellationToken).AsTask());
+        Assert.Equal("sync fault", ex.Message);
+    }
+
+    private static PrioritizedChannel<int>.PrioritizedChannelReader CreatePrioritizedReader(params ChannelReader<int>[] lanes) =>
+        new(lanes, prefetchPerPriority: 1);
+
+    private sealed class AsyncLaneReader : ChannelReader<int>
+    {
+        private readonly TaskCompletionSource<bool> _waitSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override Task Completion => _completion.Task;
+
+        public override bool TryRead(out int item)
+        {
+            item = default;
+            return false;
+        }
+
+        public override ValueTask<bool> WaitToReadAsync(CancellationToken cancellationToken = default) =>
+            new(_waitSource.Task);
+
+        public void Fail(Exception exception)
+        {
+            _waitSource.TrySetException(exception);
+            _completion.TrySetException(exception);
+        }
+
+        public void Cancel()
+        {
+            var ex = new OperationCanceledException("lane canceled");
+            _waitSource.TrySetException(ex);
+            _completion.TrySetCanceled();
+        }
+    }
+
+    private sealed class ImmediateFaultLaneReader : ChannelReader<int>
+    {
+        private readonly Exception _exception;
+
+        public ImmediateFaultLaneReader(Exception exception)
+        {
+            _exception = exception ?? throw new ArgumentNullException(nameof(exception));
+        }
+
+        public override Task Completion => Task.FromException(_exception);
+
+        public override bool TryRead(out int item)
+        {
+            item = default;
+            return false;
+        }
+
+        public override ValueTask<bool> WaitToReadAsync(CancellationToken cancellationToken = default) =>
+            new(Task.FromException<bool>(_exception));
     }
 }
