@@ -61,11 +61,11 @@ public class TimerTests
         var provider = new FakeTimeProvider();
         using var cts = new CancellationTokenSource();
 
-        Task<DateTimeOffset> task = AfterAsync(TimeSpan.FromSeconds(5), provider, cts.Token);
+        ValueTask<DateTimeOffset> task = AfterAsync(TimeSpan.FromSeconds(5), provider, cts.Token);
 
         await cts.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task.AsTask());
     }
 
     [Fact(Timeout = 15_000)]

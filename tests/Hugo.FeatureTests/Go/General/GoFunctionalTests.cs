@@ -133,7 +133,7 @@ public class GoFunctionalTests
 
         wg.Go(async token =>
         {
-            var delayTask = DelayAsync(TimeSpan.FromSeconds(3), provider, token);
+            ValueTask delayTask = DelayAsync(TimeSpan.FromSeconds(3), provider, token);
             delayScheduled.TrySetResult();
             await delayTask;
             await channel.Writer.WriteAsync(42, token);
@@ -142,16 +142,16 @@ public class GoFunctionalTests
 
         await delayScheduled.Task; // ensure the delay is registered before advancing fake time
 
-        var selectTask = SelectAsync(
+        ValueTask<Result<Unit>> selectTask = SelectAsync<Unit>(
             timeout: TimeSpan.FromSeconds(5),
             provider: provider,
             cancellationToken: TestContext.Current.CancellationToken,
             cases:
             [
-                ChannelCase.Create(channel.Reader, (value, _) =>
+                ChannelCase<Unit>.Create(channel.Reader, (value, _) =>
                 {
                     collected.Add(value);
-                    return Task.FromResult(Result.Ok(Unit.Value));
+                    return ValueTask.FromResult(Result.Ok(Unit.Value));
                 })
             ]);
 

@@ -19,7 +19,7 @@ public static partial class Go
     /// <param name="provider">The optional time provider used for deadline calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result indicating whether the operation completed successfully.</returns>
-    public static Task<Result<Unit>> FanOutAsync<T>(
+    public static ValueTask<Result<Unit>> FanOutAsync<T>(
         ChannelReader<T> source,
         IReadOnlyList<ChannelWriter<T>> destinations,
         bool completeDestinations = true,
@@ -32,7 +32,7 @@ public static partial class Go
 
         if (destinations.Count == 0)
         {
-            return Task.FromResult(Result.Ok(Unit.Value));
+            return ValueTask.FromResult(Result.Ok(Unit.Value));
         }
 
         for (int i = 0; i < destinations.Count; i++)
@@ -51,7 +51,7 @@ public static partial class Go
         TimeSpan effectiveDeadline = deadline ?? Timeout.InfiniteTimeSpan;
         TimeProvider effectiveProvider = provider ?? TimeProvider.System;
 
-        return GoChannelHelpers.ToTask(GoChannelHelpers.FanOutAsyncCore(source, destinations, completeDestinations, effectiveDeadline, effectiveProvider, cancellationToken));
+        return GoChannelHelpers.FanOutAsyncCore(source, destinations, completeDestinations, effectiveDeadline, effectiveProvider, cancellationToken);
     }
 
     /// <summary>

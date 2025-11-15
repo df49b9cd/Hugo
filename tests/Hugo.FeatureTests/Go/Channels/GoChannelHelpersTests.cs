@@ -61,7 +61,7 @@ public class GoChannelHelpersTests
 
         Result<Go.Unit> result = await SelectFanInAsyncCore(
             [channel.Reader],
-            static (value, _) => Task.FromResult(Result.Ok(Go.Unit.Value)),
+            static (value, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)),
             Timeout.InfiniteTimeSpan,
             provider: null,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -76,7 +76,7 @@ public class GoChannelHelpersTests
 
         Result<Go.Unit> result = await SelectFanInAsyncCore(
             [channel.Reader],
-            static (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)),
+            static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)),
             TimeSpan.Zero,
             provider: null,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -94,7 +94,7 @@ public class GoChannelHelpersTests
 
         Result<Go.Unit> result = await SelectFanInAsyncCore(
             [channel.Reader],
-            static (_, _) => Task.FromResult(Result.Fail<Go.Unit>(Error.From("boom", ErrorCodes.Validation))),
+            static (_, _) => ValueTask.FromResult(Result.Fail<Go.Unit>(Error.From("boom", ErrorCodes.Validation))),
             Timeout.InfiniteTimeSpan,
             provider: null,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -111,7 +111,7 @@ public class GoChannelHelpersTests
 
         var task = SelectFanInAsyncCore(
             [channel.Reader],
-            static (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)),
+            static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)),
             Timeout.InfiniteTimeSpan,
             provider: null,
             cancellationToken: cts.Token);

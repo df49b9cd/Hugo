@@ -25,7 +25,7 @@ internal static class GoChannelHelpers
         return collected.Count == 0 ? [] : [.. collected];
     }
 
-    public static async ValueTask<Result<Go.Unit>> SelectFanInAsyncCore<T>(ChannelReader<T>[] readers, Func<T, CancellationToken, Task<Result<Go.Unit>>> onValue, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
+    public static async ValueTask<Result<Go.Unit>> SelectFanInAsyncCore<T>(ChannelReader<T>[] readers, Func<T, CancellationToken, ValueTask<Result<Go.Unit>>> onValue, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
         {
@@ -49,11 +49,11 @@ internal static class GoChannelHelpers
 
         while (active.Count > 0)
         {
-            ChannelCase[] cases = new ChannelCase[active.Count];
+            ChannelCase<Go.Unit>[] cases = new ChannelCase<Go.Unit>[active.Count];
             for (int i = 0; i < active.Count; i++)
             {
                 ChannelReader<T> reader = active[i];
-                cases[i] = ChannelCase.Create(reader, onValue);
+                cases[i] = ChannelCase<Go.Unit>.Create(reader, onValue);
             }
 
             Result<Go.Unit> iteration;
@@ -254,13 +254,6 @@ internal static class GoChannelHelpers
         }
 
         return Result.Ok(Go.Unit.Value);
-    }
-
-    internal static Task<Result<Go.Unit>> ToTask(ValueTask<Result<Go.Unit>> valueTask)
-    {
-        return valueTask.IsCompletedSuccessfully
-            ? Task.FromResult(valueTask.Result)
-            : valueTask.AsTask();
     }
 
     public static void CompleteWriters<T>(IReadOnlyList<ChannelWriter<T>> writers, Exception? exception)

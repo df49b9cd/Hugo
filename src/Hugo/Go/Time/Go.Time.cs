@@ -15,7 +15,7 @@ public static partial class Go
     /// <param name="provider">The optional time provider used to schedule the delay.</param>
     /// <param name="cancellationToken">The token used to cancel the delay.</param>
     /// <returns>A task that completes when the delay elapses.</returns>
-    public static Task DelayAsync(TimeSpan delay, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    public static ValueTask DelayAsync(TimeSpan delay, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
         if (delay < TimeSpan.Zero && delay != Timeout.InfiniteTimeSpan)
         {
@@ -23,7 +23,7 @@ public static partial class Go
         }
 
         provider ??= TimeProvider.System;
-        return provider.DelayAsync(delay, cancellationToken);
+        return new ValueTask(provider.DelayAsync(delay, cancellationToken));
     }
 
     /// <summary>
@@ -90,10 +90,10 @@ public static partial class Go
     /// <param name="provider">The optional time provider used to schedule the delay.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A task completing with the timestamp when the delay finished.</returns>
-    public static Task<DateTimeOffset> AfterAsync(TimeSpan delay, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    public static ValueTask<DateTimeOffset> AfterAsync(TimeSpan delay, TimeProvider? provider = null, CancellationToken cancellationToken = default)
     {
         ChannelReader<DateTimeOffset> reader = After(delay, provider, cancellationToken);
-        return reader.ReadAsync(cancellationToken).AsTask();
+        return reader.ReadAsync(cancellationToken);
     }
 
     /// <summary>

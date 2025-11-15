@@ -8,10 +8,10 @@ namespace Hugo;
 /// <typeparam name="TResult">The result type produced by select cases.</typeparam>
 public sealed class SelectBuilder<TResult>
 {
-    private sealed record SelectCaseRegistration(int Priority, Func<TaskCompletionSource<Result<TResult>>, ChannelCase> Factory);
+    private sealed record SelectCaseRegistration(int Priority, Func<TaskCompletionSource<Result<TResult>>, ChannelCase<TResult>> Factory);
 
     private readonly List<SelectCaseRegistration> _caseFactories = [];
-    private Func<TaskCompletionSource<Result<TResult>>, ChannelCase>? _defaultFactory;
+    private Func<TaskCompletionSource<Result<TResult>>, ChannelCase<TResult>>? _defaultFactory;
     private readonly TimeSpan _timeout;
     private readonly TimeProvider? _provider;
     private readonly CancellationToken _cancellationToken;
@@ -378,7 +378,7 @@ public sealed class SelectBuilder<TResult>
     /// <summary>
     /// Materializes the registered channel cases, awaits the select, and returns the resulting value or error.
     /// </summary>
-    public async Task<Result<TResult>> ExecuteAsync()
+    public async ValueTask<Result<TResult>> ExecuteAsync()
     {
         if (_caseFactories.Count == 0 && _defaultFactory is null)
         {
@@ -386,13 +386,13 @@ public sealed class SelectBuilder<TResult>
         }
 
         var completion = new TaskCompletionSource<Result<TResult>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var cases = new ChannelCase[_caseFactories.Count];
+        var cases = new ChannelCase<TResult>[_caseFactories.Count];
         for (var i = 0; i < _caseFactories.Count; i++)
         {
             cases[i] = _caseFactories[i].Factory(completion);
         }
 
-        ChannelCase? defaultCase = _defaultFactory?.Invoke(completion);
+        ChannelCase<TResult>? defaultCase = _defaultFactory?.Invoke(completion);
 
         var selectResult = await Go.SelectInternalAsync(cases, defaultCase, _timeout, _provider, _cancellationToken).ConfigureAwait(false);
 
@@ -409,9 +409,11 @@ public sealed class SelectBuilder<TResult>
         return await completion.Task.ConfigureAwait(false);
     }
 
-    private static ChannelCase CreateCase<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue, TaskCompletionSource<Result<TResult>> completion, int priority)
+    private static ChannelCase<TResult> CreateCase<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue, TaskCompletionSource<Result<TResult>> completion, int priority)
     {
-        ChannelCase channelCase = ChannelCase.Create(reader, async (value, ct) =>
+        ChannelCase<TResult> channelCase = ChannelCase<TResult>.Create(reader, InvokeAsync);
+
+        async ValueTask<Result<TResult>> InvokeAsync(T value, CancellationToken ct)
         {
             Result<TResult> caseResult;
             try
@@ -429,17 +431,17 @@ public sealed class SelectBuilder<TResult>
 
             completion.TrySetResult(caseResult);
 
-            return caseResult.IsSuccess
-                ? Result.Ok(Go.Unit.Value)
-                : Result.Fail<Go.Unit>(caseResult.Error ?? Error.Unspecified());
-        });
+            return caseResult;
+        }
 
         return channelCase.WithPriority(priority);
     }
 
-    private static ChannelCase CreateDefaultCase(Func<CancellationToken, Task<Result<TResult>>> onDefault, TaskCompletionSource<Result<TResult>> completion, int priority)
+    private static ChannelCase<TResult> CreateDefaultCase(Func<CancellationToken, Task<Result<TResult>>> onDefault, TaskCompletionSource<Result<TResult>> completion, int priority)
     {
-        var defaultCase = ChannelCase.CreateDefault(async ct =>
+        var defaultCase = ChannelCase<TResult>.CreateDefault(WrapDefaultAsync, priority);
+
+        async ValueTask<Result<TResult>> WrapDefaultAsync(CancellationToken ct)
         {
             Result<TResult> defaultResult;
             try
@@ -457,10 +459,8 @@ public sealed class SelectBuilder<TResult>
 
             completion.TrySetResult(defaultResult);
 
-            return defaultResult.IsSuccess
-                ? Result.Ok(Go.Unit.Value)
-                : Result.Fail<Go.Unit>(defaultResult.Error ?? Error.Unspecified());
-        }, priority);
+            return defaultResult;
+        }
 
         return defaultCase;
     }

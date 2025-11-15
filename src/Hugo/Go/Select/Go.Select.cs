@@ -15,7 +15,7 @@ public static partial class Go
     /// <param name="cancellationToken">The token used to cancel the select operation.</param>
     /// <param name="cases">The channel cases to observe.</param>
     /// <returns>A result indicating whether the select operation completed successfully.</returns>
-    public static Task<Result<Unit>> SelectAsync(TimeProvider? provider = null, CancellationToken cancellationToken = default, params ChannelCase[] cases) =>
+    public static ValueTask<Result<TResult>> SelectAsync<TResult>(TimeProvider? provider = null, CancellationToken cancellationToken = default, params ChannelCase<TResult>[] cases) =>
         SelectInternalAsync(cases, defaultCase: null, Timeout.InfiniteTimeSpan, provider, cancellationToken);
 
     /// <summary>
@@ -26,7 +26,7 @@ public static partial class Go
     /// <param name="cancellationToken">The token used to cancel the select operation.</param>
     /// <param name="cases">The channel cases to observe.</param>
     /// <returns>A result indicating whether the select operation completed successfully.</returns>
-    public static Task<Result<Unit>> SelectAsync(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default, params ChannelCase[] cases) =>
+    public static ValueTask<Result<TResult>> SelectAsync<TResult>(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default, params ChannelCase<TResult>[] cases) =>
         SelectInternalAsync(cases, defaultCase: null, timeout, provider, cancellationToken);
 
     /// <summary>
@@ -50,7 +50,7 @@ public static partial class Go
     public static SelectBuilder<TResult> Select<TResult>(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default) =>
         new(timeout, provider, cancellationToken);
 
-    internal static async Task<Result<Unit>> SelectInternalAsync(IReadOnlyList<ChannelCase> cases, ChannelCase? defaultCase, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
+    internal static async ValueTask<Result<TResult>> SelectInternalAsync<TResult>(IReadOnlyList<ChannelCase<TResult>> cases, ChannelCase<TResult>? defaultCase, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(cases);
 
@@ -61,9 +61,9 @@ public static partial class Go
 
         provider ??= TimeProvider.System;
 
-        ChannelCase? resolvedDefault = defaultCase;
-        List<ChannelCase> caseList = new(cases.Count);
-        foreach (ChannelCase channelCase in cases)
+        ChannelCase<TResult>? resolvedDefault = defaultCase;
+        List<ChannelCase<TResult>> caseList = new(cases.Count);
+        foreach (ChannelCase<TResult> channelCase in cases)
         {
             if (channelCase.IsDefault)
             {
@@ -102,12 +102,12 @@ public static partial class Go
 
         if (immediateCandidates.Count > 0)
         {
-            (int selectedIndex, object? selectedState) = GoSelectHelpers.SelectByPriority(immediateCandidates, caseList);
+            (int selectedIndex, object? selectedState) = GoSelectHelpers.SelectByPriority<TResult>(immediateCandidates, caseList);
             TimeSpan completionDuration = provider.GetElapsedTime(startTimestamp);
 
             try
             {
-                Result<Unit> continuationResult = await caseList[selectedIndex].ContinueWithAsync(selectedState, linkedCts.Token).ConfigureAwait(false);
+                Result<TResult> continuationResult = await caseList[selectedIndex].ContinueWithAsync(selectedState, linkedCts.Token).ConfigureAwait(false);
                 GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, continuationResult.IsSuccess ? null : continuationResult.Error);
                 return continuationResult;
             }
@@ -119,7 +119,7 @@ public static partial class Go
             {
                 Error error = Error.FromException(ex);
                 GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, error);
-                return Result.Fail<Unit>(error);
+                return Result.Fail<TResult>(error);
             }
             finally
             {
@@ -132,7 +132,7 @@ public static partial class Go
             TimeSpan completionDuration = provider.GetElapsedTime(startTimestamp);
             try
             {
-                Result<Unit> defaultResult = await resolvedDefault.Value.ContinueWithAsync(null, linkedCts.Token).ConfigureAwait(false);
+                Result<TResult> defaultResult = await resolvedDefault.Value.ContinueWithAsync(null, linkedCts.Token).ConfigureAwait(false);
                 GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, defaultResult.IsSuccess ? null : defaultResult.Error);
                 return defaultResult;
             }
@@ -144,7 +144,7 @@ public static partial class Go
             {
                 Error error = Error.FromException(ex);
                 GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, error);
-                return Result.Fail<Unit>(error);
+                return Result.Fail<TResult>(error);
             }
             finally
             {
@@ -172,7 +172,7 @@ public static partial class Go
                     TimeSpan drainedDuration = provider.GetElapsedTime(startTimestamp);
                     Error drainedError = Error.From("All channel cases completed without yielding a value.", ErrorCodes.SelectDrained);
                     GoDiagnostics.RecordChannelSelectCompleted(drainedDuration, activity, drainedError);
-                    return Result.Fail<Unit>(drainedError);
+                    return Result.Fail<TResult>(drainedError);
                 }
 
                 Task completedTask;
@@ -196,7 +196,7 @@ public static partial class Go
                         await linkedCts.CancelAsync().ConfigureAwait(false);
                         TimeSpan timeoutDuration = provider.GetElapsedTime(startTimestamp);
                         GoDiagnostics.RecordChannelSelectTimeout(timeoutDuration, activity);
-                        return Result.Fail<Unit>(Error.Timeout(timeout));
+                        return Result.Fail<TResult>(Error.Timeout(timeout));
                     }
                 }
 
@@ -232,12 +232,12 @@ public static partial class Go
                     continue;
                 }
 
-                (int selectedIndex, object? selectedState) = GoSelectHelpers.SelectByPriority(ready, caseList);
+                (int selectedIndex, object? selectedState) = GoSelectHelpers.SelectByPriority<TResult>(ready, caseList);
                 TimeSpan completionDuration = provider.GetElapsedTime(startTimestamp);
 
                 try
                 {
-                    Result<Unit> continuationResult = await caseList[selectedIndex].ContinueWithAsync(selectedState, linkedCts.Token).ConfigureAwait(false);
+                    Result<TResult> continuationResult = await caseList[selectedIndex].ContinueWithAsync(selectedState, linkedCts.Token).ConfigureAwait(false);
                     GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, continuationResult.IsSuccess ? null : continuationResult.Error);
                     return continuationResult;
                 }
@@ -249,7 +249,7 @@ public static partial class Go
                 {
                     Error error = Error.FromException(ex);
                     GoDiagnostics.RecordChannelSelectCompleted(completionDuration, activity, error);
-                    return Result.Fail<Unit>(error);
+                    return Result.Fail<TResult>(error);
                 }
                 finally
                 {
@@ -263,7 +263,7 @@ public static partial class Go
             bool canceledByCaller = cancellationToken is { CanBeCanceled: true, IsCancellationRequested: true };
             GoDiagnostics.RecordChannelSelectCanceled(canceledDuration, activity, canceledByCaller);
             CancellationToken token = cancellationToken.CanBeCanceled ? cancellationToken : oce.CancellationToken;
-            return Result.Fail<Unit>(Error.Canceled(token: token.CanBeCanceled ? token : null));
+            return Result.Fail<TResult>(Error.Canceled(token: token.CanBeCanceled ? token : null));
         }
     }
 }
@@ -295,7 +295,7 @@ internal static class GoSelectHelpers
         return indices;
     }
 
-    public static (int Index, object? State) SelectByPriority(List<(int Index, object? State)> candidates, List<ChannelCase> cases)
+    public static (int Index, object? State) SelectByPriority<TResult>(List<(int Index, object? State)> candidates, List<ChannelCase<TResult>> cases)
     {
         (int selectedIndex, object? selectedState) = candidates[0];
         int bestPriority = cases[selectedIndex].Priority;
@@ -315,7 +315,7 @@ internal static class GoSelectHelpers
         return (selectedIndex, selectedState);
     }
 
-    public static void RemoveAtIndices(List<ChannelCase> cases, List<Task<(bool HasValue, object? Value)>> tasks, List<int> indices)
+    public static void RemoveAtIndices<TResult>(List<ChannelCase<TResult>> cases, List<Task<(bool HasValue, object? Value)>> tasks, List<int> indices)
     {
         if (indices.Count == 0)
         {

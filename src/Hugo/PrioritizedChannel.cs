@@ -313,7 +313,7 @@ public sealed class PrioritizedChannel<T>
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            ChannelCase[] laneCases = CreateLaneCases();
+            ChannelCase<Go.Unit>[] laneCases = CreateLaneCases();
             if (laneCases.Length == 0)
             {
                 return false;
@@ -340,9 +340,9 @@ public sealed class PrioritizedChannel<T>
             throw error.Cause ?? new InvalidOperationException(error.Message);
         }
 
-        private ChannelCase[] CreateLaneCases()
+        private ChannelCase<Go.Unit>[] CreateLaneCases()
         {
-            ChannelCase[] cases = new ChannelCase[_readers.Length];
+            ChannelCase<Go.Unit>[] cases = new ChannelCase<Go.Unit>[_readers.Length];
             for (var priority = 0; priority < _readers.Length; priority++)
             {
                 cases[priority] = CreateLaneCase(priority);
@@ -351,19 +351,19 @@ public sealed class PrioritizedChannel<T>
             return cases;
         }
 
-        private ChannelCase CreateLaneCase(int priority) =>
-            ChannelCase
+        private ChannelCase<Go.Unit> CreateLaneCase(int priority) =>
+            ChannelCase<Go.Unit>
                 .Create(_readers[priority], (value, ct) => StageLaneValueAsync(priority, value, ct))
                 .WithPriority(priority);
 
-        private Task<Result<Go.Unit>> StageLaneValueAsync(int priority, T value, CancellationToken cancellationToken)
+        private ValueTask<Result<Go.Unit>> StageLaneValueAsync(int priority, T value, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             BufferItem(priority, value);
             TryStageFromPriority(priority);
 
-            return Task.FromResult(Result.Ok(Go.Unit.Value));
+            return ValueTask.FromResult(Result.Ok(Go.Unit.Value));
         }
 
         private void BufferItem(int priority, T item)

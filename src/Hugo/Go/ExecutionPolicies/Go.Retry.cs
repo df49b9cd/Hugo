@@ -22,7 +22,7 @@ public static partial class Go
     /// <param name="logger">The optional logger that receives retry telemetry.</param>
     /// <param name="cancellationToken">The token used to cancel the retries.</param>
     /// <returns>A result containing the final operation outcome.</returns>
-    public static Task<Result<T>> RetryAsync<T>(
+    public static ValueTask<Result<T>> RetryAsync<T>(
         Func<int, CancellationToken, Task<Result<T>>> operation,
         int maxAttempts = 3,
         TimeSpan? initialDelay = null,
@@ -51,7 +51,7 @@ public static partial class Go
     /// <param name="logger">The optional logger that receives retry telemetry.</param>
     /// <param name="cancellationToken">The token used to cancel the retries.</param>
     /// <returns>A result containing the final operation outcome.</returns>
-    public static async Task<Result<T>> RetryValueTaskAsync<T>(
+    public static async ValueTask<Result<T>> RetryValueTaskAsync<T>(
         Func<int, CancellationToken, ValueTask<Result<T>>> operation,
         int maxAttempts = 3,
         TimeSpan? initialDelay = null,

@@ -16,7 +16,7 @@ public static partial class Go
     /// <param name="timeProvider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result containing the operation outcome or a timeout error.</returns>
-    public static Task<Result<T>> WithTimeoutAsync<T>(
+    public static ValueTask<Result<T>> WithTimeoutAsync<T>(
         Func<CancellationToken, Task<Result<T>>> operation,
         TimeSpan timeout,
         TimeProvider? timeProvider = null,
@@ -40,7 +40,7 @@ public static partial class Go
     /// <param name="timeProvider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result containing the operation outcome or a timeout error.</returns>
-    public static async Task<Result<T>> WithTimeoutValueTaskAsync<T>(
+    public static async ValueTask<Result<T>> WithTimeoutValueTaskAsync<T>(
         Func<CancellationToken, ValueTask<Result<T>>> operation,
         TimeSpan timeout,
         TimeProvider? timeProvider = null,

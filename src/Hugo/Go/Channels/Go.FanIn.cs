@@ -18,7 +18,7 @@ public static partial class Go
     /// <param name="provider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result indicating whether the operation completed successfully.</returns>
-    public static Task<Result<Unit>> SelectFanInValueTaskAsync<T>(
+    public static ValueTask<Result<Unit>> SelectFanInValueTaskAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Func<T, CancellationToken, ValueTask<Result<Unit>>> onValue,
         TimeSpan? timeout = null,
@@ -31,7 +31,7 @@ public static partial class Go
         ChannelReader<T>[] collected = GoChannelHelpers.CollectSources(readers);
         if (collected.Length == 0)
         {
-            return Task.FromResult(Result.Ok(Unit.Value));
+            return ValueTask.FromResult(Result.Ok(Unit.Value));
         }
 
         for (int i = 0; i < collected.Length; i++)
@@ -43,7 +43,7 @@ public static partial class Go
         }
 
         TimeSpan effectiveTimeout = timeout ?? Timeout.InfiniteTimeSpan;
-        return GoChannelHelpers.ToTask(GoChannelHelpers.SelectFanInAsyncCore(collected, (value, ct) => InvokeValueTask(onValue, value, ct), effectiveTimeout, provider, cancellationToken));
+        return GoChannelHelpers.SelectFanInAsyncCore(collected, (value, ct) => InvokeValueTask(onValue, value, ct), effectiveTimeout, provider, cancellationToken);
     }
 
     /// <summary>
@@ -56,7 +56,7 @@ public static partial class Go
     /// <param name="provider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result indicating whether the operation completed successfully.</returns>
-    public static Task<Result<Unit>> SelectFanInAsync<T>(
+    public static ValueTask<Result<Unit>> SelectFanInAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Func<T, CancellationToken, Task<Result<Unit>>> onValue,
         TimeSpan? timeout = null,
@@ -77,7 +77,7 @@ public static partial class Go
     /// <param name="provider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result indicating whether the operation completed successfully.</returns>
-    public static Task<Result<Unit>> SelectFanInAsync<T>(
+    public static ValueTask<Result<Unit>> SelectFanInAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Func<T, Task<Result<Unit>>> onValue,
         TimeSpan? timeout = null,
@@ -98,7 +98,7 @@ public static partial class Go
     /// <param name="provider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result indicating whether the operation completed successfully.</returns>
-    public static Task<Result<Unit>> SelectFanInValueTaskAsync<T>(
+    public static ValueTask<Result<Unit>> SelectFanInValueTaskAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Func<T, ValueTask<Result<Unit>>> onValue,
         TimeSpan? timeout = null,
@@ -119,7 +119,7 @@ public static partial class Go
     /// <param name="provider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result indicating whether the operation completed successfully.</returns>
-    public static Task<Result<Unit>> SelectFanInAsync<T>(
+    public static ValueTask<Result<Unit>> SelectFanInAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Func<T, CancellationToken, Task> onValue,
         TimeSpan? timeout = null,
@@ -145,7 +145,7 @@ public static partial class Go
     /// <param name="provider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result indicating whether the operation completed successfully.</returns>
-    public static Task<Result<Unit>> SelectFanInValueTaskAsync<T>(
+    public static ValueTask<Result<Unit>> SelectFanInValueTaskAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Func<T, CancellationToken, ValueTask> onValue,
         TimeSpan? timeout = null,
@@ -171,7 +171,7 @@ public static partial class Go
     /// <param name="provider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result indicating whether the operation completed successfully.</returns>
-    public static Task<Result<Unit>> SelectFanInAsync<T>(
+    public static ValueTask<Result<Unit>> SelectFanInAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Func<T, Task> onValue,
         TimeSpan? timeout = null,
@@ -197,7 +197,7 @@ public static partial class Go
     /// <param name="provider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result indicating whether the operation completed successfully.</returns>
-    public static Task<Result<Unit>> SelectFanInValueTaskAsync<T>(
+    public static ValueTask<Result<Unit>> SelectFanInValueTaskAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Func<T, ValueTask> onValue,
         TimeSpan? timeout = null,
@@ -223,7 +223,7 @@ public static partial class Go
     /// <param name="provider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result indicating whether the operation completed successfully.</returns>
-    public static Task<Result<Unit>> SelectFanInAsync<T>(
+    public static ValueTask<Result<Unit>> SelectFanInAsync<T>(
         IEnumerable<ChannelReader<T>> readers,
         Action<T> onValue,
         TimeSpan? timeout = null,
@@ -252,7 +252,7 @@ public static partial class Go
     /// <param name="provider">The optional time provider used for timeout calculations.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A result indicating whether the operation completed successfully.</returns>
-    public static Task<Result<Unit>> FanInAsync<T>(
+    public static ValueTask<Result<Unit>> FanInAsync<T>(
         IEnumerable<ChannelReader<T>> sources,
         ChannelWriter<T> destination,
         bool completeDestination = true,
@@ -274,7 +274,7 @@ public static partial class Go
                 }
             }
 
-            return GoChannelHelpers.ToTask(GoChannelHelpers.FanInAsyncCore(readers, destination, completeDestination, timeout ?? Timeout.InfiniteTimeSpan, provider, cancellationToken));
+            return GoChannelHelpers.FanInAsyncCore(readers, destination, completeDestination, timeout ?? Timeout.InfiniteTimeSpan, provider, cancellationToken);
         }
 
         if (completeDestination)
@@ -282,7 +282,7 @@ public static partial class Go
             destination.TryComplete();
         }
 
-        return Task.FromResult(Result.Ok(Unit.Value));
+        return ValueTask.FromResult(Result.Ok(Unit.Value));
     }
 
     /// <summary>
@@ -328,23 +328,15 @@ public static partial class Go
         return output.Reader;
     }
 
-    private static Task<Result<Unit>> InvokeValueTask<T>(Func<T, CancellationToken, ValueTask<Result<Unit>>> handler, T value, CancellationToken cancellationToken)
+    private static ValueTask<Result<Unit>> InvokeValueTask<T>(Func<T, CancellationToken, ValueTask<Result<Unit>>> handler, T value, CancellationToken cancellationToken)
     {
-        ValueTask<Result<Unit>> valueTask;
         try
         {
-            valueTask = handler(value, cancellationToken);
+            return handler(value, cancellationToken);
         }
         catch (Exception ex)
         {
-            return Task.FromException<Result<Unit>>(ex);
+            return ValueTask.FromException<Result<Unit>>(ex);
         }
-
-        if (valueTask.IsCompletedSuccessfully)
-        {
-            return Task.FromResult(valueTask.Result);
-        }
-
-        return valueTask.AsTask();
     }
 }

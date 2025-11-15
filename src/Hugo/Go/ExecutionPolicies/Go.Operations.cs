@@ -20,7 +20,7 @@ public static partial class Go
     /// <param name="timeProvider">The optional time provider used by the execution policy.</param>
     /// <returns>A result containing the collection of operation outputs.</returns>
     [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Preserves established public API ordering for downstream callers.")]
-    public static Task<Result<IReadOnlyList<T>>> FanOutAsync<T>(
+    public static ValueTask<Result<IReadOnlyList<T>>> FanOutAsync<T>(
         IEnumerable<Func<CancellationToken, Task<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
         CancellationToken cancellationToken = default,
@@ -46,7 +46,7 @@ public static partial class Go
     /// <param name="timeProvider">The optional time provider used by the execution policy.</param>
     /// <returns>A result containing the collection of operation outputs.</returns>
     [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Preserves established public API ordering for downstream callers.")]
-    public static Task<Result<IReadOnlyList<T>>> FanOutValueTaskAsync<T>(
+    public static async ValueTask<Result<IReadOnlyList<T>>> FanOutValueTaskAsync<T>(
         IEnumerable<Func<CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
         CancellationToken cancellationToken = default,
@@ -60,7 +60,7 @@ public static partial class Go
                 : new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>(
                     (_, ct) => operation(ct)));
 
-        return Result.WhenAll(adapted, policy, timeProvider, cancellationToken);
+        return await Result.WhenAll(adapted, policy, timeProvider, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -73,7 +73,7 @@ public static partial class Go
     /// <param name="timeProvider">The optional time provider used by the execution policy.</param>
     /// <returns>A result containing the first successful operation output.</returns>
     [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Preserves established public API ordering for downstream callers.")]
-    public static Task<Result<T>> RaceAsync<T>(
+    public static ValueTask<Result<T>> RaceAsync<T>(
         IEnumerable<Func<CancellationToken, Task<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
         CancellationToken cancellationToken = default,
@@ -99,7 +99,7 @@ public static partial class Go
     /// <param name="timeProvider">The optional time provider used by the execution policy.</param>
     /// <returns>A result containing the first successful operation output.</returns>
     [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Preserves established public API ordering for downstream callers.")]
-    public static Task<Result<T>> RaceValueTaskAsync<T>(
+    public static ValueTask<Result<T>> RaceValueTaskAsync<T>(
         IEnumerable<Func<CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
         CancellationToken cancellationToken = default,
@@ -113,6 +113,6 @@ public static partial class Go
                 : new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>(
                     (_, ct) => operation(ct)));
 
-        return Result.WhenAny(adapted, policy, timeProvider, cancellationToken);
+        return new ValueTask<Result<T>>(Result.WhenAny(adapted, policy, timeProvider, cancellationToken));
     }
 }

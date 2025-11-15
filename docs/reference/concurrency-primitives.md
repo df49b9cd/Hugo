@@ -349,10 +349,10 @@ Await whichever channel case becomes ready first.
 
 ### Select APIs
 
-- `Go.SelectAsync(params ChannelCase[] cases)` to await the first ready case.
-- `Go.SelectAsync(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default, params ChannelCase[] cases)` for deadline-aware selects.
+- `Go.SelectAsync<TResult>(params ChannelCase<TResult>[] cases)` to await the first ready case.
+- `Go.SelectAsync<TResult>(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default, params ChannelCase<TResult>[] cases)` for deadline-aware selects.
 - `Go.Select<TResult>(TimeProvider? provider = null, CancellationToken cancellationToken = default)` / `Go.Select<TResult>(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default)` fluent builders.
-- `ChannelCase.Create<T>(ChannelReader<T>, Func<T, CancellationToken, Task<Result<Unit>>>)` plus overloads for tasks/actions and `ChannelCase.CreateDefault(...)`.
+- `ChannelCase<TResult>.Create<T>(ChannelReader<T>, Func<T, CancellationToken, ValueTask<Result<TResult>>>)` plus overloads for ValueTask callbacks and `ChannelCase<TResult>.CreateDefault(...)`.
 
 ### Select example
 
@@ -361,12 +361,12 @@ var result = await Go.SelectAsync(
     timeout: TimeSpan.FromSeconds(1),
     cases: new[]
     {
-        ChannelCase.Create(textChannel.Reader, async (text, ct) =>
+        ChannelCase<Go.Unit>.Create(textChannel.Reader, async (text, ct) =>
         {
             Console.WriteLine($"text: {text}");
             return Result.Ok(Go.Unit.Value);
         }),
-        ChannelCase.Create(signal.Reader, (unit, _) =>
+        ChannelCase<Go.Unit>.Create(signal.Reader, (unit, _) =>
         {
             Console.WriteLine("signal received");
             return Task.FromResult(Result.Ok(Go.Unit.Value));

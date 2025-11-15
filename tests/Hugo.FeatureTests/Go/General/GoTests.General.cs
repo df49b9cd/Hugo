@@ -654,14 +654,14 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public void ChannelCase_Create_ShouldThrow_WhenReaderIsNull() => Assert.Throws<ArgumentNullException>(static () => ChannelCase.Create<int>(null!, static (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value))));
+    public void ChannelCase_Create_ShouldThrow_WhenReaderIsNull() => Assert.Throws<ArgumentNullException>(static () => ChannelCase.Create<int>(null!, static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value))));
 
     [Fact(Timeout = 15_000)]
     public void ChannelCase_Create_ShouldThrow_WhenContinuationIsNull()
     {
         var channel = MakeChannel<int>();
 
-        Assert.Throws<ArgumentNullException>(() => ChannelCase.Create(channel.Reader, (Func<int, CancellationToken, Task<Result<Go.Unit>>>)null!));
+        Assert.Throws<ArgumentNullException>(() => ChannelCase.Create(channel.Reader, (Func<int, CancellationToken, ValueTask<Result<Go.Unit>>>)null!));
     }
 
     [Fact(Timeout = 15_000)]
@@ -673,18 +673,18 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldThrow_WhenCasesNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: null!));
+    public async Task SelectAsync_ShouldThrow_WhenCasesNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: null!));
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldThrow_WhenCasesEmpty() => await Assert.ThrowsAsync<ArgumentException>(static () => SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: []));
+    public async Task SelectAsync_ShouldThrow_WhenCasesEmpty() => await Assert.ThrowsAsync<ArgumentException>(static () => SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: []));
 
     [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldThrow_WhenTimeoutIsNegative()
     {
         var channel = MakeChannel<int>();
-        var @case = ChannelCase.Create(channel.Reader, (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)));
+        var @case = ChannelCase.Create(channel.Reader, (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)));
 
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => SelectAsync(TimeSpan.FromMilliseconds(-5), cancellationToken: TestContext.Current.CancellationToken, cases: [@case]));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => SelectAsync<Go.Unit>(TimeSpan.FromMilliseconds(-5), cancellationToken: TestContext.Current.CancellationToken, cases: [@case]));
     }
 
     [Fact(Timeout = 15_000)]
@@ -693,7 +693,7 @@ public partial class GoTests
         var channel = MakeChannel<int>();
         channel.Writer.TryComplete();
 
-        var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, static (_, _) => Task.FromResult(Result.Ok(Unit.Value)))]);
+        var result = await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Unit.Value)))]);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.SelectDrained, result.Error?.Code);
@@ -704,7 +704,7 @@ public partial class GoTests
     {
         var invoked = false;
 
-        var result = await SelectAsync(
+        var result = await SelectAsync<Go.Unit>(
             cancellationToken: TestContext.Current.CancellationToken,
             cases:
             [
@@ -712,7 +712,7 @@ public partial class GoTests
                 {
                     invoked = true;
                     Assert.True(ct.CanBeCanceled);
-                    return Task.FromResult(Result.Ok(Unit.Value));
+                    return ValueTask.FromResult(Result.Ok(Unit.Value));
                 })
             ]);
 
@@ -723,7 +723,7 @@ public partial class GoTests
     [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldPropagateDefaultFailure()
     {
-        var result = await SelectAsync(
+        var result = await SelectAsync<Go.Unit>(
             cancellationToken: TestContext.Current.CancellationToken,
             cases:
             [
@@ -743,7 +743,7 @@ public partial class GoTests
         channel.Writer.TryComplete();
         var defaultInvoked = false;
 
-        var result = await SelectAsync(
+        var result = await SelectAsync<Go.Unit>(
             cancellationToken: TestContext.Current.CancellationToken,
             cases:
             [
@@ -755,7 +755,7 @@ public partial class GoTests
                 ChannelCase.Create(channel.Reader, value =>
                 {
                     Assert.Equal(42, value);
-                    return Task.FromResult(Result.Ok(Unit.Value));
+                    return ValueTask.FromResult(Result.Ok(Unit.Value));
                 })
             ]);
 
@@ -765,7 +765,7 @@ public partial class GoTests
 
     [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldThrow_WhenMultipleDefaultCasesSupplied() => await Assert.ThrowsAsync<ArgumentException>(static () =>
-                                                                                             SelectAsync(
+                                                                                             SelectAsync<Go.Unit>(
                                                                                                  cancellationToken: TestContext.Current.CancellationToken,
                                                                                                  cases:
                                                                                                  [
@@ -780,7 +780,7 @@ public partial class GoTests
         channel.Writer.TryWrite(42);
         channel.Writer.TryComplete();
 
-        var result = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, (Action<int>)(static _ => throw new InvalidOperationException("boom")))]);
+        var result = await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, (Action<int>)(static _ => throw new InvalidOperationException("boom")))]);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
@@ -797,7 +797,7 @@ public partial class GoTests
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-        var selectTask = SelectAsync(
+        var selectTask = SelectAsync<Go.Unit>(
             cancellationToken: cts.Token,
             cases:
             [
@@ -805,12 +805,12 @@ public partial class GoTests
                 {
                     firstExecuted = true;
                     Assert.Equal(42, value);
-                    return Task.FromResult(Result.Ok(Go.Unit.Value));
+                    return ValueTask.FromResult(Result.Ok(Go.Unit.Value));
                 }),
                 ChannelCase.Create(channel2.Reader, (value, _) =>
                 {
                     secondExecuted = true;
-                    return Task.FromResult(Result.Ok(Go.Unit.Value));
+                    return ValueTask.FromResult(Result.Ok(Go.Unit.Value));
                 })
             ]);
 
@@ -833,13 +833,13 @@ public partial class GoTests
 
         var provider = new FakeTimeProvider();
 
-        var selectTask = SelectAsync(
+        var selectTask = SelectAsync<Go.Unit>(
             timeout: TimeSpan.FromSeconds(1),
             provider: provider,
             cancellationToken: cts.Token,
             cases:
             [
-                ChannelCase.Create(channel.Reader, static (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))
+                ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)))
             ]);
 
         Assert.False(selectTask.IsCompleted);
@@ -860,9 +860,9 @@ public partial class GoTests
         var channel = MakeChannel<int>();
         using var cts = new CancellationTokenSource();
 
-        var selectTask = SelectAsync(
+        var selectTask = SelectAsync<Go.Unit>(
             cancellationToken: cts.Token,
-            cases: [ChannelCase.Create(channel.Reader, static (_, _) => Task.FromResult(Result.Ok(Go.Unit.Value)))]);
+            cases: [ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)))]);
 
         cts.CancelAfter(20);
 
@@ -891,11 +891,11 @@ public partial class GoTests
             channel.Writer.TryWrite(7);
             channel.Writer.TryComplete();
 
-            var result = await SelectAsync(
+            var result = await SelectAsync<Go.Unit>(
                 cancellationToken: TestContext.Current.CancellationToken,
                 cases:
                 [
-                    ChannelCase.Create(channel.Reader, static (_, _) => Task.FromResult(Result.Ok(Unit.Value)))
+                    ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Unit.Value)))
                 ]);
 
             Assert.True(result.IsSuccess);
@@ -935,11 +935,11 @@ public partial class GoTests
             channel.Writer.TryWrite(13);
             channel.Writer.TryComplete();
 
-            var result = await SelectAsync(
+            var result = await SelectAsync<Go.Unit>(
                 cancellationToken: TestContext.Current.CancellationToken,
                 cases:
                 [
-                    ChannelCase.Create(channel.Reader, static (_, _) => Task.FromResult(Result.Fail<Unit>(Error.From("failure", "error.activity"))))
+                    ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Fail<Unit>(Error.From("failure", "error.activity"))))
                 ]);
 
             Assert.True(result.IsFailure);
@@ -986,18 +986,18 @@ public partial class GoTests
             ChannelCase.Create(channel.Reader, (value, _) =>
             {
                 observed.Add(value);
-                return Task.FromResult(Result.Ok(Unit.Value));
+                return ValueTask.FromResult(Result.Ok(Unit.Value));
             })
         };
 
         await channel.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
-        var first = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: cases);
+        var first = await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: cases);
         Assert.True(first.IsSuccess);
 
         await channel.Writer.WriteAsync(2, TestContext.Current.CancellationToken);
         channel.Writer.TryComplete();
 
-        var second = await SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: cases);
+        var second = await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: cases);
 
         Assert.True(second.IsSuccess);
         Assert.Equal(expected, observed);
@@ -1017,13 +1017,13 @@ public partial class GoTests
             ChannelCaseTemplates.From(channel2.Reader)
         };
 
-        var cases = templates.With((value, _) =>
+        var cases = templates.With<int, Go.Unit>((value, _) =>
         {
             observed.Add(value);
-            return Task.FromResult(Result.Ok(Unit.Value));
+            return ValueTask.FromResult(Result.Ok(Unit.Value));
         });
 
-        var selectTask = SelectAsync(cancellationToken: TestContext.Current.CancellationToken, cases: cases);
+        var selectTask = SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: cases);
 
         await channel2.Writer.WriteAsync(99, TestContext.Current.CancellationToken);
         channel1.Writer.TryComplete();
