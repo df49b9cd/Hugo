@@ -47,13 +47,11 @@ public readonly partial record struct Result<T>
     /// <returns>A tuple containing the value and error.</returns>
     public static implicit operator (T Value, Error? Error)(Result<T> result) => (result.Value, result.Error);
 
-    public Result<T> ToResult()
-    {
-        throw new NotImplementedException();
-    }
+    /// <summary>Returns the current result instance.</summary>
+    /// <returns>The current instance, enabling fluent APIs that expect explicit result values.</returns>
+    public Result<T> ToResult() => this;
 
-    public (T Value, Error? Error) ToValueTuple()
-    {
-        throw new NotImplementedException();
-    }
+    /// <summary>Converts the result to a tuple representation.</summary>
+    /// <returns>A tuple containing the value and error for interop with tuple-based APIs.</returns>
+    public (T Value, Error? Error) ToValueTuple() => (Value, Error);
 }
