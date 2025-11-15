@@ -110,7 +110,7 @@ public static partial class Result
             await enumerator.DisposeAsync();
         }
     }
-    
+
     /// <summary>
     /// Writes every result emitted by <paramref name="source"/> to <paramref name="writer"/> and completes the writer when the sequence ends.
     /// Emits a canceled result if the enumeration is canceled.
