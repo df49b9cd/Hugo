@@ -6,6 +6,111 @@ namespace Hugo;
 
 public static partial class Result
 {
+    /// <summary>Projects an asynchronous sequence into a new asynchronous sequence of results, stopping on first failure.</summary>
+    /// <typeparam name="TIn">The type of the source items.</typeparam>
+    /// <typeparam name="TOut">The type of the projected results.</typeparam>
+    /// <param name="source">The source sequence to project.</param>
+    /// <param name="selector">The projection applied to each item.</param>
+    /// <param name="cancellationToken">The token used to cancel the projection.</param>
+    /// <returns>An asynchronous sequence of results.</returns>
+    public static IAsyncEnumerable<Result<TOut>> MapStreamAsync<TIn, TOut>(
+        IAsyncEnumerable<TIn> source,
+        Func<TIn, CancellationToken, Task<Result<TOut>>> selector,
+        CancellationToken cancellationToken = default) => selector is null
+            ? throw new ArgumentNullException(nameof(selector))
+            : MapStreamAsync(source, (value, token) => new ValueTask<Result<TOut>>(selector(value, token)), cancellationToken);
+
+    /// <summary>Projects an asynchronous sequence into a new asynchronous sequence of results, stopping on first failure.</summary>
+    /// <typeparam name="TIn">The type of the source items.</typeparam>
+    /// <typeparam name="TOut">The type of the projected results.</typeparam>
+    /// <param name="source">The source sequence to project.</param>
+    /// <param name="selector">The projection applied to each item.</param>
+    /// <param name="cancellationToken">The token used to cancel the projection.</param>
+    /// <returns>An asynchronous sequence of results.</returns>
+    public static async IAsyncEnumerable<Result<TOut>> MapStreamAsync<TIn, TOut>(
+        IAsyncEnumerable<TIn> source,
+        Func<TIn, CancellationToken, ValueTask<Result<TOut>>> selector,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        ArgumentNullException.ThrowIfNull(selector);
+
+        var configuredSource = source.WithCancellation(cancellationToken).ConfigureAwait(false);
+        var enumerator = configuredSource.GetAsyncEnumerator();
+        try
+        {
+            while (true)
+            {
+                Result<TOut> failure = default;
+                var hasFailure = false;
+                bool hasNext;
+                try
+                {
+                    hasNext = await enumerator.MoveNextAsync();
+                }
+                catch (OperationCanceledException oce)
+                {
+                    failure = Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+                    hasFailure = true;
+                    hasNext = false;
+                }
+                catch (Exception ex)
+                {
+                    failure = Fail<TOut>(Error.FromException(ex));
+                    hasFailure = true;
+                    hasNext = false;
+                }
+
+                if (hasFailure)
+                {
+                    yield return failure;
+                    yield break;
+                }
+
+                if (!hasNext)
+                {
+                    yield break;
+                }
+
+                Result<TOut> mapped;
+                try
+                {
+                    mapped = await selector(enumerator.Current, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException oce)
+                {
+                    failure = Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+                    hasFailure = true;
+                    mapped = default;
+                }
+                catch (Exception ex)
+                {
+                    failure = Fail<TOut>(Error.FromException(ex));
+                    hasFailure = true;
+                    mapped = default;
+                }
+
+                if (hasFailure)
+                {
+                    yield return failure;
+                    yield break;
+                }
+
+                yield return mapped;
+
+                if (mapped.IsFailure)
+                {
+                    yield break;
+                }
+            }
+        }
+        finally
+        {
+            await enumerator.DisposeAsync();
+        }
+    }
+    
     /// <summary>
     /// Writes every result emitted by <paramref name="source"/> to <paramref name="writer"/> and completes the writer when the sequence ends.
     /// Emits a canceled result if the enumeration is canceled.
