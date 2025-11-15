@@ -22,6 +22,9 @@ public sealed class ResultSagaStepContext
     /// <summary>Gets the time provider associated with the saga execution.</summary>
     public TimeProvider TimeProvider => _pipelineContext.TimeProvider;
 
+    /// <summary>Gets the cancellation token governing the saga step.</summary>
+    public CancellationToken CancellationToken => _pipelineContext.CancellationToken;
+
     /// <summary>Gets the shared saga state available to the step.</summary>
     public ResultSagaState State => _state;
 

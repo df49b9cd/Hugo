@@ -38,6 +38,9 @@ public readonly struct ChannelCase<TResult> : IEquatable<ChannelCase<TResult>>
 
     internal bool IsDefault { get; }
 
+    internal ChannelCase<TResult> WithContinuation(Func<object?, CancellationToken, ValueTask<Result<TResult>>> continuation) =>
+        new(_waiter, continuation ?? throw new ArgumentNullException(nameof(continuation)), _readyProbe, Priority, IsDefault);
+
     internal bool TryDequeueImmediately(out object? state)
     {
         if (_readyProbe is null)

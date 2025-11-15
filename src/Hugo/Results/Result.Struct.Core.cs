@@ -1,4 +1,9 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading;
+
+using Hugo.Policies;
 
 namespace Hugo;
 
@@ -8,12 +13,14 @@ namespace Hugo;
 public readonly partial record struct Result<T>
 {
     private readonly T _value;
+    private readonly CompensationScope? _compensation;
 
-    private Result(T value, Error? error, bool isSuccess)
+    private Result(T value, Error? error, bool isSuccess, CompensationScope? compensation = null)
     {
         _value = value;
         Error = error;
         IsSuccess = isSuccess;
+        _compensation = compensation;
     }
 
     internal static Result<T> Success(T value)
@@ -96,4 +103,30 @@ public readonly partial record struct Result<T>
         error = null;
         return false;
     }
+
+    internal CompensationScope? Compensation => _compensation;
+
+    internal bool TryGetCompensation(out CompensationScope? compensation)
+    {
+        if (_compensation is { HasActions: true })
+        {
+            compensation = _compensation;
+            return true;
+        }
+
+        compensation = null;
+        return false;
+    }
+
+    /// <summary>Gets a value indicating whether the result carries compensation actions.</summary>
+    internal bool HasCompensation => _compensation?.HasActions == true;
+
+    /// <inheritdoc />
+    public bool Equals(Result<T> other) =>
+        EqualityComparer<T>.Default.Equals(_value, other._value)
+        && EqualityComparer<Error?>.Default.Equals(Error, other.Error)
+        && IsSuccess == other.IsSuccess;
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(_value, Error, IsSuccess);
 }

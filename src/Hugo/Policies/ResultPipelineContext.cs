@@ -1,3 +1,7 @@
+using System.Threading;
+
+using Hugo;
+
 namespace Hugo.Policies;
 
 /// <summary>
@@ -7,11 +11,12 @@ public sealed class ResultPipelineStepContext
 {
     private readonly CompensationScope _compensationScope;
 
-    internal ResultPipelineStepContext(string? stepName, CompensationScope compensationScope, TimeProvider timeProvider)
+    internal ResultPipelineStepContext(string? stepName, CompensationScope compensationScope, TimeProvider timeProvider, CancellationToken cancellationToken)
     {
         StepName = string.IsNullOrWhiteSpace(stepName) ? string.Empty : stepName;
         _compensationScope = compensationScope ?? throw new ArgumentNullException(nameof(compensationScope));
         TimeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        CancellationToken = cancellationToken;
     }
 
     /// <summary>Gets the name associated with the current step for diagnostics.</summary>
@@ -19,6 +24,9 @@ public sealed class ResultPipelineStepContext
 
     /// <summary>Provides access to the time provider used by the pipeline.</summary>
     public TimeProvider TimeProvider { get; }
+
+    /// <summary>Gets the cancellation token governing the current pipeline step.</summary>
+    public CancellationToken CancellationToken { get; }
 
     /// <summary>
     /// Registers a compensation action to be executed if the pipeline fails.
@@ -51,5 +59,23 @@ public sealed class ResultPipelineStepContext
 
         RegisterCompensation(state, compensation);
         return true;
+    }
+
+    internal void AbsorbCompensation(CompensationScope? scope)
+    {
+        if (scope is null || !scope.HasActions)
+        {
+            return;
+        }
+
+        _compensationScope.Absorb(scope);
+    }
+
+    internal void AbsorbResult<T>(Result<T> result)
+    {
+        if (result.TryGetCompensation(out var scope))
+        {
+            AbsorbCompensation(scope);
+        }
     }
 }

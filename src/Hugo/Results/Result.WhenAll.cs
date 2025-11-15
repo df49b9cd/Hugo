@@ -334,7 +334,7 @@ public static partial class Result
         {
             cancellationToken.ThrowIfCancellationRequested();
             var attemptScope = new CompensationScope();
-            var context = new ResultPipelineStepContext(stepName, attemptScope, timeProvider);
+            var context = new ResultPipelineStepContext(stepName, attemptScope, timeProvider, cancellationToken);
             Result<T> result;
 
             try

@@ -216,7 +216,9 @@ These components integrate with `WorkflowExecutionContext` and instrumentation s
 | `CompensationAction` | Lightweight record linking a callback and payload captured when registering compensations. |
 | `CompensationScope` | Collects actions emitted during pipeline execution. `Register`, `Capture`, `Absorb`, `Clear`, and `HasActions` orchestrate compensation lifecycles. |
 | `CompensationContext` | Provides execution semantics for compensation (`ExecuteAsync` sequentially or `parallel: true`). |
-| `ResultPipelineStepContext` | Passed to pipeline steps executed under a policy. Exposes `StepName`, `TimeProvider`, and `RegisterCompensation` (with optional state + conditional registration). |
+| `ResultPipelineStepContext` | Passed to pipeline steps executed under a policy. Exposes `StepName`, `TimeProvider`, `CancellationToken`, and `RegisterCompensation` (with optional state + conditional registration). |
+| `ResultPipelineChannels` | Pipeline-aware wrappers over Go channel helpers (`SelectAsync`, `FanInAsync`, `MergeAsync`, `BroadcastAsync`) that automatically absorb compensation scopes emitted by continuations. |
+| `ResultPipeline` | High-level orchestration wrappers that mirror Go helpers (`FanOutAsync`, `RaceAsync`, `RetryAsync`, `WithTimeoutAsync`) while returning `ValueTask<Result<T>>` and preserving pipeline diagnostics. |
 | `ResultExecutionBuilders` | Convenience helpers: `FixedRetryPolicy`, `ExponentialRetryPolicy`, and `CreateSaga` (which seeds a `ResultSagaBuilder` with the supplied configuration delegates). |
 
 Policies rely on `TimeProvider` for scheduling; when testing, inject `FakeTimeProvider` from `Microsoft.Extensions.TimeProvider.Testing` to deterministically advance timers.

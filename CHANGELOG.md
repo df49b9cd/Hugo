@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `ResultPipelineChannels.SelectAsync` / `.FanInAsync` / `.MergeAsync` / `.BroadcastAsync` bridge the Go channel helpers with pipeline-aware cancellation tokens, time providers, and compensation scopes.
+- `ResultPipeline.FanOutAsync`, `.RaceAsync`, `.RetryAsync`, and `.WithTimeoutAsync` provide `ValueTask<Result<T>>` wrappers over the result pipeline orchestrators so callers can reuse Go-style ergonomics without losing diagnostics.
+- `Result<T>.WithCompensation(...)` plus a `ResultPipelineStepContext.CancellationToken` accessor make it easier for ad-hoc continuations to emit rollback actions that orchestrators absorb automatically.
 - MIT license for open-source distribution
 - Comprehensive package metadata for NuGet publishing
 - Code coverage reporting in CI pipeline

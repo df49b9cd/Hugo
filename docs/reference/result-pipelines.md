@@ -23,6 +23,7 @@
 - `Result.Fail<T>(Error? error)` / `Go.Err<T>(Error? error)` create failures (null defaults to `Error.Unspecified`). `Go.Err<T>(string message, string? code = null)` and `Go.Err<T>(Exception exception, string? code = null)` shortcut common cases.
 - `Result.FromOptional<T>(Optional<T> optional, Func<Error> errorFactory)` lifts optionals into results.
 - `Result.Try(Func<T> operation, Func<Exception, Error?>? errorFactory = null)` and `Result.TryAsync(Func<CancellationToken, Task<T>> operation, CancellationToken cancellationToken = default, Func<Exception, Error?>? errorFactory = null)` capture exceptions as `Error` values (cancellations become `Error.Canceled`).
+- `result.WithCompensation(Func<CancellationToken, ValueTask> compensation)` (or the overload that captures state) attaches rollback actions to a result. Pipeline orchestrators such as `ResultPipelineChannels.SelectAsync` absorb these scopes automatically so failures later in the pipeline execute the recorded cleanup.
 
 ```csharp
 var ok = Go.Ok(42);
@@ -83,11 +84,20 @@ All helpers propagate the first encountered error and respect cancellation token
 
 Writers are completed automatically (with the originating error when appropriate) to prevent consumer deadlocks.
 
+### Pipeline-aware channel adapters
+
+- `ResultPipelineChannels.SelectAsync` mirrors `Go.SelectAsync` but links into the active `ResultPipelineStepContext`, automatically absorbing any compensations attached via `Result<T>.WithCompensation(...)` so failures later in the pipeline execute the recorded rollback actions.
+- `ResultPipelineChannels.FanInAsync` exposes the same overload set as `Go.SelectFanIn*`, wrapping each handler with the pipeline’s cancellation token, time provider, and compensation scope.
+- `ResultPipelineChannels.MergeAsync` (fan-in to an existing writer) and `ResultPipelineChannels.BroadcastAsync` (fan-out to existing writers) forward to `Go.FanInAsync`/`Go.FanOutAsync` while preserving pipeline diagnostics.
+
 ## Parallel orchestration and retries
 
 - `Result.WhenAll` executes result-aware operations concurrently, applying the supplied `ResultExecutionPolicy` (retries + compensation) to each step. When cancellation interrupts execution—even if `Task.WhenAll` short-circuits with `OperationCanceledException`—previously completed operations have their compensation scopes replayed before the aggregated result returns `Error.Canceled`, so side effects are rolled back deterministically.
 - `Result.WhenAny` resolves once the first success arrives, compensating secondary successes and aggregating errors when every branch fails.
 - `Result.RetryWithPolicyAsync` runs a delegate under a retry/compensation policy, surfacing structured failure metadata when attempts are exhausted.
+- `ResultPipeline.FanOutAsync` / `ResultPipeline.RaceAsync` are thin wrappers over `Result.WhenAll` / `Result.WhenAny` that return `ValueTask<Result<T>>` to match the Go helpers without losing pipeline metadata.
+- `ResultPipeline.RetryAsync` mirrors `Go.RetryAsync` for pipeline-aware delegates, wiring optional loggers and exponential backoff hints into `ResultExecutionBuilders.ExponentialRetryPolicy`.
+- `ResultPipeline.WithTimeoutAsync` enforces deadlines with the same `TimeProvider` semantics as Go timers while ensuring compensations registered by the timed operation run before surfacing `Error.Timeout`.
 - `Result.TieredFallbackAsync` evaluates `ResultFallbackTier<T>` instances sequentially; strategies within a tier run concurrently and cancel once a peer succeeds. Metadata keys (`fallbackTier`, `tierIndex`, `strategyIndex`) are attached to failures for observability.
 - `ResultFallbackTier<T>.From(...)` adapts synchronous or asynchronous delegates into tier definitions without manually handling `ResultPipelineStepContext`.
 
