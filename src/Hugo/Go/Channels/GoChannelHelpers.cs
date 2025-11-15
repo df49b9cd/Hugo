@@ -25,7 +25,7 @@ internal static class GoChannelHelpers
         return collected.Count == 0 ? [] : [.. collected];
     }
 
-    public static async Task<Result<Go.Unit>> SelectFanInAsyncCore<T>(ChannelReader<T>[] readers, Func<T, CancellationToken, Task<Result<Go.Unit>>> onValue, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
+    public static async ValueTask<Result<Go.Unit>> SelectFanInAsyncCore<T>(ChannelReader<T>[] readers, Func<T, CancellationToken, Task<Result<Go.Unit>>> onValue, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
         {
@@ -141,7 +141,7 @@ internal static class GoChannelHelpers
         }
     }
 
-    public static async Task<Result<Go.Unit>> FanInAsyncCore<T>(ChannelReader<T>[] readers, ChannelWriter<T> destination, bool completeDestination, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
+    public static async ValueTask<Result<Go.Unit>> FanInAsyncCore<T>(ChannelReader<T>[] readers, ChannelWriter<T> destination, bool completeDestination, TimeSpan timeout, TimeProvider? provider, CancellationToken cancellationToken)
     {
         try
         {
@@ -178,7 +178,7 @@ internal static class GoChannelHelpers
         }
     }
 
-    public static async Task<Result<Go.Unit>> FanOutAsyncCore<T>(ChannelReader<T> source, IReadOnlyList<ChannelWriter<T>> destinations, bool completeDestinations, TimeSpan deadline, TimeProvider provider, CancellationToken cancellationToken)
+    public static async ValueTask<Result<Go.Unit>> FanOutAsyncCore<T>(ChannelReader<T> source, IReadOnlyList<ChannelWriter<T>> destinations, bool completeDestinations, TimeSpan deadline, TimeProvider provider, CancellationToken cancellationToken)
     {
         try
         {
@@ -256,6 +256,13 @@ internal static class GoChannelHelpers
         return Result.Ok(Go.Unit.Value);
     }
 
+    internal static Task<Result<Go.Unit>> ToTask(ValueTask<Result<Go.Unit>> valueTask)
+    {
+        return valueTask.IsCompletedSuccessfully
+            ? Task.FromResult(valueTask.Result)
+            : valueTask.AsTask();
+    }
+
     public static void CompleteWriters<T>(IReadOnlyList<ChannelWriter<T>> writers, Exception? exception)
     {
         foreach (ChannelWriter<T> writer in writers)
@@ -289,7 +296,7 @@ internal static class GoChannelHelpers
 
     private static bool IsSelectDrained(Error? error) => error is { Code: ErrorCodes.SelectDrained };
 
-    private static async Task<Result<Go.Unit>> WriteWithDeadlineAsync<T>(ChannelWriter<T> writer, T value, TimeSpan deadline, TimeProvider provider, long startTimestamp, CancellationToken cancellationToken)
+    private static async ValueTask<Result<Go.Unit>> WriteWithDeadlineAsync<T>(ChannelWriter<T> writer, T value, TimeSpan deadline, TimeProvider provider, long startTimestamp, CancellationToken cancellationToken)
     {
         if (writer.TryWrite(value))
         {

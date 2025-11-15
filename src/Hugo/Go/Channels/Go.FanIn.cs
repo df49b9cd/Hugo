@@ -43,7 +43,7 @@ public static partial class Go
         }
 
         TimeSpan effectiveTimeout = timeout ?? Timeout.InfiniteTimeSpan;
-        return GoChannelHelpers.SelectFanInAsyncCore(collected, (value, ct) => InvokeValueTask(onValue, value, ct), effectiveTimeout, provider, cancellationToken);
+        return GoChannelHelpers.ToTask(GoChannelHelpers.SelectFanInAsyncCore(collected, (value, ct) => InvokeValueTask(onValue, value, ct), effectiveTimeout, provider, cancellationToken));
     }
 
     /// <summary>
@@ -274,7 +274,7 @@ public static partial class Go
                 }
             }
 
-            return GoChannelHelpers.FanInAsyncCore(readers, destination, completeDestination, timeout ?? Timeout.InfiniteTimeSpan, provider, cancellationToken);
+            return GoChannelHelpers.ToTask(GoChannelHelpers.FanInAsyncCore(readers, destination, completeDestination, timeout ?? Timeout.InfiniteTimeSpan, provider, cancellationToken));
         }
 
         if (completeDestination)

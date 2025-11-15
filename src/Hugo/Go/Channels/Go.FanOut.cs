@@ -51,7 +51,7 @@ public static partial class Go
         TimeSpan effectiveDeadline = deadline ?? Timeout.InfiniteTimeSpan;
         TimeProvider effectiveProvider = provider ?? TimeProvider.System;
 
-        return GoChannelHelpers.FanOutAsyncCore(source, destinations, completeDestinations, effectiveDeadline, effectiveProvider, cancellationToken);
+        return GoChannelHelpers.ToTask(GoChannelHelpers.FanOutAsyncCore(source, destinations, completeDestinations, effectiveDeadline, effectiveProvider, cancellationToken));
     }
 
     /// <summary>
