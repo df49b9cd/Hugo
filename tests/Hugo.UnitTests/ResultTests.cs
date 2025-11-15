@@ -57,20 +57,20 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TryAsync_ShouldReturnOperationValue()
+    public async ValueTask TryAsync_ShouldReturnOperationValue()
     {
-        var result = await Result.TryAsync(static _ => Task.FromResult(21), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await Result.TryAsync(static _ => ValueTask.FromResult(21), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(21, result.Value);
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TryAsync_ShouldCaptureExceptionWhenOperationFails()
+    public async ValueTask TryAsync_ShouldCaptureExceptionWhenOperationFails()
     {
         var exception = new InvalidOperationException("boom");
 
-        var result = await Result.TryAsync(_ => Task.FromException<int>(exception), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await Result.TryAsync(_ => ValueTask.FromException<int>(exception), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
@@ -78,12 +78,12 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TryAsync_ShouldRespectErrorFactory()
+    public async ValueTask TryAsync_ShouldRespectErrorFactory()
     {
         var custom = Error.From("async", ErrorCodes.Validation);
 
         var result = await Result.TryAsync(
-            _ => Task.FromException<int>(new InvalidOperationException("fail")),
+            _ => ValueTask.FromException<int>(new InvalidOperationException("fail")),
             cancellationToken: TestContext.Current.CancellationToken,
             errorFactory: _ => custom);
 
@@ -92,7 +92,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TryAsync_ShouldReturnCanceledResult()
+    public async ValueTask TryAsync_ShouldReturnCanceledResult()
     {
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
@@ -112,10 +112,10 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TryAsync_ShouldFallbackToExceptionWhenFactoryReturnsNull()
+    public async ValueTask TryAsync_ShouldFallbackToExceptionWhenFactoryReturnsNull()
     {
         var result = await Result.TryAsync(
-            static _ => Task.FromException<int>(new InvalidOperationException("fail")),
+            static _ => ValueTask.FromException<int>(new InvalidOperationException("fail")),
             cancellationToken: TestContext.Current.CancellationToken,
             errorFactory: _ => null);
 
@@ -205,7 +205,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TraverseAsync_ShouldAggregateSuccessfulValues()
+    public async ValueTask TraverseAsync_ShouldAggregateSuccessfulValues()
     {
         var result = await Result.TraverseAsync([1, 2], static n => Task.FromResult(Result.Ok(n + 1)), TestContext.Current.CancellationToken);
 
@@ -214,13 +214,13 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TraverseAsync_ShouldThrow_WhenSourceIsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => Result.TraverseAsync((IEnumerable<int>)null!, static _ => Task.FromResult(Result.Ok(0)), TestContext.Current.CancellationToken));
+    public async ValueTask TraverseAsync_ShouldThrow_WhenSourceIsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => Result.TraverseAsync((IEnumerable<int>)null!, static _ => Task.FromResult(Result.Ok(0)), TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
-    public async Task TraverseAsync_ShouldThrow_WhenSelectorIsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => Result.TraverseAsync([], (Func<int, Task<Result<int>>>)null!, TestContext.Current.CancellationToken));
+    public async ValueTask TraverseAsync_ShouldThrow_WhenSelectorIsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => Result.TraverseAsync([], (Func<int, Task<Result<int>>>)null!, TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
-    public async Task TraverseAsync_ShouldReturnFailure()
+    public async ValueTask TraverseAsync_ShouldReturnFailure()
     {
         var error = Error.From("fail");
         var result = await Result.TraverseAsync([1, 2], n => Task.FromResult(n == 2 ? Result.Fail<int>(error) : Result.Ok(n)), TestContext.Current.CancellationToken);
@@ -230,7 +230,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TraverseAsync_ShouldRespectCancellation()
+    public async ValueTask TraverseAsync_ShouldRespectCancellation()
     {
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
@@ -244,7 +244,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TraverseAsync_WithTokenAwareSelector_ShouldPassCancellationToken()
+    public async ValueTask TraverseAsync_WithTokenAwareSelector_ShouldPassCancellationToken()
     {
         using var cts = new CancellationTokenSource();
         var observedToken = CancellationToken.None;
@@ -266,7 +266,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TraverseAsync_WithTokenAwareSelector_ShouldRespectCancellation()
+    public async ValueTask TraverseAsync_WithTokenAwareSelector_ShouldRespectCancellation()
     {
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
@@ -287,7 +287,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SequenceAsync_Stream_ShouldAggregateValues()
+    public async ValueTask SequenceAsync_Stream_ShouldAggregateValues()
     {
         async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -304,7 +304,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SequenceAsync_Stream_ShouldStopAtFailure()
+    public async ValueTask SequenceAsync_Stream_ShouldStopAtFailure()
     {
         var error = Error.From("fail");
         var enumeratedAfterFailure = false;
@@ -325,7 +325,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SequenceAsync_Stream_ShouldReturnCanceledError()
+    public async ValueTask SequenceAsync_Stream_ShouldReturnCanceledError()
     {
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
@@ -343,7 +343,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SequenceAsync_Stream_WithFakeTimeProvider_ShouldReturnCanceledError()
+    public async ValueTask SequenceAsync_Stream_WithFakeTimeProvider_ShouldReturnCanceledError()
     {
         var provider = new FakeTimeProvider();
         using var cts = new CancellationTokenSource();
@@ -366,7 +366,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TraverseAsync_Stream_ShouldAggregateValues()
+    public async ValueTask TraverseAsync_Stream_ShouldAggregateValues()
     {
         async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -385,7 +385,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TraverseAsync_Stream_ShouldStopOnFailure()
+    public async ValueTask TraverseAsync_Stream_ShouldStopOnFailure()
     {
         var error = Error.From("fail");
         var enumeratedAfterFailure = false;
@@ -411,7 +411,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TraverseAsync_Stream_ShouldReturnCanceledError()
+    public async ValueTask TraverseAsync_Stream_ShouldReturnCanceledError()
     {
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
@@ -432,7 +432,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MapStreamAsync_ShouldMapValues()
+    public async ValueTask MapStreamAsync_ShouldMapValues()
     {
         async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -468,7 +468,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MapStreamAsync_ShouldStopOnFailure()
+    public async ValueTask MapStreamAsync_ShouldStopOnFailure()
     {
         var error = Error.From("fail");
         var enumeratedAfterFailure = false;
@@ -503,7 +503,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MapStreamAsync_TaskSelector_ShouldMapValues()
+    public async ValueTask MapStreamAsync_TaskSelector_ShouldMapValues()
     {
         async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -575,7 +575,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MatchAsync_ShouldRespectOutcome()
+    public async ValueTask MatchAsync_ShouldRespectOutcome()
     {
         var success = Result.Ok(5);
         var failure = Result.Fail<int>(Error.From("fail"));
@@ -611,7 +611,7 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MapStreamAsync_ShouldReturnCanceledResult()
+    public async ValueTask MapStreamAsync_ShouldReturnCanceledResult()
     {
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();

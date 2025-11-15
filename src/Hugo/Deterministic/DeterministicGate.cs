@@ -57,12 +57,12 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
     /// The selected branch executes at most once for a given change identifier and version. Subsequent invocations replay the
     /// persisted effect captured through <see cref="DeterministicEffectStore"/>.
     /// </remarks>
-    public Task<Result<T>> ExecuteAsync<T>(
+    public ValueTask<Result<T>> ExecuteAsync<T>(
         string changeId,
         int minVersion,
         int maxVersion,
-        Func<CancellationToken, Task<Result<T>>> upgraded,
-        Func<CancellationToken, Task<Result<T>>> legacy,
+        Func<CancellationToken, ValueTask<Result<T>>> upgraded,
+        Func<CancellationToken, ValueTask<Result<T>>> legacy,
         Func<VersionGateContext, int>? initialVersionProvider = null,
         CancellationToken cancellationToken = default)
     {
@@ -91,11 +91,11 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
     /// </param>
     /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
     /// <returns>A <see cref="Result{T}"/> describing the replay-safe workflow outcome.</returns>
-    public async Task<Result<T>> ExecuteAsync<T>(
+    public async ValueTask<Result<T>> ExecuteAsync<T>(
         string changeId,
         int minVersion,
         int maxVersion,
-        Func<VersionDecision, CancellationToken, Task<Result<T>>> onExecute,
+        Func<VersionDecision, CancellationToken, ValueTask<Result<T>>> onExecute,
         Func<VersionGateContext, int>? initialVersionProvider = null,
         CancellationToken cancellationToken = default)
     {
@@ -200,7 +200,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         private readonly int _maxVersion;
         private readonly Func<VersionGateContext, int>? _initialVersionProvider;
         private readonly List<WorkflowBranch<TResult>> _branches = [];
-        private Func<DeterministicWorkflowContext, CancellationToken, Task<Result<TResult>>>? _fallback;
+        private Func<DeterministicWorkflowContext, CancellationToken, ValueTask<Result<TResult>>>? _fallback;
 
         internal DeterministicWorkflowBuilder(
             DeterministicGate gate,
@@ -236,7 +236,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         /// <returns>The current builder instance to support fluent chaining.</returns>
         public DeterministicWorkflowBuilder<TResult> ForVersion(
             int version,
-            Func<DeterministicWorkflowContext, CancellationToken, Task<Result<TResult>>> executor)
+            Func<DeterministicWorkflowContext, CancellationToken, ValueTask<Result<TResult>>> executor)
         {
             if (version < _minVersion || version > _maxVersion)
             {
@@ -255,7 +255,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         public DeterministicWorkflowBuilder<TResult> ForVersion(
             int version,
             Func<DeterministicWorkflowContext, Result<TResult>> executor) =>
-            ForVersion(version, (context, _) => Task.FromResult(executor(context)));
+            ForVersion(version, (context, _) => new ValueTask<Result<TResult>>(executor(context)));
 
         /// <summary>
         /// Registers a branch that executes when the resolved version falls within the supplied inclusive range.
@@ -267,7 +267,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         public DeterministicWorkflowBuilder<TResult> ForRange(
             int minVersion,
             int maxVersion,
-            Func<DeterministicWorkflowContext, CancellationToken, Task<Result<TResult>>> executor)
+            Func<DeterministicWorkflowContext, CancellationToken, ValueTask<Result<TResult>>> executor)
         {
             if (minVersion < _minVersion)
             {
@@ -298,7 +298,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             int minVersion,
             int maxVersion,
             Func<DeterministicWorkflowContext, Result<TResult>> executor) =>
-            ForRange(minVersion, maxVersion, (context, _) => Task.FromResult(executor(context)));
+            ForRange(minVersion, maxVersion, (context, _) => new ValueTask<Result<TResult>>(executor(context)));
 
         /// <summary>
         /// Registers a branch that executes when the supplied predicate evaluates to <c>true</c> for the resolved decision.
@@ -308,7 +308,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         /// <returns>The current builder instance to support fluent chaining.</returns>
         public DeterministicWorkflowBuilder<TResult> For(
             Func<VersionDecision, bool> predicate,
-            Func<DeterministicWorkflowContext, CancellationToken, Task<Result<TResult>>> executor)
+            Func<DeterministicWorkflowContext, CancellationToken, ValueTask<Result<TResult>>> executor)
         {
             ArgumentNullException.ThrowIfNull(predicate);
             ArgumentNullException.ThrowIfNull(executor);
@@ -326,7 +326,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         public DeterministicWorkflowBuilder<TResult> For(
             Func<VersionDecision, bool> predicate,
             Func<DeterministicWorkflowContext, Result<TResult>> executor) =>
-            For(predicate, (context, _) => Task.FromResult(executor(context)));
+            For(predicate, (context, _) => new ValueTask<Result<TResult>>(executor(context)));
 
         /// <summary>
         /// Registers a fallback branch that executes when no other branch predicates match the resolved decision.
@@ -334,7 +334,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         /// <param name="executor">Delegate invoked when no branch matches.</param>
         /// <returns>The current builder instance to support fluent chaining.</returns>
         public DeterministicWorkflowBuilder<TResult> WithFallback(
-            Func<DeterministicWorkflowContext, CancellationToken, Task<Result<TResult>>> executor)
+            Func<DeterministicWorkflowContext, CancellationToken, ValueTask<Result<TResult>>> executor)
         {
             ArgumentNullException.ThrowIfNull(executor);
             _fallback = executor;
@@ -350,7 +350,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
             Func<DeterministicWorkflowContext, Result<TResult>> executor)
         {
             ArgumentNullException.ThrowIfNull(executor);
-            return WithFallback((context, _) => Task.FromResult(executor(context)));
+            return WithFallback((context, _) => new ValueTask<Result<TResult>>(executor(context)));
         }
 
         /// <summary>
@@ -358,7 +358,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         /// </summary>
         /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
         /// <returns>A <see cref="Result{TResult}"/> describing the replay-safe workflow outcome.</returns>
-        public Task<Result<TResult>> ExecuteAsync(CancellationToken cancellationToken = default) =>
+        public ValueTask<Result<TResult>> ExecuteAsync(CancellationToken cancellationToken = default) =>
             _gate.ExecuteAsync(
                 _changeId,
                 _minVersion,
@@ -373,7 +373,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         /// <param name="decision">The resolved version decision.</param>
         /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
         /// <returns>A <see cref="Result{TResult}"/> describing the branch outcome.</returns>
-        private async Task<Result<TResult>> ExecuteBranchAsync(VersionDecision decision, CancellationToken cancellationToken)
+        private async ValueTask<Result<TResult>> ExecuteBranchAsync(VersionDecision decision, CancellationToken cancellationToken)
         {
             var executor = Resolve(decision);
             if (executor is null)
@@ -408,7 +408,7 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         /// </summary>
         /// <param name="decision">The resolved version decision.</param>
         /// <returns>The registered executor, or <c>null</c> when no branch matches.</returns>
-        private Func<DeterministicWorkflowContext, CancellationToken, Task<Result<TResult>>>? Resolve(VersionDecision decision)
+        private Func<DeterministicWorkflowContext, CancellationToken, ValueTask<Result<TResult>>>? Resolve(VersionDecision decision)
         {
             foreach (var branch in _branches)
             {
@@ -470,9 +470,9 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         /// <param name="effect">Delegate that performs the side-effect.</param>
         /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
         /// <returns>A <see cref="Result{T}"/> describing the deterministic effect outcome.</returns>
-        public Task<Result<T>> CaptureAsync<T>(
+        public ValueTask<Result<T>> CaptureAsync<T>(
             string stepId,
-            Func<CancellationToken, Task<Result<T>>> effect,
+            Func<CancellationToken, ValueTask<Result<T>>> effect,
             CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(effect);
@@ -490,9 +490,9 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         /// <param name="effect">Delegate that performs the side-effect.</param>
         /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
         /// <returns>A <see cref="Result{T}"/> describing the deterministic effect outcome.</returns>
-        public Task<Result<T>> CaptureAsync<T>(
+        public ValueTask<Result<T>> CaptureAsync<T>(
             string stepId,
-            Func<Task<Result<T>>> effect,
+            Func<ValueTask<Result<T>>> effect,
             CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(effect);
@@ -507,13 +507,13 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
         /// <param name="effect">Delegate that performs the side-effect.</param>
         /// <param name="cancellationToken">Token used to cancel the deterministic execution flow.</param>
         /// <returns>A <see cref="Result{T}"/> describing the deterministic effect outcome.</returns>
-        public Task<Result<T>> CaptureAsync<T>(
+        public ValueTask<Result<T>> CaptureAsync<T>(
             string stepId,
             Func<Result<T>> effect,
             CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(effect);
-            return CaptureAsync(stepId, _ => Task.FromResult(effect()), cancellationToken);
+            return CaptureAsync(stepId, _ => ValueTask.FromResult(effect()), cancellationToken);
         }
 
         /// <summary>
@@ -534,5 +534,5 @@ public sealed class DeterministicGate(VersionGate versionGate, DeterministicEffe
     /// <typeparam name="TResult">The branch result type.</typeparam>
     private sealed record WorkflowBranch<TResult>(
         Func<VersionDecision, bool> Predicate,
-        Func<DeterministicWorkflowContext, CancellationToken, Task<Result<TResult>>> Executor);
+        Func<DeterministicWorkflowContext, CancellationToken, ValueTask<Result<TResult>>> Executor);
 }

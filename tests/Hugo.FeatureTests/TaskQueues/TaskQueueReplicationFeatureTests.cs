@@ -92,7 +92,7 @@ public sealed class TaskQueueReplicationFeatureTests
                 {
                     ExecutionCounts.TryGetValue(evt.SequenceNumber, out int count);
                     ExecutionCounts[evt.SequenceNumber] = count + 1;
-                    return Task.FromResult(Result.Ok(evt.SequenceNumber));
+                    return ValueTask.FromResult(Result.Ok(evt.SequenceNumber));
                 },
                 cancellationToken).ConfigureAwait(false);
     }

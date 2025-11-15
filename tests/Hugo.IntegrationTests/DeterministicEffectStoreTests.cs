@@ -9,7 +9,7 @@ namespace Hugo.Tests;
 public class DeterministicEffectStoreTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task CaptureAsync_ShouldRecordAndReplaySuccessfulResult()
+    public async ValueTask CaptureAsync_ShouldRecordAndReplaySuccessfulResult()
     {
         var store = new InMemoryDeterministicStateStore();
         var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
@@ -25,7 +25,7 @@ public class DeterministicEffectStoreTests
         var second = await effectStore.CaptureAsync("effect.success", _ =>
         {
             executionCount++;
-            return Task.FromResult(Result.Ok(99));
+            return ValueTask.FromResult(Result.Ok(99));
         }, TestContext.Current.CancellationToken);
 
         Assert.True(first.IsSuccess);
@@ -36,14 +36,14 @@ public class DeterministicEffectStoreTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CaptureAsync_ShouldRecordAndReplayFailure()
+    public async ValueTask CaptureAsync_ShouldRecordAndReplayFailure()
     {
         var store = new InMemoryDeterministicStateStore();
         var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
 
         var first = await effectStore.CaptureAsync(
             "effect.failure",
-            _ => Task.FromResult(Result.Fail<int>(Error.From("boom", ErrorCodes.Validation))),
+            _ => ValueTask.FromResult(Result.Fail<int>(Error.From("boom", ErrorCodes.Validation))),
             TestContext.Current.CancellationToken);
 
         var executed = false;
@@ -52,7 +52,7 @@ public class DeterministicEffectStoreTests
             _ =>
             {
                 executed = true;
-                return Task.FromResult(Result.Ok(99));
+                return ValueTask.FromResult(Result.Ok(99));
             },
             TestContext.Current.CancellationToken);
 
@@ -64,14 +64,14 @@ public class DeterministicEffectStoreTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CaptureAsync_ShouldFail_WhenTypeMismatchDetected()
+    public async ValueTask CaptureAsync_ShouldFail_WhenTypeMismatchDetected()
     {
         var store = new InMemoryDeterministicStateStore();
         var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
 
         var initial = await effectStore.CaptureAsync(
             "effect.type",
-            _ => Task.FromResult(Result.Ok(17)),
+            _ => ValueTask.FromResult(Result.Ok(17)),
             TestContext.Current.CancellationToken);
         Assert.True(initial.IsSuccess);
 
@@ -81,7 +81,7 @@ public class DeterministicEffectStoreTests
             _ =>
             {
                 mismatchExecuted = true;
-                return Task.FromResult(Result.Ok("seventeen"));
+                return ValueTask.FromResult(Result.Ok("seventeen"));
             },
             TestContext.Current.CancellationToken);
 
@@ -91,7 +91,7 @@ public class DeterministicEffectStoreTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CaptureAsync_ShouldCaptureThrownExceptions()
+    public async ValueTask CaptureAsync_ShouldCaptureThrownExceptions()
     {
         var store = new InMemoryDeterministicStateStore();
         var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
@@ -108,7 +108,7 @@ public class DeterministicEffectStoreTests
             _ =>
             {
                 exceptionExecuted = true;
-                return Task.FromResult(Result.Ok(Unit.Value));
+                return ValueTask.FromResult(Result.Ok(Unit.Value));
             },
             TestContext.Current.CancellationToken);
 
@@ -120,14 +120,14 @@ public class DeterministicEffectStoreTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CaptureAsync_ShouldFail_WhenRecordKindMismatch()
+    public async ValueTask CaptureAsync_ShouldFail_WhenRecordKindMismatch()
     {
         var store = new InMemoryDeterministicStateStore();
         var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
         var record = new DeterministicRecord("hugo.version", 0, [], DateTimeOffset.UtcNow);
         store.Set("effect.kind", record);
 
-        var mismatch = await effectStore.CaptureAsync(
+        var mismatch = await effectStore.CaptureAsync<int>(
             "effect.kind",
             static () => Result.Ok(7));
 
@@ -136,7 +136,7 @@ public class DeterministicEffectStoreTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CaptureAsync_ShouldRethrowCancellationWithoutRecording()
+    public async ValueTask CaptureAsync_ShouldRethrowCancellationWithoutRecording()
     {
         var store = new InMemoryDeterministicStateStore();
         var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
@@ -144,20 +144,23 @@ public class DeterministicEffectStoreTests
 
         cts.Cancel();
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() => effectStore.CaptureAsync<int>(
-            "effect.canceled",
-            async ct =>
-            {
-                await Task.Yield();
-                throw new OperationCanceledException(ct);
-            },
-            cts.Token));
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        {
+            await effectStore.CaptureAsync<int>(
+                "effect.canceled",
+                async ct =>
+                {
+                    await Task.Yield();
+                    throw new OperationCanceledException(ct);
+                },
+                cts.Token);
+        });
 
         Assert.False(store.TryGet("effect.canceled", out _));
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CaptureAsync_SynchronousOverload_ShouldPersistAndReplayValue()
+    public async ValueTask CaptureAsync_SynchronousOverload_ShouldPersistAndReplayValue()
     {
         var store = new InMemoryDeterministicStateStore();
         var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
@@ -187,7 +190,7 @@ public class DeterministicEffectStoreTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CaptureAsync_ShouldSanitizeCancellationTokenMetadata()
+    public async ValueTask CaptureAsync_ShouldSanitizeCancellationTokenMetadata()
     {
         var store = new InMemoryDeterministicStateStore();
         var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());

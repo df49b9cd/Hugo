@@ -39,7 +39,7 @@ public sealed class TaskQueueDeterministicCoordinatorTests
             (evt, _) =>
             {
                 callCount++;
-                return Task.FromResult(Result.Ok(evt.SequenceNumber));
+                return ValueTask.FromResult(Result.Ok(evt.SequenceNumber));
             },
             TestContext.Current.CancellationToken);
 
@@ -48,7 +48,7 @@ public sealed class TaskQueueDeterministicCoordinatorTests
             (evt, _) =>
             {
                 callCount++;
-                return Task.FromResult(Result.Ok(evt.SequenceNumber + 1));
+                return ValueTask.FromResult(Result.Ok(evt.SequenceNumber + 1));
             },
             TestContext.Current.CancellationToken);
 

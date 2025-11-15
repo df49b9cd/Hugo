@@ -40,7 +40,7 @@ internal class PrioritizedChannelBenchmarks
     public Task StandardUnboundedChannelAsync() => ExecuteStandardAsync(bounded: false);
 
     [Benchmark]
-    public Task PrioritizedChannelWaitSlowAsync() => MeasureWaitSlowAsync();
+    public static Task PrioritizedChannelWaitSlowAsync() => MeasureWaitSlowAsync();
 
     private async Task ExecutePrioritizedAsync()
     {

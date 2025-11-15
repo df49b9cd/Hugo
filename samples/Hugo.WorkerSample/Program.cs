@@ -434,7 +434,7 @@ sealed class TelemetryCalibration(
         Result<CalibrationProfile> result = await _gate.Workflow<CalibrationProfile>("telemetry.calibration", 1, 2, _ => 2)
             .ForVersion(1, (ctx, ct) => ctx.CaptureAsync(
                 "legacy-profile",
-                _ => Task.FromResult(Result.Ok(new CalibrationProfile(100, 90, ctx.Version, _timeProvider.GetUtcNow()))),
+                _ => ValueTask.FromResult(Result.Ok(new CalibrationProfile(100, 90, ctx.Version, _timeProvider.GetUtcNow()))),
                 ct))
             .ForVersion(2, (ctx, ct) => ctx.CaptureAsync(
                 "profile.v2",
@@ -453,7 +453,7 @@ sealed class TelemetryCalibration(
                 ct))
             .WithFallback((ctx, ct) => ctx.CaptureAsync(
                 "fallback-profile",
-                _ => Task.FromResult(Result.Ok(new CalibrationProfile(100, 95, ctx.Version, _timeProvider.GetUtcNow()))),
+                _ => ValueTask.FromResult(Result.Ok(new CalibrationProfile(100, 95, ctx.Version, _timeProvider.GetUtcNow()))),
                 ct))
             .ExecuteAsync(cancellationToken).ConfigureAwait(false);
 

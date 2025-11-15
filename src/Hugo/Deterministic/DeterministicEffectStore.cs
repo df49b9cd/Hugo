@@ -84,9 +84,9 @@ public sealed class DeterministicEffectStore
     /// <param name="effect">Factory that produces the side-effect result.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A deterministic <see cref="Result{T}"/>.</returns>
-    public async Task<Result<T>> CaptureAsync<T>(
+    public async ValueTask<Result<T>> CaptureAsync<T>(
         string effectId,
-        Func<CancellationToken, Task<Result<T>>> effect,
+        Func<CancellationToken, ValueTask<Result<T>>> effect,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(effectId);
@@ -127,9 +127,9 @@ public sealed class DeterministicEffectStore
     /// <param name="effect">Factory that produces the side-effect result.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A deterministic <see cref="Result{T}"/>.</returns>
-    public Task<Result<T>> CaptureAsync<T>(
+    public ValueTask<Result<T>> CaptureAsync<T>(
         string effectId,
-        Func<Task<Result<T>>> effect,
+        Func<ValueTask<Result<T>>> effect,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(effect);
@@ -143,10 +143,12 @@ public sealed class DeterministicEffectStore
     /// <param name="effectId">Unique side-effect identifier.</param>
     /// <param name="effect">Factory that produces the side-effect result.</param>
     /// <returns>A deterministic <see cref="Result{T}"/>.</returns>
-    public Task<Result<T>> CaptureAsync<T>(string effectId, Func<Result<T>> effect)
+    public ValueTask<Result<T>> CaptureAsync<T>(
+        string effectId,
+        Func<Result<T>> effect)
     {
         ArgumentNullException.ThrowIfNull(effect);
-        return CaptureAsync(effectId, _ => Task.FromResult(effect()));
+        return CaptureAsync(effectId, _ => ValueTask.FromResult(effect()));
     }
 
     /// <summary>
@@ -201,7 +203,7 @@ public sealed class DeterministicEffectStore
     /// <param name="outcome">The outcome to persist.</param>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Effect payloads serialize arbitrary user types.")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Effect payloads serialize arbitrary user types.")]
-    private Task PersistAsync<T>(string effectId, Result<T> outcome)
+    private ValueTask PersistAsync<T>(string effectId, Result<T> outcome)
     {
         var now = _timeProvider.GetUtcNow();
         byte[]? valuePayload = null;
@@ -230,7 +232,7 @@ public sealed class DeterministicEffectStore
         var payload = JsonSerializer.SerializeToUtf8Bytes(envelope, _effectEnvelopeTypeInfo);
         var record = new DeterministicRecord(RecordKind, version: 0, payload, now);
         _store.Set(effectId, record);
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>

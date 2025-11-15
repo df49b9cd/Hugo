@@ -7,7 +7,7 @@ namespace Hugo.Tests;
 public class DeterministicGateTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task ExecuteAsync_ShouldPreferUpgradedPath_WhenVersionMatches()
+    public async ValueTask ExecuteAsync_ShouldPreferUpgradedPath_WhenVersionMatches()
     {
         var store = new InMemoryDeterministicStateStore();
         var provider = new FakeTimeProvider();
@@ -25,12 +25,12 @@ public class DeterministicGateTests
             ct =>
             {
                 upgradedCount++;
-                return Task.FromResult(Result.Ok(42));
+                return ValueTask.FromResult(Result.Ok(42));
             },
             ct =>
             {
                 legacyCount++;
-                return Task.FromResult(Result.Ok(21));
+                return ValueTask.FromResult(Result.Ok(21));
             },
             _ => 2,
             TestContext.Current.CancellationToken);
@@ -42,12 +42,12 @@ public class DeterministicGateTests
             ct =>
             {
                 upgradedCount++;
-                return Task.FromResult(Result.Ok(11));
+                return ValueTask.FromResult(Result.Ok(11));
             },
             ct =>
             {
                 legacyCount++;
-                return Task.FromResult(Result.Ok(7));
+                return ValueTask.FromResult(Result.Ok(7));
             },
             null,
             TestContext.Current.CancellationToken);
@@ -61,7 +61,7 @@ public class DeterministicGateTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ExecuteAsync_ShouldBridgeLegacyPath()
+    public async ValueTask ExecuteAsync_ShouldBridgeLegacyPath()
     {
         var store = new InMemoryDeterministicStateStore();
         var provider = new FakeTimeProvider();
@@ -79,12 +79,12 @@ public class DeterministicGateTests
             ct =>
             {
                 upgradedCount++;
-                return Task.FromResult(Result.Ok(100));
+                return ValueTask.FromResult(Result.Ok(100));
             },
             ct =>
             {
                 legacyCount++;
-                return Task.FromResult(Result.Ok(50));
+                return ValueTask.FromResult(Result.Ok(50));
             },
             _ => 1,
             TestContext.Current.CancellationToken);
@@ -96,12 +96,12 @@ public class DeterministicGateTests
             ct =>
             {
                 upgradedCount++;
-                return Task.FromResult(Result.Ok(200));
+                return ValueTask.FromResult(Result.Ok(200));
             },
             ct =>
             {
                 legacyCount++;
-                return Task.FromResult(Result.Ok(75));
+                return ValueTask.FromResult(Result.Ok(75));
             },
             null,
             TestContext.Current.CancellationToken);
@@ -115,7 +115,7 @@ public class DeterministicGateTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ExecuteAsync_ShouldSurfaceVersionGateFailures()
+    public async ValueTask ExecuteAsync_ShouldSurfaceVersionGateFailures()
     {
         var store = new InMemoryDeterministicStateStore();
         var provider = new FakeTimeProvider();
@@ -127,8 +127,8 @@ public class DeterministicGateTests
             "change.invalid",
             5,
             3,
-            static ct => Task.FromResult(Result.Ok(1)),
-            static ct => Task.FromResult(Result.Ok(0)),
+            static ct => ValueTask.FromResult(Result.Ok(1)),
+            static ct => ValueTask.FromResult(Result.Ok(0)),
             null,
             TestContext.Current.CancellationToken);
 
@@ -137,7 +137,7 @@ public class DeterministicGateTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Workflow_ShouldReplayDeterministicBranch()
+    public async ValueTask Workflow_ShouldReplayDeterministicBranch()
     {
         var store = new InMemoryDeterministicStateStore();
         var provider = new FakeTimeProvider();
@@ -148,7 +148,7 @@ public class DeterministicGateTests
         var executions = 0;
 
         var workflow = gate.Workflow<int>("change.workflow", 1, 3, _ => 2)
-            .ForVersion(1, (ctx, ct) => ctx.CaptureAsync("legacy", _ => Task.FromResult(Result.Ok(1)), ct))
+            .ForVersion(1, (ctx, ct) => ctx.CaptureAsync("legacy", _ => ValueTask.FromResult(Result.Ok(1)), ct))
             .ForVersion(2, async (ctx, ct) =>
             {
                 return await ctx.CaptureAsync(
@@ -161,7 +161,7 @@ public class DeterministicGateTests
                     },
                     ct);
             })
-            .WithFallback((ctx, ct) => ctx.CaptureAsync("fallback", _ => Task.FromResult(Result.Ok(5)), ct));
+            .WithFallback((ctx, ct) => ctx.CaptureAsync("fallback", _ => ValueTask.FromResult(Result.Ok(5)), ct));
 
         var first = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
         var second = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
@@ -175,7 +175,7 @@ public class DeterministicGateTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Workflow_ShouldRespectFallbackWhenNoBranchMatches()
+    public async ValueTask Workflow_ShouldRespectFallbackWhenNoBranchMatches()
     {
         var store = new InMemoryDeterministicStateStore();
         var provider = new FakeTimeProvider();
@@ -184,9 +184,9 @@ public class DeterministicGateTests
         var gate = new DeterministicGate(versionGate, effectStore);
 
         var workflow = gate.Workflow<string>("change.workflow.fallback", 1, 3, static _ => 3)
-            .ForVersion(1, static (ctx, ct) => Task.FromResult(Result.Ok("legacy")))
-            .ForRange(1, 2, static (ctx, ct) => Task.FromResult(Result.Ok("range")))
-            .WithFallback(static (ctx, ct) => Task.FromResult(Result.Ok("fallback")));
+            .ForVersion(1, static (ctx, ct) => ValueTask.FromResult(Result.Ok("legacy")))
+            .ForRange(1, 2, static (ctx, ct) => ValueTask.FromResult(Result.Ok("range")))
+            .WithFallback(static (ctx, ct) => ValueTask.FromResult(Result.Ok("fallback")));
 
         var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
@@ -195,7 +195,7 @@ public class DeterministicGateTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Workflow_ShouldErrorWhenNoMatchingBranchOrFallback()
+    public async ValueTask Workflow_ShouldErrorWhenNoMatchingBranchOrFallback()
     {
         var store = new InMemoryDeterministicStateStore();
         var provider = new FakeTimeProvider();
@@ -204,7 +204,7 @@ public class DeterministicGateTests
         var gate = new DeterministicGate(versionGate, effectStore);
 
         var workflow = gate.Workflow<int>("change.workflow.missing", 1, 2, static _ => 2)
-            .ForVersion(1, static (ctx, ct) => Task.FromResult(Result.Ok(10)));
+            .ForVersion(1, static (ctx, ct) => ValueTask.FromResult(Result.Ok(10)));
 
         var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
@@ -216,7 +216,7 @@ public class DeterministicGateTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Workflow_ShouldHonorPredicateOrdering()
+    public async ValueTask Workflow_ShouldHonorPredicateOrdering()
     {
         var store = new InMemoryDeterministicStateStore();
         var provider = new FakeTimeProvider();
@@ -233,14 +233,14 @@ public class DeterministicGateTests
                 (ctx, ct) =>
                 {
                     Interlocked.Increment(ref newCount);
-                    return Task.FromResult(Result.Ok("new"));
+                    return ValueTask.FromResult(Result.Ok("new"));
                 })
             .ForVersion(
                 2,
                 (ctx, ct) =>
                 {
                     Interlocked.Increment(ref existingCount);
-                    return Task.FromResult(Result.Ok("existing"));
+                    return ValueTask.FromResult(Result.Ok("existing"));
                 });
 
         var first = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
@@ -263,14 +263,14 @@ public class DeterministicGateTests
                 (ctx, ct) =>
                 {
                     Interlocked.Increment(ref newBranchHits);
-                    return Task.FromResult(Result.Ok("new"));
+                    return ValueTask.FromResult(Result.Ok("new"));
                 })
             .ForVersion(
                 2,
                 (ctx, ct) =>
                 {
                     Interlocked.Increment(ref versionBranchHits);
-                    return Task.FromResult(Result.Ok("existing"));
+                    return ValueTask.FromResult(Result.Ok("existing"));
                 });
 
         var second = await existingWorkflow.ExecuteAsync(TestContext.Current.CancellationToken);
@@ -290,7 +290,7 @@ public class DeterministicGateTests
         var builder = gate.Workflow<int>("change.workflow.bounds.version", 1, 2);
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            builder.ForVersion(version, (ctx, ct) => Task.FromResult(Result.Ok(1))));
+            builder.ForVersion(version, (ctx, ct) => ValueTask.FromResult(Result.Ok(1))));
     }
 
     [Theory]
@@ -303,11 +303,11 @@ public class DeterministicGateTests
         var builder = gate.Workflow<int>("change.workflow.bounds.range", 1, 3);
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            builder.ForRange(minVersion, maxVersion, (ctx, ct) => Task.FromResult(Result.Ok(1))));
+            builder.ForRange(minVersion, maxVersion, (ctx, ct) => ValueTask.FromResult(Result.Ok(1))));
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WorkflowContext_CreateEffectId_ShouldNormalizeScope()
+    public async ValueTask WorkflowContext_CreateEffectId_ShouldNormalizeScope()
     {
         var (gate, store, _) = CreateGate();
         string? effectId = null;
@@ -327,7 +327,7 @@ public class DeterministicGateTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Workflow_ShouldFail_WhenStepIdentifierMissing()
+    public async ValueTask Workflow_ShouldFail_WhenStepIdentifierMissing()
     {
         var (gate, _, _) = CreateGate();
 

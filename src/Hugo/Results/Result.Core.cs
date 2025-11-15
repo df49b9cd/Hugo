@@ -67,34 +67,6 @@ public static partial class Result
     /// <param name="errorFactory">An optional factory that converts exceptions into errors.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A successful result containing the operation output or a failure wrapping the thrown exception.</returns>
-    public static async Task<Result<T>> TryAsync<T>(Func<CancellationToken, Task<T>> operation, Func<Exception, Error?>? errorFactory = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(operation);
-
-        try
-        {
-            var value = await operation(cancellationToken).ConfigureAwait(false);
-            return Ok(value);
-        }
-        catch (OperationCanceledException oce)
-        {
-            return Fail<T>(Error.Canceled(token: oce.CancellationToken));
-        }
-        catch (Exception ex)
-        {
-            var error = errorFactory?.Invoke(ex) ?? Error.FromException(ex);
-            return Fail<T>(error);
-        }
-    }
-
-    /// <summary>
-    /// Executes an asynchronous operation and captures any thrown exceptions as <see cref="Error"/> values.
-    /// </summary>
-    /// <typeparam name="T">The type of the result value.</typeparam>
-    /// <param name="operation">The asynchronous operation to execute.</param>
-    /// <param name="errorFactory">An optional factory that converts exceptions into errors.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>A successful result containing the operation output or a failure wrapping the thrown exception.</returns>
     public static async ValueTask<Result<T>> TryAsync<T>(Func<CancellationToken, ValueTask<T>> operation, Func<Exception, Error?>? errorFactory = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(operation);

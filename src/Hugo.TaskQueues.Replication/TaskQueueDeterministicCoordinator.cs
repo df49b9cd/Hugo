@@ -25,9 +25,9 @@ public sealed class TaskQueueDeterministicCoordinator<T>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <typeparam name="TResult">Result type returned by the handler.</typeparam>
     /// <returns>A deterministic result.</returns>
-    public Task<Result<TResult>> ExecuteAsync<TResult>(
+    public ValueTask<Result<TResult>> ExecuteAsync<TResult>(
         TaskQueueReplicationEvent<T> replicationEvent,
-        Func<TaskQueueReplicationEvent<T>, CancellationToken, Task<Result<TResult>>> handler,
+        Func<TaskQueueReplicationEvent<T>, CancellationToken, ValueTask<Result<TResult>>> handler,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(handler);
@@ -41,12 +41,12 @@ public sealed class TaskQueueDeterministicCoordinator<T>
     /// </summary>
     /// <param name="replicationEvent">Replication event.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public Task<Result<TaskQueueReplicationEvent<T>>> CaptureEventAsync(
+    public ValueTask<Result<TaskQueueReplicationEvent<T>>> CaptureEventAsync(
         TaskQueueReplicationEvent<T> replicationEvent,
         CancellationToken cancellationToken = default)
     {
         string effectId = CreateEffectId(replicationEvent);
-        return _effectStore.CaptureAsync(effectId, _ => Task.FromResult(Result.Ok(replicationEvent)), cancellationToken);
+        return _effectStore.CaptureAsync(effectId, _ => ValueTask.FromResult(Result.Ok(replicationEvent)), cancellationToken);
     }
 
     private static string CreateEffectId(TaskQueueReplicationEvent<T> replicationEvent) =>
