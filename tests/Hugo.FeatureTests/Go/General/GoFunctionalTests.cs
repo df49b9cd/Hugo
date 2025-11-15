@@ -148,7 +148,7 @@ public class GoFunctionalTests
             cancellationToken: TestContext.Current.CancellationToken,
             cases:
             [
-                ChannelCase<Unit>.Create(channel.Reader, (value, _) =>
+                ChannelCase<Go.Unit>.Create(channel.Reader, (value, _) =>
                 {
                     collected.Add(value);
                     return ValueTask.FromResult(Result.Ok(Unit.Value));

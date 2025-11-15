@@ -216,7 +216,7 @@ public partial class GoTests
         var channel = MakeChannel<int>();
         var observed = new ConcurrentBag<int>();
 
-        Task<Result<Unit>> fanInTask = SelectFanInValueTaskAsync(
+        ValueTask<Result<Unit>> fanInTask = SelectFanInValueTaskAsync(
             [channel.Reader],
             async (int value, CancellationToken ct) =>
             {
@@ -599,12 +599,12 @@ public partial class GoTests
         var destination = Channel.CreateBounded<int>(destinationOptions);
         Assert.True(destination.Writer.TryWrite(7));
 
-        var fanOutTask = FanOutAsync(
+        Task<Result<Unit>> fanOutTask = FanOutAsync(
             source.Reader,
             [destination.Writer],
             deadline: TimeSpan.FromSeconds(1),
             provider: provider,
-            cancellationToken: TestContext.Current.CancellationToken);
+            cancellationToken: TestContext.Current.CancellationToken).AsTask();
 
         await source.Writer.WriteAsync(13, TestContext.Current.CancellationToken);
         source.Writer.TryComplete();

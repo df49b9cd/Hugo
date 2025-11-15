@@ -379,7 +379,7 @@ public partial class GoTests
             }
         };
 
-        Task<Result<IReadOnlyList<int>>> task = FanOutAsync(operations, cancellationToken: cts.Token);
+        ValueTask<Result<IReadOnlyList<int>>> task = FanOutAsync(operations, cancellationToken: cts.Token);
         await Task.WhenAll(started.Select(tcs => tcs.Task));
 
         await cts.CancelAsync();
@@ -449,7 +449,7 @@ public partial class GoTests
             }
         };
 
-        Task<Result<int>> task = RaceAsync(operations, cancellationToken: cts.Token);
+        ValueTask<Result<int>> task = RaceAsync(operations, cancellationToken: cts.Token);
         await Task.WhenAll(started.Select(tcs => tcs.Task));
 
         await cts.CancelAsync();
