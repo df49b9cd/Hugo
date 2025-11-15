@@ -6,7 +6,7 @@ internal static class CounterHeuristics
     {
         if (report.Counters.Count == 0)
         {
-            return Array.Empty<AnalyzerFinding>();
+            return [];
         }
 
         var findings = new List<AnalyzerFinding>();

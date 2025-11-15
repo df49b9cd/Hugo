@@ -9,10 +9,7 @@ namespace Hugo.Tests;
 public class ResultFallbackTests
 {
     [Fact(Timeout = 15_000)]
-    public void ResultFallbackTier_ShouldThrow_WhenOperationsEmpty()
-    {
-        Assert.Throws<ArgumentException>(static () => new ResultFallbackTier<int>("empty", Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>()));
-    }
+    public void ResultFallbackTier_ShouldThrow_WhenOperationsEmpty() => Assert.Throws<ArgumentException>(static () => new ResultFallbackTier<int>("empty", []));
 
     [Fact(Timeout = 15_000)]
     public async Task TieredFallbackAsync_ShouldReturnValidationError_WhenNoTiersProvided()

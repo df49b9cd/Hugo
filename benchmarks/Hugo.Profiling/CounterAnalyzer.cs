@@ -35,7 +35,7 @@ public static class CounterAnalyzer
         string? header = reader.ReadLine();
         if (header is null)
         {
-            return new CounterReport(Array.Empty<CounterSummary>(), Array.Empty<string>(), null, null, 0, 0);
+            return new CounterReport([], [], null, null, 0, 0);
         }
 
         int lineNumber = 1;

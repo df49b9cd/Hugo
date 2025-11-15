@@ -21,7 +21,7 @@ public sealed class TaskQueueReplicationFeatureTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         Task<List<TaskQueueReplicationEvent<int>>> reader = Task.Run(async () =>
         {
-            List<TaskQueueReplicationEvent<int>> events = new();
+            List<TaskQueueReplicationEvent<int>> events = [];
             await foreach (TaskQueueReplicationEvent<int> evt in source.ReadEventsAsync(cts.Token))
             {
                 events.Add(evt);
@@ -84,11 +84,9 @@ public sealed class TaskQueueReplicationFeatureTests
             _coordinator = coordinator;
         }
 
-        internal Dictionary<long, int> ExecutionCounts { get; } = new();
+        internal Dictionary<long, int> ExecutionCounts { get; } = [];
 
-        protected override async ValueTask ApplyEventAsync(TaskQueueReplicationEvent<int> replicationEvent, CancellationToken cancellationToken)
-        {
-            await _coordinator.ExecuteAsync(
+        protected override async ValueTask ApplyEventAsync(TaskQueueReplicationEvent<int> replicationEvent, CancellationToken cancellationToken) => await _coordinator.ExecuteAsync(
                 replicationEvent,
                 (evt, _) =>
                 {
@@ -97,7 +95,6 @@ public sealed class TaskQueueReplicationFeatureTests
                     return Task.FromResult(Result.Ok(evt.SequenceNumber));
                 },
                 cancellationToken).ConfigureAwait(false);
-        }
     }
 
     private sealed class InMemoryReplicationCheckpointStore : ITaskQueueReplicationCheckpointStore

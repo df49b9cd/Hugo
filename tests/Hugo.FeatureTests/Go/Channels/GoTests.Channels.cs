@@ -311,10 +311,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectFanInAsync_WithNullReaders_Throws()
-    {
-        await Assert.ThrowsAsync<ArgumentNullException>(static async () => await SelectFanInAsync<object>(null!, static (_, _) => Task.FromResult(Result.Ok(Unit.Value)), cancellationToken: TestContext.Current.CancellationToken));
-    }
+    public async Task SelectFanInAsync_WithNullReaders_Throws() => await Assert.ThrowsAsync<ArgumentNullException>(static async () => await SelectFanInAsync<object>(null!, static (_, _) => Task.FromResult(Result.Ok(Unit.Value)), cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public async Task SelectFanInAsync_WithNullDelegate_Throws()
@@ -390,7 +387,7 @@ public partial class GoTests
     {
         var destination = MakeChannel<int>();
 
-        var result = await FanInAsync(Array.Empty<ChannelReader<int>>(), destination.Writer, completeDestination: true, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await FanInAsync([], destination.Writer, completeDestination: true, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.True(destination.Reader.Completion.IsCompleted);
@@ -401,7 +398,7 @@ public partial class GoTests
     {
         var destination = MakeChannel<int>();
 
-        var result = await FanInAsync(Array.Empty<ChannelReader<int>>(), destination.Writer, completeDestination: false, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await FanInAsync([], destination.Writer, completeDestination: false, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.False(destination.Reader.Completion.IsCompleted);
@@ -491,7 +488,7 @@ public partial class GoTests
     public async Task FanOutAsync_WithNoDestinations_ReturnsSuccess()
     {
         var source = MakeChannel<int>();
-        var result = await FanOutAsync(source.Reader, Array.Empty<ChannelWriter<int>>(), cancellationToken: TestContext.Current.CancellationToken);
+        var result = await FanOutAsync(source.Reader, [], cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
     }

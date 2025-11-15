@@ -82,7 +82,7 @@ public class VersionGateTests
     public void Require_ShouldFail_WhenRecordKindMismatch()
     {
         var store = new InMemoryDeterministicStateStore();
-        var record = new DeterministicRecord("other.kind", 1, Array.Empty<byte>(), DateTimeOffset.UtcNow);
+        var record = new DeterministicRecord("other.kind", 1, [], DateTimeOffset.UtcNow);
         store.Set("feature.kind.mismatch", record);
         var gate = new VersionGate(store, timeProvider: new FakeTimeProvider());
 

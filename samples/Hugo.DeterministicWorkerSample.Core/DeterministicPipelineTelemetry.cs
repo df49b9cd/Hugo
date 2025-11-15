@@ -76,8 +76,5 @@ public static class DeterministicPipelineTelemetry
     /// <summary>
     /// Records a failed processing attempt for the sample pipeline.
     /// </summary>
-    public static void RecordFailure()
-    {
-        MessagesFailed.Add(1);
-    }
+    public static void RecordFailure() => MessagesFailed.Add(1);
 }

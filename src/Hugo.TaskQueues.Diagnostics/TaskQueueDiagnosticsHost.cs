@@ -17,8 +17,8 @@ public sealed class TaskQueueDiagnosticsHost : IAsyncDisposable
     private readonly TaskQueueDiagnosticsRegistration _registration;
     private readonly Channel<TaskQueueDiagnosticsEvent> _events;
     private readonly CancellationTokenSource _cts = new();
-    private readonly List<IDisposable> _subscriptions = new();
-    private readonly List<Task> _pumps = new();
+    private readonly List<IDisposable> _subscriptions = [];
+    private readonly List<Task> _pumps = [];
     private readonly Dictionary<string, long> _replicationSequences = new(StringComparer.Ordinal);
     private readonly object _gate = new();
     private int _disposed;
@@ -93,10 +93,7 @@ public sealed class TaskQueueDiagnosticsHost : IAsyncDisposable
         return subscription;
     }
 
-    internal ValueTask PublishBackpressureAsync(TaskQueueBackpressureSignal signal, CancellationToken cancellationToken)
-    {
-        return _events.Writer.WriteAsync(new TaskQueueBackpressureDiagnosticsEvent(signal), cancellationToken);
-    }
+    internal ValueTask PublishBackpressureAsync(TaskQueueBackpressureSignal signal, CancellationToken cancellationToken) => _events.Writer.WriteAsync(new TaskQueueBackpressureDiagnosticsEvent(signal), cancellationToken);
 
     internal ValueTask PublishReplicationAsync<T>(TaskQueueReplicationEvent<T> replicationEvent, CancellationToken cancellationToken)
     {

@@ -214,7 +214,7 @@ internal sealed class SqlServerPipelineEntityRepository : IPipelineEntityReposit
             using SqlCommand command = new(string.Format(CultureInfo.InvariantCulture, Sql, QualifiedTable()), connection);
             using SqlDataReader reader = command.ExecuteReader(CommandBehavior.Default);
 
-            List<PipelineEntity> entities = new();
+            List<PipelineEntity> entities = [];
             while (reader.Read())
             {
                 string entityId = reader.GetString(0);
@@ -230,7 +230,7 @@ internal sealed class SqlServerPipelineEntityRepository : IPipelineEntityReposit
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to snapshot pipeline projections.");
-            return Array.Empty<PipelineEntity>();
+            return [];
         }
     }
 

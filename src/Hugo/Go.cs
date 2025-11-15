@@ -79,7 +79,7 @@ public static partial class Go
     /// </summary>
     /// <param name="task">The value task to observe.</param>
     /// <returns>A task that completes when <paramref name="task"/> does.</returns>
-    public static Task Run(ValueTask task) => task.IsCompletedSuccessfully ? Task.CompletedTask : task.AsTask();
+    public static ValueTask Run(ValueTask task) => task.IsCompletedSuccessfully ? ValueTask.CompletedTask : task;
 
     /// <summary>
     /// Converts a <see cref="ValueTask{TResult}"/> to a <see cref="Task{TResult}"/> so callers can track existing work without re-scheduling it.
@@ -87,7 +87,7 @@ public static partial class Go
     /// <param name="task">The value task to observe.</param>
     /// <typeparam name="T">The result type of the task.</typeparam>
     /// <returns>A task that completes when <paramref name="task"/> does.</returns>
-    public static Task<T> Run<T>(ValueTask<T> task) => task.AsTask();
+    public static ValueTask<T> Run<T>(ValueTask<T> task) => task;
 
     /// <summary>Creates a successful result with the supplied payload.</summary>
     /// <typeparam name="T">The type of value captured by the result.</typeparam>

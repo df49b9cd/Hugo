@@ -49,7 +49,7 @@ public static partial class Result
         var operationList = operations as IList<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> ?? [.. operations];
         if (operationList.Count == 0)
         {
-            return Ok<IReadOnlyList<T>>(Array.Empty<T>());
+            return Ok<IReadOnlyList<T>>([]);
         }
 
         var effectivePolicy = policy ?? ResultExecutionPolicy.None;

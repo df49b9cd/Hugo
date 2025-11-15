@@ -90,10 +90,7 @@ public sealed class RwMutex : IDisposable
 
     private void ReleaseWriter() => _writerGate.Release();
 
-    private void ThrowIfDisposed()
-    {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
-    }
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
 
     /// <summary>Releases unmanaged resources.</summary>
     public void Dispose()

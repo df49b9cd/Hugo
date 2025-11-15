@@ -101,7 +101,7 @@ public class TaskQueueDiagnosticsRegistrationTests
     }
     private sealed class TestMeterFactory : IMeterFactory, IDisposable, IAsyncDisposable
     {
-        private readonly List<Meter> _meters = new();
+        private readonly List<Meter> _meters = [];
 
         public Meter Create(MeterOptions options)
         {

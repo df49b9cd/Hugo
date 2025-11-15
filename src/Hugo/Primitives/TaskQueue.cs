@@ -255,18 +255,12 @@ public sealed class TaskQueueLease<T>
     /// <summary>Completes the lease and permanently removes the work item from the queue.</summary>
     /// <param name="cancellationToken">The token used to cancel the completion.</param>
     /// <returns>A task that completes once the lease is acknowledged.</returns>
-    public ValueTask CompleteAsync(CancellationToken cancellationToken = default)
-    {
-        return _queue.CompleteAsync(_leaseId, cancellationToken);
-    }
+    public ValueTask CompleteAsync(CancellationToken cancellationToken = default) => _queue.CompleteAsync(_leaseId, cancellationToken);
 
     /// <summary>Sends a heartbeat to extend the lease expiration.</summary>
     /// <param name="cancellationToken">The token used to cancel the heartbeat.</param>
     /// <returns>A task that completes once the heartbeat is acknowledged.</returns>
-    public ValueTask HeartbeatAsync(CancellationToken cancellationToken = default)
-    {
-        return _queue.HeartbeatAsync(_leaseId, cancellationToken);
-    }
+    public ValueTask HeartbeatAsync(CancellationToken cancellationToken = default) => _queue.HeartbeatAsync(_leaseId, cancellationToken);
 
     /// <summary>Fails the lease and optionally re-queues the work item for another attempt.</summary>
     /// <param name="error">The error that caused the failure.</param>
@@ -750,7 +744,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         List<QueueEnvelope> drained = await ShutdownAsync(cancellationToken).ConfigureAwait(false);
         if (drained.Count == 0)
         {
-            return Array.Empty<TaskQueuePendingItem<T>>();
+            return [];
         }
 
         TaskQueuePendingItem<T>[] snapshot = new TaskQueuePendingItem<T>[drained.Count];
@@ -808,7 +802,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 1)
         {
-            return new List<QueueEnvelope>(0);
+            return [];
         }
 
         await _monitorCts.CancelAsync().ConfigureAwait(false);
@@ -829,7 +823,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
     private async ValueTask<List<QueueEnvelope>> DrainPendingCoreAsync(CancellationToken cancellationToken)
     {
-        List<QueueEnvelope> drained = new();
+        List<QueueEnvelope> drained = [];
         while (await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
         {
             while (_channel.Reader.TryRead(out QueueEnvelope? envelope))

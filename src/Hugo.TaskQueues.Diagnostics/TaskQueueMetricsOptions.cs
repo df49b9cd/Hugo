@@ -23,17 +23,17 @@ public sealed class TaskQueueMetricsOptions
     public IDictionary<string, object?> DefaultTags { get; } = new Dictionary<string, object?>(StringComparer.Ordinal);
 
     /// <summary>Gets the custom tag enrichers invoked after the built-in service/shard tags are applied.</summary>
-    public IList<TaskQueueTagEnricher> TagEnrichers { get; } = new List<TaskQueueTagEnricher>();
+    public IList<TaskQueueTagEnricher> TagEnrichers { get; } = [];
 
     /// <summary>Recommended histogram buckets (items) for pending depth charts.</summary>
-    public IList<double> PendingDepthBuckets { get; } = new List<double> { 16, 32, 64, 128, 256, 512, 1024, 4096 };
+    public IList<double> PendingDepthBuckets { get; } = [16, 32, 64, 128, 256, 512, 1024, 4096];
 
     /// <summary>Recommended histogram buckets (leases) for active worker charts.</summary>
-    public IList<double> ActiveLeaseBuckets { get; } = new List<double> { 4, 8, 16, 32, 64, 128, 256 };
+    public IList<double> ActiveLeaseBuckets { get; } = [4, 8, 16, 32, 64, 128, 256];
 
     /// <summary>Recommended histogram buckets (ms) for backpressure duration charts.</summary>
-    public IList<double> BackpressureDurationBuckets { get; } = new List<double> { 10, 50, 100, 250, 500, 1_000, 5_000, 15_000 };
+    public IList<double> BackpressureDurationBuckets { get; } = [10, 50, 100, 250, 500, 1_000, 5_000, 15_000];
 
     /// <summary>Recommended histogram buckets (ms) for replication lag charts.</summary>
-    public IList<double> ReplicationLagBuckets { get; } = new List<double> { 1, 5, 10, 25, 50, 100, 250, 500 };
+    public IList<double> ReplicationLagBuckets { get; } = [1, 5, 10, 25, 50, 100, 250, 500];
 }

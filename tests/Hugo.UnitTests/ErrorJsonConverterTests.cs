@@ -124,10 +124,7 @@ public class ErrorJsonConverterTests
     [InlineData("""{"code": "oops"}""")]
     [InlineData("""{"message": null}""")]
     [InlineData("""{"message": 42}""")]
-    public void Deserialize_ShouldRequireStringMessage(string json)
-    {
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Error>(json));
-    }
+    public void Deserialize_ShouldRequireStringMessage(string json) => Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Error>(json));
 
     [Fact(Timeout = 15_000)]
     public void Deserialize_ShouldHydrateCauseExceptionDetails()

@@ -8,15 +8,9 @@ public class SynchronizationPrimitivesTests
     private static readonly TimeSpan WriterDelay = TimeSpan.FromMilliseconds(10);
     private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(2);
 
-    private static void AssertIncomplete(Task task, TimeSpan timeout, CancellationToken cancellationToken)
-    {
-        Assert.False(task.Wait(timeout, cancellationToken), "Task completed before expected.");
-    }
+    private static void AssertIncomplete(Task task, TimeSpan timeout, CancellationToken cancellationToken) => Assert.False(task.Wait(timeout, cancellationToken), "Task completed before expected.");
 
-    private static void AssertWait(ManualResetEventSlim gate, string message, CancellationToken cancellationToken)
-    {
-        Assert.True(gate.Wait(WaitTimeout, cancellationToken), message);
-    }
+    private static void AssertWait(ManualResetEventSlim gate, string message, CancellationToken cancellationToken) => Assert.True(gate.Wait(WaitTimeout, cancellationToken), message);
 
     private static void BusyWait(TimeSpan duration, CancellationToken cancellationToken)
     {

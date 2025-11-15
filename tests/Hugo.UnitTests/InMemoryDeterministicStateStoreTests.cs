@@ -14,7 +14,7 @@ public class InMemoryDeterministicStateStoreTests
     public void Set_ShouldThrow_WhenKeyMissing()
     {
         var store = new InMemoryDeterministicStateStore();
-        var record = new DeterministicRecord("hugo.test", 1, Array.Empty<byte>(), DateTimeOffset.UtcNow);
+        var record = new DeterministicRecord("hugo.test", 1, [], DateTimeOffset.UtcNow);
 
         Assert.Throws<ArgumentException>(() => store.Set(" ", record));
     }

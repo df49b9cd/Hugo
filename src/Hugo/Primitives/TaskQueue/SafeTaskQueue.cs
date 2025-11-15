@@ -27,9 +27,7 @@ public sealed class SafeTaskQueueWrapper<T>(TaskQueue<T> queue, bool ownsQueue =
     /// <param name="value">The work item to enqueue.</param>
     /// <param name="cancellationToken">The token used to cancel the enqueue operation.</param>
     /// <returns>A result indicating enqueue success or failure.</returns>
-    public async ValueTask<Result<Unit>> EnqueueAsync(T value, CancellationToken cancellationToken = default)
-    {
-        return await Result
+    public async ValueTask<Result<Unit>> EnqueueAsync(T value, CancellationToken cancellationToken = default) => await Result
             .TryAsync<Unit>(
                 async ct =>
                 {
@@ -39,21 +37,17 @@ public sealed class SafeTaskQueueWrapper<T>(TaskQueue<T> queue, bool ownsQueue =
                 errorFactory: MapQueueExceptions,
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
-    }
 
     /// <summary>Leases the next available work item.</summary>
     /// <param name="cancellationToken">The token used to cancel the lease operation.</param>
     /// <returns>A result containing the leased work item when successful.</returns>
-    public async ValueTask<Result<SafeTaskQueueLease<T>>> LeaseAsync(CancellationToken cancellationToken = default)
-    {
-        return await Result
+    public async ValueTask<Result<SafeTaskQueueLease<T>>> LeaseAsync(CancellationToken cancellationToken = default) => await Result
             .TryAsync<TaskQueueLease<T>>(
                 async ct => await _queue.LeaseAsync(ct).ConfigureAwait(false),
                 errorFactory: MapQueueExceptions,
                 cancellationToken: cancellationToken)
             .MapAsync(static lease => new SafeTaskQueueLease<T>(lease), cancellationToken)
             .ConfigureAwait(false);
-    }
 
     /// <summary>Creates a safe wrapper around an existing lease instance.</summary>
     /// <param name="lease">The lease to wrap.</param>

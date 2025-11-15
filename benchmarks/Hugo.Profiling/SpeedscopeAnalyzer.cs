@@ -60,7 +60,7 @@ public static class SpeedscopeAnalyzer
 
         if (!root.TryGetProperty("profiles", out var profilesElement))
         {
-            return new SpeedscopeReport(Array.Empty<SpeedscopeFrameSummary>(), Array.Empty<SpeedscopeProfileSummary>(), Array.Empty<string>(), 0);
+            return new SpeedscopeReport([], [], [], 0);
         }
 
         foreach (var profile in profilesElement.EnumerateArray())

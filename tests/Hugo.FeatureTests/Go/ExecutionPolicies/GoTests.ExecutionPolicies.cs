@@ -311,11 +311,8 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_ShouldThrowWhenOperationsNull()
-    {
-        await Assert.ThrowsAsync<ArgumentNullException>(static async () =>
-            await FanOutAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
-    }
+    public async Task FanOutAsync_ShouldThrowWhenOperationsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static async () =>
+                                                                              await FanOutAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_ShouldThrowWhenOperationEntryNull()
@@ -393,11 +390,8 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RaceAsync_ShouldThrowWhenOperationsNull()
-    {
-        await Assert.ThrowsAsync<ArgumentNullException>(static async () =>
-            await RaceAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
-    }
+    public async Task RaceAsync_ShouldThrowWhenOperationsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static async () =>
+                                                                            await RaceAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public async Task RaceAsync_ShouldThrowWhenOperationEntryNull()
@@ -491,11 +485,8 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WithTimeoutAsync_ShouldThrowWhenTimeoutNegative()
-    {
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(static async () =>
-            await WithTimeoutAsync(static _ => Task.FromResult(Ok(1)), TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
-    }
+    public async Task WithTimeoutAsync_ShouldThrowWhenTimeoutNegative() => await Assert.ThrowsAsync<ArgumentOutOfRangeException>(static async () =>
+                                                                                    await WithTimeoutAsync(static _ => Task.FromResult(Ok(1)), TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public async Task WithTimeoutAsync_ShouldPropagateOperationFailure()
@@ -525,20 +516,14 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RetryAsync_ShouldThrowWhenOperationNull()
-    {
-        await Assert.ThrowsAsync<ArgumentNullException>(static async () =>
-            await RetryAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
-    }
+    public async Task RetryAsync_ShouldThrowWhenOperationNull() => await Assert.ThrowsAsync<ArgumentNullException>(static async () =>
+                                                                            await RetryAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
 
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public async Task RetryAsync_ShouldThrowWhenMaxAttemptsInvalid(int maxAttempts)
-    {
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-            await RetryAsync((_, _) => Task.FromResult(Ok(1)), maxAttempts, initialDelay: TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
-    }
+    public async Task RetryAsync_ShouldThrowWhenMaxAttemptsInvalid(int maxAttempts) => await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+                                                                                                await RetryAsync((_, _) => Task.FromResult(Ok(1)), maxAttempts, initialDelay: TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public async Task RetryAsync_ShouldReturnFailureWhenOperationThrows()

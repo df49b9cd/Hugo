@@ -764,17 +764,14 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldThrow_WhenMultipleDefaultCasesSupplied()
-    {
-        await Assert.ThrowsAsync<ArgumentException>(static () =>
-            SelectAsync(
-                cancellationToken: TestContext.Current.CancellationToken,
-                cases:
-                [
-                    ChannelCase.CreateDefault(static () => Result.Ok(Unit.Value)),
+    public async Task SelectAsync_ShouldThrow_WhenMultipleDefaultCasesSupplied() => await Assert.ThrowsAsync<ArgumentException>(static () =>
+                                                                                             SelectAsync(
+                                                                                                 cancellationToken: TestContext.Current.CancellationToken,
+                                                                                                 cases:
+                                                                                                 [
+                                                                                                     ChannelCase.CreateDefault(static () => Result.Ok(Unit.Value)),
                     ChannelCase.CreateDefault(static () => Result.Ok(Unit.Value))
-                ]));
-    }
+                                                                                                 ]));
 
     [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldWrapContinuationExceptions()

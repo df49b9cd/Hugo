@@ -102,7 +102,7 @@ internal sealed class CosmosPipelineEntityRepository : IPipelineEntityRepository
                 PartitionKey = null
             });
 
-            List<PipelineEntity> entities = new();
+            List<PipelineEntity> entities = [];
             while (iterator.HasMoreResults)
             {
                 FeedResponse<PipelineDocument> response = iterator.ReadNextAsync().GetAwaiter().GetResult();
@@ -114,7 +114,7 @@ internal sealed class CosmosPipelineEntityRepository : IPipelineEntityRepository
         catch (CosmosException ex)
         {
             _logger.LogError(ex, "Failed to snapshot pipeline projections from Cosmos DB.");
-            return Array.Empty<PipelineEntity>();
+            return [];
         }
     }
 

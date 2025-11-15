@@ -164,7 +164,7 @@ public class ResultTests
     public void Traverse_ShouldThrow_WhenSourceIsNull() => Assert.Throws<ArgumentNullException>(static () => Result.Traverse<int, int>(null!, static x => Result.Ok(x)));
 
     [Fact(Timeout = 15_000)]
-    public void Traverse_ShouldThrow_WhenSelectorIsNull() => Assert.Throws<ArgumentNullException>(static () => Result.Traverse(Array.Empty<int>(), (Func<int, Result<int>>)null!));
+    public void Traverse_ShouldThrow_WhenSelectorIsNull() => Assert.Throws<ArgumentNullException>(static () => Result.Traverse([], (Func<int, Result<int>>)null!));
 
     [Fact(Timeout = 15_000)]
     public void Sequence_ShouldReturnFirstFailure()
@@ -217,7 +217,7 @@ public class ResultTests
     public async Task TraverseAsync_ShouldThrow_WhenSourceIsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => Result.TraverseAsync((IEnumerable<int>)null!, static _ => Task.FromResult(Result.Ok(0)), TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
-    public async Task TraverseAsync_ShouldThrow_WhenSelectorIsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => Result.TraverseAsync(Array.Empty<int>(), (Func<int, Task<Result<int>>>)null!, TestContext.Current.CancellationToken));
+    public async Task TraverseAsync_ShouldThrow_WhenSelectorIsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => Result.TraverseAsync([], (Func<int, Task<Result<int>>>)null!, TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public async Task TraverseAsync_ShouldReturnFailure()

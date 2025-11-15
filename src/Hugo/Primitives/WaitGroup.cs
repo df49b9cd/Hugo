@@ -108,10 +108,7 @@ public sealed class WaitGroup
     /// Tracks an existing <see cref="ValueTask"/> without allocating an additional <see cref="Task.Run(Action)"/> wrapper.
     /// </summary>
     /// <param name="task">The value task to observe.</param>
-    public void Go(ValueTask task)
-    {
-        Go(global::Hugo.Go.Run(task));
-    }
+    public void Go(ValueTask task) => Go(global::Hugo.Go.Run(task));
 
     private void ObserveTask(Task task) => task.ContinueWith(static (_, state) => ((WaitGroup)state!).Done(), this, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
 

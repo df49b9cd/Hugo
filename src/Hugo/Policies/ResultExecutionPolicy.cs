@@ -246,7 +246,7 @@ public sealed class RetryState(TimeProvider timeProvider, int maxAttempts, TimeS
 
     public DateTimeOffset? LastAttemptAt { get; private set; }
 
-    public IReadOnlyList<Error> Errors => _errors ?? (IReadOnlyList<Error>)Array.Empty<Error>();
+    public IReadOnlyList<Error> Errors => _errors ?? (IReadOnlyList<Error>)[];
 
     /// <summary>Records a failure and updates attempt metadata.</summary>
     /// <param name="error">The error returned by the failed attempt.</param>

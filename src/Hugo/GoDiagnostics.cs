@@ -99,10 +99,7 @@ public static class GoDiagnostics
     /// </summary>
     /// <param name="factory">The factory used to create meters.</param>
     /// <param name="meterName">An optional meter name override.</param>
-    public static void Configure(IMeterFactory factory, string? meterName = null)
-    {
-        Configure(CreateMeter(factory, meterName));
-    }
+    public static void Configure(IMeterFactory factory, string? meterName = null) => Configure(CreateMeter(factory, meterName));
 
     /// <summary>
     /// Configures instrumentation using the provided <see cref="Meter"/> instance.
@@ -340,7 +337,7 @@ public static class GoDiagnostics
 
     private static KeyValuePair<string, object?>[] CreateSchemaAttribute(string schemaUrl) =>
         string.IsNullOrWhiteSpace(schemaUrl)
-            ? Array.Empty<KeyValuePair<string, object?>>()
+            ? []
             : [new KeyValuePair<string, object?>("otel.scope.schema_url", schemaUrl)];
 
     private static object? CreateActivitySourceOptions(

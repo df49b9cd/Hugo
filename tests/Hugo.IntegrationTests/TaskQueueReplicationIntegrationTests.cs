@@ -22,7 +22,7 @@ public sealed class TaskQueueReplicationIntegrationTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         Task<List<TaskQueueReplicationEvent<int>>> reader = Task.Run(async () =>
         {
-            List<TaskQueueReplicationEvent<int>> events = new();
+            List<TaskQueueReplicationEvent<int>> events = [];
             await foreach (TaskQueueReplicationEvent<int> evt in source.ReadEventsAsync(cts.Token))
             {
                 events.Add(evt);
@@ -65,7 +65,7 @@ public sealed class TaskQueueReplicationIntegrationTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         Task<List<TaskQueueReplicationEvent<int>>> reader = Task.Run(async () =>
         {
-            List<TaskQueueReplicationEvent<int>> events = new();
+            List<TaskQueueReplicationEvent<int>> events = [];
             await foreach (TaskQueueReplicationEvent<int> evt in source.ReadEventsAsync(cts.Token))
             {
                 events.Add(evt);
@@ -115,7 +115,7 @@ public sealed class TaskQueueReplicationIntegrationTests
         {
         }
 
-        internal List<long> Processed { get; } = new();
+        internal List<long> Processed { get; } = [];
 
         protected override ValueTask ApplyEventAsync(TaskQueueReplicationEvent<int> replicationEvent, CancellationToken cancellationToken)
         {

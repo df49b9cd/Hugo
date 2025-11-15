@@ -8,7 +8,7 @@ public sealed record CounterReport(
     int TotalRows,
     int ParsedRows)
 {
-    public IReadOnlyList<AnalyzerFinding> Findings { get; init; } = Array.Empty<AnalyzerFinding>();
+    public IReadOnlyList<AnalyzerFinding> Findings { get; init; } = [];
 
     public TimeSpan Duration =>
         FirstTimestamp.HasValue && LastTimestamp.HasValue && LastTimestamp > FirstTimestamp

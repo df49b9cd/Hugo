@@ -157,7 +157,7 @@ sealed class TaskQueueWorkloadService : BackgroundService
 
 sealed class DefaultMeterFactory : IMeterFactory, IDisposable
 {
-    private readonly List<Meter> _meters = new();
+    private readonly List<Meter> _meters = [];
 
     public Meter Create(MeterOptions options)
     {

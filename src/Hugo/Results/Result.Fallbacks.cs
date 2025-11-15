@@ -30,7 +30,7 @@ public sealed class ResultFallbackTier<T>
         }
 
         Name = name;
-        _operations = new List<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>>(list);
+        _operations = [.. list];
     }
 
     /// <summary>Gets the name assigned to the fallback tier.</summary>

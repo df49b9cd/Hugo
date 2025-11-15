@@ -124,7 +124,7 @@ public class DeterministicEffectStoreTests
     {
         var store = new InMemoryDeterministicStateStore();
         var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
-        var record = new DeterministicRecord("hugo.version", 0, Array.Empty<byte>(), DateTimeOffset.UtcNow);
+        var record = new DeterministicRecord("hugo.version", 0, [], DateTimeOffset.UtcNow);
         store.Set("effect.kind", record);
 
         var mismatch = await effectStore.CaptureAsync(

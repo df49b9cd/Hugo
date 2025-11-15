@@ -115,7 +115,7 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
                 return new ValueTask<TaskQueueBackpressureSignal>(snapshot);
             }
 
-            (_waiters ??= new List<TaskCompletionSource<TaskQueueBackpressureSignal>>()).Add(source);
+            (_waiters ??= []).Add(source);
 
             if (cancellationToken.CanBeCanceled)
             {

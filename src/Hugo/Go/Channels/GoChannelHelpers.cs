@@ -32,7 +32,7 @@ internal static class GoChannelHelpers
             throw new ArgumentOutOfRangeException(nameof(timeout));
         }
 
-        List<ChannelReader<T>> active = new(readers);
+        List<ChannelReader<T>> active = [.. readers];
         if (active.Count == 0)
         {
             return Result.Ok(Go.Unit.Value);
