@@ -1,0 +1,73 @@
+# syntax=docker/dockerfile:1.7
+
+ARG DOTNET_VERSION=10.0
+ARG TEST_PROJECTS="tests/Hugo.UnitTests/Hugo.UnitTests.csproj tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj tests/Hugo.FeatureTests/Hugo.FeatureTests.csproj tests/Hugo.Deterministic.Cosmos.Tests/Hugo.Deterministic.Cosmos.Tests.csproj tests/Hugo.Deterministic.Redis.Tests/Hugo.Deterministic.Redis.Tests.csproj tests/Hugo.Deterministic.SqlServer.Tests/Hugo.Deterministic.SqlServer.Tests.csproj"
+
+FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-alpine AS base
+
+# Install .NET and test dependencies
+RUN apk add --upgrade --no-cache \
+        bash \
+        coreutils \
+        curl \
+        gcompat \
+        icu-data-full \
+        icu-libs \
+        iputils \
+        krb5-libs \
+        libc6-compat \
+        libmsquic \
+        lldb \
+        llvm \
+        lttng-ust \
+        musl-locales \
+        openssl \
+        python3 \
+        python3-dev \
+        py3-pip \
+        sudo \
+        tzdata
+
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+    DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 \
+    DOTNET_SKIP_WORKLOAD_VERIFICATION=1 \
+    NUGET_XMLDOC_MODE=skip
+
+WORKDIR /repo
+
+COPY global.json Directory.Build.props Directory.Packages.props Hugo.slnx ./
+COPY src ./src
+COPY tests ./tests
+COPY samples ./samples
+COPY docs ./docs
+COPY branding ./branding
+COPY benchmarks ./benchmarks
+COPY tools ./tools
+
+FROM base AS restore
+RUN dotnet restore Hugo.slnx
+
+FROM restore AS build
+RUN dotnet build Hugo.slnx -c Release --no-restore
+
+FROM build AS ci
+SHELL ["/bin/bash","-c"]
+ARG TEST_PROJECTS
+RUN set -euo pipefail && \
+    mkdir -p /repo/artifacts/test-results /repo/artifacts/coverage && \
+    for proj in ${TEST_PROJECTS}; do \
+        name=$(basename "${proj%.csproj}"); \
+        result_dir="/repo/artifacts/test-results/${name}"; \
+        coverage_dir="/repo/artifacts/coverage/${name}"; \
+        mkdir -p "${result_dir}" "${coverage_dir}"; \
+        dotnet test "${proj}" \
+            -c Release \
+            --no-build \
+            --logger "trx;LogFileName=${name}.trx" \
+            --results-directory "${result_dir}" \
+            --collect:"XPlat Code Coverage"; \
+        coverage_file=$(find "${result_dir}" -maxdepth 2 -name 'coverage.cobertura.xml' -print -quit); \
+        if [[ -n "${coverage_file}" ]]; then cp "${coverage_file}" "${coverage_dir}/"; fi; \
+    done
+
+CMD ["bash"]
