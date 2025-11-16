@@ -101,9 +101,9 @@ Add a result-aware consumer loop after the relay:
 ```csharp
 var messages = new List<string>();
 
-await foreach (var payload in merged.Reader.ReadAllAsync(cts.Token))
-{
-    var result = payload switch
+await merged.Reader
+    .ReadAllAsync(cts.Token)
+    .Select(payload => payload switch
     {
         int sample => Ok(sample)
             .Ensure(static value => value >= 0, value =>
@@ -113,24 +113,28 @@ await foreach (var payload in merged.Reader.ReadAllAsync(cts.Token))
             .Ensure(static value => !string.IsNullOrWhiteSpace(value))
             .Map(static value => $"job={value}"),
         _ => Err<string>("unsupported payload", "error.validation")
-    };
+    })
+    .ForEachAsync(async (result, ct) =>
+    {
+        var handled = await result
+            .TapAsync(static (value, token) =>
+            {
+                Console.WriteLine($"processed {value}");
+                return ValueTask.CompletedTask;
+            }, ct);
 
-    var handled = await result
-        .TapAsync(static (value, token) =>
+        if (handled.IsSuccess)
         {
-            Console.WriteLine($"processed {value}");
-            return ValueTask.CompletedTask;
-        }, cts.Token);
+            messages.Add(handled.Value);
+        }
+        else
+        {
+            Console.WriteLine($"skipped: {handled.Error}");
+        }
 
-    if (handled.IsSuccess)
-    {
-        messages.Add(handled.Value);
-    }
-    else
-    {
-        Console.WriteLine($"skipped: {handled.Error}");
-    }
-}
+        return Result.Ok(Go.Unit.Value);
+    },
+    cts.Token);
 ```
 
 - `Ensure` validates data without throwing.

@@ -86,6 +86,18 @@ for (int i = 0; i < tenantReaders.Count; i++)
 
 `childContext` automatically links to the parent scope. Per-tenant processors can register compensations (e.g., revert partial writes) that roll back if `ProcessTenantMessageAsync` fails.
 
+> **Tip:** Prefer a fluent style over `await foreach`? Wrap the reader with `Result.MapStreamAsync` and consume it via `Result.ForEachAsync`:
+
+```csharp
+await Result.MapStreamAsync(
+        tenantReader.ReadAllAsync(token),
+        (envelope, ct) => ProcessTenantMessageAsync(childContext, tenantId, envelope, ct),
+        token)
+    .ForEachAsync(static (result, ct) => new ValueTask<Result<Unit>>(result), token);
+```
+
+This conveys the same semantics while allowing you to compose additional streaming transforms if needed.
+
 ## Step 4 – Implement Tenant Message Processing With Compensations
 
 ```csharp
