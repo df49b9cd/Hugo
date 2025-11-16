@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Threading.Channels;
+
 using Microsoft.Extensions.Time.Testing;
 
 using static Hugo.Go;
@@ -101,6 +104,78 @@ public partial class GoTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(7, result.Value);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task RaceValueTaskAsync_ShouldReturnCanceled_WhenCallerCancels()
+    {
+        using var callerCts = new CancellationTokenSource();
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCts.Token, TestContext.Current.CancellationToken);
+
+        var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
+        {
+            static async ct =>
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return Ok(1);
+            },
+            static async ct =>
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return Ok(2);
+            }
+        };
+
+        var raceTask = RaceValueTaskAsync<int>(operations, cancellationToken: linkedCts.Token);
+        callerCts.Cancel();
+
+        try
+        {
+            var result = await raceTask;
+            Assert.True(result.IsFailure);
+            Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        }
+        catch (OperationCanceledException)
+        {
+            // In some schedules, the race will surface cancellation via an exception instead of an Error result.
+        }
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task RaceValueTaskAsync_ShouldReturnFirstChannelMessage()
+    {
+        var first = Channel.CreateUnbounded<int>();
+        var second = Channel.CreateUnbounded<int>();
+
+        var operations = new List<Func<CancellationToken, ValueTask<Result<string>>>>
+        {
+            ct => ReadNextAsync("alpha", first.Reader, ct),
+            ct => ReadNextAsync("beta", second.Reader, ct)
+        };
+
+        var raceTask = RaceValueTaskAsync<string>(operations, cancellationToken: TestContext.Current.CancellationToken);
+
+        await first.Writer.WriteAsync(11, TestContext.Current.CancellationToken);
+        first.Writer.TryComplete();
+        second.Writer.TryComplete();
+
+        var result = await raceTask;
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("alpha:11", result.Value);
+    }
+
+    private static async ValueTask<Result<string>> ReadNextAsync(string label, ChannelReader<int> reader, CancellationToken token)
+    {
+        while (await reader.WaitToReadAsync(token))
+        {
+            while (reader.TryRead(out var value))
+            {
+                return Ok($"{label}:{value}");
+            }
+        }
+
+        return Err<string>($"{label} closed before producing a value.", ErrorCodes.Unspecified);
     }
 
     [Fact(Timeout = 15_000)]

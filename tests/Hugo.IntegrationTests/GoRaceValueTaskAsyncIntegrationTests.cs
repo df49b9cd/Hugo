@@ -1,0 +1,49 @@
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Hugo.Policies;
+
+namespace Hugo.Tests;
+
+public class GoRaceValueTaskAsyncIntegrationTests
+{
+    [Fact(Timeout = 15_000)]
+    public async Task RaceValueTaskAsync_ShouldRespectRetryPoliciesPerOperation()
+    {
+        var attempts = 0;
+
+        var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
+        {
+            async ct =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(5), ct);
+                attempts++;
+                if (attempts < 3)
+                {
+                    return Result.Fail<int>(Error.From($"attempt-{attempts}", ErrorCodes.Validation));
+                }
+
+                return Result.Ok(99);
+            },
+            static async ct =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(200), ct);
+                return Result.Ok(7);
+            }
+        };
+
+        var policy = ResultExecutionBuilders.FixedRetryPolicy(
+            attempts: 3,
+            delay: TimeSpan.FromMilliseconds(1));
+
+        var result = await Go.RaceValueTaskAsync(
+            operations,
+            policy,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(99, result.Value);
+        Assert.Equal(3, attempts);
+    }
+}
