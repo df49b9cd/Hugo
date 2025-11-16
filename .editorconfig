@@ -11,6 +11,10 @@ trim_trailing_whitespace = true
 [*.{cs,csx,cake}]
 dotnet_sort_system_directives_first = true
 dotnet_separate_import_directive_groups = true
+dotnet_diagnostic.CA1000.severity = none
+dotnet_diagnostic.CA1068.severity = none
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1859.severity = none
 dotnet_style_qualification_for_field = false:suggestion
 dotnet_style_qualification_for_property = false:suggestion
 dotnet_style_qualification_for_method = false:suggestion
