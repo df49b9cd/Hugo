@@ -23,62 +23,47 @@ await sourceStream
     cancellationToken);
 ```
 
-This pattern already works for both success and failure cases, but you can wrap it in extension methods to keep call sites tidy.
+This pattern already works for both success and failure cases, but Hugo now ships dedicated helpers to keep call sites tidy.
 
 ## Tap Only Successes
 
 ```csharp
-public static ValueTask<Result<Unit>> TapSuccessEachAsync<T>(
-    this IAsyncEnumerable<Result<T>> source,
-    Func<T, CancellationToken, ValueTask> tap,
-    CancellationToken cancellationToken = default) =>
-    source.ForEachAsync(async (result, token) =>
+await ingress
+    .TapSuccessEachAsync(async (record, token) =>
     {
-        if (result.IsSuccess)
-        {
-            await tap(result.Value, token);
-        }
-
-        return Result.Ok(Go.Unit.Value);
-    }, cancellationToken);
+        _logger.LogInformation("processed {RecordId}", record.Id);
+        await _metrics.RecordSuccessAsync(record.Id, token);
+    }, ct);
 ```
 
 ## Tap Only Failures
 
 ```csharp
-public static ValueTask<Result<Unit>> TapFailureEachAsync<T>(
-    this IAsyncEnumerable<Result<T>> source,
-    Func<Error, CancellationToken, ValueTask> tap,
-    CancellationToken cancellationToken = default) =>
-    source.ForEachAsync(async (result, token) =>
+await ingress
+    .TapFailureEachAsync(async (error, token) =>
     {
-        if (result.IsFailure && result.Error is Error error)
-        {
-            await tap(error, token);
-        }
-
-        return Result.Ok(Go.Unit.Value);
-    }, cancellationToken);
+        _logger.LogWarning("filtered record: {Message}", error.Message);
+        await _metrics.RecordFailureAsync(error.Code ?? ErrorCodes.Unspecified, token);
+    }, ct);
 ```
 
 ## Usage Example
 
 ```csharp
 await Result.MapStreamAsync(ingress, ValidateAsync, ct)
-    .TapSuccessEachAsync(async (record, token) =>
+    .TapSuccessEachAsync((record, token) =>
     {
-        _logger.LogInformation("processed {RecordId}", record.Id);
-        await Task.CompletedTask;
+        _successCounter.Increment();
+        return ValueTask.CompletedTask;
     }, ct)
-    .TapFailureEachAsync(async (error, token) =>
+    .TapFailureEachAsync((error, token) =>
     {
-        _logger.LogWarning("skipped: {Message}", error.Message);
-        await Task.CompletedTask;
+        _failureCounter.Add(error.Message);
+        return ValueTask.CompletedTask;
     }, ct);
 ```
 
 ## Summary
 
-- `Result.ForEachAsync` is the foundation for per-item side effects.
-- Wrap common tap patterns in helpers to keep pipelines readable.
+- `Result.ForEachAsync` is the foundation for per-item side effects, while `TapSuccessEachAsync`/`TapFailureEachAsync` expose the most common cases directly.
 - Because these helpers themselves return `Result<Unit>`, you can chain them with other combinators or short-circuit on failure when appropriate.

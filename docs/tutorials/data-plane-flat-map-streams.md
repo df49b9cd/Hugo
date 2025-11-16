@@ -1,6 +1,6 @@
 # Flat-Mapping Result Streams
 
-When streaming pipelines need to expand a single input into multiple derived outputs (fan-out-in-the-middle), you can combine `Result.MapStreamAsync`, channels, and `ResultPipelineChannels.MergeAsync` to flat-map results without leaving the Result pipeline. This tutorial walks through a scenario where each incoming record spawns several derived metrics.
+When streaming pipelines need to expand a single input into multiple derived outputs (fan-out-in-the-middle), `Result.FlatMapStreamAsync` lets you describe the fan-out without allocating intermediate channels. This tutorial walks through a scenario where each incoming record spawns several derived metrics.
 
 ## Scenario
 
@@ -10,95 +10,56 @@ You ingest `SensorEnvelope` events. Each envelope contains raw readings for mult
 2. Generate one derived `Metric` per sub-sensor.
 3. Emit all metrics downstream as part of the same Result pipeline.
 
-## Strategy
-
-- Use `Result.MapStreamAsync` to convert the ingress `IAsyncEnumerable<SensorEnvelope>` into `Result<ChannelReader<Metric>>`, where each reader contains the derived metrics for a single envelope.
-- Use `ResultPipelineChannels.MergeAsync` to merge the per-envelope channels into a single stream.
-- Continue processing the merged channel with the usual Result combinators.
-
-## Step 1 – Normalize Envelopes Into Channels
+## Step 1 – Normalize and Expand With `FlatMapStreamAsync`
 
 ```csharp
 IAsyncEnumerable<SensorEnvelope> ingress = _sensorHub.ReadAllAsync(ct);
 
-var perEnvelopeChannels = Result.MapStreamAsync(ingress, async (envelope, token) =>
+IAsyncEnumerable<Result<Metric>> metricStream = Result.FlatMapStreamAsync(
+    ingress,
+    (envelope, token) => ExpandEnvelopeAsync(envelope, token),
+    ct);
+
+static async IAsyncEnumerable<Result<Metric>> ExpandEnvelopeAsync(
+    SensorEnvelope envelope,
+    [EnumeratorCancellation] CancellationToken cancellationToken)
 {
-    var normalized = await NormalizeAsync(envelope, token);
+    var normalized = await NormalizeAsync(envelope, cancellationToken);
     if (normalized.IsFailure)
     {
-        return normalized.CastFailure<ChannelReader<Metric>>();
+        yield return normalized.CastFailure<Metric>();
+        yield break;
     }
 
-    var channel = Channel.CreateUnbounded<Metric>();
-    _ = Task.Run(async () =>
+    foreach (var metric in ExpandMetrics(normalized.Value))
     {
-        try
-        {
-            foreach (var metric in ExpandMetrics(normalized.Value))
-            {
-                await channel.Writer.WriteAsync(metric, token);
-            }
-        }
-        finally
-        {
-            channel.Writer.TryComplete();
-        }
-    }, token);
+        cancellationToken.ThrowIfCancellationRequested();
+        yield return Result.Ok(metric);
+    }
+}
+```
 
-    return Result.Ok(channel.Reader);
+- The selector returns an `IAsyncEnumerable<Result<Metric>>`. Successes stream downstream immediately; failures short-circuit the outer stream.
+- No intermediate channels are needed—the helper handles the select-many logic and cancellation wiring.
+
+## Step 2 – Consume the Flattened Stream
+
+```csharp
+await metricStream.ForEachAsync(async (result, token) =>
+{
+    if (result.IsFailure)
+    {
+        await Result.RunCompensationAsync(_policy, scope, token);
+        return result.CastFailure<Unit>();
+    }
+
+    await _metricSink.WriteAsync(result.Value, token);
+    return Result.Ok(Unit.Value);
 }, ct);
-```
-
-Each envelope yields a channel reader. Failures are propagated as `Result.Fail` and short-circuit the stream.
-
-## Step 2 – Merge Derived Metrics Back Into One Stream
-
-```csharp
-Channel<Metric> merged = Channel.CreateUnbounded<Metric>();
-
-var mergeResult = await perEnvelopeChannels
-    .ForEachAsync((result, token) =>
-    {
-        if (result.IsFailure)
-        {
-            return new ValueTask<Result<Unit>>(result.CastFailure<Unit>());
-        }
-
-        return new ValueTask<Result<Unit>>(ResultPipelineChannels.MergeAsync(
-            context,
-            new[] { result.Value },
-            merged.Writer,
-            completeDestination: false,
-            cancellationToken: token));
-    },
-    ct);
-```
-
-- When the iteration finishes successfully, `merged.Reader` exposes a continuous stream of `Metric` instances regardless of how many each envelope produced.
-- If any envelope fails normalization, `mergeResult` returns failure and you can replay compensations as usual.
-
-## Step 3 – Continue Downstream
-
-```csharp
-await merged.Reader
-    .ReadAllAsync(ct)
-    .Select(metric => Result.Ok(metric))
-    .ForEachAsync(async (metricResult, token) =>
-    {
-        if (metricResult.IsFailure)
-        {
-            await Result.RunCompensationAsync(_policy, scope, token);
-            return metricResult.CastFailure<Unit>();
-        }
-
-        await _metricSink.WriteAsync(metricResult.Value, token);
-        return Result.Ok(Go.Unit.Value);
-    },
-    ct);
 ```
 
 ## Summary
 
-- Treat each envelope as a mini stream by projecting to `ChannelReader<T>`.
-- Use `ResultPipelineChannels.MergeAsync` (or repeated merges) to flatten the channels back into one stream.
+- Treat each envelope as a mini stream by returning an async enumerable of `Result<Metric>` from the selector.
+- `Result.FlatMapStreamAsync` flattens all derived metrics deterministically, automatically halting on the first failure.
 - Because the entire flow stays inside `Result<T>`, compensations and cancellations propagate naturally.

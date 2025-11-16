@@ -141,6 +141,79 @@ public static class ResultPipelineChannels
         }
     }
 
+    public static async ValueTask<Result<Unit>> MergeWithStrategyAsync<T>(
+        ResultPipelineStepContext context,
+        IReadOnlyList<ChannelReader<T>> readers,
+        ChannelWriter<T> destination,
+        Func<IReadOnlyList<ChannelReader<T>>, CancellationToken, ValueTask<int>> selectionStrategy,
+        bool completeDestination = true,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(readers);
+        ArgumentNullException.ThrowIfNull(destination);
+        ArgumentNullException.ThrowIfNull(selectionStrategy);
+
+        CancellationTokenSource? linkedCts = null;
+        var token = LinkTokens(context.CancellationToken, cancellationToken, out linkedCts);
+
+        try
+        {
+            var completed = new bool[readers.Count];
+            int remaining = readers.Count;
+
+            while (remaining > 0 && !token.IsCancellationRequested)
+            {
+                int index = await selectionStrategy(readers, token).ConfigureAwait(false);
+                if (index < 0 || index >= readers.Count)
+                {
+                    await Task.Yield();
+                    continue;
+                }
+
+                if (completed[index])
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var value = await readers[index].ReadAsync(token).ConfigureAwait(false);
+                    await destination.WriteAsync(value, token).ConfigureAwait(false);
+                }
+                catch (ChannelClosedException)
+                {
+                    completed[index] = true;
+                    remaining--;
+                }
+            }
+
+            if (completeDestination)
+            {
+                destination.TryComplete();
+            }
+
+            var success = Result.Ok(Unit.Value);
+            context.AbsorbResult(success);
+            return success;
+        }
+        catch (OperationCanceledException oce)
+        {
+            if (completeDestination)
+            {
+                destination.TryComplete(oce);
+            }
+
+            var canceled = Result.Fail<Unit>(Error.Canceled(token: oce.CancellationToken));
+            context.AbsorbResult(canceled);
+            return canceled;
+        }
+        finally
+        {
+            linkedCts?.Dispose();
+        }
+    }
+
     public static async ValueTask<Result<Unit>> BroadcastAsync<T>(
         ResultPipelineStepContext context,
         ChannelReader<T> source,
@@ -173,6 +246,87 @@ public static class ResultPipelineChannels
         {
             linkedCts?.Dispose();
         }
+    }
+
+    public static ChannelReader<IReadOnlyList<T>> WindowAsync<T>(
+        ResultPipelineStepContext context,
+        ChannelReader<T> source,
+        int batchSize,
+        TimeSpan flushInterval,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+        if (flushInterval < TimeSpan.Zero && flushInterval != Timeout.InfiniteTimeSpan)
+        {
+            throw new ArgumentOutOfRangeException(nameof(flushInterval));
+        }
+
+        var output = Channel.CreateUnbounded<IReadOnlyList<T>>();
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
+        var token = linkedCts.Token;
+        var provider = context.TimeProvider;
+
+        _ = Task.Run(async () =>
+        {
+            var buffer = new List<T>(batchSize);
+            Task delayTask = CreateDelayTask(provider, flushInterval, token);
+
+            try
+            {
+                while (true)
+                {
+                    Task<bool> waitTask = source.WaitToReadAsync(token).AsTask();
+                    var completed = await Task.WhenAny(waitTask, delayTask).ConfigureAwait(false);
+
+                    if (completed == delayTask)
+                    {
+                        if (buffer.Count > 0)
+                        {
+                            await output.Writer.WriteAsync(buffer.ToArray(), token).ConfigureAwait(false);
+                            buffer.Clear();
+                        }
+
+                        delayTask = CreateDelayTask(provider, flushInterval, token);
+                        continue;
+                    }
+
+                    if (!await waitTask.ConfigureAwait(false))
+                    {
+                        break;
+                    }
+
+                    while (source.TryRead(out var item))
+                    {
+                        buffer.Add(item);
+                        if (buffer.Count >= batchSize)
+                        {
+                            await output.Writer.WriteAsync(buffer.ToArray(), token).ConfigureAwait(false);
+                            buffer.Clear();
+                            delayTask = CreateDelayTask(provider, flushInterval, token);
+                        }
+                    }
+                }
+
+                if (buffer.Count > 0)
+                {
+                    await output.Writer.WriteAsync(buffer.ToArray(), token).ConfigureAwait(false);
+                }
+
+                output.Writer.TryComplete();
+            }
+            catch (OperationCanceledException oce)
+            {
+                output.Writer.TryComplete(oce);
+            }
+            finally
+            {
+                linkedCts.Dispose();
+            }
+        }, CancellationToken.None);
+
+        return output.Reader;
     }
 
     public static IReadOnlyList<ChannelReader<T>> FanOut<T>(
@@ -222,6 +376,22 @@ public static class ResultPipelineChannels
         ArgumentNullException.ThrowIfNull(context);
         var duration = timeout ?? Timeout.InfiniteTimeSpan;
         return new ResultPipelineSelectBuilder<TResult>(context, duration, provider ?? context.TimeProvider, cancellationToken);
+    }
+
+    private static Task CreateDelayTask(TimeProvider provider, TimeSpan flushInterval, CancellationToken token)
+    {
+        if (token.IsCancellationRequested)
+        {
+            return Task.FromCanceled(token);
+        }
+
+        if (flushInterval == Timeout.InfiniteTimeSpan)
+        {
+            return Task.Delay(Timeout.InfiniteTimeSpan, token);
+        }
+
+        var dueTime = flushInterval <= TimeSpan.Zero ? TimeSpan.Zero : flushInterval;
+        return new WindowDelay(provider, dueTime, token).Task;
     }
 
     private static ChannelCase<TResult>[] WrapCases<TResult>(ResultPipelineStepContext context, IEnumerable<ChannelCase<TResult>> cases)
@@ -317,5 +487,55 @@ public static class ResultPipelineChannels
 
         var linked = CancellationTokenSource.CreateLinkedTokenSource(primary, secondary);
         return (linked.Token, linked);
+    }
+
+    private sealed class WindowDelay
+    {
+        private readonly TaskCompletionSource<bool> _tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly CancellationToken _token;
+        private readonly CancellationTokenRegistration _registration;
+        private readonly ITimer _timer;
+        private int _completed;
+
+        internal WindowDelay(TimeProvider provider, TimeSpan dueTime, CancellationToken token)
+        {
+            _token = token;
+            _registration = token.Register(static state => ((WindowDelay)state!).OnCanceled(), this);
+            _timer = provider.CreateTimer(static state => ((WindowDelay)state!).OnElapsed(), this, dueTime, Timeout.InfiniteTimeSpan);
+        }
+
+        internal Task Task => _tcs.Task;
+
+        private void OnElapsed()
+        {
+            if (!TryComplete())
+            {
+                return;
+            }
+
+            _tcs.TrySetResult(true);
+        }
+
+        private void OnCanceled()
+        {
+            if (!TryComplete())
+            {
+                return;
+            }
+
+            _tcs.TrySetCanceled(_token);
+        }
+
+        private bool TryComplete()
+        {
+            if (Interlocked.Exchange(ref _completed, 1) == 1)
+            {
+                return false;
+            }
+
+            _timer.Dispose();
+            _registration.Dispose();
+            return true;
+        }
     }
 }

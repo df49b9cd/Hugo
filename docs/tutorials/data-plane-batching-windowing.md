@@ -1,6 +1,6 @@
 # Batching and Windowing Streaming Results
 
-Many streaming workloads need to batch records (e.g., 500 items or every 2 seconds). This tutorial demonstrates how to build a deterministic batching stage using `ResultPipelineTimers`, channels, and Result combinators.
+Many streaming workloads need to batch records (e.g., 500 items or every 2 seconds). This tutorial demonstrates how to build a deterministic batching stage using `ResultPipelineChannels.WindowAsync` and Result combinators.
 
 ## Scenario
 
@@ -12,77 +12,59 @@ You receive `Result<Event>` instances. You must:
 
 ## Building Blocks
 
-- `Channel<Event>` to hold buffered events.
-- `ResultPipelineTimers.NewTicker` for the flush timer.
-- `Result.MapStreamAsync` + `ForEachAsync` to consume events and manage batches.
+- `ResultPipelineChannels.WindowAsync` to slice a source channel into deterministic batches (size threshold, flush interval, or both).
+- `Result.MapStreamAsync` + `ForEachAsync` to consume windowed results and persist them.
+- `ResultPipelineStepContext` to capture compensations per flushed batch.
 
-## Step 1 – Initialize Batch State
+## Step 1 – Convert the Stream Into Batches
 
 ```csharp
-var batch = new List<Event>(500);
-var batchScope = new CompensationScope();
-var batchContext = new ResultPipelineStepContext("event-batcher", batchScope, TimeProvider.System, ct);
-
-var flushTicker = ResultPipelineTimers.NewTicker(batchContext, TimeSpan.FromSeconds(2), ct);
+var batchingContext = new ResultPipelineStepContext("event-batcher", scope, context.TimeProvider, ct);
+var windows = ResultPipelineChannels.WindowAsync(
+    batchingContext,
+    _eventChannel.Reader,
+    batchSize: 500,
+    flushInterval: TimeSpan.FromSeconds(2),
+    cancellationToken: ct);
 ```
 
-## Step 2 – Consume Events and Trigger Flushes
+- The adapter links to `ctx.TimeProvider`, so deterministic tests can advance virtual time.
+- When either condition is met (size or interval), the adapter writes `IReadOnlyList<Event>` into the returned `ChannelReader`.
+
+## Step 2 – Process Each Window With Compensations
 
 ```csharp
-await Result.MapStreamAsync(_eventStream, (result, token) => result, ct)
+await Result.MapStreamAsync(
+        windows.ReadAllAsync(ct),
+        (batch, token) => Result.Ok(batch),
+        ct)
     .ForEachAsync(async (result, token) =>
     {
         if (result.IsFailure)
         {
-            return result.CastFailure<Go.Unit>();
+            return result.CastFailure<Unit>();
         }
 
-        batch.Add(result.Value);
-        if (batch.Count >= 500)
+        var batch = result.Value;
+        batchingContext.RegisterCompensation(async cancel =>
         {
-            var flushResult = await FlushBatchAsync(batchContext, batch, token);
-            if (flushResult.IsFailure)
-            {
-                return flushResult;
-            }
+            await _repository.DeleteBatchAsync(batch, cancel);
+        });
 
-            batch.Clear();
-            batchScope.Clear();
+        var persisted = await _repository.WriteBatchAsync(batch, token);
+        if (persisted.IsFailure)
+        {
+            return persisted.CastFailure<Unit>();
         }
 
-        return Result.Ok(Go.Unit.Value);
+        return Result.Ok(Unit.Value);
     },
     ct);
 ```
 
-## Step 3 – Handle Timer Flushes
+The compensation scope now contains per-batch rollback actions that replay automatically if downstream stages fail.
 
-Use a background task to watch the ticker and flush if time expires:
-
-```csharp
-_ = Task.Run(async () =>
-{
-    await foreach (var _ in flushTicker.Reader.ReadAllAsync(ct))
-    {
-        if (batch.Count == 0)
-        {
-            continue;
-        }
-
-        var flushResult = await FlushBatchAsync(batchContext, batch, ct);
-        if (flushResult.IsFailure)
-        {
-            await Result.RunCompensationAsync(_policy, batchScope, ct);
-            break;
-        }
-
-        batch.Clear();
-        batchScope.Clear();
-    }
-}, ct);
-```
-
-## Step 4 – Implement Flush With Compensations
+## Step 3 – Implement Flush With Compensations
 
 ```csharp
 private async ValueTask<Result<Unit>> FlushBatchAsync(ResultPipelineStepContext context, IReadOnlyList<Event> batch, CancellationToken cancellationToken)
@@ -102,6 +84,6 @@ private async ValueTask<Result<Unit>> FlushBatchAsync(ResultPipelineStepContext 
 
 ## Summary
 
-- Use a combination of size thresholds and `ResultPipelineTimers.NewTicker` to deterministically flush batches.
+- `ResultPipelineChannels.WindowAsync` handles buffering, size thresholds, and timeouts using the pipeline’s `TimeProvider`.
 - `ResultPipelineStepContext` scoped to the batch ensures compensations (e.g., deleting batches) replay if persistence fails.
-- You can extend this approach with multiple tickers (e.g., per tenant) or additional policies (`ResultExecutionPolicy`) as needed.
+- After batching, continue chaining Result combinators (`TapAsync`, `RetryAsync`, etc.) exactly as you would with any other pipeline stage.

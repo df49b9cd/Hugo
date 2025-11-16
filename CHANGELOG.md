@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ResultPipeline.FanOutAsync`, `.RaceAsync`, `.RetryAsync`, and `.WithTimeoutAsync` provide `ValueTask<Result<T>>` wrappers over the result pipeline orchestrators so callers can reuse Go-style ergonomics without losing diagnostics.
 - `ResultPipelineWaitGroupExtensions.Go`, `ResultPipelineErrGroupExtensions.Go`, and `ResultPipelineTimers.*` extend WaitGroup/ErrGroup/timer primitives so pipeline contexts flow cancellation tokens and register compensations automatically.
 - `Result<T>.WithCompensation(...)` plus a `ResultPipelineStepContext.CancellationToken` accessor make it easier for ad-hoc continuations to emit rollback actions that orchestrators absorb automatically.
+- Streaming operators: `Result.FlatMapStreamAsync`, `Result.FilterStreamAsync`, `IAsyncEnumerable<Result<T>>.ForEachAsync`, `.ForEachLinkedCancellationAsync`, `.TapSuccessEachAsync`, `.TapFailureEachAsync`, `.CollectErrorsAsync`, along with `ResultPipelineChannels.MergeWithStrategyAsync` and `.WindowAsync` to cover fan-in strategies and batching windows.
+- Documentation updates for data-plane scenarios (`data-plane-flat-map-streams`, `data-plane-stream-filtering`, `data-plane-batching-windowing`, `data-plane-priority-merge`, `data-plane-error-aggregation`, `data-plane-tap-each`, `data-plane-per-item-cancellation`) showcasing the new helpers and fluent streaming consumption patterns.
 - MIT license for open-source distribution
 - Comprehensive package metadata for NuGet publishing
 - Code coverage reporting in CI pipeline
