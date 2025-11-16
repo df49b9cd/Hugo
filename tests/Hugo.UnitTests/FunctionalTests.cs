@@ -5,6 +5,7 @@ using static Hugo.Go;
 
 namespace Hugo.Tests;
 
+[Collection(TestCollections.DiagnosticsIsolation)]
 public class FunctionalTests
 {
     [Fact(Timeout = 15_000)]
