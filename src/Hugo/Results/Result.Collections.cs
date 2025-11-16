@@ -68,8 +68,8 @@ public static partial class Result
     /// <param name="source">The source items to transform.</param>
     /// <param name="selector">The selector applied to each item.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>A task that resolves to a successful result containing all projected values or the first failure encountered.</returns>
-    public static Task<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(IEnumerable<TIn> source, Func<TIn, Task<Result<TOut>>> selector, CancellationToken cancellationToken = default)
+    /// <returns>A <see cref="ValueTask{TResult}"/> that resolves to a successful result containing all projected values or the first failure encountered.</returns>
+    public static ValueTask<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(IEnumerable<TIn> source, Func<TIn, Task<Result<TOut>>> selector, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(selector);
 
@@ -103,8 +103,8 @@ public static partial class Result
     /// <param name="source">The source items to transform.</param>
     /// <param name="selector">The selector applied to each item.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>A task that resolves to a successful result containing all projected values or the first failure encountered.</returns>
-    public static async Task<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(
+    /// <returns>A <see cref="ValueTask{TResult}"/> that resolves to a successful result containing all projected values or the first failure encountered.</returns>
+    public static async ValueTask<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(
         IEnumerable<TIn> source,
         Func<TIn, CancellationToken, Task<Result<TOut>>> selector,
         CancellationToken cancellationToken = default)
@@ -224,8 +224,8 @@ public static partial class Result
     /// <param name="source">The source items to transform.</param>
     /// <param name="selector">The selector applied to each item.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>A task that resolves to a successful result containing all projected values or the first failure encountered.</returns>
-    public static async Task<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(
+    /// <returns>A <see cref="ValueTask{TResult}"/> that resolves to a successful result containing all projected values or the first failure encountered.</returns>
+    public static async ValueTask<Result<IReadOnlyList<TOut>>> TraverseAsync<TIn, TOut>(
         IAsyncEnumerable<TIn> source,
         Func<TIn, CancellationToken, Task<Result<TOut>>> selector,
         CancellationToken cancellationToken = default)

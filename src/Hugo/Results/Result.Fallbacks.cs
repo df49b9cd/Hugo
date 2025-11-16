@@ -85,16 +85,16 @@ public static partial class Result
     /// <param name="policy">The optional execution policy applied to each tier.</param>
     /// <param name="cancellationToken">The token used to cancel the fallback execution.</param>
     /// <param name="timeProvider">The optional time provider used for policy timing.</param>
-    /// <returns>A result describing the outcome of the fallback orchestration.</returns>
+    /// <returns>A <see cref="ValueTask{TResult}"/> describing the outcome of the fallback orchestration.</returns>
     [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Maintains existing API contract for callers relying on positional arguments.")]
-    public static Task<Result<T>> TieredFallbackAsync<T>(
+    public static ValueTask<Result<T>> TieredFallbackAsync<T>(
         IEnumerable<ResultFallbackTier<T>> tiers,
         ResultExecutionPolicy? policy = null,
         CancellationToken cancellationToken = default,
         TimeProvider? timeProvider = null) => TieredFallbackInternal(tiers, policy, cancellationToken, timeProvider ?? TimeProvider.System);
 
     [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Internal helper mirrors public API ordering for consistency.")]
-    private static async Task<Result<T>> TieredFallbackInternal<T>(
+    private static async ValueTask<Result<T>> TieredFallbackInternal<T>(
         IEnumerable<ResultFallbackTier<T>> tiers,
         ResultExecutionPolicy? policy,
         CancellationToken cancellationToken,
@@ -152,7 +152,7 @@ public static partial class Result
         return Fail<T>(aggregate);
     }
 
-    private static async Task<Result<T>> ExecuteTierAsync<T>(
+    private static async ValueTask<Result<T>> ExecuteTierAsync<T>(
         ResultFallbackTier<T> tier,
         int tierIndex,
         ResultExecutionPolicy policy,

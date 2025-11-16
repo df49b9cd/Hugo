@@ -1,3 +1,7 @@
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+
 using Hugo.Policies;
 
 namespace Hugo;
@@ -12,8 +16,8 @@ public static partial class Result
     /// <param name="policy">The optional execution policy applied to each operation.</param>
     /// <param name="cancellationToken">The token used to cancel execution.</param>
     /// <param name="timeProvider">The optional time provider used for policy timing.</param>
-    /// <returns>A task that resolves to the aggregated operation results.</returns>
-    public static Task<Result<IReadOnlyList<T>>> WhenAll<T>(
+    /// <returns>A <see cref="ValueTask{TResult}"/> that resolves to the aggregated operation results.</returns>
+    public static ValueTask<Result<IReadOnlyList<T>>> WhenAll<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
         TimeProvider? timeProvider = null,
@@ -27,17 +31,17 @@ public static partial class Result
     /// <param name="policy">The optional execution policy applied to each operation.</param>
     /// <param name="cancellationToken">The token used to cancel execution.</param>
     /// <param name="timeProvider">The optional time provider used for policy timing.</param>
-    /// <returns>A task that resolves to the first successful operation result, or an aggregate failure.</returns>
+    /// <returns>A <see cref="ValueTask{TResult}"/> that resolves to the first successful operation result, or an aggregate failure.</returns>
     /// <remarks>
     /// Once a successful result is observed, failures or cancellations from remaining operations do not alter the returned result.
     /// </remarks>
-    public static Task<Result<T>> WhenAny<T>(
+    public static ValueTask<Result<T>> WhenAny<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
         TimeProvider? timeProvider = null,
         CancellationToken cancellationToken = default) => WhenAnyInternal(operations, policy, timeProvider ?? TimeProvider.System, cancellationToken);
 
-    private static async Task<Result<IReadOnlyList<T>>> WhenAllInternal<T>(
+    private static async ValueTask<Result<IReadOnlyList<T>>> WhenAllInternal<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy,
         TimeProvider timeProvider,
@@ -54,7 +58,11 @@ public static partial class Result
 
         var effectivePolicy = policy ?? ResultExecutionPolicy.None;
         var pipelineScope = new CompensationScope();
-        var tasks = new Task<PipelineOperationResult<T>>[operationList.Count];
+        var fanOut = new ValueTask<PipelineOperationResult<T>>[operationList.Count];
+        var results = new PipelineOperationResult<T>[operationList.Count];
+        var completed = new bool[operationList.Count];
+        List<(Task<PipelineOperationResult<T>> Task, int Index)>? pending = null;
+
         for (var i = 0; i < operationList.Count; i++)
         {
             var operation = operationList[i];
@@ -63,25 +71,63 @@ public static partial class Result
                 throw new ArgumentNullException(nameof(operations), "Operation delegate cannot be null.");
             }
 
-            tasks[i] = ExecuteWithPolicyAsync(operation, $"whenall[{i}]", effectivePolicy, timeProvider, cancellationToken);
+#pragma warning disable CA2012 // The ValueTask is stored temporarily so we can inspect synchronous completion without forcing Task allocations.
+            fanOut[i] = ExecuteWithPolicyAsync(operation, $"whenall[{i}]", effectivePolicy, timeProvider, cancellationToken);
+#pragma warning restore CA2012
+
+            if (fanOut[i].IsCompletedSuccessfully)
+            {
+                results[i] = fanOut[i].Result;
+                completed[i] = true;
+                continue;
+            }
+
+            pending ??= new List<(Task<PipelineOperationResult<T>> Task, int Index)>(operationList.Count - i);
+            pending.Add((fanOut[i].AsTask(), i));
         }
 
-        PipelineOperationResult<T>[] results;
-        try
+        if (pending is not null)
         {
-            results = await Task.WhenAll(tasks).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException oce)
-        {
-            var cancellationError = await BuildWhenAllCancellationErrorAsync(tasks, pipelineScope, effectivePolicy, oce, cancellationToken).ConfigureAwait(false);
-            return Fail<IReadOnlyList<T>>(cancellationError);
+            var pendingTasks = pending.Select(static entry => entry.Task).ToArray();
+            try
+            {
+                await Task.WhenAll(pendingTasks).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException oce)
+            {
+                IReadOnlyList<(Task<PipelineOperationResult<T>> Task, int Index)> pendingSnapshot =
+                    pending is null
+                        ? Array.Empty<(Task<PipelineOperationResult<T>> Task, int Index)>()
+                        : pending;
+                var cancellationError = await BuildWhenAllCancellationErrorAsync(
+                    pendingSnapshot,
+                    results,
+                    completed,
+                    pipelineScope,
+                    effectivePolicy,
+                    oce,
+                    cancellationToken).ConfigureAwait(false);
+                return Fail<IReadOnlyList<T>>(cancellationError);
+            }
+
+            foreach (var (task, index) in pending)
+            {
+                results[index] = task.Result;
+                completed[index] = true;
+            }
         }
 
         var values = new List<T>(results.Length);
         var errors = new List<Error>();
 
-        foreach (var entry in results)
+        for (var i = 0; i < results.Length; i++)
         {
+            if (!completed[i])
+            {
+                continue;
+            }
+
+            var entry = results[i];
             if (entry.Result.IsSuccess)
             {
                 pipelineScope.Absorb(entry.Compensation);
@@ -119,7 +165,7 @@ public static partial class Result
         return Fail<IReadOnlyList<T>>(aggregate);
     }
 
-    private static async Task<Result<T>> WhenAnyInternal<T>(
+    private static async ValueTask<Result<T>> WhenAnyInternal<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy,
         TimeProvider timeProvider,
@@ -137,7 +183,11 @@ public static partial class Result
         var effectivePolicy = policy ?? ResultExecutionPolicy.None;
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var compensationScope = new CompensationScope();
-        var tasks = new List<Task<PipelineOperationResult<T>>>(operationList.Count);
+        var pendingTasks = new List<Task<PipelineOperationResult<T>>>(operationList.Count);
+
+        var errors = new List<Error>();
+        PipelineOperationResult<T>? winner = null;
+
         for (var i = 0; i < operationList.Count; i++)
         {
             var operation = operationList[i];
@@ -146,25 +196,56 @@ public static partial class Result
                 throw new ArgumentNullException(nameof(operations), "Operation delegate cannot be null.");
             }
 
-            tasks.Add(ExecuteWithPolicyAsync(operation, $"whenany[{i}]", effectivePolicy, timeProvider, linkedCts.Token));
+            var execution = ExecuteWithPolicyAsync(operation, $"whenany[{i}]", effectivePolicy, timeProvider, linkedCts.Token);
+
+            if (execution.IsCompletedSuccessfully)
+            {
+                var result = execution.Result;
+                if (result.Result.IsSuccess)
+                {
+                    if (winner is null)
+                    {
+                        winner = result;
+                        errors.Clear();
+                        await linkedCts.CancelAsync().ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        compensationScope.Absorb(result.Compensation);
+                    }
+
+                    continue;
+                }
+
+                if (result.Result.Error is { Code: ErrorCodes.Canceled })
+                {
+                    continue;
+                }
+
+                result.Compensation.Clear();
+                if (winner is null)
+                {
+                    errors.Add(result.Result.Error ?? Error.Unspecified());
+                }
+
+                continue;
+            }
+
+            pendingTasks.Add(execution.AsTask());
         }
 
-        var errors = new List<Error>();
-        PipelineOperationResult<T>? winner = null;
-
-        while (tasks.Count > 0)
+        while (pendingTasks.Count > 0)
         {
-            var completed = await Task.WhenAny(tasks).ConfigureAwait(false);
-            tasks.Remove(completed);
+            var completedTask = await Task.WhenAny(pendingTasks).ConfigureAwait(false);
+            pendingTasks.Remove(completedTask);
 
             PipelineOperationResult<T> result;
             try
             {
-                result = await completed.ConfigureAwait(false);
+                result = await completedTask.ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
-                // Task cancelled due to linked token; ignore and continue.
                 continue;
             }
 
@@ -178,7 +259,6 @@ public static partial class Result
                     continue;
                 }
 
-                // Successful but not the selected winner. Schedule compensation.
                 compensationScope.Absorb(result.Compensation);
                 continue;
             }
@@ -192,30 +272,6 @@ public static partial class Result
             if (winner is null)
             {
                 errors.Add(result.Result.Error ?? Error.Unspecified());
-            }
-        }
-
-        // Ensure any pending operations are awaited
-        if (tasks.Count > 0)
-        {
-            try
-            {
-                var pending = await Task.WhenAll(tasks).ConfigureAwait(false);
-                foreach (var entry in pending)
-                {
-                    if (entry.Result.IsSuccess)
-                    {
-                        compensationScope.Absorb(entry.Compensation);
-                    }
-                    else if (entry.Result.Error is not null && entry.Result.Error.Code != ErrorCodes.Canceled && winner is null)
-                    {
-                        errors.Add(entry.Result.Error);
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // Ignore cancellation from linked token.
             }
         }
 
@@ -257,44 +313,75 @@ public static partial class Result
         return winner.Value.Result;
     }
 
-    private static async Task<Error> BuildWhenAllCancellationErrorAsync<T>(
-        Task<PipelineOperationResult<T>>[] tasks,
+    private static async ValueTask<Error> BuildWhenAllCancellationErrorAsync<T>(
+        IReadOnlyList<(Task<PipelineOperationResult<T>> Task, int Index)> pendingTasks,
+        PipelineOperationResult<T>[] results,
+        bool[] completed,
         CompensationScope pipelineScope,
         ResultExecutionPolicy policy,
         OperationCanceledException exception,
         CancellationToken fallbackToken)
     {
         var partialErrors = new List<Error>();
-        for (var i = 0; i < tasks.Length; i++)
+
+        for (var i = 0; i < completed.Length; i++)
         {
-            var task = tasks[i];
-            if (task is null)
+            if (!completed[i])
             {
                 continue;
             }
 
-            if (task.Status == TaskStatus.RanToCompletion)
+            var entry = results[i];
+            if (entry.Result.IsSuccess)
             {
-                var entry = task.Result;
-                if (entry.Result.IsSuccess)
-                {
-                    pipelineScope.Absorb(entry.Compensation);
-                }
-                else
-                {
-                    entry.Compensation.Clear();
-                    partialErrors.Add(entry.Result.Error ?? Error.Unspecified());
-                }
-
-                continue;
+                pipelineScope.Absorb(entry.Compensation);
             }
-
-            if (task.IsFaulted && task.Exception is { } taskException)
+            else
             {
-                var flattened = taskException.Flatten();
-                foreach (var inner in flattened.InnerExceptions)
+                entry.Compensation.Clear();
+                partialErrors.Add(entry.Result.Error ?? Error.Unspecified());
+            }
+        }
+
+        if (pendingTasks is not null)
+        {
+            foreach (var (task, _) in pendingTasks)
+            {
+                if (task is null || !task.IsCompleted)
                 {
-                    partialErrors.Add(Error.FromException(inner));
+                    continue;
+                }
+
+                if (task.Status == TaskStatus.RanToCompletion)
+                {
+                    var entry = task.Result;
+                    if (entry.Result.IsSuccess)
+                    {
+                        pipelineScope.Absorb(entry.Compensation);
+                    }
+                    else
+                    {
+                        entry.Compensation.Clear();
+                        partialErrors.Add(entry.Result.Error ?? Error.Unspecified());
+                    }
+
+                    continue;
+                }
+
+                if (task.IsFaulted && task.Exception is { } taskException)
+                {
+                    var flattened = taskException.Flatten();
+                    foreach (var inner in flattened.InnerExceptions)
+                    {
+                        partialErrors.Add(Error.FromException(inner));
+                    }
+
+                    continue;
+                }
+
+                if (task.IsCanceled)
+                {
+                    partialErrors.Add(Error.Canceled());
                 }
             }
         }
@@ -315,7 +402,7 @@ public static partial class Result
         return cancellationError;
     }
 
-    internal static async Task<PipelineOperationResult<T>> ExecuteWithPolicyAsync<T>(
+    internal static async ValueTask<PipelineOperationResult<T>> ExecuteWithPolicyAsync<T>(
         Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>> operation,
         string stepName,
         ResultExecutionPolicy policy,
@@ -390,7 +477,7 @@ public static partial class Result
         }
     }
 
-    internal static async Task<Error?> RunCompensationAsync(ResultExecutionPolicy policy, CompensationScope scope, CancellationToken cancellationToken)
+    internal static async ValueTask<Error?> RunCompensationAsync(ResultExecutionPolicy policy, CompensationScope scope, CancellationToken cancellationToken)
     {
         if (!scope.HasActions)
         {

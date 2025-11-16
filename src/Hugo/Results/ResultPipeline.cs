@@ -24,8 +24,7 @@ public static partial class ResultPipeline
     {
         ArgumentNullException.ThrowIfNull(operations);
 
-        return new ValueTask<Result<IReadOnlyList<T>>>(
-            Result.WhenAll(operations, policy, timeProvider ?? TimeProvider.System, cancellationToken));
+        return Result.WhenAll(operations, policy, timeProvider ?? TimeProvider.System, cancellationToken);
     }
 
     [SuppressMessage("Design", "CA1068:CancellationTokenParametersShouldComeLast", Justification = "Matches existing Go helper signatures for familiarity.")]
@@ -37,8 +36,7 @@ public static partial class ResultPipeline
     {
         ArgumentNullException.ThrowIfNull(operations);
 
-        return new ValueTask<Result<T>>(
-            Result.WhenAny(operations, policy, timeProvider ?? TimeProvider.System, cancellationToken));
+        return Result.WhenAny(operations, policy, timeProvider ?? TimeProvider.System, cancellationToken);
     }
 
     public static async ValueTask<Result<T>> RetryAsync<T>(

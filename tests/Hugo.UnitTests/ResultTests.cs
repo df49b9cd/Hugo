@@ -216,10 +216,14 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async ValueTask TraverseAsync_ShouldThrow_WhenSourceIsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => Result.TraverseAsync((IEnumerable<int>)null!, static _ => Task.FromResult(Result.Ok(0)), TestContext.Current.CancellationToken));
+    public async ValueTask TraverseAsync_ShouldThrow_WhenSourceIsNull() =>
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await Result.TraverseAsync((IEnumerable<int>)null!, static _ => Task.FromResult(Result.Ok(0)), TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
-    public async ValueTask TraverseAsync_ShouldThrow_WhenSelectorIsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => Result.TraverseAsync([], (Func<int, Task<Result<int>>>)null!, TestContext.Current.CancellationToken));
+    public async ValueTask TraverseAsync_ShouldThrow_WhenSelectorIsNull() =>
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await Result.TraverseAsync([], (Func<int, Task<Result<int>>>)null!, TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public async ValueTask TraverseAsync_ShouldReturnFailure()
