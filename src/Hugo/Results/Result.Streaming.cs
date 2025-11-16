@@ -1,8 +1,12 @@
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 
 namespace Hugo;
+
+using Unit = Go.Unit;
 
 public static partial class Result
 {
@@ -327,5 +331,29 @@ public static partial class Result
                 writer.TryComplete();
             }
         }
+    }
+
+    /// <summary>
+    /// Consumes an asynchronous sequence of results and invokes <paramref name="action"/> for each element.
+    /// Stops when the action returns failure and propagates that failure.
+    /// </summary>
+    public static async ValueTask<Result<Unit>> ForEachAsync<T>(
+        this IAsyncEnumerable<Result<T>> source,
+        Func<Result<T>, CancellationToken, ValueTask<Result<Unit>>> action,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(action);
+
+        await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            var callbackResult = await action(result, cancellationToken).ConfigureAwait(false);
+            if (callbackResult.IsFailure)
+            {
+                return callbackResult;
+            }
+        }
+
+        return Result.Ok(Unit.Value);
     }
 }

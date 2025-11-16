@@ -2,6 +2,8 @@ using System.Runtime.CompilerServices;
 
 using Microsoft.Extensions.Time.Testing;
 
+using Unit = Hugo.Go.Unit;
+
 namespace Hugo.Tests;
 
 public class ResultTests
@@ -637,6 +639,63 @@ public class ResultTests
         Assert.Single(collected);
         Assert.True(collected[0].IsFailure);
         Assert.Equal(ErrorCodes.Canceled, collected[0].Error?.Code);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask ForEachAsync_ShouldProcessEveryItem()
+    {
+        async IAsyncEnumerable<Result<int>> Source()
+        {
+            yield return Result.Ok(1);
+            await Task.Yield();
+            yield return Result.Ok(2);
+        }
+
+        int processed = 0;
+
+        var result = await Source().ForEachAsync((item, _) =>
+        {
+            if (item.IsFailure)
+            {
+                return new ValueTask<Result<Unit>>(item.CastFailure<Unit>());
+            }
+
+            Interlocked.Increment(ref processed);
+            return new ValueTask<Result<Unit>>(Result.Ok(Unit.Value));
+        });
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, processed);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask ForEachAsync_ShouldStopOnCallbackFailure()
+    {
+        var failure = Error.From("fail");
+
+        async IAsyncEnumerable<Result<int>> Source()
+        {
+            yield return Result.Ok(1);
+            yield return Result.Fail<int>(failure);
+            yield return Result.Ok(3);
+        }
+
+        int processed = 0;
+
+        var result = await Source().ForEachAsync((item, _) =>
+        {
+            Interlocked.Increment(ref processed);
+            if (item.IsFailure)
+            {
+                return new ValueTask<Result<Unit>>(item.CastFailure<Unit>());
+            }
+
+            return new ValueTask<Result<Unit>>(Result.Ok(Unit.Value));
+        });
+
+        Assert.True(result.IsFailure);
+        Assert.Same(failure, result.Error);
+        Assert.Equal(2, processed); // iteration stops after failure
     }
 
     [Fact(Timeout = 15_000)]
