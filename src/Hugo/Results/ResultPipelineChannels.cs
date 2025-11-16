@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 
 using Hugo.Policies;
 
@@ -268,19 +269,58 @@ public static class ResultPipelineChannels
         var token = linkedCts.Token;
         var provider = context.TimeProvider;
 
-        _ = Task.Run(async () =>
+        _ = Go.Run(async _ =>
         {
             var buffer = new List<T>(batchSize);
-            Task delayTask = CreateDelayTask(provider, flushInterval, token);
 
             try
             {
                 while (true)
                 {
-                    Task<bool> waitTask = source.WaitToReadAsync(token).AsTask();
-                    var completed = await Task.WhenAny(waitTask, delayTask).ConfigureAwait(false);
+                    var raceResult = await Go.RaceValueTaskAsync(
+                        new Func<CancellationToken, ValueTask<Result<WindowRaceOutcome>>>[]
+                        {
+                            async ct =>
+                            {
+                                try
+                                {
+                                    var hasData = await source.WaitToReadAsync(ct).ConfigureAwait(false);
+                                    return Result.Ok(new WindowRaceOutcome(WindowRaceWinner.ReaderReady, hasData));
+                                }
+                                catch (OperationCanceledException oce)
+                                {
+                                    return Result.Fail<WindowRaceOutcome>(Error.Canceled(token: oce.CancellationToken));
+                                }
+                            },
+                            async ct =>
+                            {
+                                try
+                                {
+                                    await CreateDelayTask(provider, flushInterval, ct).ConfigureAwait(false);
+                                    return Result.Ok(new WindowRaceOutcome(WindowRaceWinner.TimerElapsed, hasData: false));
+                                }
+                                catch (OperationCanceledException oce)
+                                {
+                                    return Result.Fail<WindowRaceOutcome>(Error.Canceled(token: oce.CancellationToken));
+                                }
+                            }
+                        },
+                        cancellationToken: token,
+                        timeProvider: provider).ConfigureAwait(false);
 
-                    if (completed == delayTask)
+                    if (raceResult.IsFailure)
+                    {
+                        if (raceResult.Error?.Code == ErrorCodes.Canceled)
+                        {
+                            throw new OperationCanceledException(token);
+                        }
+
+                        output.Writer.TryComplete(new ResultException(raceResult.Error!));
+                        return;
+                    }
+
+                    var outcome = raceResult.Value;
+                    if (outcome.Winner == WindowRaceWinner.TimerElapsed)
                     {
                         if (buffer.Count > 0)
                         {
@@ -288,11 +328,10 @@ public static class ResultPipelineChannels
                             buffer.Clear();
                         }
 
-                        delayTask = CreateDelayTask(provider, flushInterval, token);
                         continue;
                     }
 
-                    if (!await waitTask.ConfigureAwait(false))
+                    if (!outcome.HasData)
                     {
                         break;
                     }
@@ -304,7 +343,6 @@ public static class ResultPipelineChannels
                         {
                             await output.Writer.WriteAsync(buffer.ToArray(), token).ConfigureAwait(false);
                             buffer.Clear();
-                            delayTask = CreateDelayTask(provider, flushInterval, token);
                         }
                     }
                 }
@@ -378,20 +416,45 @@ public static class ResultPipelineChannels
         return new ResultPipelineSelectBuilder<TResult>(context, duration, provider ?? context.TimeProvider, cancellationToken);
     }
 
-    private static Task CreateDelayTask(TimeProvider provider, TimeSpan flushInterval, CancellationToken token)
+    private static ValueTask<bool> CreateDelayTask(TimeProvider provider, TimeSpan flushInterval, CancellationToken token)
     {
         if (token.IsCancellationRequested)
         {
-            return Task.FromCanceled(token);
+            return ValueTask.FromCanceled<bool>(token);
         }
 
         if (flushInterval == Timeout.InfiniteTimeSpan)
         {
-            return Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return AwaitInfiniteDelay(token);
         }
 
         var dueTime = flushInterval <= TimeSpan.Zero ? TimeSpan.Zero : flushInterval;
         return new WindowDelay(provider, dueTime, token).Task;
+    }
+
+    private static async ValueTask<bool> AwaitInfiniteDelay(CancellationToken token)
+    {
+        await Task.Delay(Timeout.InfiniteTimeSpan, token).ConfigureAwait(false);
+        return true;
+    }
+
+    private enum WindowRaceWinner
+    {
+        ReaderReady,
+        TimerElapsed
+    }
+
+    private readonly struct WindowRaceOutcome
+    {
+        public WindowRaceOutcome(WindowRaceWinner winner, bool hasData)
+        {
+            Winner = winner;
+            HasData = hasData;
+        }
+
+        public WindowRaceWinner Winner { get; }
+
+        public bool HasData { get; }
     }
 
     private static ChannelCase<TResult>[] WrapCases<TResult>(ResultPipelineStepContext context, IEnumerable<ChannelCase<TResult>> cases)
@@ -489,9 +552,9 @@ public static class ResultPipelineChannels
         return (linked.Token, linked);
     }
 
-    private sealed class WindowDelay
+    private sealed class WindowDelay : IValueTaskSource<bool>
     {
-        private readonly TaskCompletionSource<bool> _tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private ManualResetValueTaskSourceCore<bool> _core;
         private readonly CancellationToken _token;
         private readonly CancellationTokenRegistration _registration;
         private readonly ITimer _timer;
@@ -500,11 +563,13 @@ public static class ResultPipelineChannels
         internal WindowDelay(TimeProvider provider, TimeSpan dueTime, CancellationToken token)
         {
             _token = token;
+            _core.RunContinuationsAsynchronously = true;
+            _core.Reset();
             _registration = token.Register(static state => ((WindowDelay)state!).OnCanceled(), this);
             _timer = provider.CreateTimer(static state => ((WindowDelay)state!).OnElapsed(), this, dueTime, Timeout.InfiniteTimeSpan);
         }
 
-        internal Task Task => _tcs.Task;
+        internal ValueTask<bool> Task => new(this, _core.Version);
 
         private void OnElapsed()
         {
@@ -513,7 +578,7 @@ public static class ResultPipelineChannels
                 return;
             }
 
-            _tcs.TrySetResult(true);
+            _core.SetResult(true);
         }
 
         private void OnCanceled()
@@ -523,7 +588,7 @@ public static class ResultPipelineChannels
                 return;
             }
 
-            _tcs.TrySetCanceled(_token);
+            _core.SetException(new OperationCanceledException(_token));
         }
 
         private bool TryComplete()
@@ -537,5 +602,12 @@ public static class ResultPipelineChannels
             _registration.Dispose();
             return true;
         }
+
+        bool IValueTaskSource<bool>.GetResult(short token) => _core.GetResult(token);
+
+        ValueTaskSourceStatus IValueTaskSource<bool>.GetStatus(short token) => _core.GetStatus(token);
+
+        void IValueTaskSource<bool>.OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags) =>
+            _core.OnCompleted(continuation, state, token, flags);
     }
 }
