@@ -51,6 +51,20 @@ public static partial class Go
         return ScheduleAsync(func, cancellationToken, scheduler, creationOptions);
     }
 
+    public static ValueTask RunValueTask(
+        Func<CancellationToken, ValueTask> func,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(func);
+
+        return new ValueTask(Run(
+            async token =>
+            {
+                await func(token).ConfigureAwait(false);
+            },
+            cancellationToken));
+    }
+
     /// <summary>
     /// Reuses an already created <see cref="Task"/> without wrapping it in <see cref="Task.Run(Action)"/>.
     /// </summary>

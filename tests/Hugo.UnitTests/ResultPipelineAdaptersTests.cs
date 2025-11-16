@@ -142,7 +142,7 @@ public class ResultPipelineAdaptersTests
         var builder = ResultPipelineChannels.Select<int>(context, cancellationToken: TestContext.Current.CancellationToken);
         int builderCompensations = 0;
         builder.Case(channel.Reader, (value, token) =>
-            Task.FromResult(Result.Ok(value).WithCompensation(_ =>
+            ValueTask.FromResult(Result.Ok(value).WithCompensation(_ =>
             {
                 Interlocked.Increment(ref builderCompensations);
                 return ValueTask.CompletedTask;
@@ -297,6 +297,18 @@ public class ResultPipelineAdaptersTests
         Assert.Equal(new[] { 3 }, batches[1]);
 
         await RunCompensationAsync(scope);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task TimeProviderDelay_ShouldRespectFakeTimeProviderAdvances()
+    {
+        var provider = new FakeTimeProvider();
+        var waitTask = TimeProviderDelay.WaitAsync(provider, TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+
+        provider.Advance(TimeSpan.FromSeconds(1));
+
+        var completed = await waitTask;
+        Assert.True(completed);
     }
 
     [Fact(Timeout = 15_000)]

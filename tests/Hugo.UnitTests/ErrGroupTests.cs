@@ -14,12 +14,12 @@ public class ErrGroupTests
         using var group = new ErrGroup();
         var counter = 0;
 
-        group.Go(async ct =>
+        group.Go(AsValueTask(async ct =>
         {
             await Task.Yield();
             Interlocked.Increment(ref counter);
             return Result.Ok(Unit.Value);
-        });
+        }));
 
         group.Go(() =>
         {
@@ -42,13 +42,13 @@ public class ErrGroupTests
         var enteredSecond = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var cancellationObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        group.Go(async ct =>
+        group.Go(AsValueTask(async ct =>
         {
             await enteredSecond.Task;
             return Result.Fail<Unit>(Error.From("boom", ErrorCodes.Exception));
-        });
+        }));
 
-        group.Go(async ct =>
+        group.Go(AsValueTask(async ct =>
         {
             enteredSecond.TrySetResult(true);
 
@@ -63,7 +63,7 @@ public class ErrGroupTests
             }
 
             return Result.Ok(Unit.Value);
-        });
+        }));
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -80,11 +80,11 @@ public class ErrGroupTests
     {
         using var group = new ErrGroup();
 
-        group.Go(static async ct =>
+        group.Go(AsValueTask(static async ct =>
         {
             await Task.Yield();
             throw new InvalidOperationException("explode");
-        });
+        }));
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -100,11 +100,11 @@ public class ErrGroupTests
         using var externalCts = new CancellationTokenSource();
         using var group = new ErrGroup(externalCts.Token);
 
-        group.Go(static async ct =>
+        group.Go(AsValueTask(static async ct =>
         {
             await Task.Delay(TimeSpan.FromSeconds(5), ct);
             return Result.Ok(Unit.Value);
-        });
+        }));
 
         await externalCts.CancelAsync();
 
@@ -140,12 +140,12 @@ public class ErrGroupTests
         using var group = new ErrGroup();
         var counter = 0;
 
-        group.Go(async () =>
+        group.Go(AsValueTask(async _ =>
         {
             await Task.Yield();
             Interlocked.Increment(ref counter);
             return Result.Ok(Unit.Value);
-        });
+        }));
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -198,11 +198,11 @@ public class ErrGroupTests
         using var group = new ErrGroup();
         using var cts = new CancellationTokenSource();
 
-        group.Go(static async ct =>
+        group.Go(AsValueTask(static async ct =>
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, ct);
             return Result.Ok(Unit.Value);
-        });
+        }));
 
         var waitTask = group.WaitAsync(cts.Token);
         await cts.CancelAsync();
@@ -325,9 +325,9 @@ public class ErrGroupTests
 
     public static IEnumerable<object[]> DisposedGoOverloads()
     {
-        yield return new object[] { new Action<ErrGroup>(group => group.Go(static ct => Task.FromResult(Result.Ok(Unit.Value)))) };
+        yield return new object[] { new Action<ErrGroup>(group => group.Go(static ct => ValueTask.FromResult(Result.Ok(Unit.Value)))) };
         yield return new object[] { new Action<ErrGroup>(group => group.Go(static ct => Task.CompletedTask)) };
-        yield return new object[] { new Action<ErrGroup>(group => group.Go(static () => Task.FromResult(Result.Ok(Unit.Value)))) };
+        yield return new object[] { new Action<ErrGroup>(group => group.Go(static () => ValueTask.FromResult(Result.Ok(Unit.Value)))) };
         yield return new object[] { new Action<ErrGroup>(group => group.Go(static () => Task.CompletedTask)) };
         yield return new object[] { new Action<ErrGroup>(group => group.Go(static () => { })) };
         yield return new object[]
@@ -437,4 +437,7 @@ public class ErrGroupTests
         Assert.Null(error);
         Assert.Equal(1, invocationCount);
     }
+
+    private static Func<CancellationToken, ValueTask<Result<Unit>>> AsValueTask(Func<CancellationToken, Task<Result<Unit>>> work) =>
+        ct => new ValueTask<Result<Unit>>(work(ct));
 }

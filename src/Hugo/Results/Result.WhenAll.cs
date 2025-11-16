@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using System.Threading.Tasks;
+using System.Threading.Channels;
 
 using Hugo.Policies;
 
@@ -61,7 +61,6 @@ public static partial class Result
         var fanOut = new ValueTask<PipelineOperationResult<T>>[operationList.Count];
         var results = new PipelineOperationResult<T>[operationList.Count];
         var completed = new bool[operationList.Count];
-        List<(Task<PipelineOperationResult<T>> Task, int Index)>? pending = null;
 
         for (var i = 0; i < operationList.Count; i++)
         {
@@ -71,50 +70,30 @@ public static partial class Result
                 throw new ArgumentNullException(nameof(operations), "Operation delegate cannot be null.");
             }
 
-#pragma warning disable CA2012 // The ValueTask is stored temporarily so we can inspect synchronous completion without forcing Task allocations.
+#pragma warning disable CA2012 // ValueTasks are stored to enable concurrent awaiting.
             fanOut[i] = ExecuteWithPolicyAsync(operation, $"whenall[{i}]", effectivePolicy, timeProvider, cancellationToken);
 #pragma warning restore CA2012
-
-            if (fanOut[i].IsCompletedSuccessfully)
-            {
-                results[i] = fanOut[i].Result;
-                completed[i] = true;
-                continue;
-            }
-
-            pending ??= new List<(Task<PipelineOperationResult<T>> Task, int Index)>(operationList.Count - i);
-            pending.Add((fanOut[i].AsTask(), i));
         }
 
-        if (pending is not null)
+        try
         {
-            var pendingTasks = pending.Select(static entry => entry.Task).ToArray();
-            try
+            for (var i = 0; i < fanOut.Length; i++)
             {
-                await Task.WhenAll(pendingTasks).ConfigureAwait(false);
+                results[i] = await fanOut[i].ConfigureAwait(false);
+                completed[i] = true;
             }
-            catch (OperationCanceledException oce)
-            {
-                IReadOnlyList<(Task<PipelineOperationResult<T>> Task, int Index)> pendingSnapshot =
-                    pending is null
-                        ? Array.Empty<(Task<PipelineOperationResult<T>> Task, int Index)>()
-                        : pending;
-                var cancellationError = await BuildWhenAllCancellationErrorAsync(
-                    pendingSnapshot,
-                    results,
-                    completed,
-                    pipelineScope,
-                    effectivePolicy,
-                    oce,
-                    cancellationToken).ConfigureAwait(false);
-                return Fail<IReadOnlyList<T>>(cancellationError);
-            }
-
-            foreach (var (task, index) in pending)
-            {
-                results[index] = task.Result;
-                completed[index] = true;
-            }
+        }
+        catch (OperationCanceledException oce)
+        {
+            var cancellationError = await BuildWhenAllCancellationErrorAsync(
+                fanOut,
+                results,
+                completed,
+                pipelineScope,
+                effectivePolicy,
+                oce,
+                cancellationToken).ConfigureAwait(false);
+            return Fail<IReadOnlyList<T>>(cancellationError);
         }
 
         var values = new List<T>(results.Length);
@@ -183,24 +162,82 @@ public static partial class Result
         var effectivePolicy = policy ?? ResultExecutionPolicy.None;
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var compensationScope = new CompensationScope();
-        var pendingTasks = new List<Task<PipelineOperationResult<T>>>(operationList.Count);
-
         var errors = new List<Error>();
         PipelineOperationResult<T>? winner = null;
 
+        var operationScopes = new CompensationScope[operationList.Count];
+        var completionStates = new bool[operationList.Count];
+
+        var resultChannel = Channel.CreateUnbounded<(int Index, PipelineOperationResult<T> Outcome)>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false
+        });
+
+        var waitGroup = new WaitGroup();
         for (var i = 0; i < operationList.Count; i++)
         {
-            var operation = operationList[i];
+            var operationIndex = i;
+            var operation = operationList[operationIndex];
             if (operation is null)
             {
                 throw new ArgumentNullException(nameof(operations), "Operation delegate cannot be null.");
             }
 
-            var execution = ExecuteWithPolicyAsync(operation, $"whenany[{i}]", effectivePolicy, timeProvider, linkedCts.Token);
+            var operationScope = new CompensationScope();
+            operationScopes[operationIndex] = operationScope;
+            waitGroup.Add(1);
+#pragma warning disable CA2012
+            _ = Go.RunValueTask(
+                async ct =>
+                {
+                    try
+                    {
+                        var outcome = await ExecuteWithPolicyAsync(operation, $"whenany[{operationIndex}]", effectivePolicy, timeProvider, ct, operationScope).ConfigureAwait(false);
+                        await resultChannel.Writer.WriteAsync((operationIndex, outcome), CancellationToken.None).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                    finally
+                    {
+                        waitGroup.Done();
+                    }
+                },
+                linkedCts.Token);
+#pragma warning restore CA2012
+        }
 
-            if (execution.IsCompletedSuccessfully)
+#pragma warning disable CA2012
+        _ = Go.RunValueTask(
+            async _ =>
             {
-                var result = execution.Result;
+                try
+                {
+                    await waitGroup.WaitAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+
+                resultChannel.Writer.TryComplete();
+            },
+            linkedCts.Token);
+#pragma warning restore CA2012
+
+        var reader = resultChannel.Reader;
+        while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            while (reader.TryRead(out var entry))
+            {
+                var index = entry.Index;
+                if ((uint)index >= (uint)completionStates.Length)
+                {
+                    // A redundant completion slipped in after teardown; ignore it to keep accounting stable.
+                    continue;
+                }
+                completionStates[index] = true;
+                var result = entry.Outcome;
                 if (result.Result.IsSuccess)
                 {
                     if (winner is null)
@@ -208,17 +245,32 @@ public static partial class Result
                         winner = result;
                         errors.Clear();
                         await linkedCts.CancelAsync().ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        compensationScope.Absorb(result.Compensation);
+                        continue;
                     }
 
+                    var compensationError = await RunCompensationAsync(effectivePolicy, result.Compensation, cancellationToken).ConfigureAwait(false);
+                    if (compensationError is not null)
+                    {
+                        errors.Add(compensationError);
+                    }
                     continue;
                 }
 
                 if (result.Result.Error is { Code: ErrorCodes.Canceled })
                 {
+                    if (winner is not null)
+                    {
+                        var cancellationCompensationError = await RunCompensationAsync(effectivePolicy, result.Compensation, cancellationToken).ConfigureAwait(false);
+                        if (cancellationCompensationError is not null)
+                        {
+                            errors.Add(cancellationCompensationError);
+                        }
+                    }
+                    else
+                    {
+                        result.Compensation.Clear();
+                    }
+
                     continue;
                 }
 
@@ -227,51 +279,6 @@ public static partial class Result
                 {
                     errors.Add(result.Result.Error ?? Error.Unspecified());
                 }
-
-                continue;
-            }
-
-            pendingTasks.Add(execution.AsTask());
-        }
-
-        while (pendingTasks.Count > 0)
-        {
-            var completedTask = await Task.WhenAny(pendingTasks).ConfigureAwait(false);
-            pendingTasks.Remove(completedTask);
-
-            PipelineOperationResult<T> result;
-            try
-            {
-                result = await completedTask.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                continue;
-            }
-
-            if (result.Result.IsSuccess)
-            {
-                if (winner is null)
-                {
-                    winner = result;
-                    errors.Clear();
-                    await linkedCts.CancelAsync().ConfigureAwait(false);
-                    continue;
-                }
-
-                compensationScope.Absorb(result.Compensation);
-                continue;
-            }
-
-            if (result.Result.Error is { Code: ErrorCodes.Canceled })
-            {
-                continue;
-            }
-
-            result.Compensation.Clear();
-            if (winner is null)
-            {
-                errors.Add(result.Result.Error ?? Error.Unspecified());
             }
         }
 
@@ -295,7 +302,26 @@ public static partial class Result
             return Fail<T>(aggregate);
         }
 
-        // Run compensation for all non-selected successful operations
+        for (var i = 0; i < completionStates.Length; i++)
+        {
+            if (completionStates[i])
+            {
+                continue;
+            }
+
+            var pendingScope = operationScopes[i];
+            if (pendingScope is null)
+            {
+                continue;
+            }
+
+            var pendingCompensationError = await RunCompensationAsync(effectivePolicy, pendingScope, cancellationToken).ConfigureAwait(false);
+            if (pendingCompensationError is not null)
+            {
+                errors.Add(pendingCompensationError);
+            }
+        }
+
         var compensationFailure = await RunCompensationAsync(effectivePolicy, compensationScope, cancellationToken).ConfigureAwait(false);
         if (compensationFailure is not null)
         {
@@ -314,7 +340,7 @@ public static partial class Result
     }
 
     private static async ValueTask<Error> BuildWhenAllCancellationErrorAsync<T>(
-        IReadOnlyList<(Task<PipelineOperationResult<T>> Task, int Index)> pendingTasks,
+        ValueTask<PipelineOperationResult<T>>[] operations,
         PipelineOperationResult<T>[] results,
         bool[] completed,
         CompensationScope pipelineScope,
@@ -324,65 +350,45 @@ public static partial class Result
     {
         var partialErrors = new List<Error>();
 
-        for (var i = 0; i < completed.Length; i++)
+        for (var i = 0; i < operations.Length; i++)
         {
-            if (!completed[i])
+            if (completed[i])
             {
+                var entry = results[i];
+                if (entry.Result.IsSuccess)
+                {
+                    pipelineScope.Absorb(entry.Compensation);
+                }
+                else
+                {
+                    entry.Compensation.Clear();
+                    partialErrors.Add(entry.Result.Error ?? Error.Unspecified());
+                }
+
                 continue;
             }
 
-            var entry = results[i];
-            if (entry.Result.IsSuccess)
+            try
             {
-                pipelineScope.Absorb(entry.Compensation);
+                var entry = await operations[i].ConfigureAwait(false);
+                completed[i] = true;
+                if (entry.Result.IsSuccess)
+                {
+                    pipelineScope.Absorb(entry.Compensation);
+                }
+                else
+                {
+                    entry.Compensation.Clear();
+                    partialErrors.Add(entry.Result.Error ?? Error.Unspecified());
+                }
             }
-            else
+            catch (OperationCanceledException)
             {
-                entry.Compensation.Clear();
-                partialErrors.Add(entry.Result.Error ?? Error.Unspecified());
+                partialErrors.Add(Error.Canceled());
             }
-        }
-
-        if (pendingTasks is not null)
-        {
-            foreach (var (task, _) in pendingTasks)
+            catch (Exception ex)
             {
-                if (task is null || !task.IsCompleted)
-                {
-                    continue;
-                }
-
-                if (task.Status == TaskStatus.RanToCompletion)
-                {
-                    var entry = task.Result;
-                    if (entry.Result.IsSuccess)
-                    {
-                        pipelineScope.Absorb(entry.Compensation);
-                    }
-                    else
-                    {
-                        entry.Compensation.Clear();
-                        partialErrors.Add(entry.Result.Error ?? Error.Unspecified());
-                    }
-
-                    continue;
-                }
-
-                if (task.IsFaulted && task.Exception is { } taskException)
-                {
-                    var flattened = taskException.Flatten();
-                    foreach (var inner in flattened.InnerExceptions)
-                    {
-                        partialErrors.Add(Error.FromException(inner));
-                    }
-
-                    continue;
-                }
-
-                if (task.IsCanceled)
-                {
-                    partialErrors.Add(Error.Canceled());
-                }
+                partialErrors.Add(Error.FromException(ex));
             }
         }
 
@@ -407,7 +413,8 @@ public static partial class Result
         string stepName,
         ResultExecutionPolicy policy,
         TimeProvider timeProvider,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        CompensationScope? sharedScope = null)
     {
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentNullException.ThrowIfNull(policy);
@@ -419,24 +426,22 @@ public static partial class Result
 
         while (true)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var attemptScope = new CompensationScope();
+            var attemptScope = sharedScope ?? new CompensationScope();
             var context = new ResultPipelineStepContext(stepName, attemptScope, timeProvider, cancellationToken);
             Result<T> result;
 
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 result = await operation(context, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException oce)
             {
-                attemptScope.Clear();
                 return new PipelineOperationResult<T>(Fail<T>(Error.Canceled(token: oce.CancellationToken)), attemptScope);
-            }
+        }
 #pragma warning disable CA1031 // We need to surface unexpected exceptions as failure results rather than throwing.
             catch (Exception ex)
             {
-                attemptScope.Clear();
                 return new PipelineOperationResult<T>(Fail<T>(Error.FromException(ex)), attemptScope);
             }
 #pragma warning restore CA1031
@@ -445,8 +450,6 @@ public static partial class Result
             {
                 return new PipelineOperationResult<T>(result, attemptScope);
             }
-
-            attemptScope.Clear();
 
             var error = result.Error ?? Error.Unspecified();
             if (error.Code == ErrorCodes.Canceled)
@@ -462,7 +465,7 @@ public static partial class Result
 
             if (decision.Delay is { } delay && delay > TimeSpan.Zero)
             {
-                await timeProvider.DelayAsync(delay, cancellationToken).ConfigureAwait(false);
+                await TimeProviderDelay.WaitAsync(timeProvider, delay, cancellationToken).ConfigureAwait(false);
                 continue;
             }
 
@@ -471,8 +474,13 @@ public static partial class Result
                 var wait = scheduledAt - timeProvider.GetUtcNow();
                 if (wait > TimeSpan.Zero)
                 {
-                    await timeProvider.DelayAsync(wait, cancellationToken).ConfigureAwait(false);
+                    await TimeProviderDelay.WaitAsync(timeProvider, wait, cancellationToken).ConfigureAwait(false);
                 }
+            }
+
+            if (sharedScope is not null)
+            {
+                attemptScope.Clear();
             }
         }
     }

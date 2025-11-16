@@ -34,7 +34,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
 
     /// <summary>Executes the supplied delegate and tracks it, propagating failures.</summary>
     /// <param name="work">The delegate to execute.</param>
-    public void Go(Func<CancellationToken, Task<Result<Unit>>> work)
+    public void Go(Func<CancellationToken, ValueTask<Result<Unit>>> work)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(work);
@@ -49,11 +49,13 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(work);
 
-        RegisterAndRun(() => ExecuteAsync(async ct =>
+        Go(Adapter);
+
+        async ValueTask<Result<Unit>> Adapter(CancellationToken ct)
         {
             await work(ct).ConfigureAwait(false);
             return Result.Ok(Unit.Value);
-        }));
+        }
     }
 
     /// <summary>Executes the supplied delegate and tracks it, providing a group cancellation token.</summary>
@@ -63,7 +65,12 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(work);
 
-        RegisterAndRun(() => ExecuteAsync(_ => work()));
+        Go(Adapter);
+
+        async ValueTask<Result<Unit>> Adapter(CancellationToken _)
+        {
+            return await work().ConfigureAwait(false);
+        }
     }
 
     /// <summary>Executes the supplied delegate and tracks it, treating completion as success.</summary>
@@ -73,11 +80,13 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(work);
 
-        RegisterAndRun(() => ExecuteAsync(async _ =>
+        Go(Adapter);
+
+        async ValueTask<Result<Unit>> Adapter(CancellationToken _)
         {
             await work().ConfigureAwait(false);
             return Result.Ok(Unit.Value);
-        }));
+        }
     }
 
     /// <summary>Executes the supplied synchronous action and tracks it.</summary>
@@ -87,11 +96,13 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(work);
 
-        RegisterAndRun(() => ExecuteAsync(_ =>
+        Go(Adapter);
+
+        ValueTask<Result<Unit>> Adapter(CancellationToken _)
         {
             work();
-            return Task.FromResult(Result.Ok(Unit.Value));
-        }));
+            return ValueTask.FromResult(Result.Ok(Unit.Value));
+        }
     }
 
     /// <summary>
@@ -186,7 +197,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         }
     }
 
-    private async Task ExecuteAsync(Func<CancellationToken, Task<Result<Unit>>> work)
+    private async Task ExecuteAsync(Func<CancellationToken, ValueTask<Result<Unit>>> work)
     {
         try
         {

@@ -1,3 +1,5 @@
+using System.Threading.Tasks;
+
 using BenchmarkDotNet.Attributes;
 
 namespace Hugo.Benchmarks;
@@ -31,13 +33,13 @@ internal class ResultPipelineBenchmarks
         for (var i = 0; i < OperationCount; i++)
         {
             result = await result
-                .MapAsync(static (value, _) => Task.FromResult(value + 1))
-                .EnsureAsync(static async (value, _) =>
+                .MapAsync(static (value, _) => new ValueTask<int>(value + 1))
+                .EnsureAsync(static async ValueTask<bool> (value, _) =>
                 {
                     await Task.Yield();
                     return value % 5 != 0;
                 }, errorFactory: static value => Error.From($"Value {value} divisible by five."))
-                .RecoverAsync(static (error, _) => Task.FromResult(Result.Ok(error.Message.Length)))
+                .RecoverAsync(static (error, _) => new ValueTask<Result<int>>(Result.Ok(error.Message.Length)))
                 .ConfigureAwait(false);
         }
 
