@@ -1,6 +1,6 @@
 # Filtering Streaming Results
 
-Sometimes a data-plane stage needs to drop certain records (e.g., bad telemetry, feature flags) while letting the rest flow downstream without breaking the Result pipeline. This tutorial shows how to implement streaming filters using `Result.MapStreamAsync`, `Ensure`, and `ForEachAsync`.
+Sometimes a data-plane stage needs to drop certain records (e.g., bad telemetry, feature flags) while letting the rest flow downstream without breaking the Result pipeline. This tutorial shows how to implement streaming filters using `Result.FilterStreamAsync` and `ForEachAsync`.
 
 ## Scenario
 
@@ -13,7 +13,7 @@ You receive `Result<Record>` instances from an upstream validator. You now need 
 ## Approach
 
 1. Convert the upstream channel to `IAsyncEnumerable<Result<Record>>`.
-2. Use `Result.MapStreamAsync` to apply business rules (`Ensure`, `TapError`).
+2. Use `Result.FilterStreamAsync` to drop records that fail business rules while keeping failures untouched.
 3. Use `ForEachAsync` to consume the filtered stream.
 
 ## Step 1 – Stream Ingress Results
@@ -29,23 +29,24 @@ IAsyncEnumerable<Result<Record>> ingressResults = _validator
 ## Step 2 – Apply Filtering Rules
 
 ```csharp
-var filteredStream = Result.MapStreamAsync(
+var filteredStream = Result.FilterStreamAsync(
     ingressResults,
-    (result, token) => result
-        .Ensure(static record => record.Region != "EU", record =>
-            Error.From($"EU traffic disabled for {record.Id}", "error.filtered"))
-        .TapError(static error =>
+    record =>
+    {
+        var keep = record.Region != "EU";
+        if (!keep)
         {
-            Console.WriteLine($"filtered: {error.Message}");
-            return ValueTask.CompletedTask;
-        }),
-    cancellationToken: ct);
+            _logger.LogInformation("filtered EU record {RecordId}", record.Id);
+        }
+
+        return keep;
+    },
+    ct);
 ```
 
-Here you reuse the existing Result combinators:
-
-- `Ensure` returns a failure result if the predicate is false.
-- `TapError` logs filtered items without altering the failure.
+- Successful records that return `true` continue downstream unchanged.
+- Successful records that return `false` are dropped from the stream without introducing failures.
+- Any existing failures from upstream continue flowing so you can distinguish business-rule drops from genuine errors.
 
 ## Step 3 – Consume the Filtered Stream
 
@@ -68,6 +69,7 @@ await filteredStream.ForEachAsync(async (result, token) =>
 
 ## Summary
 
-- Streaming filters can be built with existing combinators: `Ensure` to keep/drop items, `TapError`/`TapAsync` for logging.
-- `ForEachAsync` provides a fluent way to consume the stream without `await foreach`.
+- `Result.FilterStreamAsync` drops successful records that fail your predicate while leaving failure results untouched for diagnostics.
+- Use synchronous logging inside the predicate or combine with `TapFailureEachAsync` / `TapSuccessEachAsync` to emit telemetry.
+- `ForEachAsync` provides a fluent way to consume the resulting stream without `await foreach`.
 - Because the flow keeps using `Result<T>`, compensations and diagnostics remain consistent.

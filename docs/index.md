@@ -40,6 +40,9 @@ Hugo brings Go-inspired concurrency primitives, deterministic workflows, and fun
 - **Samples**: Explore `samples/Hugo.WorkerSample` for a hosted worker that combines task queues, telemetry, and deterministic workflows. Deterministic worker variants (in-memory, SQL Server, Azure queue) live under `samples/Hugo.DeterministicWorkerSample*`; see [Deterministic persistence providers](deterministic-persistence-providers.md) for configuration guidance.
 - **Benchmarks**: Run `benchmarks/Hugo.Benchmarks` to compare Hugo primitives with baseline .NET constructs.
 - **Tooling**: The [profiling toolkit guide](how-to/profiling-toolkit.md) walks through capturing repeatable performance baselines.
+- **Sockets & gRPC**: Follow the streaming tutorials for [unary](tutorials/socket-unary.md), [one-way](tutorials/socket-oneway.md), [duplex](tutorials/socket-duplex.md), and [high-volume streaming](tutorials/socket-streaming.md) transports to see how pumps, heartbeats, batching, retries, and compensation work together.
+- **Advanced pipelines**: Need durability or upgrade orchestration? See [SafeTaskQueue socket bridge](tutorials/safetaskqueue-socket-bridge.md) and [Deterministic gate upgrade](tutorials/deterministic-gate-upgrade.md) for blueprints that combine queues, sockets, gRPC, and deterministic coordination.
+- **MeshKit blueprint**: Building peer discovery + leader election? Follow the [MeshKit tutorial](tutorials/meshkit.md) for a full stack combining SafeTaskQueue, gRPC/mTLS duplex streams, gossip, and deterministic upgrades.
 
 ## Stay in sync
 

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Sources;
 
 using Hugo.Policies;
 
@@ -141,6 +142,85 @@ public static class ResultPipelineChannels
         }
     }
 
+    public static async ValueTask<Result<Unit>> MergeWithStrategyAsync<T>(
+        ResultPipelineStepContext context,
+        IReadOnlyList<ChannelReader<T>> readers,
+        ChannelWriter<T> destination,
+        Func<IReadOnlyList<ChannelReader<T>>, CancellationToken, ValueTask<int>> selectionStrategy,
+        bool completeDestination = true,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(readers);
+        ArgumentNullException.ThrowIfNull(destination);
+        ArgumentNullException.ThrowIfNull(selectionStrategy);
+
+        CancellationTokenSource? linkedCts = null;
+        var token = LinkTokens(context.CancellationToken, cancellationToken, out linkedCts);
+
+        try
+        {
+            var completed = new bool[readers.Count];
+            int remaining = readers.Count;
+
+            while (remaining > 0 && !token.IsCancellationRequested)
+            {
+                int index = await selectionStrategy(readers, token).ConfigureAwait(false);
+                if (index < 0 || index >= readers.Count)
+                {
+                    await Task.Yield();
+                    continue;
+                }
+
+                if (completed[index])
+                {
+                    var nextIndex = GetNextActiveIndex(completed, index);
+                    if (nextIndex == -1)
+                    {
+                        break;
+                    }
+
+                    index = nextIndex;
+                }
+
+                try
+                {
+                    var value = await readers[index].ReadAsync(token).ConfigureAwait(false);
+                    await destination.WriteAsync(value, token).ConfigureAwait(false);
+                }
+                catch (ChannelClosedException)
+                {
+                    completed[index] = true;
+                    remaining--;
+                }
+            }
+
+            if (completeDestination)
+            {
+                destination.TryComplete();
+            }
+
+            var success = Result.Ok(Unit.Value);
+            context.AbsorbResult(success);
+            return success;
+        }
+        catch (OperationCanceledException oce)
+        {
+            if (completeDestination)
+            {
+                destination.TryComplete(oce);
+            }
+
+            var canceled = Result.Fail<Unit>(Error.Canceled(token: oce.CancellationToken));
+            context.AbsorbResult(canceled);
+            return canceled;
+        }
+        finally
+        {
+            linkedCts?.Dispose();
+        }
+    }
+
     public static async ValueTask<Result<Unit>> BroadcastAsync<T>(
         ResultPipelineStepContext context,
         ChannelReader<T> source,
@@ -173,6 +253,124 @@ public static class ResultPipelineChannels
         {
             linkedCts?.Dispose();
         }
+    }
+
+    public static ChannelReader<IReadOnlyList<T>> WindowAsync<T>(
+        ResultPipelineStepContext context,
+        ChannelReader<T> source,
+        int batchSize,
+        TimeSpan flushInterval,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+        if (flushInterval < TimeSpan.Zero && flushInterval != Timeout.InfiniteTimeSpan)
+        {
+            throw new ArgumentOutOfRangeException(nameof(flushInterval));
+        }
+
+        var output = Channel.CreateUnbounded<IReadOnlyList<T>>();
+        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
+        var token = linkedCts.Token;
+        var provider = context.TimeProvider;
+
+        _ = Go.Run(async _ =>
+        {
+            var buffer = new List<T>(batchSize);
+
+            try
+            {
+                while (true)
+                {
+                    var raceResult = await Go.RaceValueTaskAsync(
+                        new Func<CancellationToken, ValueTask<Result<WindowRaceOutcome>>>[]
+                        {
+                            async ct =>
+                            {
+                                try
+                                {
+                                    var hasData = await source.WaitToReadAsync(ct).ConfigureAwait(false);
+                                    return Result.Ok(new WindowRaceOutcome(WindowRaceWinner.ReaderReady, hasData));
+                                }
+                                catch (OperationCanceledException oce)
+                                {
+                                    return Result.Fail<WindowRaceOutcome>(Error.Canceled(token: oce.CancellationToken));
+                                }
+                            },
+                            async ct =>
+                            {
+                                try
+                                {
+                                    await CreateDelayTask(provider, flushInterval, ct).ConfigureAwait(false);
+                                    return Result.Ok(new WindowRaceOutcome(WindowRaceWinner.TimerElapsed, hasData: false));
+                                }
+                                catch (OperationCanceledException oce)
+                                {
+                                    return Result.Fail<WindowRaceOutcome>(Error.Canceled(token: oce.CancellationToken));
+                                }
+                            }
+                        },
+                        cancellationToken: token,
+                        timeProvider: provider).ConfigureAwait(false);
+
+                    if (raceResult.IsFailure)
+                    {
+                        if (raceResult.Error?.Code == ErrorCodes.Canceled)
+                        {
+                            throw new OperationCanceledException(token);
+                        }
+
+                        output.Writer.TryComplete(new ResultException(raceResult.Error!));
+                        return;
+                    }
+
+                    var outcome = raceResult.Value;
+                    if (outcome.Winner == WindowRaceWinner.TimerElapsed)
+                    {
+                        if (buffer.Count > 0)
+                        {
+                            await output.Writer.WriteAsync(buffer.ToArray(), token).ConfigureAwait(false);
+                            buffer.Clear();
+                        }
+
+                        continue;
+                    }
+
+                    if (!outcome.HasData)
+                    {
+                        break;
+                    }
+
+                    while (source.TryRead(out var item))
+                    {
+                        buffer.Add(item);
+                        if (buffer.Count >= batchSize)
+                        {
+                            await output.Writer.WriteAsync(buffer.ToArray(), token).ConfigureAwait(false);
+                            buffer.Clear();
+                        }
+                    }
+                }
+
+                if (buffer.Count > 0)
+                {
+                    await output.Writer.WriteAsync(buffer.ToArray(), token).ConfigureAwait(false);
+                }
+
+                output.Writer.TryComplete();
+            }
+            catch (OperationCanceledException oce)
+            {
+                output.Writer.TryComplete(oce);
+            }
+            finally
+            {
+                linkedCts.Dispose();
+            }
+        }, CancellationToken.None);
+
+        return output.Reader;
     }
 
     public static IReadOnlyList<ChannelReader<T>> FanOut<T>(
@@ -222,6 +420,47 @@ public static class ResultPipelineChannels
         ArgumentNullException.ThrowIfNull(context);
         var duration = timeout ?? Timeout.InfiniteTimeSpan;
         return new ResultPipelineSelectBuilder<TResult>(context, duration, provider ?? context.TimeProvider, cancellationToken);
+    }
+
+    private static ValueTask<bool> CreateDelayTask(TimeProvider provider, TimeSpan flushInterval, CancellationToken token)
+    {
+        if (token.IsCancellationRequested)
+        {
+            return ValueTask.FromCanceled<bool>(token);
+        }
+
+        if (flushInterval == Timeout.InfiniteTimeSpan)
+        {
+            return AwaitInfiniteDelay(token);
+        }
+
+        var dueTime = flushInterval <= TimeSpan.Zero ? TimeSpan.Zero : flushInterval;
+        return new WindowDelay(provider, dueTime, token).Task;
+    }
+
+    private static async ValueTask<bool> AwaitInfiniteDelay(CancellationToken token)
+    {
+        await Task.Delay(Timeout.InfiniteTimeSpan, token).ConfigureAwait(false);
+        return true;
+    }
+
+    private enum WindowRaceWinner
+    {
+        ReaderReady,
+        TimerElapsed
+    }
+
+    private readonly struct WindowRaceOutcome
+    {
+        public WindowRaceOutcome(WindowRaceWinner winner, bool hasData)
+        {
+            Winner = winner;
+            HasData = hasData;
+        }
+
+        public WindowRaceWinner Winner { get; }
+
+        public bool HasData { get; }
     }
 
     private static ChannelCase<TResult>[] WrapCases<TResult>(ResultPipelineStepContext context, IEnumerable<ChannelCase<TResult>> cases)
@@ -317,5 +556,78 @@ public static class ResultPipelineChannels
 
         var linked = CancellationTokenSource.CreateLinkedTokenSource(primary, secondary);
         return (linked.Token, linked);
+    }
+
+    private static int GetNextActiveIndex(bool[] completed, int currentIndex)
+    {
+        for (int offset = 1; offset <= completed.Length; offset++)
+        {
+            var candidate = (currentIndex + offset) % completed.Length;
+            if (!completed[candidate])
+            {
+                return candidate;
+            }
+        }
+
+        return -1;
+    }
+
+    private sealed class WindowDelay : IValueTaskSource<bool>
+    {
+        private ManualResetValueTaskSourceCore<bool> _core;
+        private readonly CancellationToken _token;
+        private readonly CancellationTokenRegistration _registration;
+        private readonly ITimer _timer;
+        private int _completed;
+
+        internal WindowDelay(TimeProvider provider, TimeSpan dueTime, CancellationToken token)
+        {
+            _token = token;
+            _core.RunContinuationsAsynchronously = true;
+            _core.Reset();
+            _registration = token.Register(static state => ((WindowDelay)state!).OnCanceled(), this);
+            _timer = provider.CreateTimer(static state => ((WindowDelay)state!).OnElapsed(), this, dueTime, Timeout.InfiniteTimeSpan);
+        }
+
+        internal ValueTask<bool> Task => new(this, _core.Version);
+
+        private void OnElapsed()
+        {
+            if (!TryComplete())
+            {
+                return;
+            }
+
+            _core.SetResult(true);
+        }
+
+        private void OnCanceled()
+        {
+            if (!TryComplete())
+            {
+                return;
+            }
+
+            _core.SetException(new OperationCanceledException(_token));
+        }
+
+        private bool TryComplete()
+        {
+            if (Interlocked.Exchange(ref _completed, 1) == 1)
+            {
+                return false;
+            }
+
+            _timer.Dispose();
+            _registration.Dispose();
+            return true;
+        }
+
+        bool IValueTaskSource<bool>.GetResult(short token) => _core.GetResult(token);
+
+        ValueTaskSourceStatus IValueTaskSource<bool>.GetStatus(short token) => _core.GetStatus(token);
+
+        void IValueTaskSource<bool>.OnCompleted(Action<object?> continuation, object? state, short token, ValueTaskSourceOnCompletedFlags flags) =>
+            _core.OnCompleted(continuation, state, token, flags);
     }
 }

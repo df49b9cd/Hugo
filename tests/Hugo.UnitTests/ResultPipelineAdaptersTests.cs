@@ -1,9 +1,12 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
 using Hugo;
 using Hugo.Policies;
+
+using Microsoft.Extensions.Time.Testing;
 
 using Xunit;
 
@@ -136,7 +139,7 @@ public class ResultPipelineAdaptersTests
         await channel.Writer.WriteAsync(7, TestContext.Current.CancellationToken);
         channel.Writer.TryComplete();
 
-        var builder = ResultPipelineChannels.Select<int>(context);
+        var builder = ResultPipelineChannels.Select<int>(context, cancellationToken: TestContext.Current.CancellationToken);
         int builderCompensations = 0;
         builder.Case(channel.Reader, (value, token) =>
             Task.FromResult(Result.Ok(value).WithCompensation(_ =>
@@ -209,6 +212,94 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async Task MergeWithStrategyAsync_ShouldHonorDelegateOrdering()
+    {
+        var (context, scope) = CreateContext("merge-strategy");
+        var first = Channel.CreateUnbounded<int>();
+        var second = Channel.CreateUnbounded<int>();
+        var destination = Channel.CreateUnbounded<int>();
+        var token = TestContext.Current.CancellationToken;
+
+        var readerTask = Task.Run(async () =>
+        {
+            var values = new List<int>();
+            while (await destination.Reader.WaitToReadAsync(token))
+            {
+                while (destination.Reader.TryRead(out var value))
+                {
+                    values.Add(value);
+                }
+            }
+
+            return values;
+        }, token);
+
+        var call = -1;
+        Func<IReadOnlyList<ChannelReader<int>>, CancellationToken, ValueTask<int>> strategy = (_, _) =>
+        {
+            var next = Interlocked.Increment(ref call) & 1;
+            return new ValueTask<int>(next);
+        };
+
+        var mergeTask = ResultPipelineChannels.MergeWithStrategyAsync(
+            context,
+            new[] { first.Reader, second.Reader },
+            destination.Writer,
+            strategy,
+            cancellationToken: token);
+
+        await first.Writer.WriteAsync(1, token);
+        await second.Writer.WriteAsync(2, token);
+        first.Writer.TryComplete();
+        second.Writer.TryComplete();
+
+        var result = await mergeTask;
+        Assert.True(result.IsSuccess);
+
+        var merged = await readerTask;
+        Assert.Equal(new[] { 1, 2 }, merged);
+        await RunCompensationAsync(scope);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task WindowAsync_ShouldFlushOnBatchOrInterval()
+    {
+        var provider = new FakeTimeProvider();
+        var (context, scope) = CreateContext("window", provider);
+        var source = Channel.CreateUnbounded<int>();
+        var reader = ResultPipelineChannels.WindowAsync(context, source.Reader, batchSize: 2, flushInterval: TimeSpan.FromSeconds(5), cancellationToken: TestContext.Current.CancellationToken);
+        var token = TestContext.Current.CancellationToken;
+
+        var batchesTask = Task.Run(async () =>
+        {
+            var batches = new List<IReadOnlyList<int>>();
+            while (await reader.WaitToReadAsync(token))
+            {
+                while (reader.TryRead(out var batch))
+                {
+                    batches.Add(batch);
+                }
+            }
+
+            return batches;
+        }, token);
+
+        await source.Writer.WriteAsync(1, token);
+        await source.Writer.WriteAsync(2, token);
+        await source.Writer.WriteAsync(3, token);
+
+        provider.Advance(TimeSpan.FromSeconds(5));
+        source.Writer.TryComplete();
+
+        var batches = await batchesTask;
+        Assert.Equal(2, batches.Count);
+        Assert.Equal(new[] { 1, 2 }, batches[0]);
+        Assert.Equal(new[] { 3 }, batches[1]);
+
+        await RunCompensationAsync(scope);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async Task ErrGroupAdapter_ShouldAbsorbPipelineResults()
     {
         var (context, scope) = CreateContext("errgroup");
@@ -231,10 +322,10 @@ public class ResultPipelineAdaptersTests
         Assert.Equal(1, compensationCount);
     }
 
-    private static (ResultPipelineStepContext Context, CompensationScope Scope) CreateContext(string name)
+    private static (ResultPipelineStepContext Context, CompensationScope Scope) CreateContext(string name, TimeProvider? provider = null)
     {
         var scope = new CompensationScope();
-        var context = new ResultPipelineStepContext(name, scope, TimeProvider.System, TestContext.Current.CancellationToken);
+        var context = new ResultPipelineStepContext(name, scope, provider ?? TimeProvider.System, TestContext.Current.CancellationToken);
         return (context, scope);
     }
 

@@ -1,6 +1,6 @@
 # Priority-Aware Merging of Streaming Channels
 
-When merging multiple streaming sources you may want more control than "read whichever channel has data." This tutorial shows how to build a priority-aware merge strategy on top of `ResultPipelineChannels.Select<TResult>` and `ForEachAsync`.
+When merging multiple streaming sources you may want more control than "read whichever channel has data." This tutorial shows how to build a priority-aware merge strategy using `ResultPipelineChannels.MergeWithStrategyAsync` and `ForEachAsync`.
 
 ## Scenario
 
@@ -14,38 +14,43 @@ You want to merge them into a single stream that always prefers higher prioritie
 
 ## Building a Priority Merge
 
-1. Wrap each reader in a `ChannelCase<Result<Message>>` with a priority value.
-2. Use `ResultPipelineChannels.Select<TResult>` inside a loop to pick the next item.
-3. Push the selected item into a destination channel.
+1. Create a delegate that returns the next reader index based on your priority scheme.
+2. Pass the delegate to `ResultPipelineChannels.MergeWithStrategyAsync` along with the destination writer.
 
 ```csharp
 Channel<Message> merged = Channel.CreateUnbounded<Message>();
 
-var builder = ResultPipelineChannels.Select<Result<Message>>(context);
-builder.Case(alerts, priority: 0, (message, _) => Result.Ok(Result.Ok(message)));
-builder.Case(premium, priority: 1, (message, _) => Result.Ok(Result.Ok(message)));
-builder.Case(standard, priority: 2, (message, _) => Result.Ok(Result.Ok(message)));
-
-_ = Task.Run(async () =>
+Func<IReadOnlyList<ChannelReader<Message>>, CancellationToken, ValueTask<int>> strategy = (readers, _) =>
 {
-    while (!cancellationToken.IsCancellationRequested)
+    if (!readers[0].Completion.IsCompleted)
     {
-        var result = await builder.ExecuteAsync();
-        if (result.IsFailure)
-        {
-            merged.Writer.TryComplete(result.Error);
-            break;
-        }
-
-        if (result.Value.IsSuccess)
-        {
-            await merged.Writer.WriteAsync(result.Value.Value, cancellationToken);
-        }
+        return new ValueTask<int>(0); // alerts
     }
-}, cancellationToken);
+
+    if (!readers[1].Completion.IsCompleted)
+    {
+        return new ValueTask<int>(1); // premium
+    }
+
+    return new ValueTask<int>(2); // standard
+};
+
+var mergeResult = await ResultPipelineChannels.MergeWithStrategyAsync(
+    context,
+    new[] { alerts, premium, standard },
+    merged.Writer,
+    strategy,
+    cancellationToken: cancellationToken);
+
+if (mergeResult.IsFailure)
+{
+    await Result.RunCompensationAsync(policy, scope, cancellationToken);
+    return mergeResult.CastFailure<Unit>();
+}
 ```
 
-Downstream consumers can now read from `merged.Reader` knowing that alerts/premium traffic will always win ties.
+- The strategy is called repeatedly; for each invocation you decide which reader should be polled next.
+- When every reader completes, the adapter automatically completes the destination writer (unless `completeDestination = false`).
 
 ## Streaming Consumption
 
@@ -69,6 +74,6 @@ await merged.Reader
 
 ## Summary
 
-- Priority merging is achieved by reusing the select builder with explicit priority values.
-- Wrap the loop in a background task to keep producing into a destination channel.
-- Downstream stages can stay completely oblivious to the priority logic because they simply consume the merged channel.
+- Priority merging is achieved by supplying a delegate to `ResultPipelineChannels.MergeWithStrategyAsync` that chooses the next reader.
+- The adapter handles cancellation, compensations, and destination completion so downstream stages simply consume the merged channel.
+- Continue combining the merged stream with functional combinators (`FlatMapStreamAsync`, `TapSuccessEachAsync`, `FilterStreamAsync`, etc.) to build richer pipelines.

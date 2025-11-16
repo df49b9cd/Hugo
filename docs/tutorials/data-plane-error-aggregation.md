@@ -10,42 +10,33 @@ Most streaming combinators short-circuit on the first failure. Sometimes you nee
 
 ## Implementation
 
-Use `ForEachAsync` with an error bag:
+Use `Result.CollectErrorsAsync` to gather successes and aggregate failures automatically:
 
 ```csharp
-var errors = new List<Error>();
-
-var finalResult = await ingressStream.ForEachAsync(async (result, token) =>
+var aggregation = await ingressStream.CollectErrorsAsync(ct);
+if (aggregation.IsFailure)
 {
-    if (result.IsFailure)
-    {
-        errors.Add(result.Error ?? Error.Unspecified());
-        return Result.Ok(Go.Unit.Value); // keep processing
-    }
-
-    await _repository.SaveAsync(result.Value, token);
-    return Result.Ok(Go.Unit.Value);
-}, ct);
-
-if (errors.Count > 0)
-{
-    var aggregate = errors.Count == 1
-        ? errors[0]
-        : Error.Aggregate("One or more records failed", errors);
-
-    return Result.Fail<Unit>(aggregate);
+    return aggregation.CastFailure<Unit>();
 }
 
-return finalResult;
+foreach (var record in aggregation.Value)
+{
+    var persisted = await _repository.SaveAsync(record, ct);
+    if (persisted.IsFailure)
+    {
+        return persisted.CastFailure<Unit>();
+    }
+}
+
+return Result.Ok(Unit.Value);
 ```
 
 ## Notes
 
-- `ForEachAsync` keeps consuming the stream even when individual records fail.
-- After the iteration, you decide whether to return success or a combined failure.
-- You can enrich each error with metadata (e.g., record IDs) before adding it to the list.
+- The helper returns either a success containing the accumulated values or a single aggregated `Error`.
+- Because it never throws, you remain inside the Result pipeline and can continue chaining combinators (`TapFailureEachAsync` for logging, etc.).
 
 ## Summary
 
-- Aggregating errors is a matter of collecting them during `ForEachAsync` and returning a single `Result.Fail` at the end.
-- The approach preserves Result semantics (you can still replay compensations or short-circuit early by returning failure from the callback).
+- `Result.CollectErrorsAsync` consumes the stream, keeps all successful values, and collapses failures into one `Error` (using `Error.Aggregate` when necessary).
+- After aggregation, you can continue processing or bubble up the combined failure while still replaying compensations as usual.

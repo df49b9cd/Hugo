@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -112,6 +113,53 @@ public static partial class Result
         finally
         {
             await enumerator.DisposeAsync();
+        }
+    }
+
+    /// <summary>Projects an asynchronous sequence into nested sequences and flattens the results.</summary>
+    public static async IAsyncEnumerable<Result<TOut>> FlatMapStreamAsync<TIn, TOut>(
+        IAsyncEnumerable<TIn> source,
+        Func<TIn, CancellationToken, IAsyncEnumerable<Result<TOut>>> selector,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(selector);
+
+        await foreach (var value in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            var inner = selector(value, cancellationToken) ?? throw new InvalidOperationException("Selector returned null stream.");
+            await foreach (var projected in inner.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                yield return projected;
+                if (projected.IsFailure)
+                {
+                    yield break;
+                }
+            }
+        }
+    }
+
+    /// <summary>Drops successful values that do not satisfy the predicate while leaving failure results untouched.</summary>
+    public static async IAsyncEnumerable<Result<T>> FilterStreamAsync<T>(
+        IAsyncEnumerable<Result<T>> source,
+        Func<T, bool> predicate,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(predicate);
+
+        await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            if (result.IsFailure)
+            {
+                yield return result;
+                continue;
+            }
+
+            if (predicate(result.Value))
+            {
+                yield return result;
+            }
         }
     }
 
@@ -355,5 +403,93 @@ public static partial class Result
         }
 
         return Result.Ok(Unit.Value);
+    }
+
+    public static async ValueTask<Result<Unit>> ForEachLinkedCancellationAsync<T>(
+        this IAsyncEnumerable<Result<T>> source,
+        Func<Result<T>, CancellationToken, ValueTask<Result<Unit>>> action,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(action);
+
+        await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var callbackResult = await action(result, linkedCts.Token).ConfigureAwait(false);
+            if (callbackResult.IsFailure)
+            {
+                return callbackResult;
+            }
+        }
+
+        return Result.Ok(Unit.Value);
+    }
+
+    public static ValueTask<Result<Unit>> TapSuccessEachAsync<T>(
+        this IAsyncEnumerable<Result<T>> source,
+        Func<T, CancellationToken, ValueTask> tap,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(tap);
+        return source.ForEachAsync(async (result, token) =>
+        {
+            if (result.IsSuccess)
+            {
+                await tap(result.Value, token).ConfigureAwait(false);
+            }
+
+            return Result.Ok(Unit.Value);
+        }, cancellationToken);
+    }
+
+    public static ValueTask<Result<Unit>> TapFailureEachAsync<T>(
+        this IAsyncEnumerable<Result<T>> source,
+        Func<Error, CancellationToken, ValueTask> tap,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(tap);
+        return source.ForEachAsync(async (result, token) =>
+        {
+            if (result.IsFailure && result.Error is not null)
+            {
+                await tap(result.Error, token).ConfigureAwait(false);
+            }
+
+            return Result.Ok(Unit.Value);
+        }, cancellationToken);
+    }
+
+    public static async ValueTask<Result<IReadOnlyList<T>>> CollectErrorsAsync<T>(
+        this IAsyncEnumerable<Result<T>> source,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        var successes = new List<T>();
+        var errors = new List<Error>();
+
+        await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            if (result.IsSuccess)
+            {
+                successes.Add(result.Value);
+            }
+            else
+            {
+                errors.Add(result.Error ?? Error.Unspecified());
+            }
+        }
+
+        if (errors.Count == 0)
+        {
+            return Result.Ok<IReadOnlyList<T>>(successes);
+        }
+
+        var aggregate = errors.Count == 1
+            ? errors[0]
+            : Error.Aggregate("One or more failures occurred while processing the stream.", errors.ToArray());
+
+        return Result.Fail<IReadOnlyList<T>>(aggregate);
     }
 }

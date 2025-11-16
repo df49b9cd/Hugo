@@ -78,6 +78,10 @@ All helpers propagate the first encountered error and respect cancellation token
 
 ## Streaming and channels
 
+- `Result.MapStreamAsync<TIn, TOut>` projects `IAsyncEnumerable<TIn>` into `IAsyncEnumerable<Result<TOut>>`, halting on the first failure. Use the overload that accepts `ValueTask<Result<TOut>>` to minimize allocations.
+- `Result.FlatMapStreamAsync<TIn, TOut>` (select-many) projects each source item into an async enumerable of `Result<TOut>` and flattens the successes/failures into a single stream.
+- `Result.FilterStreamAsync<T>` drops successful values that fail your predicate while passing failures through untouched.
+- `IAsyncEnumerable<Result<T>>.ForEachAsync`, `.ForEachLinkedCancellationAsync`, `.TapSuccessEachAsync`, `.TapFailureEachAsync`, and `.CollectErrorsAsync` provide fluent consumption patterns (per-item side effects, per-item cancellation tokens, error aggregation).
 - `IAsyncEnumerable<Result<T>>.ToChannelAsync(ChannelWriter<Result<T>> writer, CancellationToken)` and `ChannelReader<Result<T>>.ReadAllAsync(CancellationToken)` bridge result streams with `System.Threading.Channels`.
 - `Result.FanInAsync` / `Result.FanOutAsync` merge or broadcast result streams across channel writers.
 - `Result.WindowAsync` batches successful values into fixed-size windows; `Result.PartitionAsync` splits streams using a predicate.
@@ -89,7 +93,8 @@ Writers are completed automatically (with the originating error when appropriate
 - `ResultPipelineChannels.SelectAsync` mirrors `Go.SelectAsync` but links into the active `ResultPipelineStepContext`, automatically absorbing any compensations attached via `Result<T>.WithCompensation(...)` so failures later in the pipeline execute the recorded rollback actions.
 - `ResultPipelineChannels.Select<TResult>(...)` exposes a pipeline-aware `SelectBuilder<TResult>` for fluent fan-in workflows without rewriting cancellation/compensation plumbing.
 - `ResultPipelineChannels.FanInAsync` exposes the same overload set as `Go.SelectFanIn*`, wrapping each handler with the pipeline’s cancellation token, time provider, and compensation scope.
-- `ResultPipelineChannels.MergeAsync` (fan-in to an existing writer) and `ResultPipelineChannels.BroadcastAsync` / `FanOut` (fan-out to existing or newly created branches) forward to `Go.FanInAsync`/`Go.FanOut` while preserving pipeline diagnostics.
+- `ResultPipelineChannels.MergeAsync`, `MergeWithStrategyAsync`, and `BroadcastAsync` / `FanOut` forward to the Go helpers while preserving pipeline diagnostics and compensation scopes.
+- `ResultPipelineChannels.WindowAsync` produces `ChannelReader<IReadOnlyList<T>>` outputs that flush when a batch size or flush interval (or both) is reached, using the pipeline’s `TimeProvider` for deterministic timers.
 
 ## Parallel orchestration and retries
 

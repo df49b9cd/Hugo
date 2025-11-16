@@ -10,32 +10,32 @@ Some services need individual records to honor their own cancellation scopes (e.
 
 ## Technique
 
-1. For each item, create a `CancellationTokenSource` linked to both the pipeline token and the item timeout.
+1. For each item, create a linked `CancellationToken` scoped to that record.
 2. Process the item with the linked token.
-3. Register compensations that observe the same linked token (for deterministic cancellation).
+3. Register compensations that observe the same token (for deterministic cancellation).
 
 ```csharp
 await Result.MapStreamAsync(workStream, (item, token) => Result.Ok(item), ct)
-    .ForEachAsync(async (result, token) =>
+    .ForEachLinkedCancellationAsync(async (result, linkedToken) =>
     {
         if (result.IsFailure)
         {
             return result.CastFailure<Unit>();
         }
 
-        using var itemCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-        itemCts.CancelAfter(result.Value.Timeout);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(linkedToken);
+        timeoutCts.CancelAfter(result.Value.Timeout);
 
         var childContext = new ResultPipelineStepContext(
             $"worker[{result.Value.Id}]",
             new CompensationScope(),
             context.TimeProvider,
-            itemCts.Token);
+            timeoutCts.Token);
 
-        var processed = await ProcessAsync(childContext, result.Value, itemCts.Token);
+        var processed = await ProcessAsync(childContext, result.Value, timeoutCts.Token);
         if (processed.IsFailure)
         {
-            await Result.RunCompensationAsync(_policy, childContext.CompensationScope, itemCts.Token);
+            await Result.RunCompensationAsync(_policy, childContext.CompensationScope, timeoutCts.Token);
             return processed.CastFailure<Unit>();
         }
 
@@ -44,11 +44,12 @@ await Result.MapStreamAsync(workStream, (item, token) => Result.Ok(item), ct)
     ct);
 ```
 
-- Each item gets its own linked token, so a timeout only cancels that item.
+- `ForEachLinkedCancellationAsync` hands you a per-item token already linked to the pipeline token; you can add more scopes (timeouts, tenant tokens) without managing the parent token manually.
 - `Result.RunCompensationAsync` replays the per-item compensations when needed.
 
 ## Summary
 
-- Use `CancellationTokenSource.CreateLinkedTokenSource` per item to scope cancellations precisely.
+- Use `ForEachLinkedCancellationAsync` to get per-item tokens automatically linked to the pipeline token.
+- Optionally wrap each linked token in another `CancellationTokenSource` to add per-record timeouts.
 - Still register compensations on the per-item context so that retries or parent cancellation can replay them.
-- `ForEachAsync` provides the hook to implement this pattern without verbose `await foreach` loops.
+- The helper keeps the fluent style while avoiding repetitive `await foreach` boilerplate.
