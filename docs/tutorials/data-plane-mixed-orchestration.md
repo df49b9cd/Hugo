@@ -68,23 +68,26 @@ var recordStream = mergedChannel.Reader
     .ReadAllAsync(cancellationToken)
     .Select(record => Result.Ok(record));
 
-await foreach (var result in Result.MapStreamAsync(
-    recordStream,
-    async (record, ct) =>
+await Result.MapStreamAsync(
+        recordStream,
+        async (record, ct) =>
+        {
+            await _validator.EnsureValidAsync(record, ct);
+            return Result.Ok(record);
+        },
+        cancellationToken)
+    .ForEachAsync(async (result, ct) =>
     {
-        await _validator.EnsureValidAsync(record, ct);
-        return Result.Ok(record);
-    },
-    cancellationToken))
-{
-    if (result.IsFailure)
-    {
-        await Result.RunCompensationAsync(_retryPolicy, scope, cancellationToken);
-        yield break;
-    }
+        if (result.IsFailure)
+        {
+            await Result.RunCompensationAsync(_retryPolicy, scope, ct);
+            return result.CastFailure<Unit>();
+        }
 
-    await _repository.SaveAsync(result.Value, cancellationToken);
-}
+        await _repository.SaveAsync(result.Value, ct);
+        return Result.Ok(Unit.Value);
+    },
+    cancellationToken);
 ```
 
 Because each stage returns `Result<T>`, downstream consumers can stop as soon as the first failure appears.
