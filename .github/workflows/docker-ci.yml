@@ -3,6 +3,7 @@ name: docker ci
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
@@ -174,3 +175,4 @@ jobs:
             artifacts/packages/*.nupkg
             artifacts/packages/*.snupkg
           generate_release_notes: true
+          fail_on_unmatched_files: true
