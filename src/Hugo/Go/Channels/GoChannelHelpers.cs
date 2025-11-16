@@ -53,7 +53,7 @@ internal static class GoChannelHelpers
             for (int i = 0; i < active.Count; i++)
             {
                 ChannelReader<T> reader = active[i];
-                cases[i] = ChannelCase<Go.Unit>.Create(reader, onValue);
+                cases[i] = ChannelCase.Create(reader, onValue);
             }
 
             Result<Go.Unit> iteration;

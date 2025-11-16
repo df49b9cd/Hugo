@@ -16,7 +16,7 @@ public readonly struct ChannelCase<TResult> : IEquatable<ChannelCase<TResult>>
     private readonly Func<object?, CancellationToken, ValueTask<Result<TResult>>> _continuation;
     private readonly Func<(bool HasValue, object? Value)>? _readyProbe;
 
-    private ChannelCase(
+    internal ChannelCase(
         Func<CancellationToken, Task<(bool HasValue, object? Value)>> waiter,
         Func<object?, CancellationToken, ValueTask<Result<TResult>>> continuation,
         Func<(bool HasValue, object? Value)>? readyProbe,
@@ -57,7 +57,7 @@ public readonly struct ChannelCase<TResult> : IEquatable<ChannelCase<TResult>>
     internal ChannelCase<TResult> WithPriority(int priority) => new(_waiter, _continuation, _readyProbe, priority, IsDefault);
 
     /// <summary>Creates a channel case using an asynchronous continuation that accepts the cancellation token.</summary>
-    public static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Func<T, CancellationToken, ValueTask<Result<TResult>>> onValue)
+    internal static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Func<T, CancellationToken, ValueTask<Result<TResult>>> onValue)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(onValue);
@@ -148,28 +148,28 @@ public readonly struct ChannelCase<TResult> : IEquatable<ChannelCase<TResult>>
     }
 
     /// <summary>Creates a channel case using an asynchronous continuation that ignores the cancellation token.</summary>
-    public static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Func<T, ValueTask<Result<TResult>>> onValue)
+    internal static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Func<T, ValueTask<Result<TResult>>> onValue)
     {
         ArgumentNullException.ThrowIfNull(onValue);
         return Create(reader, (value, _) => onValue(value));
     }
 
     /// <summary>Creates a channel case using a continuation that produces <typeparamref name="TResult"/>.</summary>
-    public static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Func<T, CancellationToken, ValueTask<TResult>> onValue)
+    internal static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Func<T, CancellationToken, ValueTask<TResult>> onValue)
     {
         ArgumentNullException.ThrowIfNull(onValue);
         return Create(reader, async (value, ct) => Result.Ok(await onValue(value, ct).ConfigureAwait(false)));
     }
 
     /// <summary>Creates a channel case using a continuation that produces <typeparamref name="TResult"/> without observing cancellation.</summary>
-    public static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Func<T, ValueTask<TResult>> onValue)
+    internal static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Func<T, ValueTask<TResult>> onValue)
     {
         ArgumentNullException.ThrowIfNull(onValue);
         return Create(reader, async (value, _) => Result.Ok(await onValue(value).ConfigureAwait(false)));
     }
 
     /// <summary>Creates a channel case using an asynchronous callback that does not produce a value.</summary>
-    public static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Func<T, CancellationToken, ValueTask> onValue)
+    internal static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Func<T, CancellationToken, ValueTask> onValue)
     {
         ArgumentNullException.ThrowIfNull(onValue);
         return Create(reader, async (value, ct) =>
@@ -180,7 +180,7 @@ public readonly struct ChannelCase<TResult> : IEquatable<ChannelCase<TResult>>
     }
 
     /// <summary>Creates a channel case using an asynchronous callback that ignores cancellation.</summary>
-    public static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Func<T, ValueTask> onValue)
+    internal static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Func<T, ValueTask> onValue)
     {
         ArgumentNullException.ThrowIfNull(onValue);
         return Create(reader, async (value, _) =>
@@ -191,7 +191,7 @@ public readonly struct ChannelCase<TResult> : IEquatable<ChannelCase<TResult>>
     }
 
     /// <summary>Creates a channel case using a synchronous callback.</summary>
-    public static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Action<T> onValue)
+    internal static ChannelCase<TResult> Create<T>(ChannelReader<T> reader, Action<T> onValue)
     {
         ArgumentNullException.ThrowIfNull(onValue);
         return Create(reader, (value, _) =>
@@ -202,7 +202,7 @@ public readonly struct ChannelCase<TResult> : IEquatable<ChannelCase<TResult>>
     }
 
     /// <summary>Creates the default case for a channel select loop.</summary>
-    public static ChannelCase<TResult> CreateDefault(Func<CancellationToken, ValueTask<Result<TResult>>> onDefault, int priority = 0)
+    internal static ChannelCase<TResult> CreateDefault(Func<CancellationToken, ValueTask<Result<TResult>>> onDefault, int priority = 0)
     {
         ArgumentNullException.ThrowIfNull(onDefault);
 
@@ -229,14 +229,14 @@ public readonly struct ChannelCase<TResult> : IEquatable<ChannelCase<TResult>>
     }
 
     /// <summary>Creates the default case for a channel select loop without observing cancellation.</summary>
-    public static ChannelCase<TResult> CreateDefault(Func<ValueTask<Result<TResult>>> onDefault, int priority = 0)
+    internal static ChannelCase<TResult> CreateDefault(Func<ValueTask<Result<TResult>>> onDefault, int priority = 0)
     {
         ArgumentNullException.ThrowIfNull(onDefault);
         return CreateDefault(_ => onDefault(), priority);
     }
 
     /// <summary>Creates the default case for a channel select loop using a synchronous callback.</summary>
-    public static ChannelCase<TResult> CreateDefault(Func<Result<TResult>> onDefault, int priority = 0)
+    internal static ChannelCase<TResult> CreateDefault(Func<Result<TResult>> onDefault, int priority = 0)
     {
         ArgumentNullException.ThrowIfNull(onDefault);
         return CreateDefault(_ => ValueTask.FromResult(onDefault()), priority);
@@ -266,6 +266,52 @@ public readonly struct ChannelCase<TResult> : IEquatable<ChannelCase<TResult>>
         && IsDefault == other.IsDefault;
 }
 
+/// <summary>
+/// Provides non-generic factory helpers for composing <see cref=ChannelCase{TResult}/> instances.
+/// </summary>
+public static class ChannelCase
+{
+    /// <summary>Creates a channel case using an asynchronous continuation that accepts the cancellation token.</summary>
+    public static ChannelCase<TResult> Create<T, TResult>(ChannelReader<T> reader, Func<T, CancellationToken, ValueTask<Result<TResult>>> onValue) =>
+        ChannelCase<TResult>.Create(reader, onValue);
+
+    /// <summary>Creates a channel case using an asynchronous continuation that ignores the cancellation token.</summary>
+    public static ChannelCase<TResult> Create<T, TResult>(ChannelReader<T> reader, Func<T, ValueTask<Result<TResult>>> onValue) =>
+        ChannelCase<TResult>.Create(reader, onValue);
+
+    /// <summary>Creates a channel case using a continuation that produces <typeparamref name="TResult"/>.</summary>
+    public static ChannelCase<TResult> Create<T, TResult>(ChannelReader<T> reader, Func<T, CancellationToken, ValueTask<TResult>> onValue) =>
+        ChannelCase<TResult>.Create(reader, onValue);
+
+    /// <summary>Creates a channel case using an asynchronous continuation that produces <typeparamref name="TResult"/>.</summary>
+    public static ChannelCase<TResult> Create<T, TResult>(ChannelReader<T> reader, Func<T, ValueTask<TResult>> onValue) =>
+        ChannelCase<TResult>.Create(reader, onValue);
+
+    /// <summary>Creates a channel case using an asynchronous continuation that observes the cancellation token but returns no result.</summary>
+    public static ChannelCase<TResult> Create<T, TResult>(ChannelReader<T> reader, Func<T, CancellationToken, ValueTask> onValue) =>
+        ChannelCase<TResult>.Create(reader, onValue);
+
+    /// <summary>Creates a channel case using an asynchronous continuation that ignores the cancellation token and returns no result.</summary>
+    public static ChannelCase<TResult> Create<T, TResult>(ChannelReader<T> reader, Func<T, ValueTask> onValue) =>
+        ChannelCase<TResult>.Create(reader, onValue);
+
+    /// <summary>Creates a channel case using a synchronous callback.</summary>
+    public static ChannelCase<TResult> Create<T, TResult>(ChannelReader<T> reader, Action<T> onValue) =>
+        ChannelCase<TResult>.Create(reader, onValue);
+
+    /// <summary>Creates the default case for a channel select loop.</summary>
+    public static ChannelCase<TResult> CreateDefault<TResult>(Func<CancellationToken, ValueTask<Result<TResult>>> onDefault, int priority = 0) =>
+        ChannelCase<TResult>.CreateDefault(onDefault, priority);
+
+    /// <summary>Creates the default case for a channel select loop without observing cancellation.</summary>
+    public static ChannelCase<TResult> CreateDefault<TResult>(Func<ValueTask<Result<TResult>>> onDefault, int priority = 0) =>
+        ChannelCase<TResult>.CreateDefault(onDefault, priority);
+
+    /// <summary>Creates the default case for a channel select loop using a synchronous callback.</summary>
+    public static ChannelCase<TResult> CreateDefault<TResult>(Func<Result<TResult>> onDefault, int priority = 0) =>
+        ChannelCase<TResult>.CreateDefault(onDefault, priority);
+}
+
 internal sealed class DeferredRead<T>(ChannelReader<T> reader)
 {
     public ChannelReader<T> Reader { get; } = reader ?? throw new ArgumentNullException(nameof(reader));
@@ -285,19 +331,19 @@ public readonly struct ChannelCaseTemplate<T>(ChannelReader<T> reader) : IEquata
 {
     public ChannelReader<T> Reader { get; } = reader ?? throw new ArgumentNullException(nameof(reader));
 
-    public ChannelCase<TResult> With<TResult>(Func<T, CancellationToken, ValueTask<Result<TResult>>> onValue) => ChannelCase<TResult>.Create(Reader, onValue);
+    public ChannelCase<TResult> With<TResult>(Func<T, CancellationToken, ValueTask<Result<TResult>>> onValue) => ChannelCase.Create<T, TResult>(Reader, onValue);
 
-    public ChannelCase<TResult> With<TResult>(Func<T, ValueTask<Result<TResult>>> onValue) => ChannelCase<TResult>.Create(Reader, onValue);
+    public ChannelCase<TResult> With<TResult>(Func<T, ValueTask<Result<TResult>>> onValue) => ChannelCase.Create<T, TResult>(Reader, onValue);
 
-    public ChannelCase<TResult> With<TResult>(Func<T, CancellationToken, ValueTask<TResult>> onValue) => ChannelCase<TResult>.Create(Reader, onValue);
+    public ChannelCase<TResult> With<TResult>(Func<T, CancellationToken, ValueTask<TResult>> onValue) => ChannelCase.Create<T, TResult>(Reader, onValue);
 
-    public ChannelCase<TResult> With<TResult>(Func<T, ValueTask<TResult>> onValue) => ChannelCase<TResult>.Create(Reader, onValue);
+    public ChannelCase<TResult> With<TResult>(Func<T, ValueTask<TResult>> onValue) => ChannelCase.Create<T, TResult>(Reader, onValue);
 
-    public ChannelCase<TResult> With<TResult>(Func<T, CancellationToken, ValueTask> onValue) => ChannelCase<TResult>.Create(Reader, onValue);
+    public ChannelCase<TResult> With<TResult>(Func<T, CancellationToken, ValueTask> onValue) => ChannelCase.Create<T, TResult>(Reader, onValue);
 
-    public ChannelCase<TResult> With<TResult>(Func<T, ValueTask> onValue) => ChannelCase<TResult>.Create(Reader, onValue);
+    public ChannelCase<TResult> With<TResult>(Func<T, ValueTask> onValue) => ChannelCase.Create<T, TResult>(Reader, onValue);
 
-    public ChannelCase<TResult> With<TResult>(Action<T> onValue) => ChannelCase<TResult>.Create(Reader, onValue);
+    public ChannelCase<TResult> With<TResult>(Action<T> onValue) => ChannelCase.Create<T, TResult>(Reader, onValue);
 
     public override bool Equals(object? obj) => obj is ChannelCaseTemplate<T> other && Equals(other);
 

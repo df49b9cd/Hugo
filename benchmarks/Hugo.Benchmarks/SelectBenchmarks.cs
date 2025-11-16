@@ -47,7 +47,7 @@ internal class SelectBenchmarks
             for (var i = 0; i < channels.Length; i++)
             {
                 var reader = channels[i].Reader;
-                cases[i] = ChannelCase<Go.Unit>.Create(reader, async (value, ct) =>
+                cases[i] = ChannelCase.Create(reader, async (value, ct) =>
                 {
                     total += value;
                     BenchmarkWorkloads.SimulateLightCpuWork();

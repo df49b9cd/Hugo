@@ -654,14 +654,14 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public void ChannelCase_Create_ShouldThrow_WhenReaderIsNull() => Assert.Throws<ArgumentNullException>(static () => ChannelCase<Go.Unit>.Create<int>(null!, static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value))));
+    public void ChannelCase_Create_ShouldThrow_WhenReaderIsNull() => Assert.Throws<ArgumentNullException>(static () => ChannelCase.Create<int, Go.Unit>(null!, static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value))));
 
     [Fact(Timeout = 15_000)]
     public void ChannelCase_Create_ShouldThrow_WhenContinuationIsNull()
     {
         var channel = MakeChannel<int>();
 
-        Assert.Throws<ArgumentNullException>(() => ChannelCase<Go.Unit>.Create(channel.Reader, (Func<int, CancellationToken, ValueTask<Result<Go.Unit>>>)null!));
+        Assert.Throws<ArgumentNullException>(() => ChannelCase.Create<int, Go.Unit>(channel.Reader, (Func<int, CancellationToken, ValueTask<Result<Go.Unit>>>)null!));
     }
 
     [Fact(Timeout = 15_000)]
@@ -669,7 +669,7 @@ public partial class GoTests
     {
         var channel = MakeChannel<int>();
 
-        Assert.Throws<ArgumentNullException>(() => ChannelCase<Go.Unit>.Create(channel.Reader, (Action<int>)null!));
+        Assert.Throws<ArgumentNullException>(() => ChannelCase.Create<int, Go.Unit>(channel.Reader, (Action<int>)null!));
     }
 
     [Fact(Timeout = 15_000)]
@@ -682,7 +682,7 @@ public partial class GoTests
     public async Task SelectAsync_ShouldThrow_WhenTimeoutIsNegative()
     {
         var channel = MakeChannel<int>();
-        var @case = ChannelCase<Go.Unit>.Create(channel.Reader, (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)));
+        var @case = ChannelCase.Create(channel.Reader, (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)));
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await SelectAsync<Go.Unit>(TimeSpan.FromMilliseconds(-5), cancellationToken: TestContext.Current.CancellationToken, cases: [@case]));
     }
@@ -693,7 +693,7 @@ public partial class GoTests
         var channel = MakeChannel<int>();
         channel.Writer.TryComplete();
 
-        var result = await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase<Go.Unit>.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Unit.Value)))]);
+        var result = await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Unit.Value)))]);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.SelectDrained, result.Error?.Code);
@@ -708,7 +708,7 @@ public partial class GoTests
             cancellationToken: TestContext.Current.CancellationToken,
             cases:
             [
-                ChannelCase<Go.Unit>.CreateDefault(ct =>
+                ChannelCase.CreateDefault(ct =>
                 {
                     invoked = true;
                     Assert.True(ct.CanBeCanceled);
@@ -727,7 +727,7 @@ public partial class GoTests
             cancellationToken: TestContext.Current.CancellationToken,
             cases:
             [
-                ChannelCase<Go.Unit>.CreateDefault(static () => Result.Fail<Unit>(Error.From("default failure", ErrorCodes.Validation)))
+                ChannelCase.CreateDefault(static () => Result.Fail<Unit>(Error.From("default failure", ErrorCodes.Validation)))
             ]);
 
         Assert.True(result.IsFailure);
@@ -747,12 +747,12 @@ public partial class GoTests
             cancellationToken: TestContext.Current.CancellationToken,
             cases:
             [
-                ChannelCase<Go.Unit>.CreateDefault(() =>
+                ChannelCase.CreateDefault(() =>
                 {
                     defaultInvoked = true;
                     return Result.Ok(Unit.Value);
                 }),
-                ChannelCase<Go.Unit>.Create(channel.Reader, value =>
+                ChannelCase.Create(channel.Reader, value =>
                 {
                     Assert.Equal(42, value);
                     return ValueTask.FromResult(Result.Ok(Unit.Value));
@@ -769,8 +769,8 @@ public partial class GoTests
                                                                                                  cancellationToken: TestContext.Current.CancellationToken,
                                                                                                  cases:
                                                                                                  [
-                                                                                                     ChannelCase<Go.Unit>.CreateDefault(static () => Result.Ok(Unit.Value)),
-                    ChannelCase<Go.Unit>.CreateDefault(static () => Result.Ok(Unit.Value))
+                                                                                                     ChannelCase.CreateDefault(static () => Result.Ok(Unit.Value)),
+                    ChannelCase.CreateDefault(static () => Result.Ok(Unit.Value))
                                                                                                  ]));
 
     [Fact(Timeout = 15_000)]
@@ -780,7 +780,7 @@ public partial class GoTests
         channel.Writer.TryWrite(42);
         channel.Writer.TryComplete();
 
-        var result = await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase<Go.Unit>.Create(channel.Reader, (Action<int>)(static _ => throw new InvalidOperationException("boom")))]);
+        var result = await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create<int, Go.Unit>(channel.Reader, (Action<int>)(static _ => throw new InvalidOperationException("boom")))]);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
@@ -801,13 +801,13 @@ public partial class GoTests
             cancellationToken: cts.Token,
             cases:
             [
-                ChannelCase<Go.Unit>.Create(channel1.Reader, (value, _) =>
+                ChannelCase.Create(channel1.Reader, (value, _) =>
                 {
                     firstExecuted = true;
                     Assert.Equal(42, value);
                     return ValueTask.FromResult(Result.Ok(Go.Unit.Value));
                 }),
-                ChannelCase<Go.Unit>.Create(channel2.Reader, (value, _) =>
+                ChannelCase.Create(channel2.Reader, (value, _) =>
                 {
                     secondExecuted = true;
                     return ValueTask.FromResult(Result.Ok(Go.Unit.Value));
@@ -839,7 +839,7 @@ public partial class GoTests
             cancellationToken: cts.Token,
             cases:
             [
-                ChannelCase<Go.Unit>.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)))
+                ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)))
             ]);
 
         Assert.False(selectTask.IsCompleted);
@@ -862,7 +862,7 @@ public partial class GoTests
 
         var selectTask = SelectAsync<Go.Unit>(
             cancellationToken: cts.Token,
-            cases: [ChannelCase<Go.Unit>.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)))]);
+            cases: [ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)))]);
 
         cts.CancelAfter(20);
 
@@ -895,7 +895,7 @@ public partial class GoTests
                 cancellationToken: TestContext.Current.CancellationToken,
                 cases:
                 [
-                    ChannelCase<Go.Unit>.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Unit.Value)))
+                    ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Unit.Value)))
                 ]);
 
             Assert.True(result.IsSuccess);
@@ -939,7 +939,7 @@ public partial class GoTests
                 cancellationToken: TestContext.Current.CancellationToken,
                 cases:
                 [
-                    ChannelCase<Go.Unit>.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Fail<Unit>(Error.From("failure", "error.activity"))))
+                    ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Fail<Unit>(Error.From("failure", "error.activity"))))
                 ]);
 
             Assert.True(result.IsFailure);
@@ -983,7 +983,7 @@ public partial class GoTests
 
         var cases = new[]
         {
-            ChannelCase<Go.Unit>.Create(channel.Reader, (value, _) =>
+            ChannelCase.Create(channel.Reader, (value, _) =>
             {
                 observed.Add(value);
                 return ValueTask.FromResult(Result.Ok(Unit.Value));

@@ -411,7 +411,7 @@ public sealed class SelectBuilder<TResult>
 
     private static ChannelCase<TResult> CreateCase<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue, TaskCompletionSource<Result<TResult>> completion, int priority)
     {
-        ChannelCase<TResult> channelCase = ChannelCase<TResult>.Create(reader, InvokeAsync);
+        ChannelCase<TResult> channelCase = ChannelCase.Create(reader, InvokeAsync);
 
         async ValueTask<Result<TResult>> InvokeAsync(T value, CancellationToken ct)
         {
@@ -439,7 +439,7 @@ public sealed class SelectBuilder<TResult>
 
     private static ChannelCase<TResult> CreateDefaultCase(Func<CancellationToken, Task<Result<TResult>>> onDefault, TaskCompletionSource<Result<TResult>> completion, int priority)
     {
-        var defaultCase = ChannelCase<TResult>.CreateDefault(WrapDefaultAsync, priority);
+        var defaultCase = ChannelCase.CreateDefault(WrapDefaultAsync, priority);
 
         async ValueTask<Result<TResult>> WrapDefaultAsync(CancellationToken ct)
         {

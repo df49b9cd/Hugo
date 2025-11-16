@@ -30,7 +30,7 @@ public class ResultPipelineAdaptersTests
 
         var cases = new[]
         {
-            ChannelCase<int>.Create(channel.Reader, (value, ct) =>
+            ChannelCase.Create(channel.Reader, (value, ct) =>
                 ValueTask.FromResult(
                     Result.Ok(value)
                         .WithCompensation(_ =>

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Converted the Go concurrency surface (`Go.Select*`, fan-in/out helpers, retries/timeouts, timers, and top-level `Go.Run`) to return `ValueTask`/`ValueTask<T>` instead of `Task`, aligning with .NET guidance for allocation-sensitive flows.
 - Replaced `ChannelCase` with the generic `ChannelCase<TResult>` so select continuations no longer rely on `Result<Go.Unit>` sentinels. All `ChannelCase` factories now accept ValueTask-based delegates, and `SelectBuilder.ExecuteAsync` returns `ValueTask<Result<TResult>>`.
+- Added a non-generic `ChannelCase` factory class and retired the public `ChannelCase<TResult>.Create*`/`CreateDefault` members to comply with CA1000. Consumers now call `ChannelCase.Create`/`ChannelCase.CreateDefault` while existing selectors keep their behavior.
 
 ### Added
 
