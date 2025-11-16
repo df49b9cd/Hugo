@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
 ARG DOTNET_VERSION=10.0
-ARG TEST_PROJECTS="tests/Hugo.UnitTests/Hugo.UnitTests.csproj tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj tests/Hugo.FeatureTests/Hugo.FeatureTests.csproj tests/Hugo.Deterministic.Cosmos.Tests/Hugo.Deterministic.Cosmos.Tests.csproj tests/Hugo.Deterministic.Redis.Tests/Hugo.Deterministic.Redis.Tests.csproj tests/Hugo.Deterministic.SqlServer.Tests/Hugo.Deterministic.SqlServer.Tests.csproj"
+# ARG TEST_PROJECTS="tests/Hugo.UnitTests/Hugo.UnitTests.csproj tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj tests/Hugo.FeatureTests/Hugo.FeatureTests.csproj tests/Hugo.Deterministic.Cosmos.Tests/Hugo.Deterministic.Cosmos.Tests.csproj tests/Hugo.Deterministic.Redis.Tests/Hugo.Deterministic.Redis.Tests.csproj tests/Hugo.Deterministic.SqlServer.Tests/Hugo.Deterministic.SqlServer.Tests.csproj"
+ARG TEST_PROJECTS="tests/Hugo.UnitTests/Hugo.UnitTests.csproj tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj tests/Hugo.FeatureTests/Hugo.FeatureTests.csproj"
 
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-alpine AS base
 

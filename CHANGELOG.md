@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Reordered `ResultPipeline.RetryAsync` optional arguments so `CancellationToken` is now the final parameter and replaced ad-hoc `ILogger` calls with source-generated `LoggerMessage` delegates, eliminating CA1068/CA1848 without sacrificing diagnostics context.
+- `ResultPipelineChannels.DecorateCases` now operates on `ChannelCase<TResult>[]` to avoid redundant conversions flagged by CA1859 when wrapping select cases.
 - Converted the Go concurrency surface (`Go.Select*`, fan-in/out helpers, retries/timeouts, timers, and top-level `Go.Run`) to return `ValueTask`/`ValueTask<T>` instead of `Task`, aligning with .NET guidance for allocation-sensitive flows.
 - Replaced `ChannelCase` with the generic `ChannelCase<TResult>` so select continuations no longer rely on `Result<Go.Unit>` sentinels. All `ChannelCase` factories now accept ValueTask-based delegates, and `SelectBuilder.ExecuteAsync` returns `ValueTask<Result<TResult>>`.
 - Added a non-generic `ChannelCase` factory class and retired the public `ChannelCase<TResult>.Create*`/`CreateDefault` members to comply with CA1000. Consumers now call `ChannelCase.Create`/`ChannelCase.CreateDefault` while existing selectors keep their behavior.
@@ -42,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Deterministic test projects now build as executables so the generated entry points target the existing `Xunit.MicrosoftTestingPlatform` runner rather than the unavailable `Xunit.Runner.InProc.SystemConsole.TestingPlatform`, eliminating CS0234 failures during CI builds.
+- CI Docker builds now honor `HUGO_SKIP_DETERMINISTIC_TESTS`, running the fast suites by default and logging the container-backed deterministic suites as intentionally skipped to avoid nested Docker failures.
 - `Result.WhenAny` now deterministically returns the first successful result even if other operations fail or cancel after the winner is selected.
 - `PrioritizedChannelReader` stops draining entire priority queues into its buffer, ensuring `BoundedChannelFullMode` and per-level capacity apply under sustained load (PA-010).
 - `PrioritizedChannelReader.WaitToReadAsync` now observes and rethrows exceptions or cancellations from individual priority lanes, eliminating `UnobservedTaskException` crashes when one lane faults (PA-012).

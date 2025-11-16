@@ -474,10 +474,10 @@ public static class ResultPipelineChannels
         return DecorateCases(context, list);
     }
 
-    private static ChannelCase<TResult>[] DecorateCases<TResult>(ResultPipelineStepContext context, IReadOnlyList<ChannelCase<TResult>> cases)
+    private static ChannelCase<TResult>[] DecorateCases<TResult>(ResultPipelineStepContext context, ChannelCase<TResult>[] cases)
     {
-        var wrapped = new ChannelCase<TResult>[cases.Count];
-        for (int i = 0; i < cases.Count; i++)
+        var wrapped = new ChannelCase<TResult>[cases.Length];
+        for (int i = 0; i < cases.Length; i++)
         {
             var original = cases[i];
             wrapped[i] = original.WithContinuation(async (state, token) =>

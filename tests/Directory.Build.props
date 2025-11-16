@@ -2,5 +2,10 @@
   <PropertyGroup>
     <PublishAot>false</PublishAot>
     <IsAotCompatible>false</IsAotCompatible>
+    <UseMicrosoftTestingPlatform>false</UseMicrosoftTestingPlatform>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Shared/*.cs" />
+  </ItemGroup>
 </Project>

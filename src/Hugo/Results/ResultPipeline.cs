@@ -13,7 +13,7 @@ namespace Hugo;
 /// <summary>
 /// Provides high-level orchestration helpers for result pipelines, mirroring the Go concurrency surface while preserving compensation scopes.
 /// </summary>
-public static class ResultPipeline
+public static partial class ResultPipeline
 {
     [SuppressMessage("Design", "CA1068:CancellationTokenParametersShouldComeLast", Justification = "Matches existing Go helper signatures for familiarity.")]
     public static ValueTask<Result<IReadOnlyList<T>>> FanOutAsync<T>(
@@ -46,8 +46,8 @@ public static class ResultPipeline
         int maxAttempts = 3,
         TimeSpan? initialDelay = null,
         ILogger? logger = null,
-        CancellationToken cancellationToken = default,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(operation);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxAttempts);
@@ -72,10 +72,7 @@ public static class ResultPipeline
 
         if (finalResult.IsFailure && logger is not null)
         {
-            logger.LogError(
-                "Pipeline retry exhausted {MaxAttempts} attempts. Error: {Error}",
-                maxAttempts,
-                finalResult.Error?.Message ?? Error.Unspecified().Message);
+            LogPipelineRetryExhausted(logger, maxAttempts, finalResult.Error?.Message ?? Error.Unspecified().Message);
         }
 
         return finalResult;
@@ -137,13 +134,22 @@ public static class ResultPipeline
 
         if (result.IsSuccess && attempt > 1)
         {
-            logger.LogInformation("Pipeline step {StepName} succeeded on attempt {Attempt}/{MaxAttempts}.", stepName, attempt, maxAttempts);
+            LogPipelineRetrySucceeded(logger, stepName, attempt, maxAttempts);
             return;
         }
 
         if (result.IsFailure && attempt < maxAttempts)
         {
-            logger.LogWarning("Pipeline step {StepName} failed on attempt {Attempt}/{MaxAttempts}: {Error}", stepName, attempt, maxAttempts, result.Error?.Message ?? Error.Unspecified().Message);
+            LogPipelineRetryFailed(logger, stepName, attempt, maxAttempts, result.Error?.Message ?? Error.Unspecified().Message);
         }
     }
+
+    [LoggerMessage(EventId = 2001, Level = LogLevel.Information, Message = "Pipeline step {StepName} succeeded on attempt {Attempt}/{MaxAttempts}.")]
+    private static partial void LogPipelineRetrySucceeded(ILogger logger, string stepName, int attempt, int maxAttempts);
+
+    [LoggerMessage(EventId = 2002, Level = LogLevel.Warning, Message = "Pipeline step {StepName} failed on attempt {Attempt}/{MaxAttempts}: {Error}")]
+    private static partial void LogPipelineRetryFailed(ILogger logger, string stepName, int attempt, int maxAttempts, string error);
+
+    [LoggerMessage(EventId = 2003, Level = LogLevel.Error, Message = "Pipeline retry exhausted {MaxAttempts} attempts. Error: {Error}")]
+    private static partial void LogPipelineRetryExhausted(ILogger logger, int maxAttempts, string error);
 }

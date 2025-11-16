@@ -24,6 +24,13 @@ public sealed class SqlServerDeterministicStateStoreTests : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
+        if (DeterministicTestSkipper.ShouldSkip(out string? reason))
+        {
+            _skip = true;
+            _skipReason = reason;
+            return;
+        }
+
         try
         {
             await _container.StartAsync().ConfigureAwait(false);

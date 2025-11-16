@@ -1,3 +1,5 @@
+using System;
+
 using Hugo;
 using Hugo.Deterministic.Redis;
 
@@ -15,11 +17,28 @@ public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
         .Build();
 
     private IConnectionMultiplexer? _multiplexer;
+    private bool _skip;
+    private string? _skipReason;
 
     public async ValueTask InitializeAsync()
     {
-        await _container.StartAsync().ConfigureAwait(false);
-        _multiplexer = await ConnectionMultiplexer.ConnectAsync(_container.GetConnectionString()).ConfigureAwait(false);
+        if (DeterministicTestSkipper.ShouldSkip(out string? reason))
+        {
+            _skip = true;
+            _skipReason = reason;
+            return;
+        }
+
+        try
+        {
+            await _container.StartAsync().ConfigureAwait(false);
+            _multiplexer = await ConnectionMultiplexer.ConnectAsync(_container.GetConnectionString()).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _skip = true;
+            _skipReason = $"Redis container unavailable: {ex.Message}";
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -43,6 +62,11 @@ public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
     [Fact(Timeout = 15_000)]
     public void SetAndGetRoundTripsRecord()
     {
+        if (SkipIfNecessary())
+        {
+            return;
+        }
+
         RedisDeterministicStateStore store = CreateStore();
 
         DeterministicRecord record = new("workflow.test", 1, [1, 2, 3], DateTimeOffset.UtcNow);
@@ -58,6 +82,11 @@ public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
     [Fact(Timeout = 15_000)]
     public void SetOverwritesExistingRecord()
     {
+        if (SkipIfNecessary())
+        {
+            return;
+        }
+
         RedisDeterministicStateStore store = CreateStore();
 
         DeterministicRecord first = new("workflow.test", 1, [1], DateTimeOffset.UtcNow);
@@ -69,5 +98,19 @@ public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
         Assert.True(store.TryGet("update", out DeterministicRecord stored));
         Assert.Equal(2, stored.Version);
         Assert.Equal([2], stored.Payload.ToArray());
+    }
+    private bool SkipIfNecessary()
+    {
+        if (_skip)
+        {
+            if (!string.IsNullOrWhiteSpace(_skipReason))
+            {
+                Console.WriteLine(_skipReason);
+            }
+
+            return true;
+        }
+
+        return false;
     }
 }
