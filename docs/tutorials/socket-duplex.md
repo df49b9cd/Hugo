@@ -98,4 +98,47 @@ await ResultPipelineChannels.MergeWithStrategyAsync(
 
 ## When to Use
 
-Duplex patterns excel when you must keep a bidirectional socket hot while guaranteeing per-message compensation, cancellation, and correlation. Hugo’s pumps + select/fan-in primitives help you do this without scattering stateful logic across your service. 
+Duplex patterns excel when you must keep a bidirectional socket hot while guaranteeing per-message compensation, cancellation, and correlation. Hugo’s pumps + select/fan-in primitives help you do this without scattering stateful logic across your service.
+
+## gRPC Duplex Client Example
+
+.NET gRPC exposes `AsyncDuplexStreamingCall<TRequest, TResponse>` with `RequestStream` / `ResponseStream`. Plug each side into the pipelines above:
+
+```csharp
+async ValueTask<Result<Unit>> RunGrpcDuplexAsync(
+    AsyncDuplexStreamingCall<Command, Reply> call,
+    IAsyncEnumerable<Result<Command>> outbound,
+    ResultPipelineStepContext ctx,
+    CancellationToken cancellationToken)
+{
+    var sendLoop = RunSendLoopAsync(
+        outbound,
+        ctx,
+        async (command, token) =>
+        {
+            await call.RequestStream.WriteAsync(command, token);
+            return Result.Ok(Unit.Value);
+        },
+        cancellationToken);
+
+    var receiveLoop = Result.FlatMapStreamAsync(
+        call.ResponseStream.ReadAllAsync(cancellationToken),
+        async (reply, token) =>
+        {
+            yield return Result.Ok(reply);
+            if (reply.IsAck)
+            {
+                ctx.RegisterCompensation(_ => _orderBook.RollbackAsync(reply.OrderId, token));
+            }
+        },
+        cancellationToken)
+        .ForEachAsync(ProcessReplyAsync, cancellationToken);
+
+    var combined = await Result.WhenAll(new[] { sendLoop, receiveLoop }, cancellationToken: cancellationToken);
+    return combined.Bind(_ => Result.Ok(Unit.Value));
+}
+```
+
+- **Backpressure:** The send loop uses `ForEachLinkedCancellationAsync` to respect cancellation from either the pipeline or gRPC call.
+- **Heartbeats:** Use `ResultPipelineTimers.NewTicker` to periodically `WriteAsync(new Command { Heartbeat = ... })`.
+- **Failure handling:** When `ResponseStream` throws, the receive loop returns failure, triggering compensations and cancelling the send loop.

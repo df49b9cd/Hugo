@@ -67,6 +67,41 @@ await Result
 - Record per-attempt metrics: wrap the inner lambda with `TapSuccessEachAsync` / `TapFailureEachAsync`.
 - Emit heartbeat pings before the real payload by inserting a `socket.WriteAsync(heartbeat)` call guarded by `Result.PipelineTimers.NewTicker` if devices expect “keepalive” frames.
 
+## HttpClient Example
+
+Unary HTTP calls map directly to the same pipeline. Wrap `HttpClient` send/receive in `Result.TryAsync`, add retries/timeouts, and attach compensations for any state staged before the request leaves the process.
+
+```csharp
+async ValueTask<Result<HttpResponseMessage>> InvokeHttpAsync(
+    HttpRequestMessage request,
+    ResultPipelineStepContext ctx,
+    CancellationToken cancellationToken)
+{
+    ctx.RegisterCompensation(_ => _audit.LogAsync("http-rollback", cancellationToken));
+
+    return await ResultPipeline.RetryAsync(
+        (_, token) => Result.WithTimeoutAsync(
+            async innerToken =>
+            {
+                using var response = await _httpClient.SendAsync(request, innerToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return Result.Fail<HttpResponseMessage>(Error.From($"http {response.StatusCode}", ErrorCodes.Exception));
+                }
+
+                return Result.Ok(response);
+            },
+            TimeSpan.FromSeconds(3),
+            cancellationToken: token),
+        policy: ResultExecutionPolicy.ExponentialRetry(3, TimeSpan.FromMilliseconds(200)),
+        cancellationToken: cancellationToken);
+}
+```
+
+- **Functional chain:** `ValidateRequest().ThenAsync(_ => InvokeHttpAsync(...)).TapFailure(logError)` keeps validation, transport, and post-processing unified.
+- **Compensation:** Attach rollback handlers for cache entries, staged commands, or feature flags toggled prior to the HTTP call.
+- **Telemetry:** Use `TapSuccessEachAsync` to increment per-endpoint counters and `TapFailureEachAsync` to emit structured logs for failed status codes.
+
 ## When to Use
 
 Choose this pattern whenever a unary socket call needs retries, compensation, or structured errors. For high-volume fire-and-forget traffic, see the one-way tutorial; for continuous streams, use the duplex or streaming guides. 
