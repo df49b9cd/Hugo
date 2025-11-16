@@ -31,6 +31,8 @@ public static class TaskQueueReplicationJsonSerialization
     [RequiresDynamicCode("DefaultJsonTypeInfoResolver relies on runtime code generation.")]
     public static IJsonTypeInfoResolver CreateResolver<T>() => new TaskQueueReplicationJsonTypeInfoResolver<T>();
 
+    [RequiresUnreferencedCode("Uses DefaultJsonTypeInfoResolver to configure replication metadata.")]
+    [RequiresDynamicCode("DefaultJsonTypeInfoResolver relies on runtime code generation.")]
     private sealed class TaskQueueReplicationJsonTypeInfoResolver<T> : DefaultJsonTypeInfoResolver
     {
         public override JsonTypeInfo GetTypeInfo(Type type, JsonSerializerOptions options)

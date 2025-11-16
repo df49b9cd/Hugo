@@ -2,9 +2,9 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
-using Unit = Hugo.Go.Unit;
-
 using Hugo.Policies;
+
+using Unit = Hugo.Go.Unit;
 
 namespace Hugo;
 

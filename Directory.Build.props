@@ -3,7 +3,6 @@
     <AnalysisMode>Recommended</AnalysisMode>
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-    <NoWarn>$(NoWarn);CA1000;IL2026;IL3050</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup>
