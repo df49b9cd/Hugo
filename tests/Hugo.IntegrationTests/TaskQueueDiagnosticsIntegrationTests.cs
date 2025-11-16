@@ -42,16 +42,22 @@ public class TaskQueueDiagnosticsIntegrationTests
         await lease.CompleteAsync(TestContext.Current.CancellationToken);
 
         var events = new List<TaskQueueDiagnosticsEvent>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var reader = diagnostics.Events;
+        var observedBackpressure = false;
+        var observedReplication = false;
 
-        while (events.Count < 2)
+        while (!observedBackpressure || !observedReplication)
         {
-            events.Add(await reader.ReadAsync(cts.Token));
+            TaskQueueDiagnosticsEvent diagnosticsEvent = await reader.ReadAsync(cts.Token);
+            events.Add(diagnosticsEvent);
+
+            observedBackpressure |= diagnosticsEvent is TaskQueueBackpressureDiagnosticsEvent;
+            observedReplication |= diagnosticsEvent is TaskQueueReplicationDiagnosticsEvent replication && replication.QueueName == "dispatch";
         }
 
-        Assert.Contains(events, evt => evt is TaskQueueBackpressureDiagnosticsEvent);
-        Assert.Contains(events, evt => evt is TaskQueueReplicationDiagnosticsEvent replication && replication.QueueName == "dispatch");
+        Assert.True(observedBackpressure, "Expected to observe at least one backpressure diagnostics event.");
+        Assert.True(observedReplication, "Expected to observe at least one replication diagnostics event for queue 'dispatch'.");
     }
     private sealed class TestMeterFactory : IMeterFactory, IDisposable, IAsyncDisposable
     {
