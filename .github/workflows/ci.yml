@@ -75,14 +75,29 @@ jobs:
         run: dotnet publish src/Hugo/Hugo.csproj --configuration Release --framework ${{ matrix.targetFramework }} --runtime linux-x64 -p:PublishAot=true -p:StripSymbols=true -p:InvariantGlobalization=true
 
       - name: Test Hugo.UnitTests (${{ matrix.targetFramework }})
-        run: dotnet test tests/Hugo.UnitTests/Hugo.UnitTests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory tests/Hugo.UnitTests/TestResults/${{ matrix.targetFramework }}
+        id: unit_tests
+        continue-on-error: true
+        run: dotnet test tests/Hugo.UnitTests/Hugo.UnitTests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory tests/Hugo.UnitTests/TestResults/${{ matrix.targetFramework }} --logger "trx;LogFileName=unit-tests.trx"
 
       - name: Upload Hugo.UnitTests coverage (${{ matrix.targetFramework }})
+        if: steps.unit_tests.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-unit-${{ matrix.targetFramework }}
           path: tests/Hugo.UnitTests/TestResults/${{ matrix.targetFramework }}/**/*coverage.cobertura.xml
           if-no-files-found: error
+
+      - name: Report Hugo.UnitTests results (${{ matrix.targetFramework }})
+        if: always()
+        uses: dorny/test-reporter@v2
+        with:
+          name: unit-tests (${{ matrix.targetFramework }})
+          path: tests/Hugo.UnitTests/TestResults/${{ matrix.targetFramework }}/**/*.trx
+          reporter: dotnet-trx
+
+      - name: Fail when unit tests fail (${{ matrix.targetFramework }})
+        if: steps.unit_tests.outcome == 'failure'
+        run: exit 1
 
       - name: Test Hugo.IntegrationTests (${{ matrix.targetFramework }})
         run: dotnet test tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj --configuration Release --no-build --no-restore --framework ${{ matrix.targetFramework }} --collect:"XPlat Code Coverage" --results-directory tests/Hugo.IntegrationTests/TestResults/${{ matrix.targetFramework }}
