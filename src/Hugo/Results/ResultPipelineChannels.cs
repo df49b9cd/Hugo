@@ -174,7 +174,13 @@ public static class ResultPipelineChannels
 
                 if (completed[index])
                 {
-                    continue;
+                    var nextIndex = GetNextActiveIndex(completed, index);
+                    if (nextIndex == -1)
+                    {
+                        break;
+                    }
+
+                    index = nextIndex;
                 }
 
                 try
@@ -550,6 +556,20 @@ public static class ResultPipelineChannels
 
         var linked = CancellationTokenSource.CreateLinkedTokenSource(primary, secondary);
         return (linked.Token, linked);
+    }
+
+    private static int GetNextActiveIndex(bool[] completed, int currentIndex)
+    {
+        for (int offset = 1; offset <= completed.Length; offset++)
+        {
+            var candidate = (currentIndex + offset) % completed.Length;
+            if (!completed[candidate])
+            {
+                return candidate;
+            }
+        }
+
+        return -1;
     }
 
     private sealed class WindowDelay : IValueTaskSource<bool>
