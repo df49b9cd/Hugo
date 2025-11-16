@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
@@ -174,6 +175,55 @@ public static class ResultPipelineChannels
         }
     }
 
+    public static IReadOnlyList<ChannelReader<T>> FanOut<T>(
+        ResultPipelineStepContext context,
+        ChannelReader<T> source,
+        int branchCount,
+        bool completeBranches = true,
+        TimeSpan? deadline = null,
+        Func<int, Channel<T>>? channelFactory = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(source);
+
+        var (token, linkedCts) = LinkTokensForFanOut(context.CancellationToken, cancellationToken);
+        try
+        {
+            var readers = Go.FanOut(source, branchCount, completeBranches, deadline, context.TimeProvider, channelFactory, token);
+            context.RegisterCompensation(readers, static async (collection, ct) =>
+            {
+                foreach (var reader in collection)
+                {
+                    try
+                    {
+                        await reader.Completion.WaitAsync(ct).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
+            });
+            return readers;
+        }
+        finally
+        {
+            linkedCts?.Dispose();
+        }
+    }
+
+    public static ResultPipelineSelectBuilder<TResult> Select<TResult>(
+        ResultPipelineStepContext context,
+        TimeSpan? timeout = null,
+        TimeProvider? provider = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        var duration = timeout ?? Timeout.InfiniteTimeSpan;
+        return new ResultPipelineSelectBuilder<TResult>(context, duration, provider ?? context.TimeProvider, cancellationToken);
+    }
+
     private static ChannelCase<TResult>[] WrapCases<TResult>(ResultPipelineStepContext context, IEnumerable<ChannelCase<TResult>> cases)
     {
         if (cases is ChannelCase<TResult>[] caseArray)
@@ -234,6 +284,7 @@ public static class ResultPipelineChannels
         }
     }
 
+    [SuppressMessage("Design", "CA1068:CancellationTokenParametersShouldComeLast", Justification = "Private helper that links tokens for pipeline adapters.")]
     private static CancellationToken LinkTokens(CancellationToken primary, CancellationToken secondary, out CancellationTokenSource? linkedCts)
     {
         linkedCts = null;
@@ -249,5 +300,22 @@ public static class ResultPipelineChannels
 
         linkedCts = CancellationTokenSource.CreateLinkedTokenSource(primary, secondary);
         return linkedCts.Token;
+    }
+
+    [SuppressMessage("Design", "CA1068:CancellationTokenParametersShouldComeLast", Justification = "Private helper that links tokens for pipeline adapters.")]
+    private static (CancellationToken Token, CancellationTokenSource? Source) LinkTokensForFanOut(CancellationToken primary, CancellationToken secondary)
+    {
+        if (!secondary.CanBeCanceled)
+        {
+            return (primary, null);
+        }
+
+        if (!primary.CanBeCanceled)
+        {
+            return (secondary, null);
+        }
+
+        var linked = CancellationTokenSource.CreateLinkedTokenSource(primary, secondary);
+        return (linked.Token, linked);
     }
 }

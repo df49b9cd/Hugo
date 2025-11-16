@@ -22,8 +22,7 @@ public class ResultPipelineAdaptersTests
         await channel.Writer.WriteAsync(1, testToken);
         channel.Writer.TryComplete();
 
-        var scope = new CompensationScope();
-        var context = new ResultPipelineStepContext("select-test", scope, TimeProvider.System, testToken);
+        var (context, scope) = CreateContext("select-test");
         int compensationInvocations = 0;
 
         var cases = new[]
@@ -61,8 +60,7 @@ public class ResultPipelineAdaptersTests
         channelA.Writer.TryComplete();
         channelB.Writer.TryComplete();
 
-        var scope = new CompensationScope();
-        var context = new ResultPipelineStepContext("fanin-test", scope, TimeProvider.System, testToken);
+        var (context, scope) = CreateContext("fanin-test");
         int compensationCount = 0;
 
         Func<int, CancellationToken, ValueTask<Result<Unit>>> handler = async (value, ct) =>
@@ -128,5 +126,121 @@ public class ResultPipelineAdaptersTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task SelectBuilder_ShouldComposeCases()
+    {
+        var (context, scope) = CreateContext("builder");
+        var channel = Channel.CreateUnbounded<int>();
+        await channel.Writer.WriteAsync(7, TestContext.Current.CancellationToken);
+        channel.Writer.TryComplete();
+
+        var builder = ResultPipelineChannels.Select<int>(context);
+        int builderCompensations = 0;
+        builder.Case(channel.Reader, (value, token) =>
+            Task.FromResult(Result.Ok(value).WithCompensation(_ =>
+            {
+                Interlocked.Increment(ref builderCompensations);
+                return ValueTask.CompletedTask;
+            })));
+
+        var result = await builder.ExecuteAsync();
+        Assert.True(result.IsSuccess);
+        Assert.Equal(7, result.Value);
+
+        await RunCompensationAsync(scope);
+        Assert.Equal(1, builderCompensations);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task WaitGroupGo_ShouldAbsorbCompensations()
+    {
+        var (context, scope) = CreateContext("wg");
+        var wg = new WaitGroup();
+
+        int waitGroupCompensations = 0;
+        wg.Go(context, (child, token) =>
+        {
+            return ValueTask.FromResult(Result.Ok(Unit.Value).WithCompensation(_ =>
+            {
+                Interlocked.Increment(ref waitGroupCompensations);
+                return ValueTask.CompletedTask;
+            }));
+        });
+
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
+        await RunCompensationAsync(scope);
+        Assert.Equal(1, waitGroupCompensations);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task TimerAdapters_ShouldRegisterCompensation()
+    {
+        var (context, scope) = CreateContext("timer");
+        var result = await ResultPipelineTimers.DelayAsync(context, TimeSpan.Zero, TestContext.Current.CancellationToken);
+        Assert.True(result.IsSuccess);
+
+        var ticker = ResultPipelineTimers.NewTicker(context, TimeSpan.FromMilliseconds(5), TestContext.Current.CancellationToken);
+        await ticker.DisposeAsync();
+
+        Assert.True(scope.HasActions);
+        await RunCompensationAsync(scope);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task FanOut_ShouldDistributeToBranches()
+    {
+        var (context, scope) = CreateContext("fanout");
+        var source = Channel.CreateUnbounded<int>();
+        var readers = ResultPipelineChannels.FanOut(context, source.Reader, branchCount: 2, cancellationToken: TestContext.Current.CancellationToken);
+
+        var testToken = TestContext.Current.CancellationToken;
+        await source.Writer.WriteAsync(5, testToken);
+        source.Writer.TryComplete();
+
+        foreach (var reader in readers)
+        {
+            var value = await reader.ReadAsync(testToken);
+            Assert.Equal(5, value);
+        }
+
+        await RunCompensationAsync(scope);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task ErrGroupAdapter_ShouldAbsorbPipelineResults()
+    {
+        var (context, scope) = CreateContext("errgroup");
+        using var group = new ErrGroup();
+        int compensationCount = 0;
+
+        group.Go(context, (child, token) =>
+        {
+            return ValueTask.FromResult(Result.Fail<Unit>(Error.From("boom")).WithCompensation(_ =>
+            {
+                Interlocked.Increment(ref compensationCount);
+                return ValueTask.CompletedTask;
+            }));
+        });
+
+        var result = await group.WaitAsync(TestContext.Current.CancellationToken);
+        Assert.True(result.IsFailure);
+
+        await RunCompensationAsync(scope);
+        Assert.Equal(1, compensationCount);
+    }
+
+    private static (ResultPipelineStepContext Context, CompensationScope Scope) CreateContext(string name)
+    {
+        var scope = new CompensationScope();
+        var context = new ResultPipelineStepContext(name, scope, TimeProvider.System, TestContext.Current.CancellationToken);
+        return (context, scope);
+    }
+
+    private static async Task RunCompensationAsync(CompensationScope scope)
+    {
+        var policy = ResultExecutionPolicy.None.WithCompensation(ResultCompensationPolicy.SequentialReverse);
+        await Result.RunCompensationAsync(policy, scope, TestContext.Current.CancellationToken);
     }
 }

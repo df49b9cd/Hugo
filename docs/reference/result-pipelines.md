@@ -87,8 +87,9 @@ Writers are completed automatically (with the originating error when appropriate
 ### Pipeline-aware channel adapters
 
 - `ResultPipelineChannels.SelectAsync` mirrors `Go.SelectAsync` but links into the active `ResultPipelineStepContext`, automatically absorbing any compensations attached via `Result<T>.WithCompensation(...)` so failures later in the pipeline execute the recorded rollback actions.
+- `ResultPipelineChannels.Select<TResult>(...)` exposes a pipeline-aware `SelectBuilder<TResult>` for fluent fan-in workflows without rewriting cancellation/compensation plumbing.
 - `ResultPipelineChannels.FanInAsync` exposes the same overload set as `Go.SelectFanIn*`, wrapping each handler with the pipeline’s cancellation token, time provider, and compensation scope.
-- `ResultPipelineChannels.MergeAsync` (fan-in to an existing writer) and `ResultPipelineChannels.BroadcastAsync` (fan-out to existing writers) forward to `Go.FanInAsync`/`Go.FanOutAsync` while preserving pipeline diagnostics.
+- `ResultPipelineChannels.MergeAsync` (fan-in to an existing writer) and `ResultPipelineChannels.BroadcastAsync` / `FanOut` (fan-out to existing or newly created branches) forward to `Go.FanInAsync`/`Go.FanOut` while preserving pipeline diagnostics.
 
 ## Parallel orchestration and retries
 
@@ -98,6 +99,8 @@ Writers are completed automatically (with the originating error when appropriate
 - `ResultPipeline.FanOutAsync` / `ResultPipeline.RaceAsync` are thin wrappers over `Result.WhenAll` / `Result.WhenAny` that return `ValueTask<Result<T>>` to match the Go helpers without losing pipeline metadata.
 - `ResultPipeline.RetryAsync` mirrors `Go.RetryAsync` for pipeline-aware delegates, wiring optional loggers and exponential backoff hints into `ResultExecutionBuilders.ExponentialRetryPolicy`.
 - `ResultPipeline.WithTimeoutAsync` enforces deadlines with the same `TimeProvider` semantics as Go timers while ensuring compensations registered by the timed operation run before surfacing `Error.Timeout`.
+- `ResultPipelineWaitGroupExtensions.Go` and `ResultPipelineErrGroupExtensions.Go` bridge Go-style coordination primitives with result pipelines so background fan-out work participates in the same compensation scope.
+- `ResultPipelineTimers.DelayAsync`, `AfterAsync`, `NewTicker`, and `Tick` reuse the pipeline `TimeProvider`, linking cancellation tokens automatically and registering compensations to dispose timers/tickers deterministically.
 - `Result.TieredFallbackAsync` evaluates `ResultFallbackTier<T>` instances sequentially; strategies within a tier run concurrently and cancel once a peer succeeds. Metadata keys (`fallbackTier`, `tierIndex`, `strategyIndex`) are attached to failures for observability.
 - `ResultFallbackTier<T>.From(...)` adapts synchronous or asynchronous delegates into tier definitions without manually handling `ResultPipelineStepContext`.
 

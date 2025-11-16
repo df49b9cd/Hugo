@@ -219,6 +219,10 @@ These components integrate with `WorkflowExecutionContext` and instrumentation s
 | `ResultPipelineStepContext` | Passed to pipeline steps executed under a policy. Exposes `StepName`, `TimeProvider`, `CancellationToken`, and `RegisterCompensation` (with optional state + conditional registration). |
 | `ResultPipelineChannels` | Pipeline-aware wrappers over Go channel helpers (`SelectAsync`, `FanInAsync`, `MergeAsync`, `BroadcastAsync`) that automatically absorb compensation scopes emitted by continuations. |
 | `ResultPipeline` | High-level orchestration wrappers that mirror Go helpers (`FanOutAsync`, `RaceAsync`, `RetryAsync`, `WithTimeoutAsync`) while returning `ValueTask<Result<T>>` and preserving pipeline diagnostics. |
+| `ResultPipelineSelectBuilder<TResult>` | Fluent select builder that threads `ResultPipelineStepContext` through every channel case so compensations and cancellations remain aligned with the active pipeline scope. |
+| `ResultPipelineWaitGroupExtensions` | Adds pipeline-aware `Go(...)` helpers for `WaitGroup`, ensuring spawned work inherits the parent cancellation token and registers compensations automatically. |
+| `ResultPipelineErrGroupExtensions` | Bridges `ErrGroup` with `ResultPipelineStepContext` so errgroup steps share the parent pipeline’s compensation scope. |
+| `ResultPipelineTimers` | Delay/after/ticker helpers that reuse the pipeline `TimeProvider`, link cancellation tokens, and register compensations to dispose timers deterministically. |
 | `ResultExecutionBuilders` | Convenience helpers: `FixedRetryPolicy`, `ExponentialRetryPolicy`, and `CreateSaga` (which seeds a `ResultSagaBuilder` with the supplied configuration delegates). |
 
 Policies rely on `TimeProvider` for scheduling; when testing, inject `FakeTimeProvider` from `Microsoft.Extensions.TimeProvider.Testing` to deterministically advance timers.
