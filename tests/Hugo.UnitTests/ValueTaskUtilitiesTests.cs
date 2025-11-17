@@ -51,4 +51,61 @@ public sealed class ValueTaskUtilitiesTests
 
         continuationInvoked.ShouldBeTrue();
     }
+
+    [Fact(Timeout = 15_000)]
+    public async Task ContinueWith_ShouldSurfaceCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var canceled = new ValueTask<int>(Task.FromCanceled<int>(cts.Token));
+        bool continuationInvoked = false;
+
+        await canceled.ContinueWith(task =>
+        {
+            continuationInvoked = true;
+            task.AsTask().IsCanceled.ShouldBeTrue();
+        });
+
+        continuationInvoked.ShouldBeTrue();
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task WhenAll_ShouldAwaitAllOperations()
+    {
+        var completed = 0;
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        ValueTask first = new(Task.Run(async () =>
+        {
+            await Task.Delay(10, cancellationToken);
+            Interlocked.Increment(ref completed);
+        }, cancellationToken));
+
+        ValueTask second = new(Task.Run(async () =>
+        {
+            await Task.Delay(15, cancellationToken);
+            Interlocked.Increment(ref completed);
+        }, cancellationToken));
+
+        await ValueTaskUtilities.WhenAll(new[] { first, second });
+
+        completed.ShouldBe(2);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task WhenAny_DoubleGeneric_ShouldReturnOne_WhenSecondCompletesFirst()
+    {
+        var slow = new ValueTask<int>(Task.Run(async () =>
+        {
+            await Task.Delay(25, TestContext.Current.CancellationToken);
+            return 1;
+        }));
+
+        var fast = new ValueTask<string>(Task.FromResult("fast"));
+
+        int winner = await ValueTaskUtilities.WhenAny(slow, fast);
+
+        winner.ShouldBe(1);
+    }
 }

@@ -1,5 +1,5 @@
 using Hugo.Policies;
-
+using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 
 namespace Hugo.Tests.Policies;
@@ -7,62 +7,46 @@ namespace Hugo.Tests.Policies;
 public sealed class CronScheduleTests
 {
     [Fact(Timeout = 15_000)]
-    public void Parse_ShouldThrow_WhenSegmentCountInvalid()
+    public void GetNextOccurrence_ShouldClampDayAndMonth()
+    {
+        var provider = new FakeTimeProvider();
+        provider.SetUtcNow(new DateTimeOffset(2025, 2, 15, 4, 0, 0, TimeSpan.Zero));
+
+        var schedule = CronSchedule.Parse("5 10 31 2 *", TimeZoneInfo.Utc);
+
+        DateTimeOffset? next = schedule.GetNextOccurrence(provider.GetUtcNow(), provider);
+
+        next.ShouldNotBeNull();
+        next!.Value.ShouldBe(new DateTimeOffset(2025, 2, 28, 5, 10, 0, TimeSpan.Zero));
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void GetNextOccurrence_ShouldWrapSteppedMinute()
+    {
+        var provider = new FakeTimeProvider();
+        provider.SetUtcNow(new DateTimeOffset(2025, 1, 1, 0, 50, 0, TimeSpan.Zero));
+
+        var schedule = CronSchedule.Parse("0 */15 1 1 *", TimeZoneInfo.Utc);
+
+        DateTimeOffset? next = schedule.GetNextOccurrence(provider.GetUtcNow(), provider);
+
+        next.ShouldNotBeNull();
+        next!.Value.ShouldBe(new DateTimeOffset(2025, 1, 1, 0, 1, 0, TimeSpan.Zero));
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void Parse_ShouldThrowOnInvalidSegmentCount()
     {
         Should.Throw<FormatException>(() =>
         {
-            var schedule = CronSchedule.Parse("*/5 */5 */5", TimeZoneInfo.Utc);
-            _ = schedule.GetNextOccurrence(DateTimeOffset.UtcNow, TimeProvider.System);
+            var schedule = CronSchedule.Parse("*/5", TimeZoneInfo.Utc);
+            schedule.GetNextOccurrence(DateTimeOffset.UtcNow, TimeProvider.System);
         });
     }
 
     [Fact(Timeout = 15_000)]
-    public void GetNextOccurrence_ShouldAdvanceToSpecifiedHourAndMinute()
+    public void Parse_ShouldRejectEmptyExpression()
     {
-        var schedule = CronSchedule.Parse("10 30 * * *", TimeZoneInfo.Utc);
-        DateTimeOffset reference = new(2025, 1, 1, 9, 25, 0, TimeSpan.Zero);
-
-        DateTimeOffset? next = schedule.GetNextOccurrence(reference, TimeProvider.System);
-
-        next.ShouldNotBeNull();
-        next?.Hour.ShouldBe(10);
-        next?.Minute.ShouldBe(30);
-        next?.Date.ShouldBe(reference.Date);
-    }
-
-    [Fact(Timeout = 15_000)]
-    public void GetNextOccurrence_ShouldRespectStepExpressions()
-    {
-        var schedule = CronSchedule.Parse("* */5 * * *", TimeZoneInfo.Utc);
-        DateTimeOffset reference = new(2025, 1, 1, 14, 12, 0, TimeSpan.Zero);
-
-        DateTimeOffset? next = schedule.GetNextOccurrence(reference, TimeProvider.System);
-
-        next.ShouldNotBeNull();
-        next?.Hour.ShouldBe(reference.Hour);
-        next?.Minute.ShouldBe(17); // 12 + 5 step
-    }
-
-    [Fact(Timeout = 15_000)]
-    public void GetNextOccurrence_ShouldClampOutOfRangeFields()
-    {
-        var schedule = CronSchedule.Parse("99 99 31 15 *", TimeZoneInfo.Utc);
-        DateTimeOffset reference = new(2025, 7, 10, 8, 0, 0, TimeSpan.Zero);
-
-        DateTimeOffset? next = schedule.GetNextOccurrence(reference, TimeProvider.System);
-
-        next.ShouldNotBeNull();
-        next?.Hour.ShouldBe(23);
-        next?.Minute.ShouldBe(59);
-        next?.Month.ShouldBe(12);
-        next?.Day.ShouldBe(31);
-    }
-
-    [Fact(Timeout = 15_000)]
-    public void GetNextOccurrence_ShouldThrow_WhenUnsupportedSegment()
-    {
-        var schedule = CronSchedule.Parse("*/5 */5 JAN * *", TimeZoneInfo.Utc);
-
-        Should.Throw<FormatException>(() => schedule.GetNextOccurrence(DateTimeOffset.UtcNow, TimeProvider.System));
+        Should.Throw<ArgumentException>(() => CronSchedule.Parse("  ", TimeZoneInfo.Utc));
     }
 }

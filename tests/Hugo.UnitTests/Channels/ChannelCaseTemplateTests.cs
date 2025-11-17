@@ -1,5 +1,7 @@
 using System.Threading.Channels;
+using Hugo;
 using Shouldly;
+using Unit = Hugo.Go.Unit;
 
 namespace Hugo.Tests.Channels;
 
@@ -49,7 +51,7 @@ public sealed class ChannelCaseTemplateTests
         var template = ChannelCaseTemplates.From(channel.Reader);
         ChannelCase<Unit> case1 = template.With<Unit>((value) => observed = value);
 
-        var result = await Go.SelectAsync(case1);
+        var result = await Go.SelectAsync(cases: new[] { case1 }, cancellationToken: TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         observed.ShouldBe(7);
