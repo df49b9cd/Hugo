@@ -35,10 +35,11 @@ public class GoRaceValueTaskAsyncIntegrationTests
             attempts: 3,
             delay: TimeSpan.FromMilliseconds(1));
 
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(5));
         var result = await Go.RaceAsync(
             operations,
             policy,
-            cancellationToken: TestContext.Current.CancellationToken);
+            cancellationToken: cts.Token);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(99);

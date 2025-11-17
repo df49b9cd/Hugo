@@ -12,8 +12,11 @@ public class TaskQueueDiagnosticsRegistrationTests
     [Fact(Timeout = 15_000)]
     public async ValueTask AddTaskQueueDiagnostics_ShouldApplyTagEnrichers()
     {
+        GoDiagnostics.Reset();
+
         using var meterListener = new MeterListener();
         var captured = new List<TagList>();
+        const string queueName = "dispatch";
 
         meterListener.InstrumentPublished += (instrument, listener) =>
         {
@@ -37,9 +40,9 @@ public class TaskQueueDiagnosticsRegistrationTests
                    {
                        tags.Add("custom.tag", "diagnostics-test");
                    });
-               }))
+              }))
         {
-            await using var queue = new TaskQueue<string>(new TaskQueueOptions { Name = "dispatch", Capacity = 4 });
+            await using var queue = new TaskQueue<string>(new TaskQueueOptions { Name = queueName, Capacity = 4 });
             await queue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
             SpinWait.SpinUntil(() => captured.Count > 0, TimeSpan.FromSeconds(1));
         }
@@ -47,15 +50,22 @@ public class TaskQueueDiagnosticsRegistrationTests
         GoDiagnostics.Reset();
 
         captured.ShouldNotBeEmpty();
-        var tags = captured.Last(entry => entry.Any(tag => tag.Key == "taskqueue.name" && (string?)tag.Value == "dispatch"));
-        tags.ShouldContain(entry => entry.Key == "service.name" && (string?)entry.Value == "omnirelay.control");
-        tags.ShouldContain(entry => entry.Key == "taskqueue.shard" && (string?)entry.Value == "shard-a");
-        tags.ShouldContain(entry => entry.Key == "custom.tag" && (string?)entry.Value == "diagnostics-test");
+        Dictionary<string, object?> tags = captured
+            .Select(ToDictionary)
+            .LastOrDefault(entry => entry.TryGetValue("taskqueue.name", out var name) && (string?)name == queueName)
+            ?? ToDictionary(captured.Last());
+
+        tags.ShouldContainKeyAndValue("service.name", "omnirelay.control");
+        tags.ShouldContainKeyAndValue("taskqueue.shard", "shard-a");
+        tags.ShouldContainKeyAndValue("custom.tag", "diagnostics-test");
+        tags.ShouldContainKeyAndValue("taskqueue.name", queueName);
     }
 
     [Fact(Timeout = 15_000)]
     public async ValueTask ConfigureTaskQueueMetrics_ShouldGateThroughputInstruments()
     {
+        GoDiagnostics.Reset();
+
         using var meterListener = new MeterListener();
         var throughputMeasurements = 0;
         var depthMeasurements = 0;
@@ -98,6 +108,17 @@ public class TaskQueueDiagnosticsRegistrationTests
         (depthMeasurements > 0).ShouldBeTrue();
 
         GoDiagnostics.Reset();
+    }
+
+    private static Dictionary<string, object?> ToDictionary(TagList tags)
+    {
+        Dictionary<string, object?> dict = new(StringComparer.Ordinal);
+        foreach (KeyValuePair<string, object?> tag in tags)
+        {
+            dict[tag.Key] = tag.Value;
+        }
+
+        return dict;
     }
     private sealed class TestMeterFactory : IMeterFactory, IDisposable, IAsyncDisposable
     {
