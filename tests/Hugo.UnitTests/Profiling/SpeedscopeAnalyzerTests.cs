@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text;
 using Shouldly;
 
@@ -48,12 +49,12 @@ public sealed class SpeedscopeAnalyzerTests
         profile.Unit.ShouldBe("milliseconds");
         profile.EventCount.ShouldBe(4);
 
-        var loop = report.Frames.ShouldHaveSingleItem(static frame => frame.Name == "MainLoop");
+        var loop = report.Frames.Single(frame => frame.Name == "MainLoop");
         loop.InclusiveMilliseconds.ShouldBe(5d, 3);
         loop.SelfMilliseconds.ShouldBe(3d, 3);
         loop.CallCount.ShouldBe(1);
 
-        var worker = report.Frames.ShouldHaveSingleItem(static frame => frame.Name == "Worker");
+        var worker = report.Frames.Single(frame => frame.Name == "Worker");
         worker.InclusiveMilliseconds.ShouldBe(2d, 3);
         worker.SelfMilliseconds.ShouldBe(2d, 3);
         worker.CallCount.ShouldBe(1);
@@ -86,6 +87,6 @@ public sealed class SpeedscopeAnalyzerTests
         var report = SpeedscopeAnalyzer.Analyze(stream);
 
         report.Warnings.ShouldNotBeEmpty();
-        static warning => warning.Contains("unclosed", StringComparison.OrdinalIgnoreCase).ShouldContain(report.Warnings);
+        report.Warnings.ShouldContain(static warning => warning.Contains("unclosed", StringComparison.OrdinalIgnoreCase));
     }
 }

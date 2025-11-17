@@ -110,8 +110,8 @@ public class ErrorTests
 
         aggregate.Code.ShouldBe(ErrorCodes.Aggregate);
         aggregate.Metadata.TryGetValue("errors", out var value).ShouldBeTrue();
-        (Error[])value!.ShouldContain(first);
-        (Error[])value!.ShouldContain(second);
+        ((Error[])value!).ShouldContain(first);
+        ((Error[])value!).ShouldContain(second);
     }
 
     [Fact(Timeout = 15_000)]

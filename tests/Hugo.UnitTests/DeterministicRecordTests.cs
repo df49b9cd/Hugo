@@ -29,6 +29,6 @@ public class DeterministicRecordTests
 
         payload[0] = 42;
 
-        record.Payload.Span[0].ShouldBe(1);
+        record.Payload.Span[0].ShouldBe((byte)1);
     }
 }

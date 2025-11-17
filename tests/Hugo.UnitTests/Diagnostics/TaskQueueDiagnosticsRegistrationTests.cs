@@ -49,9 +49,9 @@ public class TaskQueueDiagnosticsRegistrationTests
 
         captured.ShouldNotBeEmpty();
         var tags = captured.Last(entry => entry.Any(tag => tag.Key == "taskqueue.name" && (string?)tag.Value == "dispatch"));
-        entry => entry.Key == "service.name" && (string?)entry.Value == "omnirelay.control".ShouldContain(tags);
-        entry => entry.Key == "taskqueue.shard" && (string?)entry.Value == "shard-a".ShouldContain(tags);
-        entry => entry.Key == "custom.tag" && (string?)entry.Value == "diagnostics-test".ShouldContain(tags);
+        tags.ShouldContain(entry => entry.Key == "service.name" && (string?)entry.Value == "omnirelay.control");
+        tags.ShouldContain(entry => entry.Key == "taskqueue.shard" && (string?)entry.Value == "shard-a");
+        tags.ShouldContain(entry => entry.Key == "custom.tag" && (string?)entry.Value == "diagnostics-test");
     }
 
     [Fact(Timeout = 15_000)]
@@ -96,7 +96,7 @@ public class TaskQueueDiagnosticsRegistrationTests
         }
 
         throughputMeasurements.ShouldBe(0);
-        depthMeasurements > 0.ShouldBeTrue();
+        (depthMeasurements > 0).ShouldBeTrue();
 
         GoDiagnostics.Reset();
     }

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text;
 using Shouldly;
 
@@ -25,17 +26,17 @@ public sealed class CounterAnalyzerTests
         report.ParsedRows.ShouldBe(5);
         report.ParseErrors.ShouldBeEmpty();
 
-        var waitGroup = report.Counters.ShouldHaveSingleItem(static summary => summary.Provider == "Hugo.Go");
+        var waitGroup = report.Counters.Single(static summary => summary.Provider == "Hugo.Go");
         waitGroup.Samples.ShouldBe(2);
         waitGroup.Max.ShouldBe(2);
         waitGroup.Mean.ShouldBe(1);
 
-        static finding =>
+        report.Findings.ShouldContain(static finding =>
             finding.Severity == AnalyzerSeverity.Warning &&
-            finding.Counter.Contains("waitgroup", StringComparison.OrdinalIgnoreCase).ShouldContain(report.Findings);
+            finding.Counter.Contains("waitgroup", StringComparison.OrdinalIgnoreCase));
 
-        static finding =>
-            finding.Counter.Contains("gc.pause.time", StringComparison.OrdinalIgnoreCase).ShouldContain(report.Findings);
+        report.Findings.ShouldContain(static finding =>
+            finding.Counter.Contains("gc.pause.time", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact(Timeout = 15_000)]

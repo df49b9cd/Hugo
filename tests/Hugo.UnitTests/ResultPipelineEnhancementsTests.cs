@@ -469,7 +469,7 @@ public class ResultPipelineEnhancementsTests
             buffered.Add(item);
         }
 
-        result => result.IsSuccess && result.Value == 1.ShouldContain(buffered);
+        buffered.ShouldContain(static result => result.IsSuccess && result.Value == 1);
         channel.Reader.Completion.IsFaulted.ShouldBeTrue();
         var completionException = await Should.ThrowAsync<InvalidOperationException>(async () => await channel.Reader.Completion);
         completionException.ShouldBeSameAs(exception);
@@ -510,7 +510,7 @@ public class ResultPipelineEnhancementsTests
         var oddResults = await ReadAllResultsAsync(oddWriter.Reader);
 
         evenResults.ShouldAllBe(static result => result.IsSuccess);
-        [.. evenResults.Select(static result => result.Value)].ShouldBe([2]);
+        evenResults.Select(static result => result.Value).ShouldBe(new[] { 2 });
 
         oddResults.Count.ShouldBe(2);
         oddResults[0].IsSuccess.ShouldBeTrue();

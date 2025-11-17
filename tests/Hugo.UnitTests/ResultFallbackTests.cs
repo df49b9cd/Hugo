@@ -74,15 +74,13 @@ public class ResultFallbackTests
         result.Error!.Metadata.TryGetValue("errors", out var nestedObj).ShouldBeTrue();
         var nestedErrors = nestedObj.ShouldBeOfType<Error[]>();
         nestedErrors.Length.ShouldBe(2);
-        static error =>
-        {
-            return error.Metadata.TryGetValue("fallbackTier", out var value) && string.Equals("primary", value?.ToString(), StringComparison.Ordinal.ShouldContain(nestedErrors);
-        });
-        static error =>
-        {
-            return error.Metadata.TryGetValue("fallbackTier", out var value) && string.Equals("secondary", value?.ToString(), StringComparison.Ordinal.ShouldContain(nestedErrors);
-        });
-        nestedErrors.ShouldAllBe(error => error.Metadata.ContainsKey("strategyIndex"));
+        nestedErrors.Any(static error =>
+                error.Metadata.TryGetValue("fallbackTier", out var value) && string.Equals("primary", value?.ToString(), StringComparison.Ordinal))
+            .ShouldBeTrue();
+        nestedErrors.Any(static error =>
+                error.Metadata.TryGetValue("fallbackTier", out var value) && string.Equals("secondary", value?.ToString(), StringComparison.Ordinal))
+            .ShouldBeTrue();
+        nestedErrors.ShouldAllBe(static error => error.Metadata.ContainsKey("strategyIndex"));
     }
 
     [Fact(Timeout = 15_000)]
@@ -138,7 +136,7 @@ public class ResultFallbackTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(7);
-        cancellationCount > 0.ShouldBeTrue();
+        (cancellationCount > 0).ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]

@@ -112,7 +112,7 @@ public class ResultPipelineAdaptersTests
             cancellationToken: testToken);
 
         result.IsSuccess.ShouldBeTrue();
-        result.Value + 1.ShouldBe(43);
+        (result.Value + 1).ShouldBe(43);
         attempts.ShouldBe(3);
     }
 

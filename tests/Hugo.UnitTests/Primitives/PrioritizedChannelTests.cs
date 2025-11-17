@@ -27,7 +27,7 @@ public sealed class PrioritizedChannelTests
         await writer.WriteAsync(1, priority: 0, ct);
         await writer.WriteAsync(2, priority: 0, ct);
 
-        await reader.WaitToReadAsync(ct).ShouldBeTrue();
+        (await reader.WaitToReadAsync(ct)).ShouldBeTrue();
 
         await writer.WriteAsync(3, priority: 0, ct);
 
@@ -72,7 +72,7 @@ public sealed class PrioritizedChannelTests
             await writer.WriteAsync(20 + i, priority: 1, ct);
         }
 
-        await channel.Reader.WaitToReadAsync(ct).ShouldBeTrue();
+        (await channel.Reader.WaitToReadAsync(ct)).ShouldBeTrue();
 
         var prioritizedReader = channel.PrioritizedReader;
         prioritizedReader.BufferedItemCount.ShouldBe(2);

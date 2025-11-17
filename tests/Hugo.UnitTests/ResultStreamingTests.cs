@@ -90,7 +90,8 @@ public class ResultStreamingTests
 
         var list = channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken);
 
-        list.Select(r => r.Value).ShouldBe([1, 2]);
+        var values = await list.Select(r => r.Value).ToArrayAsync(TestContext.Current.CancellationToken);
+        values.ShouldBe(new[] { 1, 2 });
     }
 
     [Fact(Timeout = 15_000)]

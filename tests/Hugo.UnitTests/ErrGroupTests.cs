@@ -72,8 +72,8 @@ public class ErrGroupTests
         result.Error?.Message.ShouldBe("boom");
         result.Error?.Message.ShouldBe(group.Error?.Message);
         group.Token.IsCancellationRequested.ShouldBeTrue();
-        result.Error?.Code == ErrorCodes.Exception.ShouldBeTrue();
-        await cancellationObserved.Task.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
+        (await cancellationObserved.Task).ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -409,7 +409,7 @@ public class ErrGroupTests
         var trySetError = typeof(ErrGroup).GetMethod("TrySetError", BindingFlags.Instance | BindingFlags.NonPublic);
         trySetError.ShouldNotBeNull();
         var setResult = (bool?)trySetError!.Invoke(group, [failure]);
-        setResult.ShouldBeTrue();
+        (setResult ?? false).ShouldBeTrue();
 
         var updateError = typeof(ErrGroup).GetMethod("UpdateError", BindingFlags.Instance | BindingFlags.NonPublic);
         updateError.ShouldNotBeNull();
