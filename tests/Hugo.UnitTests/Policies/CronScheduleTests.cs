@@ -57,4 +57,12 @@ public sealed class CronScheduleTests
         next?.Month.ShouldBe(12);
         next?.Day.ShouldBe(31);
     }
+
+    [Fact(Timeout = 15_000)]
+    public void GetNextOccurrence_ShouldThrow_WhenUnsupportedSegment()
+    {
+        var schedule = CronSchedule.Parse("*/5 */5 JAN * *", TimeZoneInfo.Utc);
+
+        Should.Throw<FormatException>(() => schedule.GetNextOccurrence(DateTimeOffset.UtcNow, TimeProvider.System));
+    }
 }

@@ -7,6 +7,7 @@ using Hugo.TaskQueues.Diagnostics;
 
 namespace Hugo.Tests.Diagnostics;
 
+[Collection("TaskQueueConcurrency")]
 public class TaskQueueDiagnosticsRegistrationTests
 {
     [Fact(Timeout = 15_000)]

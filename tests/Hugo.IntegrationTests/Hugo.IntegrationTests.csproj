@@ -38,6 +38,9 @@
       <ProjectReference Include="..\..\src\Hugo.TaskQueues.Replication\Hugo.TaskQueues.Replication.csproj" />
       <ProjectReference Include="..\..\src\Hugo.TaskQueues.Diagnostics\Hugo.TaskQueues.Diagnostics.csproj" />
       <ProjectReference Include="..\..\benchmarks\Hugo.Profiling\Hugo.Profiling.csproj" />
+      <ProjectReference Include="..\..\src\Hugo.Deterministic.Cosmos\Hugo.Deterministic.Cosmos.csproj" />
+      <ProjectReference Include="..\..\src\Hugo.Deterministic.Redis\Hugo.Deterministic.Redis.csproj" />
+      <ProjectReference Include="..\..\src\Hugo.Deterministic.SqlServer\Hugo.Deterministic.SqlServer.csproj" />
     </ItemGroup>
 
 </Project>
