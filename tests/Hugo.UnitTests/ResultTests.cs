@@ -779,7 +779,8 @@ public class ResultTests
             return ValueTask.CompletedTask;
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
+        Assert.True(result.IsFailure);
+        Assert.Equal("skip", result.Error?.Message);
         Assert.Equal(3, sum);
     }
 
@@ -805,7 +806,8 @@ public class ResultTests
             return ValueTask.CompletedTask;
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
+        Assert.True(result.IsFailure);
+        Assert.Equal("first", result.Error?.Message);
         Assert.Equal(new[] { "first", "second" }, observed);
     }
 

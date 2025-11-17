@@ -422,16 +422,50 @@ public static partial class Result
         Func<T, CancellationToken, ValueTask> tap,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(tap);
-        return source.ForEachAsync(async (result, token) =>
-        {
-            if (result.IsSuccess)
-            {
-                await tap(result.Value, token).ConfigureAwait(false);
-            }
 
-            return Result.Ok(Unit.Value);
-        }, cancellationToken);
+        return IterateAsync(
+            source,
+            tapOnSuccess: tap,
+            tapOnFailure: null,
+            aggregateErrors: false,
+            ignoreFailures: false,
+            cancellationToken);
+    }
+
+    public static ValueTask<Result<Unit>> TapSuccessEachAggregateErrorsAsync<T>(
+        this IAsyncEnumerable<Result<T>> source,
+        Func<T, CancellationToken, ValueTask> tap,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(tap);
+
+        return IterateAsync(
+            source,
+            tapOnSuccess: tap,
+            tapOnFailure: null,
+            aggregateErrors: true,
+            ignoreFailures: false,
+            cancellationToken);
+    }
+
+    public static ValueTask<Result<Unit>> TapSuccessEachIgnoreErrorsAsync<T>(
+        this IAsyncEnumerable<Result<T>> source,
+        Func<T, CancellationToken, ValueTask> tap,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(tap);
+
+        return IterateAsync(
+            source,
+            tapOnSuccess: tap,
+            tapOnFailure: null,
+            aggregateErrors: false,
+            ignoreFailures: true,
+            cancellationToken);
     }
 
     public static ValueTask<Result<Unit>> TapFailureEachAsync<T>(
@@ -439,16 +473,103 @@ public static partial class Result
         Func<Error, CancellationToken, ValueTask> tap,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(tap);
-        return source.ForEachAsync(async (result, token) =>
-        {
-            if (result.IsFailure && result.Error is not null)
-            {
-                await tap(result.Error, token).ConfigureAwait(false);
-            }
 
+        return IterateAsync(
+            source,
+            tapOnSuccess: null,
+            tapOnFailure: tap,
+            aggregateErrors: false,
+            ignoreFailures: false,
+            cancellationToken);
+    }
+
+    public static ValueTask<Result<Unit>> TapFailureEachAggregateErrorsAsync<T>(
+        this IAsyncEnumerable<Result<T>> source,
+        Func<Error, CancellationToken, ValueTask> tap,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(tap);
+
+        return IterateAsync(
+            source,
+            tapOnSuccess: null,
+            tapOnFailure: tap,
+            aggregateErrors: true,
+            ignoreFailures: false,
+            cancellationToken);
+    }
+
+    public static ValueTask<Result<Unit>> TapFailureEachIgnoreErrorsAsync<T>(
+        this IAsyncEnumerable<Result<T>> source,
+        Func<Error, CancellationToken, ValueTask> tap,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(tap);
+
+        return IterateAsync(
+            source,
+            tapOnSuccess: null,
+            tapOnFailure: tap,
+            aggregateErrors: false,
+            ignoreFailures: true,
+            cancellationToken);
+    }
+
+    private static async ValueTask<Result<Unit>> IterateAsync<T>(
+        IAsyncEnumerable<Result<T>> source,
+        Func<T, CancellationToken, ValueTask>? tapOnSuccess,
+        Func<Error, CancellationToken, ValueTask>? tapOnFailure,
+        bool aggregateErrors,
+        bool ignoreFailures,
+        CancellationToken cancellationToken)
+    {
+        Error? firstFailure = null;
+        List<Error>? allFailures = aggregateErrors ? new List<Error>() : null;
+
+        await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            if (result.IsSuccess)
+            {
+                if (tapOnSuccess is not null)
+                {
+                    await tapOnSuccess(result.Value, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                var error = result.Error ?? Error.Unspecified();
+                firstFailure ??= error;
+                allFailures?.Add(error);
+
+                if (tapOnFailure is not null)
+                {
+                    await tapOnFailure(error, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+
+        if (firstFailure is null)
+        {
             return Result.Ok(Unit.Value);
-        }, cancellationToken);
+        }
+
+        if (ignoreFailures)
+        {
+            return Result.Ok(Unit.Value);
+        }
+
+        if (aggregateErrors && allFailures is not null && allFailures.Count > 1)
+        {
+            return Result.Fail<Unit>(Error.Aggregate("One or more failures occurred while processing the stream.", [.. allFailures]));
+        }
+
+        return Result.Fail<Unit>(aggregateErrors && allFailures is not null && allFailures.Count == 1
+            ? allFailures[0]
+            : firstFailure);
     }
 
     public static async ValueTask<Result<IReadOnlyList<T>>> CollectErrorsAsync<T>(

@@ -179,6 +179,72 @@ public class ResultStreamingTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask TapSuccessEachAggregateErrorsAsync_ShouldAggregateFailures()
+    {
+        var source = GetResults([Result.Ok(1), Result.Fail<int>(Error.From("a")), Result.Fail<int>(Error.From("b")), Result.Ok(2)]);
+        int sum = 0;
+
+        var result = await source.TapSuccessEachAggregateErrorsAsync(async (v, _) =>
+        {
+            sum += v;
+            await Task.Yield();
+        }, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Aggregate, result.Error?.Code);
+        Assert.Equal(3, sum); // only successes 1 and 2
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TapFailureEachAggregateErrorsAsync_ShouldAggregateFailures()
+    {
+        var source = GetResults([Result.Ok(1), Result.Fail<int>(Error.From("a")), Result.Fail<int>(Error.From("b"))]);
+        int count = 0;
+
+        var result = await source.TapFailureEachAggregateErrorsAsync(async (_, _) =>
+        {
+            count++;
+            await Task.Yield();
+        }, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Aggregate, result.Error?.Code);
+        Assert.Equal(2, count);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TapSuccessEachIgnoreErrorsAsync_ShouldReturnSuccess()
+    {
+        var source = GetResults([Result.Ok(1), Result.Fail<int>(Error.From("a")), Result.Ok(2)]);
+        int sum = 0;
+
+        var result = await source.TapSuccessEachIgnoreErrorsAsync(async (v, _) =>
+        {
+            sum += v;
+            await Task.Yield();
+        }, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(3, sum);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TapFailureEachIgnoreErrorsAsync_ShouldReturnSuccess()
+    {
+        var source = GetResults([Result.Ok(1), Result.Fail<int>(Error.From("a")), Result.Fail<int>(Error.From("b"))]);
+        int count = 0;
+
+        var result = await source.TapFailureEachIgnoreErrorsAsync(async (_, _) =>
+        {
+            count++;
+            await Task.Yield();
+        }, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, count);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask ForEachAsync_ShouldReturnFailureFromCallback()
     {
         var stream = GetSequence([1, 2, 3]);

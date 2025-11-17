@@ -66,4 +66,6 @@ await Result.MapStreamAsync(ingress, ValidateAsync, ct)
 ## Summary
 
 - `Result.ForEachAsync` is the foundation for per-item side effects, while `TapSuccessEachAsync`/`TapFailureEachAsync` expose the most common cases directly.
+- Both helpers walk the entire stream so all side effects run, but they return a failure result if any item in the stream failed (using the first error they observed).
 - Because these helpers themselves return `Result<Unit>`, you can chain them with other combinators or short-circuit on failure when appropriate.
+- Prefer the aggregate variants (`TapSuccessEachAggregateErrorsAsync` / `TapFailureEachAggregateErrorsAsync`) when you need visibility into every failure, and the ignore variants (`TapSuccessEachIgnoreErrorsAsync` / `TapFailureEachIgnoreErrorsAsync`) when the caller should keep flowing even if the stream contained errors.

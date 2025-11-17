@@ -82,6 +82,7 @@ All helpers propagate the first encountered error and respect cancellation token
 - `Result.FlatMapStreamAsync<TIn, TOut>` (select-many) projects each source item into an async enumerable of `Result<TOut>` and flattens the successes/failures into a single stream.
 - `Result.FilterStreamAsync<T>` drops successful values that fail your predicate while passing failures through untouched.
 - `IAsyncEnumerable<Result<T>>.ForEachAsync`, `.ForEachLinkedCancellationAsync`, `.TapSuccessEachAsync`, `.TapFailureEachAsync`, and `.CollectErrorsAsync` provide fluent consumption patterns (per-item side effects, per-item cancellation tokens, error aggregation).
+- Use `TapSuccessEachAggregateErrorsAsync` / `TapFailureEachAggregateErrorsAsync` to traverse the whole stream while surfacing an aggregate error, or `TapSuccessEachIgnoreErrorsAsync` / `TapFailureEachIgnoreErrorsAsync` when callers must always receive success but you still want per-item taps to run.
 - `IAsyncEnumerable<Result<T>>.ToChannelAsync(ChannelWriter<Result<T>> writer, CancellationToken)` and `ChannelReader<Result<T>>.ReadAllAsync(CancellationToken)` bridge result streams with `System.Threading.Channels`.
 - `Result.FanInAsync` / `Result.FanOutAsync` merge or broadcast result streams across channel writers.
 - `Result.WindowAsync` batches successful values into fixed-size windows; `Result.PartitionAsync` splits streams using a predicate.
