@@ -83,9 +83,11 @@ public class GoRaceValueTaskAsyncTests
 
         result.IsSuccess.ShouldBeTrue();
 
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
-        await loserCanceled.Task.WaitAsync(timeoutCts.Token);
+        var completion = await Task.WhenAny(
+            loserCanceled.Task,
+            Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+
+        completion.ShouldBe(loserCanceled.Task);
     }
 
     [Fact(Timeout = 15_000)]
