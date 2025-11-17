@@ -205,10 +205,20 @@ public static partial class Result
         ValueTask[] forwarders = [.. sources.Select(source => Go.Run(
             ct => ForwardToChannelInternalAsync(source, writer, completeWriter: false, ct), cancellationToken: cancellationToken))];
 
+        using var cancellationRegistration = cancellationToken.Register(static state =>
+        {
+            var (target, token) = ((ChannelWriter<Result<T>> Target, CancellationToken Token))state!;
+            target.TryComplete(new OperationCanceledException(token));
+        }, (writer, cancellationToken));
+
         Exception? failure = null;
         try
         {
-            await ValueTaskUtilities.WhenAll(forwarders).ConfigureAwait(false);
+            await ValueTaskUtilities
+                .WhenAll(forwarders)
+                .AsTask()
+                .WaitAsync(cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (Exception ex)
         {

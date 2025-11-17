@@ -290,11 +290,11 @@ public partial class GoTests
     public async ValueTask Concurrency_ShouldCommunicate_ViaChannel()
     {
         var channel = MakeChannel<string>();
-        _ = Run(async () =>
+        _ = Run(async ct =>
         {
-            await Task.Delay(100, TestContext.Current.CancellationToken);
-            await channel.Writer.WriteAsync("Work complete!", TestContext.Current.CancellationToken);
-        });
+            await Task.Delay(100, ct);
+            await channel.Writer.WriteAsync("Work complete!", ct);
+        }, cancellationToken: TestContext.Current.CancellationToken);
         var message = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
         message.ShouldBe("Work complete!");
     }
