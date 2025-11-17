@@ -59,7 +59,8 @@ public class TaskQueueDiagnosticsRegistrationTests
         tags.ShouldContainKeyAndValue("service.name", "omnirelay.control");
         tags.ShouldContainKeyAndValue("taskqueue.shard", "shard-a");
         tags.ShouldContainKeyAndValue("custom.tag", "diagnostics-test");
-        tags.ShouldContainKeyAndValue("taskqueue.name", queueName);
+        tags.ShouldContainKey("taskqueue.name");
+        tags["taskqueue.name"]!.ToString().ShouldBe(queueName);
     }
 
     [Fact(Timeout = 15_000)]

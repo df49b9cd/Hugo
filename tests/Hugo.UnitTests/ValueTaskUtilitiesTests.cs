@@ -53,6 +53,23 @@ public sealed class ValueTaskUtilitiesTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async Task ContinueWith_ShouldInvokeContinuation_OnSuccess()
+    {
+        var success = new ValueTask<int>(Task.FromResult(7));
+        int observed = 0;
+
+        await success.ContinueWith(task => observed = task.Result);
+
+        observed.ShouldBe(7);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task YieldAsync_ShouldYieldOnce()
+    {
+        await ValueTaskUtilities.YieldAsync();
+    }
+
+    [Fact(Timeout = 15_000)]
     public async Task ContinueWith_ShouldSurfaceCancellation()
     {
         using var cts = new CancellationTokenSource();

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading.Channels;
 using Hugo;
 using Shouldly;
@@ -55,5 +56,26 @@ public sealed class ChannelCaseTemplateTests
 
         result.IsSuccess.ShouldBeTrue();
         observed.ShouldBe(7);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task TemplatesExtension_WithValueTaskSelector_ShouldMaterializeAllCases()
+    {
+        var first = Channel.CreateUnbounded<int>();
+        var second = Channel.CreateUnbounded<int>();
+
+        await second.Writer.WriteAsync(11, TestContext.Current.CancellationToken);
+
+        IEnumerable<ChannelCaseTemplate<int>> templates =
+            [ChannelCaseTemplates.From(first.Reader), ChannelCaseTemplates.From(second.Reader)];
+
+        ChannelCase<int>[] cases = templates
+            .Select(template => template.With<int>((value, _) => ValueTask.FromResult(Result.Ok(value))))
+            .ToArray();
+
+        var result = await Go.SelectAsync(cases: cases, cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(11);
     }
 }
