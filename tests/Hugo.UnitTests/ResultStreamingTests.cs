@@ -1,6 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
+using Shouldly;
 
 using Hugo;
 
@@ -11,7 +16,7 @@ namespace Hugo.Tests;
 public class ResultStreamingTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task MapStreamAsync_ShouldStopAfterFirstFailure()
+    public async ValueTask MapStreamAsync_ShouldStopAfterFirstFailure()
     {
         var source = GetValues([1, 2, 3]);
 
@@ -31,7 +36,7 @@ public class ResultStreamingTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CollectErrorsAsync_ShouldAggregateFailures()
+    public async ValueTask CollectErrorsAsync_ShouldAggregateFailures()
     {
         var stream = GetResults([Result.Ok(1), Result.Fail<int>(Error.From("a")), Result.Fail<int>(Error.From("b"))]);
 
@@ -42,9 +47,136 @@ public class ResultStreamingTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ForEachAsync_ShouldReturnFailureFromCallback()
+    public async ValueTask FlatMapStreamAsync_ShouldFlattenAndStopOnInnerFailure()
     {
-        var stream = GetSequence([1, 2, 3]);
+        var source = GetValues([1, 2]);
+
+        var flattened = Result.FlatMapStreamAsync(
+            source,
+            (value, ct) => value == 2
+                ? FailingStream(ct)
+                : SuccessfulStream(value),
+            TestContext.Current.CancellationToken);
+
+        var results = await CollectAsync(flattened);
+
+        Assert.Equal(2, results.Count); // only first inner success and failure
+        Assert.True(results[0].IsSuccess);
+        Assert.Equal(10, results[0].Value);
+        Assert.True(results[1].IsFailure);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask FilterStreamAsync_ShouldPassThroughFailuresAndFilterSuccesses()
+    {
+        var stream = GetResults([Result.Ok(1), Result.Fail<int>(Error.From("boom")), Result.Ok(3)]);
+
+        var filtered = Result.FilterStreamAsync(stream, v => v % 3 == 0, TestContext.Current.CancellationToken);
+        var results = await CollectAsync(filtered);
+
+        Assert.Equal(2, results.Count);
+        Assert.True(results[0].IsFailure); // failure preserved
+        Assert.True(results[1].IsSuccess);
+        Assert.Equal(3, results[1].Value);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask ReadAllAsync_ShouldDrainChannel()
+    {
+        var channel = Channel.CreateUnbounded<Result<int>>();
+        await channel.Writer.WriteAsync(Result.Ok(1), TestContext.Current.CancellationToken);
+        await channel.Writer.WriteAsync(Result.Ok(2), TestContext.Current.CancellationToken);
+        channel.Writer.TryComplete();
+
+        var list = channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(new[] { 1, 2 }, list.Select(r => r.Value));
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask FanOutAsync_ShouldBroadcastResults()
+    {
+        var source = GetResults([Result.Ok(5), Result.Ok(6)]);
+        var a = Channel.CreateUnbounded<Result<int>>();
+        var b = Channel.CreateUnbounded<Result<int>>();
+
+        await source.FanOutAsync([a.Writer, b.Writer], TestContext.Current.CancellationToken);
+
+        Assert.Equal([5, 6], await ReadAllValues(a.Reader));
+        Assert.Equal([5, 6], await ReadAllValues(b.Reader));
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask PartitionAsync_ShouldRouteByPredicate()
+    {
+        var source = GetResults(new[] { Result.Ok(1), Result.Ok(2), Result.Ok(3) });
+        var even = Channel.CreateUnbounded<Result<int>>();
+        var odd = Channel.CreateUnbounded<Result<int>>();
+
+        await source.PartitionAsync(v => v % 2 == 0, even.Writer, odd.Writer, TestContext.Current.CancellationToken);
+
+        Assert.Equal(new[] { 2 }, await ReadAllValues(even.Reader));
+        Assert.Equal(new[] { 1, 3 }, await ReadAllValues(odd.Reader));
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask ForEachLinkedCancellationAsync_ShouldLinkCancellationPerItem()
+    {
+        var source = GetResults([Result.Ok(1), Result.Ok(2)]);
+        var seen = new List<int>();
+
+        var result = await source.ForEachLinkedCancellationAsync(async (res, ct) =>
+        {
+            seen.Add(res.Value);
+            if (res.Value == 2)
+            {
+                return Result.Fail<Unit>(Error.From("stop"));
+            }
+
+            Assert.True(ct.CanBeCanceled);
+            return Result.Ok(Unit.Value);
+        }, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(new[] { 1, 2 }, seen);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TapSuccessEachAsync_ShouldInvokeOnSuccessOnly()
+    {
+        var source = GetResults([Result.Ok(1), Result.Fail<int>(Error.From("boom")), Result.Ok(2)]);
+        int hits = 0;
+
+        var result = await source.TapSuccessEachAsync(async (v, _) =>
+        {
+            hits += v;
+            await Task.Yield();
+        }, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(3, hits); // only successes 1 and 2
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TapFailureEachAsync_ShouldInvokeOnFailureOnly()
+    {
+        var source = GetResults([Result.Ok(1), Result.Fail<int>(Error.From("a")), Result.Fail<int>(Error.From("b"))]);
+        int count = 0;
+
+        var result = await source.TapFailureEachAsync(async (err, _) =>
+        {
+            count++;
+            await Task.Yield();
+        }, TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(2, count);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask ForEachAsync_ShouldReturnFailureFromCallback()
+    {
+        var stream = GetSequence(new[] { 1, 2, 3 });
         var seen = new List<int>();
 
         var result = await stream.ForEachAsync(async (result, ct) =>
@@ -96,5 +228,27 @@ public class ResultStreamingTests
             list.Add(item);
         }
         return list;
+    }
+
+    private static IAsyncEnumerable<Result<int>> SuccessfulStream(int seed) =>
+        GetResults(new[] { Result.Ok(seed * 10) });
+
+    private static async IAsyncEnumerable<Result<int>> FailingStream([EnumeratorCancellation] CancellationToken ct)
+    {
+        await Task.Yield();
+        yield return Result.Fail<int>(Error.From("inner-fail", ErrorCodes.Validation));
+    }
+
+    private static async ValueTask<int[]> ReadAllValues(ChannelReader<Result<int>> reader)
+    {
+        var list = new List<int>();
+        await foreach (var item in reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        {
+            if (item.IsSuccess)
+            {
+                list.Add(item.Value);
+            }
+        }
+        return list.ToArray();
     }
 }
