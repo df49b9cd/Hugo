@@ -1,9 +1,12 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Hugo;
 
 /// <summary>
 /// Provides functional-style extension methods for composing <see cref="Result{T}"/> values using
 /// "railway oriented" patterns.
 /// </summary>
+[SuppressMessage("Naming", "CA1708:Identifiers should differ by more than case", Justification = "Extension block syntax requires the 'extension' identifier per C# design.")]
 public static class Functional
 {
     // -----------------

@@ -53,10 +53,10 @@ public static partial class Go
     /// </summary>
     /// <param name="task">The task to surface.</param>
     /// <returns>The supplied <paramref name="task"/>.</returns>
-    public static ValueTask Run(Task task)
+    public static Task Run(Task task)
     {
         ArgumentNullException.ThrowIfNull(task);
-        return new(task);
+        return task;
     }
 
     /// <summary>
@@ -120,8 +120,8 @@ public static partial class Go
             .StartNew(
                 static state =>
                 {
-                    var (callback, token) = ((Func<CancellationToken, Task> Callback, CancellationToken Token))state!;
-                    return callback(token);
+                    var (callback, token) = ((Func<CancellationToken, ValueTask> Callback, CancellationToken Token))state!;
+                    return callback(token).AsTask();
                 },
                 (func, cancellationToken),
                 cancellationToken,

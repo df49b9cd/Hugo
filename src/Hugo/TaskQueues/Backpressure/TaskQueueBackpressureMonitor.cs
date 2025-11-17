@@ -17,6 +17,7 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly ConcurrentDictionary<long, ITaskQueueBackpressureListener> _listeners = new();
     private readonly Lock _waiterLock = new();
+    private readonly Task _pumpTask;
     private List<TaskCompletionSource<TaskQueueBackpressureSignal>>? _waiters;
     private TaskQueueBackpressureSignal _currentSignal;
     private DateTimeOffset _stateStartedAt;
@@ -48,6 +49,7 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
         _stateStartedAt = DateTimeOffset.UtcNow;
         _currentSignal = new TaskQueueBackpressureSignal(false, _queue.PendingCount, _highWatermark, _lowWatermark, _stateStartedAt);
         ApplyQueueConfiguration();
+        _pumpTask = PumpSignalsAsync(_cts.Token).AsTask();
     }
 
     /// <summary>
@@ -305,7 +307,7 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
 
         try
         {
-            await PumpSignalsAsync(_cts.Token).ConfigureAwait(false);
+            await _pumpTask.ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (_cts.IsCancellationRequested)
         {

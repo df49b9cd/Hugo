@@ -331,6 +331,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     private readonly Channel<QueueEnvelope> _channel;
     private readonly ConcurrentDictionary<Guid, LeaseState> _leases = new();
     private readonly CancellationTokenSource _monitorCts = new();
+    private readonly Task _monitorTask;
     private readonly string? _queueName;
     private TaskQueueLifecycleDispatcher<T>? _lifecycleDispatcher;
     private TaskQueueBackpressureOptions? _backpressureOptions;
@@ -356,6 +357,8 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         _channel = Go.BoundedChannel<QueueEnvelope>(_options.Capacity)
             .WithFullMode(BoundedChannelFullMode.Wait)
             .Build();
+
+        _monitorTask = MonitorLeasesAsync(_monitorCts.Token).AsTask();
     }
 
     /// <summary>
@@ -808,7 +811,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
         try
         {
-            await MonitorLeasesAsync(_monitorCts.Token).ConfigureAwait(false);
+            await _monitorTask.ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

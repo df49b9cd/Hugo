@@ -100,7 +100,30 @@ public sealed class RwMutex : IDisposable
             return;
         }
 
-        _sync.Dispose();
+        // Try to avoid disposing while another thread still holds or waits on the lock, which would throw.
+        var spinner = new SpinWait();
+        for (var i = 0; i < 1_000; i++)
+        {
+            if (_sync.CurrentReadCount == 0 &&
+                !_sync.IsWriteLockHeld &&
+                _sync.WaitingReadCount == 0 &&
+                _sync.WaitingWriteCount == 0)
+            {
+                break;
+            }
+
+            spinner.SpinOnce();
+        }
+
+        try
+        {
+            _sync.Dispose();
+        }
+        catch (SynchronizationLockException)
+        {
+            // Swallow disposal races to permit best-effort teardown during test cancellation.
+        }
+
         _readerGate.Dispose();
         _writerGate.Dispose();
     }
