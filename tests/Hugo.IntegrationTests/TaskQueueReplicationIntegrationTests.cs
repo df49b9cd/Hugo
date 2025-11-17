@@ -2,6 +2,7 @@ using Hugo.TaskQueues.Replication;
 using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
+using Hugo.TaskQueues;
 
 namespace Hugo.IntegrationTests;
 
@@ -99,6 +100,81 @@ public sealed class TaskQueueReplicationIntegrationTests
         resumedSink.Processed.ShouldBe(new long[] { 4, 5, 6 });
     }
 
+    [Fact(Timeout = 15_000)]
+    public async Task CheckpointingSink_ShouldSkipAlreadyProcessedSequences_PerPeer()
+    {
+        var provider = new FakeTimeProvider();
+
+        var initialCheckpoint = new TaskQueueReplicationCheckpoint(
+            "replication.dedup",
+            GlobalPosition: 5,
+            UpdatedAt: provider.GetUtcNow(),
+            PeerPositions: new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["peer-a"] = 5,
+                ["peer-b"] = 3
+            });
+
+        var store = new InMemoryReplicationCheckpointStore(initialCheckpoint);
+        var sink = new RecordingReplicationSink("replication.dedup", store, provider);
+
+        List<TaskQueueReplicationEvent<int>> events =
+        [
+            new TaskQueueReplicationEvent<int>(
+                4,
+                1,
+                "queue",
+                TaskQueueReplicationEventKind.Enqueued,
+                "origin",
+                "peer-a",
+                provider.GetUtcNow(),
+                provider.GetUtcNow(),
+                1,
+                1,
+                42,
+                null,
+                null,
+                null,
+                TaskQueueLifecycleEventMetadata.None),
+            new TaskQueueReplicationEvent<int>(
+                6,
+                2,
+                "queue",
+                TaskQueueReplicationEventKind.Completed,
+                "origin",
+                "peer-a",
+                provider.GetUtcNow(),
+                provider.GetUtcNow(),
+                2,
+                1,
+                43,
+                null,
+                null,
+                null,
+                TaskQueueLifecycleEventMetadata.None),
+            new TaskQueueReplicationEvent<int>(
+                7,
+                3,
+                "queue",
+                TaskQueueReplicationEventKind.Enqueued,
+                "origin",
+                "peer-c",
+                provider.GetUtcNow(),
+                provider.GetUtcNow(),
+                3,
+                1,
+                44,
+                null,
+                null,
+                null,
+                TaskQueueLifecycleEventMetadata.None)
+        ];
+
+        await sink.ProcessAsync(ToAsyncEnumerable(events), TestContext.Current.CancellationToken);
+
+        sink.Processed.ShouldBe(new long[] { 6, 7 });
+    }
+
     private static async IAsyncEnumerable<TaskQueueReplicationEvent<int>> ToAsyncEnumerable(IEnumerable<TaskQueueReplicationEvent<int>> events)
     {
         foreach (TaskQueueReplicationEvent<int> evt in events)
@@ -127,6 +203,14 @@ public sealed class TaskQueueReplicationIntegrationTests
     private sealed class InMemoryReplicationCheckpointStore : ITaskQueueReplicationCheckpointStore
     {
         private readonly Dictionary<string, TaskQueueReplicationCheckpoint> _checkpoints = new(StringComparer.OrdinalIgnoreCase);
+
+        internal InMemoryReplicationCheckpointStore(TaskQueueReplicationCheckpoint? initial = null)
+        {
+            if (initial is not null)
+            {
+                _checkpoints[initial.StreamId] = initial;
+            }
+        }
 
         public ValueTask<TaskQueueReplicationCheckpoint> ReadAsync(string streamId, CancellationToken cancellationToken = default)
         {
