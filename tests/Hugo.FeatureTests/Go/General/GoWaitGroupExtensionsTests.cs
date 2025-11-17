@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Shouldly;
 
 namespace Hugo.Tests;
@@ -7,11 +6,11 @@ public class GoWaitGroupExtensionsTests
 {
     [Fact(Timeout = 15_000)]
     public void Go_ShouldThrow_WhenWaitGroupNull() =>
-        Should.Throw<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static () => Task.CompletedTask));
+        Should.Throw<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static () => ValueTask.CompletedTask));
 
     [Fact(Timeout = 15_000)]
     public void Go_ShouldThrow_WhenFuncNull() =>
-        Should.Throw<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<Task>)null!));
+        Should.Throw<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<ValueTask>)null!));
 
     [Fact(Timeout = 15_000)]
     public async Task Go_ShouldRunFunctionAndTrackWaitGroup()
@@ -33,11 +32,11 @@ public class GoWaitGroupExtensionsTests
 
     [Fact(Timeout = 15_000)]
     public void Go_WithCancellationToken_ShouldThrow_WhenWaitGroupNull() =>
-        Should.Throw<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static _ => Task.CompletedTask, CancellationToken.None));
+        Should.Throw<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static _ => ValueTask.CompletedTask, cancellationToken: CancellationToken.None));
 
     [Fact(Timeout = 15_000)]
     public void Go_WithCancellationToken_ShouldThrow_WhenFuncNull() =>
-        Should.Throw<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<CancellationToken, Task>)null!, CancellationToken.None));
+        Should.Throw<ArgumentNullException>(static () => new WaitGroup().Go((Func<CancellationToken, ValueTask>)null!, cancellationToken: CancellationToken.None));
 
     [Fact(Timeout = 15_000)]
     public async Task Go_WithCancellationToken_ShouldPassTokenAndComplete()
@@ -46,11 +45,11 @@ public class GoWaitGroupExtensionsTests
         using var cts = new CancellationTokenSource();
         var observed = new List<CancellationToken>();
 
-        GoWaitGroupExtensions.Go(wg, async token =>
+        wg.Go(async token =>
         {
             observed.Add(token);
             await Task.Yield();
-        }, cts.Token);
+        }, cancellationToken: cts.Token);
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -64,14 +63,14 @@ public class GoWaitGroupExtensionsTests
     {
         var wg = new WaitGroup();
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
         var invoked = false;
 
-        GoWaitGroupExtensions.Go(wg, token =>
+        wg.Go(token =>
         {
             invoked = true;
-            return Task.CompletedTask;
-        }, cts.Token);
+            return ValueTask.CompletedTask;
+        }, cancellationToken: cts.Token);
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 

@@ -1,8 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-using Hugo;
-
 namespace Hugo.DeterministicWorkerSample.Core;
 
 /// <summary>

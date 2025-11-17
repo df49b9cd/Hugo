@@ -1,7 +1,4 @@
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Channels;
 
 namespace Hugo;
@@ -205,9 +202,8 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(writer);
 
-        ValueTask[] forwarders = [.. sources.Select(source => Go.RunValueTask(
-            ct => ForwardToChannelInternalAsync(source, writer, completeWriter: false, ct),
-            cancellationToken))];
+        ValueTask[] forwarders = [.. sources.Select(source => Go.Run(
+            ct => ForwardToChannelInternalAsync(source, writer, completeWriter: false, ct), cancellationToken: cancellationToken))];
 
         Exception? failure = null;
         try
@@ -230,107 +226,106 @@ public static partial class Result
         }
     }
 
-    /// <summary>
-    /// Broadcasts every result from the source sequence to each writer, completing all writers when the sequence ends.
-    /// </summary>
-    /// <typeparam name="T">The type of the result value.</typeparam>
     /// <param name="source">The sequence to broadcast.</param>
-    /// <param name="writers">The writers that receive each result.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>A <see cref="ValueTask"/> that completes when broadcasting finishes.</returns>
-    public static async ValueTask FanOutAsync<T>(this IAsyncEnumerable<Result<T>> source, IReadOnlyList<ChannelWriter<Result<T>>> writers, CancellationToken cancellationToken = default)
+    /// <typeparam name="T">The type of the result value.</typeparam>
+    extension<T>(IAsyncEnumerable<Result<T>> source)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(writers);
-
-        try
+        /// <summary>
+        /// Broadcasts every result from the source sequence to each writer, completing all writers when the sequence ends.
+        /// </summary>
+        /// <param name="writers">The writers that receive each result.</param>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>A <see cref="ValueTask"/> that completes when broadcasting finishes.</returns>
+        public async ValueTask FanOutAsync(IReadOnlyList<ChannelWriter<Result<T>>> writers, CancellationToken cancellationToken = default)
         {
-            await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(writers);
+
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    foreach (var writer in writers)
+                    {
+                        await writer.WriteAsync(result, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+            }
+            finally
+            {
                 foreach (var writer in writers)
                 {
-                    await writer.WriteAsync(result, cancellationToken).ConfigureAwait(false);
+                    writer.TryComplete();
                 }
             }
         }
-        finally
+
+        /// <summary>
+        /// Batches successful results into fixed-size windows and yields them as aggregated results.
+        /// </summary>
+        /// <param name="size">The number of items per window.</param>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>An asynchronous sequence of windowed results.</returns>
+        public async IAsyncEnumerable<Result<IReadOnlyList<T>>> WindowAsync(int size, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            foreach (var writer in writers)
-            {
-                writer.TryComplete();
-            }
-        }
-    }
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
 
-    /// <summary>
-    /// Batches successful results into fixed-size windows and yields them as aggregated results.
-    /// </summary>
-    /// <typeparam name="T">The type of the result value.</typeparam>
-    /// <param name="source">The sequence to window.</param>
-    /// <param name="size">The number of items per window.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>An asynchronous sequence of windowed results.</returns>
-    public static async IAsyncEnumerable<Result<IReadOnlyList<T>>> WindowAsync<T>(this IAsyncEnumerable<Result<T>> source, int size, [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
+            var buffer = new List<T>(size);
 
-        var buffer = new List<T>(size);
-
-        await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
-        {
-            if (result.IsFailure)
-            {
-                yield return Fail<IReadOnlyList<T>>(result.Error);
-                buffer.Clear();
-                continue;
-            }
-
-            buffer.Add(result.Value);
-            if (buffer.Count >= size)
-            {
-                yield return Ok<IReadOnlyList<T>>(buffer.ToArray());
-                buffer.Clear();
-            }
-        }
-
-        if (buffer.Count > 0)
-        {
-            yield return Ok<IReadOnlyList<T>>(buffer.ToArray());
-        }
-    }
-
-    /// <summary>
-    /// Partitions results into <paramref name="trueWriter"/> and <paramref name="falseWriter"/> according to <paramref name="predicate"/>, completing both writers when the sequence ends.
-    /// </summary>
-    /// <typeparam name="T">The type of the result value.</typeparam>
-    /// <param name="source">The sequence to partition.</param>
-    /// <param name="predicate">The predicate that determines the target writer.</param>
-    /// <param name="trueWriter">The writer that receives results satisfying the predicate.</param>
-    /// <param name="falseWriter">The writer that receives results that do not satisfy the predicate.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>A <see cref="ValueTask"/> that completes when partitioning finishes.</returns>
-    public static async ValueTask PartitionAsync<T>(this IAsyncEnumerable<Result<T>> source, Func<T, bool> predicate, ChannelWriter<Result<T>> trueWriter, ChannelWriter<Result<T>> falseWriter, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(predicate);
-        ArgumentNullException.ThrowIfNull(trueWriter);
-        ArgumentNullException.ThrowIfNull(falseWriter);
-
-        try
-        {
             await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var target = result.IsSuccess && predicate(result.Value) ? trueWriter : falseWriter;
-                await target.WriteAsync(result, cancellationToken).ConfigureAwait(false);
+                if (result.IsFailure)
+                {
+                    yield return Fail<IReadOnlyList<T>>(result.Error);
+                    buffer.Clear();
+                    continue;
+                }
+
+                buffer.Add(result.Value);
+                if (buffer.Count >= size)
+                {
+                    yield return Ok<IReadOnlyList<T>>(buffer.ToArray());
+                    buffer.Clear();
+                }
+            }
+
+            if (buffer.Count > 0)
+            {
+                yield return Ok<IReadOnlyList<T>>(buffer.ToArray());
             }
         }
-        finally
+
+        /// <summary>
+        /// Partitions results into <paramref name="trueWriter"/> and <paramref name="falseWriter"/> according to <paramref name="predicate"/>, completing both writers when the sequence ends.
+        /// </summary>
+        /// <param name="predicate">The predicate that determines the target writer.</param>
+        /// <param name="trueWriter">The writer that receives results satisfying the predicate.</param>
+        /// <param name="falseWriter">The writer that receives results that do not satisfy the predicate.</param>
+        /// <param name="cancellationToken">The token used to cancel the operation.</param>
+        /// <returns>A <see cref="ValueTask"/> that completes when partitioning finishes.</returns>
+        public async ValueTask PartitionAsync(Func<T, bool> predicate, ChannelWriter<Result<T>> trueWriter, ChannelWriter<Result<T>> falseWriter, CancellationToken cancellationToken = default)
         {
-            trueWriter.TryComplete();
-            falseWriter.TryComplete();
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(predicate);
+            ArgumentNullException.ThrowIfNull(trueWriter);
+            ArgumentNullException.ThrowIfNull(falseWriter);
+
+            try
+            {
+                await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var target = result.IsSuccess && predicate(result.Value) ? trueWriter : falseWriter;
+                    await target.WriteAsync(result, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                trueWriter.TryComplete();
+                falseWriter.TryComplete();
+            }
         }
     }
 
@@ -372,151 +367,138 @@ public static partial class Result
         }
     }
 
-    /// <summary>
-    /// Consumes an asynchronous sequence of results and invokes <paramref name="action"/> for each element.
-    /// Stops when the action returns failure and propagates that failure.
-    /// </summary>
-    public static async ValueTask<Result<Unit>> ForEachAsync<T>(
-        this IAsyncEnumerable<Result<T>> source,
-        Func<Result<T>, CancellationToken, ValueTask<Result<Unit>>> action,
-        CancellationToken cancellationToken = default)
+    extension<T>(IAsyncEnumerable<Result<T>> source)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(action);
-
-        await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        /// <summary>
+        /// Consumes an asynchronous sequence of results and invokes <paramref name="action"/> for each element.
+        /// Stops when the action returns failure and propagates that failure.
+        /// </summary>
+        public async ValueTask<Result<Unit>> ForEachAsync(Func<Result<T>, CancellationToken, ValueTask<Result<Unit>>> action,
+            CancellationToken cancellationToken = default)
         {
-            var callbackResult = await action(result, cancellationToken).ConfigureAwait(false);
-            if (callbackResult.IsFailure)
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(action);
+
+            await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
-                return callbackResult;
+                var callbackResult = await action(result, cancellationToken).ConfigureAwait(false);
+                if (callbackResult.IsFailure)
+                {
+                    return callbackResult;
+                }
             }
+
+            return Result.Ok(Unit.Value);
         }
 
-        return Result.Ok(Unit.Value);
-    }
-
-    public static async ValueTask<Result<Unit>> ForEachLinkedCancellationAsync<T>(
-        this IAsyncEnumerable<Result<T>> source,
-        Func<Result<T>, CancellationToken, ValueTask<Result<Unit>>> action,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(action);
-
-        await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        public async ValueTask<Result<Unit>> ForEachLinkedCancellationAsync(Func<Result<T>, CancellationToken, ValueTask<Result<Unit>>> action,
+            CancellationToken cancellationToken = default)
         {
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            var callbackResult = await action(result, linkedCts.Token).ConfigureAwait(false);
-            if (callbackResult.IsFailure)
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(action);
+
+            await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
-                return callbackResult;
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                var callbackResult = await action(result, linkedCts.Token).ConfigureAwait(false);
+                if (callbackResult.IsFailure)
+                {
+                    return callbackResult;
+                }
             }
+
+            return Result.Ok(Unit.Value);
         }
 
-        return Result.Ok(Unit.Value);
-    }
+        public ValueTask<Result<Unit>> TapSuccessEachAsync(Func<T, CancellationToken, ValueTask> tap,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(tap);
 
-    public static ValueTask<Result<Unit>> TapSuccessEachAsync<T>(
-        this IAsyncEnumerable<Result<T>> source,
-        Func<T, CancellationToken, ValueTask> tap,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(tap);
+            return IterateAsync(
+                source,
+                tapOnSuccess: tap,
+                tapOnFailure: null,
+                aggregateErrors: false,
+                ignoreFailures: false,
+                cancellationToken);
+        }
 
-        return IterateAsync(
-            source,
-            tapOnSuccess: tap,
-            tapOnFailure: null,
-            aggregateErrors: false,
-            ignoreFailures: false,
-            cancellationToken);
-    }
+        public ValueTask<Result<Unit>> TapSuccessEachAggregateErrorsAsync(Func<T, CancellationToken, ValueTask> tap,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(tap);
 
-    public static ValueTask<Result<Unit>> TapSuccessEachAggregateErrorsAsync<T>(
-        this IAsyncEnumerable<Result<T>> source,
-        Func<T, CancellationToken, ValueTask> tap,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(tap);
+            return IterateAsync(
+                source,
+                tapOnSuccess: tap,
+                tapOnFailure: null,
+                aggregateErrors: true,
+                ignoreFailures: false,
+                cancellationToken);
+        }
 
-        return IterateAsync(
-            source,
-            tapOnSuccess: tap,
-            tapOnFailure: null,
-            aggregateErrors: true,
-            ignoreFailures: false,
-            cancellationToken);
-    }
+        public ValueTask<Result<Unit>> TapSuccessEachIgnoreErrorsAsync(Func<T, CancellationToken, ValueTask> tap,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(tap);
 
-    public static ValueTask<Result<Unit>> TapSuccessEachIgnoreErrorsAsync<T>(
-        this IAsyncEnumerable<Result<T>> source,
-        Func<T, CancellationToken, ValueTask> tap,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(tap);
+            return IterateAsync(
+                source,
+                tapOnSuccess: tap,
+                tapOnFailure: null,
+                aggregateErrors: false,
+                ignoreFailures: true,
+                cancellationToken);
+        }
 
-        return IterateAsync(
-            source,
-            tapOnSuccess: tap,
-            tapOnFailure: null,
-            aggregateErrors: false,
-            ignoreFailures: true,
-            cancellationToken);
-    }
+        public ValueTask<Result<Unit>> TapFailureEachAsync(Func<Error, CancellationToken, ValueTask> tap,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(tap);
 
-    public static ValueTask<Result<Unit>> TapFailureEachAsync<T>(
-        this IAsyncEnumerable<Result<T>> source,
-        Func<Error, CancellationToken, ValueTask> tap,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(tap);
+            return IterateAsync(
+                source,
+                tapOnSuccess: null,
+                tapOnFailure: tap,
+                aggregateErrors: false,
+                ignoreFailures: false,
+                cancellationToken);
+        }
 
-        return IterateAsync(
-            source,
-            tapOnSuccess: null,
-            tapOnFailure: tap,
-            aggregateErrors: false,
-            ignoreFailures: false,
-            cancellationToken);
-    }
+        public ValueTask<Result<Unit>> TapFailureEachAggregateErrorsAsync(Func<Error, CancellationToken, ValueTask> tap,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(tap);
 
-    public static ValueTask<Result<Unit>> TapFailureEachAggregateErrorsAsync<T>(
-        this IAsyncEnumerable<Result<T>> source,
-        Func<Error, CancellationToken, ValueTask> tap,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(tap);
+            return IterateAsync(
+                source,
+                tapOnSuccess: null,
+                tapOnFailure: tap,
+                aggregateErrors: true,
+                ignoreFailures: false,
+                cancellationToken);
+        }
 
-        return IterateAsync(
-            source,
-            tapOnSuccess: null,
-            tapOnFailure: tap,
-            aggregateErrors: true,
-            ignoreFailures: false,
-            cancellationToken);
-    }
+        public ValueTask<Result<Unit>> TapFailureEachIgnoreErrorsAsync(Func<Error, CancellationToken, ValueTask> tap,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(tap);
 
-    public static ValueTask<Result<Unit>> TapFailureEachIgnoreErrorsAsync<T>(
-        this IAsyncEnumerable<Result<T>> source,
-        Func<Error, CancellationToken, ValueTask> tap,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(tap);
-
-        return IterateAsync(
-            source,
-            tapOnSuccess: null,
-            tapOnFailure: tap,
-            aggregateErrors: false,
-            ignoreFailures: true,
-            cancellationToken);
+            return IterateAsync(
+                source,
+                tapOnSuccess: null,
+                tapOnFailure: tap,
+                aggregateErrors: false,
+                ignoreFailures: true,
+                cancellationToken);
+        }
     }
 
     private static async ValueTask<Result<Unit>> IterateAsync<T>(

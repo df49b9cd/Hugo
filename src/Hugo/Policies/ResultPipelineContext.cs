@@ -1,7 +1,3 @@
-using System.Threading;
-
-using Hugo;
-
 namespace Hugo.Policies;
 
 /// <summary>

@@ -36,14 +36,14 @@ public class SynchronizationPrimitivesTests
         ValueTask second;
         try
         {
-            second = Go.RunValueTask(async ct =>
+            second = Go.Run(async ct =>
             {
                 secondStarted.Set();
                 using (mutex.EnterScope())
                 {
                     Interlocked.Exchange(ref secondEntered, 1);
                 }
-            }, cancellation);
+            }, cancellationToken: cancellation);
 
             AssertWait(secondStarted, "Timed out waiting for second mutex waiter to start.", cancellation);
             AssertIncomplete(second, ShortDelay, cancellation);
@@ -99,7 +99,7 @@ public class SynchronizationPrimitivesTests
         var readScope = rwMutex.EnterReadScope();
         using ManualResetEventSlim writerStarted = new(false);
         var writerEntered = 0;
-        ValueTask writer = Go.RunValueTask(async ct =>
+        ValueTask writer = Go.Run(async ct =>
         {
             writerStarted.Set();
             using (rwMutex.EnterWriteScope())
@@ -107,7 +107,7 @@ public class SynchronizationPrimitivesTests
                 Interlocked.Exchange(ref writerEntered, 1);
             }
             BusyWait(WriterDelay, cancellation);
-        }, cancellation);
+        }, cancellationToken: cancellation);
 
         AssertWait(writerStarted, "Timed out waiting for writer to start.", cancellation);
         AssertIncomplete(writer, ShortDelay, cancellation);
@@ -126,7 +126,7 @@ public class SynchronizationPrimitivesTests
         using ManualResetEventSlim readerStarted = new(false);
         var readerEntered = 0;
 
-        ValueTask reader = Go.RunValueTask(async ct =>
+        ValueTask reader = Go.Run(async ct =>
         {
             readerStarted.Set();
             using (rwMutex.EnterReadScope())
@@ -134,7 +134,7 @@ public class SynchronizationPrimitivesTests
                 Interlocked.Exchange(ref readerEntered, 1);
                 BusyWait(WriterDelay, cancellation);
             }
-        }, cancellation);
+        }, cancellationToken: cancellation);
 
         AssertWait(readerStarted, "Timed out waiting for reader to start.", cancellation);
         AssertIncomplete(reader, ShortDelay, cancellation);

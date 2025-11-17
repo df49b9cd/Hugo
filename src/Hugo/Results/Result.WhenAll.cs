@@ -1,7 +1,4 @@
-using System;
-using System.Linq;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 
 using Hugo.Policies;
 
@@ -194,7 +191,7 @@ public static partial class Result
             operationScopes[operationIndex] = operationScope;
             waitGroup.Add(1);
 #pragma warning disable CA2012
-            var runner = Go.RunValueTask(
+            var runner = Go.Run(
                 async ct =>
                 {
                     try
@@ -210,7 +207,7 @@ public static partial class Result
                         waitGroup.Done();
                     }
                 },
-                linkedCts.Token);
+                cancellationToken: linkedCts.Token);
 #pragma warning restore CA2012
 
             if (runner.IsCompleted && runner.AsTask().IsCanceled)
@@ -220,7 +217,7 @@ public static partial class Result
         }
 
 #pragma warning disable CA2012
-        _ = Go.RunValueTask(
+        _ = Go.Run(
             async _ =>
             {
                 try
@@ -233,7 +230,7 @@ public static partial class Result
 
                 resultChannel.Writer.TryComplete();
             },
-            linkedCts.Token);
+            cancellationToken: linkedCts.Token);
 #pragma warning restore CA2012
 
         var reader = resultChannel.Reader;

@@ -1,4 +1,3 @@
-using System;
 using Shouldly;
 
 using Hugo;
@@ -7,8 +6,6 @@ using Hugo.Deterministic.Redis;
 using StackExchange.Redis;
 
 using Testcontainers.Redis;
-
-using Xunit;
 
 public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
 {

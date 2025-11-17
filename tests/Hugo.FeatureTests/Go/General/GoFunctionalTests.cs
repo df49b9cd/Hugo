@@ -43,12 +43,12 @@ public class GoFunctionalTests
         using var cts = new CancellationTokenSource(50);
 
         var task = Run(async ct =>
-        {
-            await Task.Delay(TimeSpan.FromSeconds(5), ct);
-        },
-        cts.Token);
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            },
+        cancellationToken: cts.Token);
 
-        await Should.ThrowAsync<OperationCanceledException>(() => task);
+        await Should.ThrowAsync<OperationCanceledException>(() => task.AsTask());
     }
 
     [Fact(Timeout = 15_000)]
@@ -76,10 +76,10 @@ public class GoFunctionalTests
         using var cts = new CancellationTokenSource(50);
 
         wg.Go(async token =>
-        {
-            await Task.Delay(TimeSpan.FromSeconds(5), token);
-        },
-        cts.Token);
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), token);
+            },
+        cancellationToken: cts.Token);
 
         await Should.ThrowAsync<OperationCanceledException>(() => wg.WaitAsync(cts.Token));
     }
@@ -102,7 +102,7 @@ public class GoFunctionalTests
             }
 
             channel.Writer.Complete();
-        }, TestContext.Current.CancellationToken);
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         var collected = new List<int>();
         await foreach (var item in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
@@ -139,7 +139,7 @@ public class GoFunctionalTests
             await delayTask;
             await channel.Writer.WriteAsync(42, token);
             channel.Writer.TryComplete();
-        }, TestContext.Current.CancellationToken);
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         await delayScheduled.Task; // ensure the delay is registered before advancing fake time
 

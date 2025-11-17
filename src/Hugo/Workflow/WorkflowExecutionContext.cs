@@ -425,10 +425,10 @@ public static class WorkflowExecution
     /// Creates a new ambient workflow execution scope.
     /// </summary>
     /// <param name="context">Context to attach.</param>
-    /// <param name="cancellationToken">Cancellation token linked to the scope.</param>
     /// <param name="replace">When true, replaces any existing ambient context instead of stacking.</param>
-    [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Maintains existing API surface for consumers already using positional arguments.")]
-    public static Scope Enter(WorkflowExecutionContext context, CancellationToken cancellationToken = default, bool replace = false)
+    /// <param name="cancellationToken">Cancellation token linked to the scope.</param>
+    public static Scope Enter(WorkflowExecutionContext context, bool replace = false,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
 

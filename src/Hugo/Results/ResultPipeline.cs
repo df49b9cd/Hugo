@@ -1,7 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Threading;
+
 using Hugo.Policies;
 
 using Microsoft.Extensions.Logging;
@@ -13,24 +11,22 @@ namespace Hugo;
 /// </summary>
 public static partial class ResultPipeline
 {
-    [SuppressMessage("Design", "CA1068:CancellationTokenParametersShouldComeLast", Justification = "Matches existing Go helper signatures for familiarity.")]
     public static ValueTask<Result<IReadOnlyList<T>>> FanOutAsync<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
-        CancellationToken cancellationToken = default,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(operations);
 
         return Result.WhenAll(operations, policy, timeProvider ?? TimeProvider.System, cancellationToken);
     }
 
-    [SuppressMessage("Design", "CA1068:CancellationTokenParametersShouldComeLast", Justification = "Matches existing Go helper signatures for familiarity.")]
     public static ValueTask<Result<T>> RaceAsync<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy = null,
-        CancellationToken cancellationToken = default,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(operations);
 

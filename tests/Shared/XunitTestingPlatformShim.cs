@@ -1,6 +1,3 @@
-using System;
-using System.Threading.Tasks;
-
 using Microsoft.Testing.Platform.Builder;
 
 namespace Xunit.Runner.InProc.SystemConsole.TestingPlatform;

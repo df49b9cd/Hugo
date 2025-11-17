@@ -1,5 +1,3 @@
-using System.Threading.Tasks;
-
 using Hugo.Policies;
 
 using Microsoft.Extensions.Logging;

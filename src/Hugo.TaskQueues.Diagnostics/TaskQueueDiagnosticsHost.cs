@@ -1,8 +1,5 @@
-using System.Collections.Generic;
 using System.Diagnostics.Metrics;
-using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 
 using Hugo.TaskQueues.Backpressure;
 using Hugo.TaskQueues.Replication;
@@ -124,7 +121,7 @@ public sealed class TaskQueueDiagnosticsHost : IAsyncDisposable
             return;
         }
 
-        _cts.Cancel();
+        await _cts.CancelAsync();
         _events.Writer.TryComplete();
 
         lock (_gate)

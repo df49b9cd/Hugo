@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace Hugo;
 
 /// <summary>
@@ -26,43 +24,28 @@ public static partial class Go
     /// <param name="scheduler">The scheduler used for dispatch. Defaults to <see cref="TaskScheduler.Default"/>.</param>
     /// <param name="creationOptions">Task creation flags applied to the scheduled work. <see cref="TaskCreationOptions.DenyChildAttach"/> is always enforced.</param>
     /// <returns>The task representing the queued work.</returns>
-    public static Task Run(Func<Task> func, TaskScheduler? scheduler = null, TaskCreationOptions creationOptions = DefaultRunOptions)
+    public static ValueTask Run(Func<ValueTask> func, TaskScheduler? scheduler = null, TaskCreationOptions creationOptions = DefaultRunOptions, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(func);
-        return Run(_ => func(), CancellationToken.None, scheduler, creationOptions);
+        return Run(_ => func(), scheduler, creationOptions, cancellationToken);
     }
 
     /// <summary>
     /// Runs a cancelable function on a background scheduler.
     /// </summary>
     /// <param name="func">The asynchronous delegate to execute.</param>
-    /// <param name="cancellationToken">The token used to cancel the queued work.</param>
     /// <param name="scheduler">The scheduler used for dispatch. Defaults to <see cref="TaskScheduler.Default"/>.</param>
     /// <param name="creationOptions">Task creation flags applied to the scheduled work. <see cref="TaskCreationOptions.DenyChildAttach"/> is always enforced.</param>
+    /// <param name="cancellationToken">The token used to cancel the queued work.</param>
     /// <returns>The task representing the queued work.</returns>
-    [SuppressMessage("Design", "CA1068:CancellationTokenParametersShouldComeLast", Justification = "Scheduler and creation options must remain optional parameters for backward compatibility.")]
-    public static Task Run(
-        Func<CancellationToken, Task> func,
-        CancellationToken cancellationToken = default,
-        TaskScheduler? scheduler = null,
-        TaskCreationOptions creationOptions = DefaultRunOptions)
-    {
-        ArgumentNullException.ThrowIfNull(func);
-        return ScheduleAsync(func, cancellationToken, scheduler, creationOptions);
-    }
-
-    public static ValueTask RunValueTask(
+    public static ValueTask Run(
         Func<CancellationToken, ValueTask> func,
+        TaskScheduler? scheduler = null,
+        TaskCreationOptions creationOptions = DefaultRunOptions,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(func);
-
-        return new ValueTask(Run(
-            async token =>
-            {
-                await func(token).ConfigureAwait(false);
-            },
-            cancellationToken));
+        return ScheduleAsync(func, scheduler, creationOptions, cancellationToken);
     }
 
     /// <summary>
@@ -70,22 +53,10 @@ public static partial class Go
     /// </summary>
     /// <param name="task">The task to surface.</param>
     /// <returns>The supplied <paramref name="task"/>.</returns>
-    public static Task Run(Task task)
+    public static ValueTask Run(Task task)
     {
         ArgumentNullException.ThrowIfNull(task);
-        return task;
-    }
-
-    /// <summary>
-    /// Reuses an already created <see cref="Task{TResult}"/> without wrapping it in <see cref="Task.Run(Action)"/>.
-    /// </summary>
-    /// <param name="task">The task to surface.</param>
-    /// <typeparam name="T">The result type of the task.</typeparam>
-    /// <returns>The supplied <paramref name="task"/>.</returns>
-    public static Task<T> Run<T>(Task<T> task)
-    {
-        ArgumentNullException.ThrowIfNull(task);
-        return task;
+        return new(task);
     }
 
     /// <summary>
@@ -131,22 +102,21 @@ public static partial class Go
     public static Result<T> Err<T>(Exception exception, string? code = null) =>
         Result.Fail<T>(Error.FromException(exception, code));
 
-    [SuppressMessage("Design", "CA1068:CancellationTokenParametersShouldComeLast", Justification = "Scheduler and creation options must remain optional parameters for backward compatibility.")]
-    private static Task ScheduleAsync(
-        Func<CancellationToken, Task> func,
-        CancellationToken cancellationToken,
+    private static ValueTask ScheduleAsync(
+        Func<CancellationToken, ValueTask> func,
         TaskScheduler? scheduler,
-        TaskCreationOptions creationOptions)
+        TaskCreationOptions creationOptions,
+        CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
         {
-            return Task.FromCanceled(cancellationToken);
+            return ValueTask.FromCanceled(cancellationToken);
         }
 
         var options = NormalizeOptions(creationOptions);
         var taskScheduler = scheduler ?? TaskScheduler.Default;
 
-        return Task.Factory
+        return new(Task.Factory
             .StartNew(
                 static state =>
                 {
@@ -157,7 +127,7 @@ public static partial class Go
                 cancellationToken,
                 options,
                 taskScheduler)
-            .Unwrap();
+            .Unwrap());
     }
 
     private static TaskCreationOptions NormalizeOptions(TaskCreationOptions creationOptions) =>

@@ -83,7 +83,7 @@ public class TaskQueueBackpressureMonitorTests
 
         using var cancelCts = new CancellationTokenSource();
         var canceled = monitor.WaitForDrainingAsync(cancelCts.Token).AsTask();
-        cancelCts.Cancel();
+        await cancelCts.CancelAsync();
         await Should.ThrowAsync<OperationCanceledException>(async () => await canceled);
 
         var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);

@@ -166,7 +166,7 @@ public class ResultPipelineEnhancementsTests
     public async ValueTask WhenAny_ShouldNotHang_WhenCallerTokenAlreadyCanceled()
     {
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var ops = new[]
         {
@@ -244,7 +244,7 @@ public class ResultPipelineEnhancementsTests
             .AddStep("charge", (_, _) => ValueTask.FromResult(Result.Fail<string>(Error.From("payment failed", ErrorCodes.Exception))));
 
         var policy = new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse);
-        var result = await saga.ExecuteAsync(policy, TestContext.Current.CancellationToken);
+        var result = await saga.ExecuteAsync(policy, cancellationToken: TestContext.Current.CancellationToken);
 
         result.IsFailure.ShouldBeTrue();
         compensation.ShouldBe(1);
@@ -284,7 +284,7 @@ public class ResultPipelineEnhancementsTests
         var aggregateTask = Result.WhenAll(operations, policy: policy, cancellationToken: cts.Token);
 
         await retryDelayStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var result = await aggregateTask;
 
@@ -320,7 +320,7 @@ public class ResultPipelineEnhancementsTests
             {
                 await firstCompleted.Task.WaitAsync(TestContext.Current.CancellationToken);
                 using var localCts = new CancellationTokenSource();
-                localCts.Cancel();
+                await localCts.CancelAsync();
                 throw new OperationCanceledException(localCts.Token);
             })
         };
@@ -337,7 +337,7 @@ public class ResultPipelineEnhancementsTests
     public async ValueTask WhenAll_ShouldSkipCompensation_WhenNoTasksCompleted()
     {
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
         var compensationInvocations = 0;
 
         var policy = ResultExecutionPolicy.None.WithCompensation(ResultCompensationPolicy.SequentialReverse);
@@ -381,7 +381,7 @@ public class ResultPipelineEnhancementsTests
                 return ValueTask.FromResult(Result.Ok(reserveId + "-charged"));
             }, resultKey: "chargeResult");
 
-        var result = await saga.ExecuteAsync(ResultExecutionPolicy.None, TestContext.Current.CancellationToken);
+        var result = await saga.ExecuteAsync(ResultExecutionPolicy.None, cancellationToken: TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.TryGet("chargeResult", out string? charge).ShouldBeTrue();
@@ -537,7 +537,7 @@ public class ResultPipelineEnhancementsTests
         var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
         first.IsSuccess.ShouldBeTrue();
 
-        cts.Cancel();
+        await cts.CancelAsync();
 
         await toChannelTask;
 

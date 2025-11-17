@@ -4,7 +4,7 @@ using Shouldly;
 using Microsoft.Extensions.Time.Testing;
 
 using static Hugo.Go;
-using Hugo;
+
 using Hugo.Policies;
 
 namespace Hugo.Tests;
@@ -60,7 +60,7 @@ public partial class GoTests
     [Fact(Timeout = 15_000)]
     public async Task RaceAsync_ShouldReturnFirstSuccessfulResult()
     {
-        var operations = new List<Func<CancellationToken, Task<Result<int>>>>
+        var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
         {
             static async ct =>
             {
@@ -102,7 +102,7 @@ public partial class GoTests
             }
         };
 
-        var result = await RaceValueTaskAsync<int>(operations, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await RaceAsync<int>(operations, cancellationToken: TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(7);
@@ -128,8 +128,8 @@ public partial class GoTests
             }
         };
 
-        var raceTask = RaceValueTaskAsync<int>(operations, cancellationToken: linkedCts.Token);
-        callerCts.Cancel();
+        var raceTask = RaceAsync<int>(operations, cancellationToken: linkedCts.Token);
+        await callerCts.CancelAsync();
 
         try
         {
@@ -155,7 +155,7 @@ public partial class GoTests
             ct => ReadNextAsync("beta", second.Reader, ct)
         };
 
-        var raceTask = RaceValueTaskAsync<string>(operations, cancellationToken: TestContext.Current.CancellationToken);
+        var raceTask = RaceAsync<string>(operations, cancellationToken: TestContext.Current.CancellationToken);
 
         await first.Writer.WriteAsync(11, TestContext.Current.CancellationToken);
         first.Writer.TryComplete();
@@ -215,10 +215,9 @@ public partial class GoTests
             }
         };
 
-        var raceResult = await RaceValueTaskAsync<IReadOnlyList<int>>(
+        var raceResult = await RaceAsync<IReadOnlyList<int>>(
             operations,
-            cancellationToken: TestContext.Current.CancellationToken,
-            timeProvider: provider);
+            timeProvider: provider, cancellationToken: TestContext.Current.CancellationToken);
 
         raceResult.IsSuccess.ShouldBeTrue();
         raceResult.Value.ShouldBe([5, 6]);
@@ -549,9 +548,9 @@ public partial class GoTests
     [Fact(Timeout = 15_000)]
     public async Task RaceAsync_ShouldThrowWhenOperationEntryNull()
     {
-        var operations = new Func<CancellationToken, Task<Result<int>>>?[]
+        var operations = new Func<CancellationToken, ValueTask<Result<int>>>?[]
         {
-            _ => Task.FromResult(Ok(1)),
+            _ => ValueTask.FromResult(Ok(1)),
             null
         };
 
@@ -564,10 +563,10 @@ public partial class GoTests
     [Fact(Timeout = 15_000)]
     public async Task RaceAsync_ShouldReturnFailureWhenAllFail()
     {
-        var operations = new List<Func<CancellationToken, Task<Result<int>>>>
+        var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
         {
-            static _ => Task.FromResult(Err<int>("first failure", ErrorCodes.Validation)),
-            static _ => Task.FromResult(Err<int>("second failure", ErrorCodes.Validation))
+            static _ => ValueTask.FromResult(Err<int>("first failure", ErrorCodes.Validation)),
+            static _ => ValueTask.FromResult(Err<int>("second failure", ErrorCodes.Validation))
         };
 
         var result = await RaceAsync(operations, cancellationToken: TestContext.Current.CancellationToken);
@@ -586,7 +585,7 @@ public partial class GoTests
             new(TaskCreationOptions.RunContinuationsAsynchronously)
         ];
 
-        var operations = new List<Func<CancellationToken, Task<Result<int>>>>
+        var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
         {
             async ct =>
             {

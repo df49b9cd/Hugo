@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using System.Threading.Tasks;
 
 namespace Hugo;
 
@@ -42,7 +41,7 @@ public static partial class Go
 
         provider ??= TimeProvider.System;
 #pragma warning disable CA2000 // TimerChannel lifetime is managed by the returned ticker.
-        TimerChannel timerChannel = TimerChannel.Start(provider, period, period, cancellationToken, singleShot: false);
+        TimerChannel timerChannel = TimerChannel.Start(provider, period, period, singleShot: false, cancellationToken: cancellationToken);
 #pragma warning restore CA2000
         return new GoTicker(timerChannel);
     }
@@ -78,7 +77,7 @@ public static partial class Go
 
         provider ??= TimeProvider.System;
 #pragma warning disable CA2000 // TimerChannel lifetime is managed by the returned reader.
-        TimerChannel timerChannel = TimerChannel.Start(provider, delay, Timeout.InfiniteTimeSpan, cancellationToken, singleShot: true);
+        TimerChannel timerChannel = TimerChannel.Start(provider, delay, Timeout.InfiniteTimeSpan, singleShot: true, cancellationToken: cancellationToken);
 #pragma warning restore CA2000
         return timerChannel.Reader;
     }

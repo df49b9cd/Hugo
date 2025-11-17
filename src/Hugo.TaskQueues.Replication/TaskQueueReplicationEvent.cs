@@ -1,7 +1,3 @@
-using System.Threading;
-
-using Hugo.TaskQueues;
-
 namespace Hugo.TaskQueues.Replication;
 
 /// <summary>

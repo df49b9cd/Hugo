@@ -1,6 +1,3 @@
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using Shouldly;
 
 using Hugo.Policies;
@@ -35,7 +32,7 @@ public class GoRaceValueTaskAsyncTests
             .None
             .WithCompensation(ResultCompensationPolicy.SequentialReverse);
 
-        var result = await Go.RaceValueTaskAsync(
+        var result = await Go.RaceAsync(
             operations,
             compensationPolicy,
             cancellationToken: TestContext.Current.CancellationToken);
@@ -53,7 +50,7 @@ public class GoRaceValueTaskAsyncTests
             static _ => ValueTask.FromResult(Result.Fail<int>(Error.From("second failure", ErrorCodes.Validation)))
         };
 
-        var result = await Go.RaceValueTaskAsync(
+        var result = await Go.RaceAsync(
             operations,
             cancellationToken: TestContext.Current.CancellationToken);
 
@@ -80,7 +77,7 @@ public class GoRaceValueTaskAsyncTests
             ct => AwaitCancellationAsync(ct, loserCanceled)
         };
 
-        var result = await Go.RaceValueTaskAsync(
+        var result = await Go.RaceAsync(
             operations,
             cancellationToken: TestContext.Current.CancellationToken);
 
@@ -111,11 +108,11 @@ public class GoRaceValueTaskAsyncTests
             }
         };
 
-        var raceTask = Go.RaceValueTaskAsync(
+        var raceTask = Go.RaceAsync(
             operations,
             cancellationToken: linkedCts.Token);
 
-        cts.Cancel();
+        await cts.CancelAsync();
 
         try
         {

@@ -1,6 +1,3 @@
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using Shouldly;
 
 using Hugo.Policies;
@@ -38,7 +35,7 @@ public class GoRaceValueTaskAsyncIntegrationTests
             attempts: 3,
             delay: TimeSpan.FromMilliseconds(1));
 
-        var result = await Go.RaceValueTaskAsync(
+        var result = await Go.RaceAsync(
             operations,
             policy,
             cancellationToken: TestContext.Current.CancellationToken);

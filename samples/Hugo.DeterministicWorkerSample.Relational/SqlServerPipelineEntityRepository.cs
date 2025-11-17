@@ -1,10 +1,6 @@
-using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
-using System.Threading;
-using System.Threading.Tasks;
 
-using Hugo;
 using Hugo.DeterministicWorkerSample.Core;
 
 using Microsoft.Data.SqlClient;

@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace Hugo;
 
 /// <summary>
@@ -54,36 +52,32 @@ public sealed class WaitGroup
 
     /// <summary>Tracks the provided task and marks the wait group complete when it finishes.</summary>
     /// <param name="task">The task to observe.</param>
-    public void Add(Task task)
+    public void Add(ValueTask task)
     {
-        ArgumentNullException.ThrowIfNull(task);
-
         Add(1);
-        ObserveTask(task);
+        ObserveTask(task.AsTask());
     }
 
     /// <summary>
     /// Runs the supplied delegate via <see cref="Go.Run(Func{Task}, TaskScheduler?, TaskCreationOptions)"/> and tracks it.
     /// </summary>
     /// <param name="work">The asynchronous delegate to execute.</param>
-    /// <param name="cancellationToken">The token used to cancel the queued work.</param>
     /// <param name="scheduler">Optional scheduler that controls how the work is dispatched.</param>
     /// <param name="creationOptions">Task creation flags applied to the scheduled work.</param>
-    [SuppressMessage("Design", "CA1068:CancellationTokenParametersShouldComeLast", Justification = "Scheduler and creation options must remain optional parameters for backward compatibility.")]
-    public void Go(
-        Func<Task> work,
-        CancellationToken cancellationToken = default,
+    /// <param name="cancellationToken">The token used to cancel the queued work.</param>
+    public void Go(Func<ValueTask> work,
         TaskScheduler? scheduler = null,
-        TaskCreationOptions creationOptions = DefaultGoOptions)
+        TaskCreationOptions creationOptions = DefaultGoOptions,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(work);
 
         Add(1);
 
-        Task task;
+        ValueTask task;
         try
         {
-            task = global::Hugo.Go.Run(_ => work(), cancellationToken, scheduler, creationOptions);
+            task = Hugo.Go.Run(_ => work(), scheduler, creationOptions, cancellationToken);
         }
         catch
         {
@@ -91,24 +85,14 @@ public sealed class WaitGroup
             throw;
         }
 
-        ObserveTask(task);
+        ObserveTask(task.AsTask());
     }
 
     /// <summary>
     /// Tracks an already created <see cref="Task"/> without re-scheduling it.
     /// </summary>
     /// <param name="task">The task to observe.</param>
-    public void Go(Task task)
-    {
-        ArgumentNullException.ThrowIfNull(task);
-        Add(task);
-    }
-
-    /// <summary>
-    /// Tracks an existing <see cref="ValueTask"/> without allocating an additional <see cref="Task.Run(Action)"/> wrapper.
-    /// </summary>
-    /// <param name="task">The value task to observe.</param>
-    public static void Go(ValueTask task) => Go(global::Hugo.Go.Run(task));
+    public void Go(ValueTask task) => Add(task);
 
     private void ObserveTask(Task task) => task.ContinueWith(static (_, state) => ((WaitGroup)state!).Done(), this, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
 
@@ -160,7 +144,8 @@ public sealed class WaitGroup
     /// <param name="provider">The time provider used to schedule the timeout.</param>
     /// <param name="cancellationToken">The token used to cancel the wait.</param>
     /// <returns><see langword="true"/> when the wait group completed before the timeout elapsed; otherwise <see langword="false"/>.</returns>
-    public async Task<bool> WaitAsync(TimeSpan timeout, TimeProvider? provider = null, CancellationToken cancellationToken = default)
+    public async ValueTask<bool> WaitAsync(TimeSpan timeout, TimeProvider? provider = null,
+        CancellationToken cancellationToken = default)
     {
         if (timeout == Timeout.InfiniteTimeSpan)
         {

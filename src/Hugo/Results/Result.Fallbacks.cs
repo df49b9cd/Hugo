@@ -84,22 +84,18 @@ public static partial class Result
     /// <typeparam name="T">The type of the result value.</typeparam>
     /// <param name="tiers">The ordered collection of fallback tiers.</param>
     /// <param name="policy">The optional execution policy applied to each tier.</param>
-    /// <param name="cancellationToken">The token used to cancel the fallback execution.</param>
     /// <param name="timeProvider">The optional time provider used for policy timing.</param>
+    /// <param name="cancellationToken">The token used to cancel the fallback execution.</param>
     /// <returns>A <see cref="ValueTask{TResult}"/> describing the outcome of the fallback orchestration.</returns>
-    [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Maintains existing API contract for callers relying on positional arguments.")]
-    public static ValueTask<Result<T>> TieredFallbackAsync<T>(
-        IEnumerable<ResultFallbackTier<T>> tiers,
+    public static ValueTask<Result<T>> TieredFallbackAsync<T>(IEnumerable<ResultFallbackTier<T>> tiers,
         ResultExecutionPolicy? policy = null,
-        CancellationToken cancellationToken = default,
-        TimeProvider? timeProvider = null) => TieredFallbackInternal(tiers, policy, cancellationToken, timeProvider ?? TimeProvider.System);
+        TimeProvider? timeProvider = null,
+        CancellationToken cancellationToken = default) => TieredFallbackInternal(tiers, policy, timeProvider ?? TimeProvider.System, cancellationToken);
 
-    [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Internal helper mirrors public API ordering for consistency.")]
-    private static async ValueTask<Result<T>> TieredFallbackInternal<T>(
-        IEnumerable<ResultFallbackTier<T>> tiers,
+    private static async ValueTask<Result<T>> TieredFallbackInternal<T>(IEnumerable<ResultFallbackTier<T>> tiers,
         ResultExecutionPolicy? policy,
-        CancellationToken cancellationToken,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(tiers);
         ArgumentNullException.ThrowIfNull(timeProvider);

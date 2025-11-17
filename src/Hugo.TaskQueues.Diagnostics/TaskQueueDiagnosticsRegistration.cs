@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using System.Threading;
 
 namespace Hugo.TaskQueues.Diagnostics;
 

@@ -13,10 +13,10 @@ public class GoEdgeCaseTests
         var wg = new WaitGroup();
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 
-        var task = Task.Run(async () =>
+        var task = Run(async () =>
         {
             await Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
-        }, cts.Token);
+        }, cancellationToken: cts.Token);
 
         wg.Add(task);
 

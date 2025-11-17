@@ -2,11 +2,7 @@ using System.Threading.Channels;
 
 using Hugo;
 
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using static Hugo.Go;
@@ -187,7 +183,7 @@ sealed partial class TelemetryWorker(
                 await _stream.Writer.WriteAsync(heartbeatItem, ct).ConfigureAwait(false);
                 await DelayAsync(TimeSpan.FromSeconds(1), _timeProvider, ct).ConfigureAwait(false);
             }
-        }, stoppingToken);
+        }, cancellationToken: stoppingToken);
 
         wg.Go(async ct =>
         {
@@ -210,7 +206,7 @@ sealed partial class TelemetryWorker(
                 LogQueuedCpuReadingReadingF2(cpuReading);
                 await DelayAsync(TimeSpan.FromMilliseconds(350), _timeProvider, ct).ConfigureAwait(false);
             }
-        }, stoppingToken);
+        }, cancellationToken: stoppingToken);
 
         try
         {

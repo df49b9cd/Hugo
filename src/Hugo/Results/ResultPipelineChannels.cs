@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Threading;
 using System.Threading.Channels;
 
 using Hugo.Policies;
@@ -240,7 +236,7 @@ public static class ResultPipelineChannels
         var provider = context.TimeProvider;
 #pragma warning disable CA2012
 
-        _ = Go.RunValueTask(async _ =>
+        _ = Go.Run(async _ =>
         {
             var buffer = new List<T>(batchSize);
 
@@ -255,7 +251,7 @@ public static class ResultPipelineChannels
                     var delay = CreateDelayTask(provider, flushInterval, raceToken).AsTask();
 
                     var winner = await Task.WhenAny(readerReady, delay).ConfigureAwait(false);
-                    raceCts.Cancel();
+                    await raceCts.CancelAsync();
 
                     if (ReferenceEquals(winner, delay))
                     {
@@ -317,7 +313,7 @@ public static class ResultPipelineChannels
             {
                 linkedCts.Dispose();
             }
-        }, CancellationToken.None);
+        }, cancellationToken: CancellationToken.None);
 
         return output.Reader;
 #pragma warning restore CA2012

@@ -1,9 +1,29 @@
-using System.Threading.Tasks;
-
 namespace Hugo;
 
 internal static class ValueTaskUtilities
 {
+    public static async ValueTask ContinueWith<TResult>(this ValueTask<TResult> source,
+        Action<ValueTask<TResult>> continuationAction)
+    {
+        // The source task is consumed after the await, and cannot be used further.
+        ValueTask<TResult> completed;
+        try
+        {
+            completed = new(await source.ConfigureAwait(false));
+        }
+        catch (OperationCanceledException oce)
+        {
+            var tcs = new TaskCompletionSource<TResult>();
+            tcs.SetCanceled(oce.CancellationToken);
+            completed = new(tcs.Task);
+        }
+        catch (Exception ex)
+        {
+            completed = new(Task.FromException<TResult>(ex));
+        }
+        continuationAction(completed);
+    }
+
     public static ValueTask WhenAll(IReadOnlyList<ValueTask> operations)
     {
         if (operations.Count == 0)
