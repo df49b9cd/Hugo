@@ -479,7 +479,7 @@ public static partial class Result
 
         var aggregate = errors.Count == 1
             ? errors[0]
-            : Error.Aggregate("One or more failures occurred while processing the stream.", errors.ToArray());
+            : Error.Aggregate("One or more failures occurred while processing the stream.", [.. errors]);
 
         return Result.Fail<IReadOnlyList<T>>(aggregate);
     }
