@@ -323,17 +323,16 @@ public class ResultStreamingTests
     [Fact(Timeout = 15_000)]
     public async ValueTask FanInAsync_ShouldCompleteWriterWithFailure()
     {
+#pragma warning disable CS0162
         async IAsyncEnumerable<Result<int>> Throwing([EnumeratorCancellation] CancellationToken ct = default)
         {
             await Task.Yield();
-            var shouldThrow = true;
-            if (shouldThrow)
-            {
-                throw new InvalidOperationException("fan-in failure");
-            }
-
-            yield return Result.Ok(1);
+            throw new InvalidOperationException("fan-in failure");
+#pragma warning disable CS0162
+            yield break;
+#pragma warning restore CS0162
         }
+#pragma warning restore CS0162
 
         var channel = Channel.CreateUnbounded<Result<int>>();
 

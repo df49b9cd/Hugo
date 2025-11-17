@@ -104,8 +104,7 @@ public class TaskQueueChannelAdapterTests
         await queue.EnqueueAsync("gamma", TestContext.Current.CancellationToken);
         var lease = await adapter.Reader.ReadAsync(TestContext.Current.CancellationToken);
 
-        provider.Advance(TimeSpan.FromMilliseconds(75));
-        provider.Advance(TimeSpan.FromMilliseconds(75));
+        provider.Advance(TimeSpan.FromMilliseconds(60));
 
         var requeued = await adapter.Reader.ReadAsync(TestContext.Current.CancellationToken);
 
