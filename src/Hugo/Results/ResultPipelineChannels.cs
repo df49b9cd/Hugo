@@ -248,14 +248,18 @@ public static class ResultPipelineChannels
             {
                 while (true)
                 {
-                    var readerReadyTask = source.WaitToReadAsync(token);
-                    var delayTask = CreateDelayTask(provider, flushInterval, token);
+                    using var raceCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                    var raceToken = raceCts.Token;
 
-                    var winner = await ValueTaskUtilities.WhenAny(readerReadyTask, delayTask).ConfigureAwait(false);
+                    var readerReady = source.WaitToReadAsync(raceToken).AsTask();
+                    var delay = CreateDelayTask(provider, flushInterval, raceToken).AsTask();
 
-                    if (winner == 1)
+                    var winner = await Task.WhenAny(readerReady, delay).ConfigureAwait(false);
+                    raceCts.Cancel();
+
+                    if (ReferenceEquals(winner, delay))
                     {
-                        await delayTask.ConfigureAwait(false);
+                        await delay.ConfigureAwait(false);
 
                         if (buffer.Count > 0)
                         {
@@ -263,10 +267,25 @@ public static class ResultPipelineChannels
                             buffer.Clear();
                         }
 
+                        while (source.TryRead(out var pending))
+                        {
+                            buffer.Add(pending);
+                            if (buffer.Count >= batchSize)
+                            {
+                                await output.Writer.WriteAsync(buffer.ToArray(), token).ConfigureAwait(false);
+                                buffer.Clear();
+                            }
+                        }
+
+                        if (source.Completion.IsCompleted && buffer.Count == 0)
+                        {
+                            break;
+                        }
+
                         continue;
                     }
 
-                    var hasData = await readerReadyTask.ConfigureAwait(false);
+                    var hasData = await readerReady.ConfigureAwait(false);
                     if (!hasData)
                     {
                         break;

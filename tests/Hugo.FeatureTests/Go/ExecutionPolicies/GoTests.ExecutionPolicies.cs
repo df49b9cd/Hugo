@@ -223,6 +223,25 @@ public partial class GoTests
         Assert.Equal(new[] { 5, 6 }, raceResult.Value);
     }
 
+    [Fact(Timeout = 15_000)]
+    public async Task CollectErrorsAsync_ShouldAggregateFailuresAcrossStreams()
+    {
+        var stream = CollectingStream();
+
+        var result = await stream.CollectErrorsAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Aggregate, result.Error?.Code);
+    }
+
+    private static async IAsyncEnumerable<Result<int>> CollectingStream()
+    {
+        yield return Ok(1);
+        await Task.Yield();
+        yield return Err<int>("fail-1", ErrorCodes.Validation);
+        yield return Err<int>("fail-2", ErrorCodes.Validation);
+    }
+
     private static async ValueTask<Result<string>> ReadNextAsync(string label, ChannelReader<int> reader, CancellationToken token)
     {
         while (await reader.WaitToReadAsync(token))
