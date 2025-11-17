@@ -103,4 +103,22 @@ public class ResultSagaBuilderFeatureTests
         result.Value.Data.ShouldContainKeyAndValue("custom", "payload");
         result.Value.Data.ShouldContainKeyAndValue("final", "payload-seen");
     }
+
+    [Fact(Timeout = 15_000)]
+    public void AddStep_ShouldThrow_WhenNameIsMissing()
+    {
+        var builder = new ResultSagaBuilder();
+
+        Should.Throw<ArgumentException>(() =>
+            builder.AddStep<int>(" ", (_, _) => ValueTask.FromResult(Result.Ok(1))));
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void AddStep_ShouldThrow_WhenOperationIsNull()
+    {
+        var builder = new ResultSagaBuilder();
+
+        Should.Throw<ArgumentNullException>(() =>
+            builder.AddStep<int>("step", null!));
+    }
 }
