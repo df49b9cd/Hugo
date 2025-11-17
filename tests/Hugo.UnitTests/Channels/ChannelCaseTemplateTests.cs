@@ -38,4 +38,20 @@ public sealed class ChannelCaseTemplateTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe("high");
     }
+
+    [Fact(Timeout = 15_000)]
+    public async Task Template_WithAction_ShouldExecuteAndReturnDefaultResult()
+    {
+        var channel = Channel.CreateBounded<int>(1);
+        channel.Writer.TryWrite(7);
+
+        int observed = 0;
+        var template = ChannelCaseTemplates.From(channel.Reader);
+        ChannelCase<Unit> case1 = template.With<Unit>((value) => observed = value);
+
+        var result = await Go.SelectAsync(case1);
+
+        result.IsSuccess.ShouldBeTrue();
+        observed.ShouldBe(7);
+    }
 }

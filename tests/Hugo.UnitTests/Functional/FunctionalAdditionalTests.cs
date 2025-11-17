@@ -14,6 +14,15 @@ public sealed class FunctionalAdditionalTests
     }
 
     [Fact(Timeout = 15_000)]
+    public void Ensure_ShouldReturnSuccess_WhenPredicateTrue()
+    {
+        var result = Result.Ok(5).Ensure(v => v > 0, _ => Error.From("neg", ErrorCodes.Validation));
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(5);
+    }
+
+    [Fact(Timeout = 15_000)]
     public void Finally_ShouldExecuteRegardlessOfOutcome()
     {
         bool called = false;
@@ -33,5 +42,13 @@ public sealed class FunctionalAdditionalTests
 
         called.ShouldBeTrue();
         result.ShouldBe(0);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void Finally_ShouldReturnSuccessProjection_WhenSuccess()
+    {
+        var projected = Result.Ok(3).Finally(v => v * 2, _ => -1);
+
+        projected.ShouldBe(6);
     }
 }

@@ -8,7 +8,7 @@ namespace Hugo.Tests;
 
 public sealed class DeterministicStoreRegistrationTests
 {
-    [Fact(Timeout = 15_000, Skip = "Cosmos SDK runtime version mismatch in test environment; coverage captured via other suites.")]
+    [Fact(Timeout = 15_000)]
     public void AddHugoDeterministicCosmos_ShouldRegisterOptionsAndStore()
     {
         ServiceCollection services = new();
@@ -25,6 +25,21 @@ public sealed class DeterministicStoreRegistrationTests
         options.Client.ShouldBeNull();
         options.DatabaseId.ShouldBe("db");
         options.ContainerId.ShouldBe("container");
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void AddHugoDeterministicCosmos_ShouldThrowWhenResolvingWithoutClient()
+    {
+        ServiceCollection services = new();
+        services.AddHugoDeterministicCosmos(options =>
+        {
+            options.DatabaseId = "db";
+            options.ContainerId = "container";
+        });
+
+        ServiceProvider provider = services.BuildServiceProvider();
+
+        Should.Throw<ArgumentException>(() => provider.GetRequiredService<IDeterministicStateStore>());
     }
 
     [Fact(Timeout = 15_000)]
