@@ -97,6 +97,52 @@ public class TaskQueueBackpressureMonitorTests
     }
 
     [Fact(Timeout = 15_000)]
+    public void MonitorOptions_ShouldValidateBoundaries()
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            new TaskQueueBackpressureMonitorOptions
+            {
+                HighWatermark = 0
+            });
+
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            new TaskQueueBackpressureMonitorOptions
+            {
+                HighWatermark = 2,
+                Cooldown = TimeSpan.Zero
+            });
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask Monitor_ShouldDeriveLowWatermark_WhenUnsetOrAboveHigh()
+    {
+        var provider = new FakeTimeProvider();
+        await using var firstQueue = new TaskQueue<int>(new TaskQueueOptions { Capacity = 8 }, provider);
+        await using var monitor = new TaskQueueBackpressureMonitor<int>(
+            firstQueue,
+            new TaskQueueBackpressureMonitorOptions
+            {
+                HighWatermark = 6,
+                LowWatermark = -1,
+                Cooldown = TimeSpan.FromMilliseconds(2)
+            });
+
+        monitor.CurrentSignal.LowWatermark.ShouldBe(3);
+
+        await using var secondQueue = new TaskQueue<int>(new TaskQueueOptions { Capacity = 8 }, provider);
+        await using var derivedMonitor = new TaskQueueBackpressureMonitor<int>(
+            secondQueue,
+            new TaskQueueBackpressureMonitorOptions
+            {
+                HighWatermark = 6,
+                LowWatermark = 12,
+                Cooldown = TimeSpan.FromMilliseconds(2)
+            });
+
+        derivedMonitor.CurrentSignal.LowWatermark.ShouldBe(3);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask DiagnosticsListener_ShouldBoundHistory()
     {
         await using var diagnostics = new TaskQueueBackpressureDiagnosticsListener(capacity: 2);
