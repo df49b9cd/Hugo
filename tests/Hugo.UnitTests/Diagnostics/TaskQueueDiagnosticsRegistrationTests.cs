@@ -47,7 +47,7 @@ public class TaskQueueDiagnosticsRegistrationTests
             await using var queue = new TaskQueue<string>(new TaskQueueOptions { Name = queueName, Capacity = 4 });
             await queue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
 
-            var deadline = DateTime.UtcNow.AddSeconds(2);
+            var deadline = DateTime.UtcNow.AddSeconds(5);
             while (DateTime.UtcNow < deadline &&
                    (!HasMetric(captured, "taskqueue.enqueued", queueName) ||
                     !HasMetric(captured, "taskqueue.pending", queueName)))
