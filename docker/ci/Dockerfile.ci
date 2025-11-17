@@ -4,6 +4,7 @@ ARG DOTNET_VERSION=10.0
 # ARG TEST_PROJECTS="tests/Hugo.UnitTests/Hugo.UnitTests.csproj tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj tests/Hugo.FeatureTests/Hugo.FeatureTests.csproj tests/Hugo.Deterministic.Cosmos.Tests/Hugo.Deterministic.Cosmos.Tests.csproj tests/Hugo.Deterministic.Redis.Tests/Hugo.Deterministic.Redis.Tests.csproj tests/Hugo.Deterministic.SqlServer.Tests/Hugo.Deterministic.SqlServer.Tests.csproj"
 ARG TEST_PROJECTS="tests/Hugo.UnitTests/Hugo.UnitTests.csproj tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj tests/Hugo.FeatureTests/Hugo.FeatureTests.csproj"
 ARG PACK_PROJECTS="src/Hugo/Hugo.csproj src/Hugo.Diagnostics.OpenTelemetry/Hugo.Diagnostics.OpenTelemetry.csproj src/Hugo.Deterministic.Cosmos/Hugo.Deterministic.Cosmos.csproj src/Hugo.Deterministic.Redis/Hugo.Deterministic.Redis.csproj src/Hugo.Deterministic.SqlServer/Hugo.Deterministic.SqlServer.csproj src/Hugo.TaskQueues.Diagnostics/Hugo.TaskQueues.Diagnostics.csproj src/Hugo.TaskQueues.Replication/Hugo.TaskQueues.Replication.csproj"
+ARG PACKAGE_VERSION
 
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-alpine AS base
 
@@ -47,10 +48,17 @@ COPY benchmarks ./benchmarks
 COPY tools ./tools
 
 FROM base AS restore
+ARG PACKAGE_VERSION
 RUN dotnet restore Hugo.slnx
 
 FROM restore AS build
-RUN dotnet build Hugo.slnx -c Release --no-restore
+ARG PACKAGE_VERSION
+RUN set -euo pipefail; \
+    version_args=""; \
+    if [[ -n "${PACKAGE_VERSION:-}" ]]; then \
+      version_args="-p:Version=${PACKAGE_VERSION} -p:PackageVersion=${PACKAGE_VERSION}"; \
+    fi; \
+    dotnet build Hugo.slnx -c Release --no-restore ${version_args}
 
 FROM build AS test
 SHELL ["/bin/bash","-c"]
@@ -77,13 +85,19 @@ CMD ["bash"]
 FROM test AS pack
 SHELL ["/bin/bash","-c"]
 ARG PACK_PROJECTS
+ARG PACKAGE_VERSION
 RUN set -euo pipefail && \
     mkdir -p /repo/artifacts/packages && \
     pack_dir="/repo/artifacts/packages" && \
+    version_args="" && \
+    if [[ -n "${PACKAGE_VERSION:-}" ]]; then \
+      version_args="-p:Version=${PACKAGE_VERSION} -p:PackageVersion=${PACKAGE_VERSION}"; \
+    fi && \
     for proj in ${PACK_PROJECTS}; do \
         dotnet pack "${proj}" \
             -c Release \
             --no-build \
+            ${version_args} \
             -o "${pack_dir}"; \
     done
 

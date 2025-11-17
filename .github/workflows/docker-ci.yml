@@ -45,15 +45,51 @@ jobs:
 
       - name: Build image
         id: build-image
-        run: docker build --target build -f docker/ci/Dockerfile.ci -t hugo-ci .
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${TAG_NAME#v}"
+          fi
+          docker build \
+            --target build \
+            -f docker/ci/Dockerfile.ci \
+            -t hugo-ci \
+            --build-arg PACKAGE_VERSION="${VERSION}" \
+            .
 
       - name: Run Test in image
         id: test-image
-        run: docker build --target test -f docker/ci/Dockerfile.ci -t hugo-ci .
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${TAG_NAME#v}"
+          fi
+          docker build \
+            --target test \
+            -f docker/ci/Dockerfile.ci \
+            -t hugo-ci \
+            --build-arg PACKAGE_VERSION="${VERSION}" \
+            .
 
       - name: Pack nugets
         id: pack-image
-        run: docker build --target pack -f docker/ci/Dockerfile.ci -t hugo-ci .
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION=""
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${TAG_NAME#v}"
+          fi
+          docker build \
+            --target pack \
+            -f docker/ci/Dockerfile.ci \
+            -t hugo-ci \
+            --build-arg PACKAGE_VERSION="${VERSION}" \
+            .
 
       - name: Extract CI artifacts
         if: ${{ steps.build-image.outcome == 'success' }}
