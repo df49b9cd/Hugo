@@ -1,5 +1,6 @@
 using Hugo.TaskQueues;
 using Hugo.TaskQueues.Replication;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -38,13 +39,13 @@ public sealed class TaskQueueReplicationEventTests
 
         TaskQueueReplicationEvent<int> first = TaskQueueReplicationEvent<int>.Create(ref sequence, in lifecycleEvent, options, provider);
 
-        Assert.Equal(1, first.SequenceNumber);
-        Assert.Equal(provider.GetUtcNow(), first.RecordedAt);
+        first.SequenceNumber.ShouldBe(1);
+        first.RecordedAt.ShouldBe(provider.GetUtcNow());
 
         provider.Advance(TimeSpan.FromSeconds(5));
         TaskQueueReplicationEvent<int> second = TaskQueueReplicationEvent<int>.Create(ref sequence, in lifecycleEvent, options, provider);
 
-        Assert.Equal(2, second.SequenceNumber);
-        Assert.Equal(provider.GetUtcNow(), second.RecordedAt);
+        second.SequenceNumber.ShouldBe(2);
+        second.RecordedAt.ShouldBe(provider.GetUtcNow());
     }
 }

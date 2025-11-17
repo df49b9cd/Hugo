@@ -1,4 +1,5 @@
 using static Hugo.GoExecutionHelpers;
+using Shouldly;
 
 namespace Hugo.Tests;
 
@@ -12,8 +13,8 @@ public class GoExecutionHelpersTests
 
         CancellationToken? resolved = ResolveCancellationToken(preferred.Token, alternate.Token);
 
-        Assert.True(resolved.HasValue);
-        Assert.Equal(preferred.Token, resolved.Value);
+        resolved.HasValue.ShouldBeTrue();
+        resolved.Value.ShouldBe(preferred.Token);
     }
 
     [Fact(Timeout = 15_000)]
@@ -23,8 +24,8 @@ public class GoExecutionHelpersTests
 
         CancellationToken? resolved = ResolveCancellationToken(CancellationToken.None, alternate.Token);
 
-        Assert.True(resolved.HasValue);
-        Assert.Equal(alternate.Token, resolved.Value);
+        resolved.HasValue.ShouldBeTrue();
+        resolved.Value.ShouldBe(alternate.Token);
     }
 
     [Fact(Timeout = 15_000)]
@@ -32,6 +33,6 @@ public class GoExecutionHelpersTests
     {
         CancellationToken? resolved = ResolveCancellationToken(CancellationToken.None, CancellationToken.None);
 
-        Assert.False(resolved.HasValue);
+        resolved.HasValue.ShouldBeFalse();
     }
 }

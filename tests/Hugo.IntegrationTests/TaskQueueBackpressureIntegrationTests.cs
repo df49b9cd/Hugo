@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Shouldly;
 
 using Hugo.TaskQueues.Backpressure;
 
@@ -106,9 +107,9 @@ public class TaskQueueBackpressureIntegrationTests
         }
         while (second.IsActive);
 
-        Assert.True(first.IsActive);
-        Assert.False(second.IsActive);
-        Assert.True(first.ObservedAt <= second.ObservedAt);
+        first.IsActive.ShouldBeTrue();
+        second.IsActive.ShouldBeFalse();
+        (first.ObservedAt <= second.ObservedAt).ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -124,9 +125,9 @@ public class TaskQueueBackpressureIntegrationTests
             Cooldown = TimeSpan.FromMilliseconds(1)
         });
 
-        Assert.True((await safeQueue.EnqueueAsync("alpha", TestContext.Current.CancellationToken)).IsSuccess);
-        Assert.True((await safeQueue.EnqueueAsync("beta", TestContext.Current.CancellationToken)).IsSuccess);
-        Assert.True((await safeQueue.EnqueueAsync("gamma", TestContext.Current.CancellationToken)).IsSuccess);
+        (await safeQueue.EnqueueAsync("alpha", TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
+        (await safeQueue.EnqueueAsync("beta", TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
+        (await safeQueue.EnqueueAsync("gamma", TestContext.Current.CancellationToken)).IsSuccess.ShouldBeTrue();
 
         var draining = monitor.WaitForDrainingAsync(TestContext.Current.CancellationToken).AsTask();
 
@@ -135,7 +136,7 @@ public class TaskQueueBackpressureIntegrationTests
             for (var i = 0; i < 3; i++)
             {
                 var lease = await safeQueue.LeaseAsync(TestContext.Current.CancellationToken);
-                Assert.True(lease.IsSuccess);
+                lease.IsSuccess.ShouldBeTrue();
                 var safeLease = lease.Value;
                 await safeLease.CompleteAsync(TestContext.Current.CancellationToken);
                 provider.Advance(TimeSpan.FromMilliseconds(2));
@@ -144,8 +145,8 @@ public class TaskQueueBackpressureIntegrationTests
 
         await consumer;
         var cleared = await draining;
-        Assert.False(cleared.IsActive);
-        Assert.True(cleared.PendingCount <= 1);
+        cleared.IsActive.ShouldBeFalse();
+        (cleared.PendingCount <= 1).ShouldBeTrue();
     }
 
     private static async Task EventuallyAsync(Func<bool> condition, int attempts = 25, int delayMs = 10)
@@ -160,6 +161,6 @@ public class TaskQueueBackpressureIntegrationTests
             await Task.Delay(delayMs, TestContext.Current.CancellationToken);
         }
 
-        Assert.True(condition());
+        condition().ShouldBeTrue();
     }
 }

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Time.Testing;
+using Shouldly;
 
 namespace Hugo.Tests;
 
@@ -12,15 +13,15 @@ public sealed class SafeTaskQueueTests
         await using var safeQueue = new SafeTaskQueueWrapper<string>(queue);
 
         var enqueue = await safeQueue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
-        Assert.True(enqueue.IsSuccess);
+        enqueue.IsSuccess.ShouldBeTrue();
 
         var leaseResult = await safeQueue.LeaseAsync(TestContext.Current.CancellationToken);
-        Assert.True(leaseResult.IsSuccess);
+        leaseResult.IsSuccess.ShouldBeTrue();
         var lease = leaseResult.Value;
-        Assert.Equal("alpha", lease.Value);
+        lease.Value.ShouldBe("alpha");
 
         var complete = await lease.CompleteAsync(TestContext.Current.CancellationToken);
-        Assert.True(complete.IsSuccess);
+        complete.IsSuccess.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -32,12 +33,12 @@ public sealed class SafeTaskQueueTests
         await queue.DisposeAsync();
 
         var enqueue = await safeQueue.EnqueueAsync("beta", TestContext.Current.CancellationToken);
-        Assert.True(enqueue.IsFailure);
-        Assert.Equal(ErrorCodes.TaskQueueDisposed, enqueue.Error?.Code);
+        enqueue.IsFailure.ShouldBeTrue();
+        enqueue.Error?.Code.ShouldBe(ErrorCodes.TaskQueueDisposed);
 
         var lease = await safeQueue.LeaseAsync(TestContext.Current.CancellationToken);
-        Assert.True(lease.IsFailure);
-        Assert.Equal(ErrorCodes.TaskQueueDisposed, lease.Error?.Code);
+        lease.IsFailure.ShouldBeTrue();
+        lease.Error?.Code.ShouldBe(ErrorCodes.TaskQueueDisposed);
     }
 
     [Fact(Timeout = 15_000)]
@@ -48,23 +49,23 @@ public sealed class SafeTaskQueueTests
 
         await safeQueue.EnqueueAsync("gamma", TestContext.Current.CancellationToken);
         var leaseResult = await safeQueue.LeaseAsync(TestContext.Current.CancellationToken);
-        Assert.True(leaseResult.IsSuccess);
+        leaseResult.IsSuccess.ShouldBeTrue();
         var lease = leaseResult.Value;
 
         var completed = await lease.CompleteAsync(TestContext.Current.CancellationToken);
-        Assert.True(completed.IsSuccess);
+        completed.IsSuccess.ShouldBeTrue();
 
         var secondComplete = await lease.CompleteAsync(TestContext.Current.CancellationToken);
-        Assert.True(secondComplete.IsFailure);
-        Assert.Equal(ErrorCodes.TaskQueueLeaseInactive, secondComplete.Error?.Code);
+        secondComplete.IsFailure.ShouldBeTrue();
+        secondComplete.Error?.Code.ShouldBe(ErrorCodes.TaskQueueLeaseInactive);
 
         var heartbeat = await lease.HeartbeatAsync(TestContext.Current.CancellationToken);
-        Assert.True(heartbeat.IsFailure);
-        Assert.Equal(ErrorCodes.TaskQueueLeaseInactive, heartbeat.Error?.Code);
+        heartbeat.IsFailure.ShouldBeTrue();
+        heartbeat.Error?.Code.ShouldBe(ErrorCodes.TaskQueueLeaseInactive);
 
         var fail = await lease.FailAsync(Error.From("late fail", ErrorCodes.TaskQueueAbandoned), cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(fail.IsFailure);
-        Assert.Equal(ErrorCodes.TaskQueueLeaseInactive, fail.Error?.Code);
+        fail.IsFailure.ShouldBeTrue();
+        fail.Error?.Code.ShouldBe(ErrorCodes.TaskQueueLeaseInactive);
     }
 
     [Fact(Timeout = 15_000)]
@@ -75,12 +76,12 @@ public sealed class SafeTaskQueueTests
 
         await safeQueue.EnqueueAsync("delta", TestContext.Current.CancellationToken);
         var leaseResult = await safeQueue.LeaseAsync(TestContext.Current.CancellationToken);
-        Assert.True(leaseResult.IsSuccess);
+        leaseResult.IsSuccess.ShouldBeTrue();
         var lease = leaseResult.Value;
 
         var result = await lease.FailAsync(null, cancellationToken: TestContext.Current.CancellationToken);
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 
     [Fact(Timeout = 15_000)]
@@ -92,18 +93,18 @@ public sealed class SafeTaskQueueTests
 
         await safeQueue.EnqueueAsync("epsilon", TestContext.Current.CancellationToken);
         var leaseResult = await safeQueue.LeaseAsync(TestContext.Current.CancellationToken);
-        Assert.True(leaseResult.IsSuccess);
+        leaseResult.IsSuccess.ShouldBeTrue();
         var lease = leaseResult.Value;
         var error = Error.From("retry", ErrorCodes.TaskQueueAbandoned);
 
         var fail = await lease.FailAsync(error, requeue: true, TestContext.Current.CancellationToken);
-        Assert.True(fail.IsSuccess);
+        fail.IsSuccess.ShouldBeTrue();
 
         var nextLeaseResult = await safeQueue.LeaseAsync(TestContext.Current.CancellationToken);
-        Assert.True(nextLeaseResult.IsSuccess);
+        nextLeaseResult.IsSuccess.ShouldBeTrue();
         var nextLease = nextLeaseResult.Value;
-        Assert.Equal(2, nextLease.Attempt);
-        Assert.Same(error, nextLease.LastError);
+        nextLease.Attempt.ShouldBe(2);
+        nextLease.LastError.ShouldBeSameAs(error);
     }
 
     [Fact(Timeout = 15_000)]
@@ -116,7 +117,7 @@ public sealed class SafeTaskQueueTests
         cts.Cancel();
 
         var result = await safeQueue.LeaseAsync(cts.Token);
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
     }
 }

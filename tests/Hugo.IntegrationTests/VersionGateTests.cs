@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -14,9 +15,9 @@ public class VersionGateTests
 
         var decision = gate.Require("feature.step1", VersionGate.DefaultVersion, 2);
 
-        Assert.True(decision.IsSuccess);
-        Assert.True(decision.Value.IsNew);
-        Assert.Equal(2, decision.Value.Version);
+        decision.IsSuccess.ShouldBeTrue();
+        decision.Value.IsNew.ShouldBeTrue();
+        decision.Value.Version.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -28,11 +29,11 @@ public class VersionGateTests
         var first = gate.Require("feature.step2", VersionGate.DefaultVersion, 3);
         var second = gate.Require("feature.step2", VersionGate.DefaultVersion, 3);
 
-        Assert.True(first.IsSuccess);
-        Assert.True(second.IsSuccess);
-        Assert.True(first.Value.IsNew);
-        Assert.False(second.Value.IsNew);
-        Assert.Equal(first.Value.Version, second.Value.Version);
+        first.IsSuccess.ShouldBeTrue();
+        second.IsSuccess.ShouldBeTrue();
+        first.Value.IsNew.ShouldBeTrue();
+        second.Value.IsNew.ShouldBeFalse();
+        second.Value.Version.ShouldBe(first.Value.Version);
     }
 
     [Fact(Timeout = 15_000)]
@@ -42,12 +43,12 @@ public class VersionGateTests
         var gate = new VersionGate(store, timeProvider: new FakeTimeProvider());
 
         var initial = gate.Require("feature.step3", VersionGate.DefaultVersion, 5);
-        Assert.True(initial.IsSuccess);
+        initial.IsSuccess.ShouldBeTrue();
 
         var replay = gate.Require("feature.step3", 6, 7);
 
-        Assert.True(replay.IsFailure);
-        Assert.Equal(ErrorCodes.VersionConflict, replay.Error?.Code);
+        replay.IsFailure.ShouldBeTrue();
+        replay.Error?.Code.ShouldBe(ErrorCodes.VersionConflict);
     }
 
     [Fact(Timeout = 15_000)]
@@ -62,8 +63,8 @@ public class VersionGateTests
             2,
             static context => context.MinVersion);
 
-        Assert.True(decision.IsSuccess);
-        Assert.Equal(VersionGate.DefaultVersion, decision.Value.Version);
+        decision.IsSuccess.ShouldBeTrue();
+        decision.Value.Version.ShouldBe(VersionGate.DefaultVersion);
     }
 
     [Fact(Timeout = 15_000)]
@@ -74,8 +75,8 @@ public class VersionGateTests
 
         var decision = gate.Require("feature.invalid.range", 5, 4);
 
-        Assert.True(decision.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, decision.Error?.Code);
+        decision.IsFailure.ShouldBeTrue();
+        decision.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 
     [Fact(Timeout = 15_000)]
@@ -88,8 +89,8 @@ public class VersionGateTests
 
         var decision = gate.Require("feature.kind.mismatch", VersionGate.DefaultVersion, 3);
 
-        Assert.True(decision.IsFailure);
-        Assert.Equal(ErrorCodes.DeterministicReplay, decision.Error?.Code);
+        decision.IsFailure.ShouldBeTrue();
+        decision.Error?.Code.ShouldBe(ErrorCodes.DeterministicReplay);
     }
 
     [Fact(Timeout = 15_000)]
@@ -104,10 +105,10 @@ public class VersionGateTests
             3,
             static _ => throw new InvalidOperationException("boom"));
 
-        Assert.True(decision.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, decision.Error?.Code);
-        Assert.True(decision.Error!.Metadata.ContainsKey("changeId"));
-        Assert.Equal("feature.initial.exception", decision.Error.Metadata["changeId"]);
+        decision.IsFailure.ShouldBeTrue();
+        decision.Error?.Code.ShouldBe(ErrorCodes.Exception);
+        decision.Error!.Metadata.ContainsKey("changeId").ShouldBeTrue();
+        decision.Error.Metadata["changeId"].ShouldBe("feature.initial.exception");
     }
 
     [Fact(Timeout = 15_000)]
@@ -122,7 +123,7 @@ public class VersionGateTests
             3,
             static _ => 5);
 
-        Assert.True(decision.IsFailure);
-        Assert.Equal(ErrorCodes.VersionConflict, decision.Error?.Code);
+        decision.IsFailure.ShouldBeTrue();
+        decision.Error?.Code.ShouldBe(ErrorCodes.VersionConflict);
     }
 }

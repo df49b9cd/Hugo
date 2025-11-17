@@ -1,4 +1,5 @@
 using static Hugo.Go;
+using Shouldly;
 
 namespace Hugo.Tests;
 
@@ -14,10 +15,10 @@ public class ResultEdgeCaseTests
                     .WithMetadata("actual", value)
                     .WithMetadata("threshold", 10));
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
-        Assert.True(result.Error!.TryGetMetadata<int>("actual", out var actual));
-        Assert.Equal(5, actual);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
+        result.Error!.TryGetMetadata<int>("actual", out var actual).ShouldBeTrue();
+        actual.ShouldBe(5);
     }
 
     [Fact(Timeout = 15_000)]
@@ -29,12 +30,12 @@ public class ResultEdgeCaseTests
 
         var recovered = Result.Fail<int>(originalError).Recover(static err =>
         {
-            Assert.True(err.TryGetMetadata<string>("field", out var field));
-            Assert.Equal("email", field);
+            err.TryGetMetadata<string>("field", out var field).ShouldBeTrue();
+            field.ShouldBe("email");
             return Result.Ok(err.Message.Length);
         });
 
-        Assert.True(recovered.IsSuccess);
-        Assert.Equal("missing".Length, recovered.Value);
+        recovered.IsSuccess.ShouldBeTrue();
+        recovered.Value.ShouldBe("missing".Length);
     }
 }

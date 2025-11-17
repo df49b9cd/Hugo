@@ -1,3 +1,4 @@
+using Shouldly;
 namespace Hugo.Tests;
 
 public class OptionalTests
@@ -7,9 +8,9 @@ public class OptionalTests
     {
         var optional = Optional.Some(42);
 
-        Assert.True(optional.HasValue);
-        Assert.False(optional.HasNoValue);
-        Assert.Equal(42, optional.Value);
+        optional.HasValue.ShouldBeTrue();
+        optional.HasNoValue.ShouldBeFalse();
+        optional.Value.ShouldBe(42);
     }
 
     [Fact(Timeout = 15_000)]
@@ -17,9 +18,9 @@ public class OptionalTests
     {
         var optional = Optional.None<int>();
 
-        Assert.False(optional.HasValue);
-        Assert.True(optional.HasNoValue);
-        Assert.False(optional.TryGetValue(out _));
+        optional.HasValue.ShouldBeFalse();
+        optional.HasNoValue.ShouldBeTrue();
+        optional.TryGetValue(out _).ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -27,7 +28,7 @@ public class OptionalTests
     {
         var optional = Optional.None<string>();
 
-        Assert.Throws<InvalidOperationException>(() => optional.Value);
+        Should.Throw<InvalidOperationException>(() => optional.Value);
     }
 
     [Fact(Timeout = 15_000)]
@@ -35,7 +36,7 @@ public class OptionalTests
     {
         var optional = Optional.None<string>();
 
-        Assert.Equal("fallback", optional.ValueOr("fallback"));
+        optional.ValueOr("fallback").ShouldBe("fallback");
     }
 
     [Fact(Timeout = 15_000)]
@@ -50,8 +51,8 @@ public class OptionalTests
             return "generated";
         });
 
-        Assert.True(invoked);
-        Assert.Equal("generated", value);
+        invoked.ShouldBeTrue();
+        value.ShouldBe("generated");
     }
 
     [Fact(Timeout = 15_000)]
@@ -60,8 +61,8 @@ public class OptionalTests
         var some = Optional.Some("value");
         var none = Optional.None<string>();
 
-        Assert.Equal("value", some.Match(static v => v, static () => "none"));
-        Assert.Equal("none", none.Match(static v => v, static () => "none"));
+        some.Match(static v => v, static () => "none").ShouldBe("value");
+        none.Match(static v => v, static () => "none").ShouldBe("none");
     }
 
     [Fact(Timeout = 15_000)]
@@ -73,8 +74,8 @@ public class OptionalTests
         Optional.Some(5).Switch(_ => valueBranchInvoked = true, () => noneBranchInvoked = true);
         Optional.None<int>().Switch(_ => valueBranchInvoked = true, () => noneBranchInvoked = true);
 
-        Assert.True(valueBranchInvoked);
-        Assert.True(noneBranchInvoked);
+        valueBranchInvoked.ShouldBeTrue();
+        noneBranchInvoked.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -82,8 +83,8 @@ public class OptionalTests
     {
         var mapped = Optional.Some(5).Map(static n => n * 2);
 
-        Assert.True(mapped.HasValue);
-        Assert.Equal(10, mapped.Value);
+        mapped.HasValue.ShouldBeTrue();
+        mapped.Value.ShouldBe(10);
     }
 
     [Fact(Timeout = 15_000)]
@@ -91,8 +92,8 @@ public class OptionalTests
     {
         var bound = Optional.Some(2).Bind(static n => Optional.Some(n * 3));
 
-        Assert.True(bound.HasValue);
-        Assert.Equal(6, bound.Value);
+        bound.HasValue.ShouldBeTrue();
+        bound.Value.ShouldBe(6);
     }
 
     [Fact(Timeout = 15_000)]
@@ -100,7 +101,7 @@ public class OptionalTests
     {
         var filtered = Optional.Some(4).Filter(static n => n % 2 == 1);
 
-        Assert.False(filtered.HasValue);
+        filtered.HasValue.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -109,8 +110,8 @@ public class OptionalTests
         var alternative = Optional.Some("alt");
         var value = Optional.None<string>().Or(alternative);
 
-        Assert.True(value.HasValue);
-        Assert.Equal("alt", value.Value);
+        value.HasValue.ShouldBeTrue();
+        value.Value.ShouldBe("alt");
     }
 
     [Fact(Timeout = 15_000)]
@@ -120,8 +121,8 @@ public class OptionalTests
 
         var result = optional.ToResult(static () => Error.From("missing", ErrorCodes.Validation));
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("value", result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("value");
     }
 
     [Fact(Timeout = 15_000)]
@@ -131,8 +132,8 @@ public class OptionalTests
 
         var result = optional.ToResult(static () => Error.From("missing", ErrorCodes.Validation));
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 
     [Fact(Timeout = 15_000)]
@@ -142,8 +143,8 @@ public class OptionalTests
 
         var optional = result.ToOptional();
 
-        Assert.True(optional.HasValue);
-        Assert.Equal("value", optional.Value);
+        optional.HasValue.ShouldBeTrue();
+        optional.Value.ShouldBe("value");
     }
 
     [Fact(Timeout = 15_000)]
@@ -153,7 +154,7 @@ public class OptionalTests
 
         var optional = result.ToOptional();
 
-        Assert.False(optional.HasValue);
+        optional.HasValue.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -163,8 +164,8 @@ public class OptionalTests
 
         var result = Result.FromOptional(optional, static () => Error.From("missing"));
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(10, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(10);
     }
 
     [Fact(Timeout = 15_000)]
@@ -174,8 +175,8 @@ public class OptionalTests
 
         var result = Result.FromOptional(optional, static () => Error.From("missing", ErrorCodes.Validation));
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 
     [Fact(Timeout = 15_000)]
@@ -183,7 +184,7 @@ public class OptionalTests
     {
         var optional = Optional.FromNullable<string>(null);
 
-        Assert.False(optional.HasValue);
+        optional.HasValue.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -191,8 +192,8 @@ public class OptionalTests
     {
         var optional = Optional.FromNullable("value");
 
-        Assert.True(optional.HasValue);
-        Assert.Equal("value", optional.Value);
+        optional.HasValue.ShouldBeTrue();
+        optional.Value.ShouldBe("value");
     }
 
     [Fact(Timeout = 15_000)]
@@ -202,8 +203,8 @@ public class OptionalTests
 
         var optional = Optional.FromNullable(input);
 
-        Assert.True(optional.HasValue);
-        Assert.Equal(5, optional.Value);
+        optional.HasValue.ShouldBeTrue();
+        optional.Value.ShouldBe(5);
     }
 
     [Fact(Timeout = 15_000)]
@@ -213,6 +214,6 @@ public class OptionalTests
 
         var optional = Optional.FromNullable(input);
 
-        Assert.False(optional.HasValue);
+        optional.HasValue.ShouldBeFalse();
     }
 }

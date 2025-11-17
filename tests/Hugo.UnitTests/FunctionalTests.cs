@@ -1,5 +1,6 @@
 using System.Diagnostics.Metrics;
 using System.Globalization;
+using Shouldly;
 
 using static Hugo.Go;
 
@@ -12,37 +13,37 @@ public class FunctionalTests
     public void Err_ShouldReturnDefaultError_WhenGivenNull()
     {
         var (_, err) = Err<string>((Error?)null);
-        Assert.NotNull(err);
-        Assert.Equal("An unspecified error occurred.", err.Message);
+        err.ShouldNotBeNull();
+        err.Message.ShouldBe("An unspecified error occurred.");
     }
 
     [Fact(Timeout = 15_000)]
-    public void Then_ShouldThrow_WhenNextIsNull() => Assert.Throws<ArgumentNullException>(static () => Ok(1).Then((Func<int, Result<int>>)null!));
+    public void Then_ShouldThrow_WhenNextIsNull() => Should.Throw<ArgumentNullException>(static () => Ok(1).Then((Func<int, Result<int>>)null!));
 
     [Fact(Timeout = 15_000)]
-    public void Map_ShouldThrow_WhenMapperIsNull() => Assert.Throws<ArgumentNullException>(static () => Ok(1).Map((Func<int, int>)null!));
+    public void Map_ShouldThrow_WhenMapperIsNull() => Should.Throw<ArgumentNullException>(static () => Ok(1).Map((Func<int, int>)null!));
 
     [Fact(Timeout = 15_000)]
-    public void Tap_ShouldThrow_WhenActionIsNull() => Assert.Throws<ArgumentNullException>(static () => Ok(1).Tap(null!));
+    public void Tap_ShouldThrow_WhenActionIsNull() => Should.Throw<ArgumentNullException>(static () => Ok(1).Tap(null!));
 
     [Fact(Timeout = 15_000)]
-    public void Error_From_ShouldThrow_WhenMessageIsNull() => Assert.Throws<ArgumentNullException>(static () => Error.From(null!));
+    public void Error_From_ShouldThrow_WhenMessageIsNull() => Should.Throw<ArgumentNullException>(static () => Error.From(null!));
 
     [Fact(Timeout = 15_000)]
     public void Error_ShouldImplicitlyConvert_FromString()
     {
         Error? err = "message";
-        Assert.NotNull(err);
-        Assert.Equal("message", err.Message);
+        err.ShouldNotBeNull();
+        err.Message.ShouldBe("message");
     }
 
     [Fact(Timeout = 15_000)]
     public void Error_ShouldImplicitlyConvert_FromException()
     {
         Error? err = new InvalidOperationException("boom");
-        Assert.NotNull(err);
-        Assert.Equal("boom", err.Message);
-        Assert.Equal(ErrorCodes.Exception, err.Code);
+        err.ShouldNotBeNull();
+        err.Message.ShouldBe("boom");
+        err.Code.ShouldBe(ErrorCodes.Exception);
     }
 
     [Fact(Timeout = 15_000)]
@@ -52,8 +53,8 @@ public class FunctionalTests
             .Then(static v => Ok(v * 5))
             .Then(static v => Ok(v.ToString()));
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("10", result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("10");
     }
 
     [Fact(Timeout = 15_000)]
@@ -62,8 +63,8 @@ public class FunctionalTests
         var error = Error.From("oops");
         var result = Err<int>(error).Then(static v => Ok(v * 2));
 
-        Assert.True(result.IsFailure);
-        Assert.Same(error, result.Error);
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldBeSameAs(error);
     }
 
     [Fact(Timeout = 15_000)]
@@ -72,9 +73,9 @@ public class FunctionalTests
         var error = Error.From("boom", ErrorCodes.Exception);
         var (failures, propagated) = CaptureFailureDiagnostics(() => Err<int>(error).Then(static _ => Ok(42)));
 
-        Assert.True(propagated.IsFailure);
-        Assert.Same(error, propagated.Error);
-        Assert.Equal(1, failures);
+        propagated.IsFailure.ShouldBeTrue();
+        propagated.Error.ShouldBeSameAs(error);
+        failures.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -84,9 +85,9 @@ public class FunctionalTests
         var (failures, propagated) = CaptureFailureDiagnostics(() =>
             Err<int>(error).SelectMany(static _ => Ok("ignored"), static (_, projection) => projection));
 
-        Assert.True(propagated.IsFailure);
-        Assert.Same(error, propagated.Error);
-        Assert.Equal(1, failures);
+        propagated.IsFailure.ShouldBeTrue();
+        propagated.Error.ShouldBeSameAs(error);
+        failures.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -95,8 +96,8 @@ public class FunctionalTests
         var result = await ValueTask.FromResult(Ok("start"))
             .ThenAsync(static value => Ok(value + "-next"), TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("start-next", result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("start-next");
     }
 
     [Fact(Timeout = 15_000)]
@@ -108,8 +109,8 @@ public class FunctionalTests
                 TestContext.Current.CancellationToken
             );
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("start-async", result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("start-async");
     }
 
     [Fact(Timeout = 15_000)]
@@ -125,8 +126,8 @@ public class FunctionalTests
                 TestContext.Current.CancellationToken
             );
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("start-valuetask", result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("start-valuetask");
     }
 
     [Fact(Timeout = 15_000)]
@@ -137,8 +138,8 @@ public class FunctionalTests
         var result = await Stage()
             .ThenAsync(static value => Result.Ok(value + "-done"), TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("begin-done", result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("begin-done");
     }
 
     [Fact(Timeout = 15_000)]
@@ -146,8 +147,8 @@ public class FunctionalTests
     {
         var result = Ok(5).Map(static v => v * 2);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(10, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(10);
     }
 
     [Fact(Timeout = 15_000)]
@@ -156,8 +157,8 @@ public class FunctionalTests
         var result = await Ok(5)
             .MapAsync(static (value, _) => ValueTask.FromResult(value * 3), TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(15, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(15);
     }
 
     [Fact(Timeout = 15_000)]
@@ -170,8 +171,8 @@ public class FunctionalTests
                 return value * 2;
             }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(14, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(14);
     }
 
     [Fact(Timeout = 15_000)]
@@ -180,8 +181,8 @@ public class FunctionalTests
         var mapped = await ValueTask.FromResult(Result.Ok(3))
             .MapAsync(static value => value + 1, TestContext.Current.CancellationToken);
 
-        Assert.True(mapped.IsSuccess);
-        Assert.Equal(4, mapped.Value);
+        mapped.IsSuccess.ShouldBeTrue();
+        mapped.Value.ShouldBe(4);
     }
 
     [Fact(Timeout = 15_000)]
@@ -190,8 +191,8 @@ public class FunctionalTests
         var tapped = false;
         var result = Ok("value").Tap(_ => tapped = true);
 
-        Assert.True(tapped);
-        Assert.True(result.IsSuccess);
+        tapped.ShouldBeTrue();
+        result.IsSuccess.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -200,8 +201,8 @@ public class FunctionalTests
         var tapped = false;
         var result = Err<string>("error").Tap(_ => tapped = true);
 
-        Assert.False(tapped);
-        Assert.True(result.IsFailure);
+        tapped.ShouldBeFalse();
+        result.IsFailure.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -218,8 +219,8 @@ public class FunctionalTests
                 TestContext.Current.CancellationToken
             );
 
-        Assert.True(tapped);
-        Assert.True(result.IsSuccess);
+        tapped.ShouldBeTrue();
+        result.IsSuccess.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -236,8 +237,8 @@ public class FunctionalTests
                 TestContext.Current.CancellationToken
             );
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(2, callCount);
+        result.IsSuccess.ShouldBeTrue();
+        callCount.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -254,8 +255,8 @@ public class FunctionalTests
                 TestContext.Current.CancellationToken
             );
 
-        Assert.True(result.IsFailure);
-        Assert.Equal("fail".Length, observed);
+        result.IsFailure.ShouldBeTrue();
+        observed.ShouldBe("fail".Length);
     }
 
     [Fact(Timeout = 15_000)]
@@ -263,8 +264,8 @@ public class FunctionalTests
     {
         var recovered = Err<int>("whoops").Recover(static err => Ok(err.Message.Length));
 
-        Assert.True(recovered.IsSuccess);
-        Assert.Equal(6, recovered.Value);
+        recovered.IsSuccess.ShouldBeTrue();
+        recovered.Value.ShouldBe(6);
     }
 
     [Fact(Timeout = 15_000)]
@@ -275,8 +276,8 @@ public class FunctionalTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.True(recovered.IsSuccess);
-        Assert.Equal(4, recovered.Value);
+        recovered.IsSuccess.ShouldBeTrue();
+        recovered.Value.ShouldBe(4);
     }
 
     [Fact(Timeout = 15_000)]
@@ -291,8 +292,8 @@ public class FunctionalTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.True(recovered.IsSuccess);
-        Assert.Equal(4, recovered.Value);
+        recovered.IsSuccess.ShouldBeTrue();
+        recovered.Value.ShouldBe(4);
     }
 
     [Fact(Timeout = 15_000)]
@@ -301,8 +302,8 @@ public class FunctionalTests
         var recovered = await ValueTask.FromResult(Result.Fail<int>(Error.From("oops")))
             .RecoverAsync(static error => Result.Ok(error.Message.Length), TestContext.Current.CancellationToken);
 
-        Assert.True(recovered.IsSuccess);
-        Assert.Equal(4, recovered.Value);
+        recovered.IsSuccess.ShouldBeTrue();
+        recovered.Value.ShouldBe(4);
     }
 
     [Fact(Timeout = 15_000)]
@@ -314,8 +315,8 @@ public class FunctionalTests
                 TestContext.Current.CancellationToken
             );
 
-        Assert.True(recovered.IsSuccess);
-        Assert.Equal(4, recovered.Value);
+        recovered.IsSuccess.ShouldBeTrue();
+        recovered.Value.ShouldBe(4);
     }
 
     [Fact(Timeout = 15_000)]
@@ -323,8 +324,8 @@ public class FunctionalTests
     {
         var result = Ok(5).Ensure(static v => v > 10);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 
     [Fact(Timeout = 15_000)]
@@ -335,8 +336,8 @@ public class FunctionalTests
             cancellationToken: TestContext.Current.CancellationToken
         );
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 
     [Fact(Timeout = 15_000)]
@@ -351,7 +352,7 @@ public class FunctionalTests
             cancellationToken: TestContext.Current.CancellationToken
         );
 
-        Assert.True(result.IsSuccess);
+        result.IsSuccess.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -360,8 +361,8 @@ public class FunctionalTests
         var evaluation = await ValueTask.FromResult(Result.Ok(1))
             .EnsureValueTaskAsync(static (value, _) => new ValueTask<bool>(value > 10), cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(evaluation.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, evaluation.Error?.Code);
+        evaluation.IsFailure.ShouldBeTrue();
+        evaluation.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 
     [Fact(Timeout = 15_000)]
@@ -370,9 +371,9 @@ public class FunctionalTests
         Error? tappedError = null;
         var result = Err<int>("fault").TapError(err => tappedError = err);
 
-        Assert.True(result.IsFailure);
-        Assert.NotNull(tappedError);
-        Assert.Equal("fault", tappedError!.Message);
+        result.IsFailure.ShouldBeTrue();
+        tappedError.ShouldNotBeNull();
+        tappedError!.Message.ShouldBe("fault");
     }
 
     [Fact(Timeout = 15_000)]
@@ -381,8 +382,8 @@ public class FunctionalTests
         var success = Ok("value").Finally(static v => v.ToUpperInvariant(), static err => err.Message);
         var failure = Err<string>("fail").Finally(static v => v, static err => err.Message);
 
-        Assert.Equal("VALUE", success);
-        Assert.Equal("fail", failure);
+        success.ShouldBe("VALUE");
+        failure.ShouldBe("fail");
     }
 
     [Fact(Timeout = 15_000)]
@@ -402,8 +403,8 @@ public class FunctionalTests
                 TestContext.Current.CancellationToken
             );
 
-        Assert.Equal("1-success", success);
-        Assert.Equal("fail", failure);
+        success.ShouldBe("1-success");
+        failure.ShouldBe("fail");
     }
 
     [Fact(Timeout = 15_000)]
@@ -414,8 +415,8 @@ public class FunctionalTests
             from b in Ok(3)
             select a * b;
 
-        Assert.True(query.IsSuccess);
-        Assert.Equal(6, query.Value);
+        query.IsSuccess.ShouldBeTrue();
+        query.Value.ShouldBe(6);
     }
 
     [Fact(Timeout = 15_000)]
@@ -430,7 +431,7 @@ public class FunctionalTests
             .TapAsync(
                 static (value, _) =>
                 {
-                    Assert.Equal(10, value);
+                    value.ShouldBe(10);
                     return ValueTask.CompletedTask;
                 },
                 TestContext.Current.CancellationToken
@@ -444,8 +445,8 @@ public class FunctionalTests
                 TestContext.Current.CancellationToken
             );
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(10, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(10);
     }
 
     [Fact(Timeout = 15_000)]
@@ -463,8 +464,8 @@ public class FunctionalTests
                 cts.Token
             );
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
     }
 
     [Fact(Timeout = 15_000)]
@@ -476,8 +477,8 @@ public class FunctionalTests
         var task = ValueTask.FromCanceled<Result<int>>(cts.Token);
         var result = await task.MapAsync(static v => v, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
     }
 
     [Fact(Timeout = 15_000)]
@@ -489,8 +490,8 @@ public class FunctionalTests
         var task = ValueTask.FromCanceled<Result<int>>(cts.Token);
         var result = await task.RecoverAsync(static _ => Ok(5), TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
     }
 
     [Fact(Timeout = 15_000)]
@@ -499,7 +500,7 @@ public class FunctionalTests
         var invoked = false;
         _ = Ok(1).OnSuccess(_ => invoked = true);
 
-        Assert.True(invoked);
+        invoked.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -515,8 +516,8 @@ public class FunctionalTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.True(result.IsSuccess);
-        Assert.True(invoked);
+        result.IsSuccess.ShouldBeTrue();
+        invoked.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -532,8 +533,8 @@ public class FunctionalTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.True(result.IsSuccess);
-        Assert.True(invoked);
+        result.IsSuccess.ShouldBeTrue();
+        invoked.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -549,8 +550,8 @@ public class FunctionalTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.True(result.IsSuccess);
-        Assert.True(invoked);
+        result.IsSuccess.ShouldBeTrue();
+        invoked.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -566,8 +567,8 @@ public class FunctionalTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.True(result.IsFailure);
-        Assert.NotNull(observed);
+        result.IsFailure.ShouldBeTrue();
+        observed.ShouldNotBeNull();
     }
 
     [Fact(Timeout = 15_000)]
@@ -576,7 +577,7 @@ public class FunctionalTests
         Error? captured = null;
         _ = Err<int>("fail").OnFailure(err => captured = err);
 
-        Assert.NotNull(captured);
+        captured.ShouldNotBeNull();
     }
 
     [Fact(Timeout = 15_000)]
@@ -592,8 +593,8 @@ public class FunctionalTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.True(result.IsFailure);
-        Assert.NotNull(captured);
+        result.IsFailure.ShouldBeTrue();
+        captured.ShouldNotBeNull();
     }
 
     [Fact(Timeout = 15_000)]
@@ -609,8 +610,8 @@ public class FunctionalTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.True(result.IsFailure);
-        Assert.NotNull(captured);
+        result.IsFailure.ShouldBeTrue();
+        captured.ShouldNotBeNull();
     }
 
     [Fact(Timeout = 15_000)]
@@ -622,8 +623,8 @@ public class FunctionalTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.True(result.IsFailure);
-        Assert.NotNull(captured);
+        result.IsFailure.ShouldBeTrue();
+        captured.ShouldNotBeNull();
     }
 
     [Fact(Timeout = 15_000)]
@@ -632,8 +633,8 @@ public class FunctionalTests
         var tapped = false;
         var result = Ok(3).Tee(_ => tapped = true);
 
-        Assert.True(result.IsSuccess);
-        Assert.True(tapped);
+        result.IsSuccess.ShouldBeTrue();
+        tapped.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -643,8 +644,8 @@ public class FunctionalTests
         var resultTask = ValueTask.FromResult(Ok("value"));
         var result = await resultTask.TeeAsync(_ => tapped = true, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.True(tapped);
+        result.IsSuccess.ShouldBeTrue();
+        tapped.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -658,8 +659,8 @@ public class FunctionalTests
             tapped = true;
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.True(tapped);
+        result.IsSuccess.ShouldBeTrue();
+        tapped.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -668,8 +669,8 @@ public class FunctionalTests
         var resultTask = ValueTask.FromResult(Ok(2));
         var mapped = await resultTask.MapAsync(static v => v * 3, TestContext.Current.CancellationToken);
 
-        Assert.True(mapped.IsSuccess);
-        Assert.Equal(6, mapped.Value);
+        mapped.IsSuccess.ShouldBeTrue();
+        mapped.Value.ShouldBe(6);
     }
 
     [Fact(Timeout = 15_000)]
@@ -685,8 +686,8 @@ public class FunctionalTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.True(mapped.IsSuccess);
-        Assert.Equal(6, mapped.Value);
+        mapped.IsSuccess.ShouldBeTrue();
+        mapped.Value.ShouldBe(6);
     }
 
     [Fact(Timeout = 15_000)]
@@ -699,8 +700,8 @@ public class FunctionalTests
             return Ok(9);
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(recovered.IsSuccess);
-        Assert.Equal(9, recovered.Value);
+        recovered.IsSuccess.ShouldBeTrue();
+        recovered.Value.ShouldBe(9);
     }
 
     [Fact(Timeout = 15_000)]
@@ -713,8 +714,8 @@ public class FunctionalTests
             return false;
         }, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(ensured.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, ensured.Error?.Code);
+        ensured.IsFailure.ShouldBeTrue();
+        ensured.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 
     [Fact(Timeout = 15_000)]
@@ -734,7 +735,7 @@ public class FunctionalTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.Equal(2, result);
+        result.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -754,7 +755,7 @@ public class FunctionalTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.Equal("VALUE", outcome);
+        outcome.ShouldBe("VALUE");
     }
 
     [Fact(Timeout = 15_000)]
@@ -778,7 +779,7 @@ public class FunctionalTests
             TestContext.Current.CancellationToken
         );
 
-        Assert.Equal(ErrorCodes.Canceled, result);
+        result.ShouldBe(ErrorCodes.Canceled);
     }
 
     [Fact(Timeout = 15_000)]
@@ -799,7 +800,7 @@ public class FunctionalTests
                 TestContext.Current.CancellationToken
             );
 
-        Assert.Equal("value-ok", outcome);
+        outcome.ShouldBe("value-ok");
     }
 
     [Fact(Timeout = 15_000)]
@@ -807,8 +808,8 @@ public class FunctionalTests
     {
         var result = Ok(1).Where(static v => v > 5);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 
     private static (long FailureCount, Result<T> Result) CaptureFailureDiagnostics<T>(Func<Result<T>> pipeline)

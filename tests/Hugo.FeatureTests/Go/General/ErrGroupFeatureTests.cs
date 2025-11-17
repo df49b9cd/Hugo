@@ -1,4 +1,5 @@
 using Hugo.Policies;
+using Shouldly;
 
 using Unit = Hugo.Go.Unit;
 
@@ -31,15 +32,15 @@ public class ErrGroupFeatureTests
         var completion = await group.WaitAsync(TestContext.Current.CancellationToken);
         if (completion.IsFailure && completion.Error?.Code == ErrorCodes.Canceled)
         {
-            Assert.Fail("Expected success in the documentation sample.");
+            false.ShouldBeTrue("Expected success in the documentation sample.");
         }
         else
         {
             completion.ValueOrThrow();
         }
 
-        Assert.True(completion.IsSuccess);
-        Assert.Equal(3, attempts);
+        completion.IsSuccess.ShouldBeTrue();
+        attempts.ShouldBe(3);
     }
 
     [Fact(Timeout = 15_000)]
@@ -71,7 +72,7 @@ public class ErrGroupFeatureTests
             completion.ValueOrThrow();
         }
 
-        Assert.True(cancellationHandled);
+        cancellationHandled.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -107,13 +108,13 @@ public class ErrGroupFeatureTests
 
         await compensationStarted.Task;
         var completed = await Task.WhenAny(cancellationObserved.Task, Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
-        Assert.Same(cancellationObserved.Task, completed);
+        completed.ShouldBeSameAs(cancellationObserved.Task);
 
         releaseCompensation.TrySetResult();
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
     }
 }

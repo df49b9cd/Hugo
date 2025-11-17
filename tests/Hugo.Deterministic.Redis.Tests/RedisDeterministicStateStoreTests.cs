@@ -1,4 +1,5 @@
 using System;
+using Shouldly;
 
 using Hugo;
 using Hugo.Deterministic.Redis;
@@ -73,10 +74,10 @@ public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
 
         store.Set("roundtrip", record);
 
-        Assert.True(store.TryGet("roundtrip", out DeterministicRecord stored));
-        Assert.Equal(record.Kind, stored.Kind);
-        Assert.Equal(record.Version, stored.Version);
-        Assert.Equal(record.Payload.ToArray(), stored.Payload.ToArray());
+        store.TryGet("roundtrip", out DeterministicRecord stored).ShouldBeTrue();
+        stored.Kind.ShouldBe(record.Kind);
+        stored.Version.ShouldBe(record.Version);
+        stored.Payload.ToArray().ShouldBe(record.Payload.ToArray());
     }
 
     [Fact(Timeout = 15_000)]
@@ -95,9 +96,9 @@ public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
         store.Set("update", first);
         store.Set("update", second);
 
-        Assert.True(store.TryGet("update", out DeterministicRecord stored));
-        Assert.Equal(2, stored.Version);
-        Assert.Equal([2], stored.Payload.ToArray());
+        store.TryGet("update", out DeterministicRecord stored).ShouldBeTrue();
+        stored.Version.ShouldBe(2);
+        stored.Payload.ToArray().ShouldBe([2]);
     }
     private bool SkipIfNecessary()
     {

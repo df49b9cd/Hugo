@@ -14,7 +14,7 @@ Estimated time: 15 minutes.
 ## Prerequisites
 
 - An application that references Hugo 1.0.0 or later.
-- .NET 9 or 10 SDK.
+- 10 SDK.
 - NuGet packages:
   - `Hugo.Diagnostics.OpenTelemetry`
   - `OpenTelemetry.Extensions.Hosting`

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Time.Testing;
+using Shouldly;
 
 namespace Hugo.Tests;
 
@@ -6,13 +7,13 @@ namespace Hugo.Tests;
 public class TaskQueueTests
 {
     [Fact(Timeout = 15_000)]
-    public void TaskQueueOptions_InvalidCapacity_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { Capacity = 0 });
+    public void TaskQueueOptions_InvalidCapacity_ShouldThrow() => Should.Throw<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { Capacity = 0 });
 
     [Fact(Timeout = 15_000)]
-    public void TaskQueueOptions_InvalidLeaseDuration_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { LeaseDuration = TimeSpan.Zero });
+    public void TaskQueueOptions_InvalidLeaseDuration_ShouldThrow() => Should.Throw<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { LeaseDuration = TimeSpan.Zero });
 
     [Fact(Timeout = 15_000)]
-    public void TaskQueueOptions_NegativeRequeueDelay_ShouldThrow() => Assert.Throws<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { RequeueDelay = TimeSpan.FromMilliseconds(-1) });
+    public void TaskQueueOptions_NegativeRequeueDelay_ShouldThrow() => Should.Throw<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { RequeueDelay = TimeSpan.FromMilliseconds(-1) });
 
     [Fact(Timeout = 15_000)]
     public async Task EnqueueLeaseComplete_ShouldClearCounts()
@@ -21,18 +22,18 @@ public class TaskQueueTests
         await using var queue = new TaskQueue<string>(timeProvider: provider);
 
         await queue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
-        Assert.Equal(1, queue.PendingCount);
+        queue.PendingCount.ShouldBe(1);
 
         var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
-        Assert.Equal("alpha", lease.Value);
-        Assert.Equal(1, lease.Attempt);
-        Assert.Equal(0, queue.PendingCount);
-        Assert.Equal(1, queue.ActiveLeaseCount);
+        lease.Value.ShouldBe("alpha");
+        lease.Attempt.ShouldBe(1);
+        queue.PendingCount.ShouldBe(0);
+        queue.ActiveLeaseCount.ShouldBe(1);
 
         await lease.CompleteAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, queue.PendingCount);
-        Assert.Equal(0, queue.ActiveLeaseCount);
+        queue.PendingCount.ShouldBe(0);
+        queue.ActiveLeaseCount.ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
@@ -50,11 +51,11 @@ public class TaskQueueTests
         await firstLease.FailAsync(error, requeue: true, TestContext.Current.CancellationToken);
 
         var secondLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(2, secondLease.Attempt);
-        Assert.Equal("beta", secondLease.Value);
-        Assert.Same(error, secondLease.LastError);
-        Assert.Equal(0, queue.PendingCount);
-        Assert.Equal(1, queue.ActiveLeaseCount);
+        secondLease.Attempt.ShouldBe(2);
+        secondLease.Value.ShouldBe("beta");
+        secondLease.LastError.ShouldBeSameAs(error);
+        queue.PendingCount.ShouldBe(0);
+        queue.ActiveLeaseCount.ShouldBe(1);
 
         await secondLease.CompleteAsync(TestContext.Current.CancellationToken);
     }
@@ -79,14 +80,14 @@ public class TaskQueueTests
 
         await lease.FailAsync(error, requeue: false, TestContext.Current.CancellationToken);
 
-        Assert.Single(contexts);
+        contexts.ShouldHaveSingleItem();
         var context = contexts[0];
-        Assert.Equal("gamma", context.Value);
-        Assert.Equal(error, context.Error);
-        Assert.Equal(lease.EnqueuedAt, context.EnqueuedAt);
-        Assert.Equal(1, context.Attempt);
-        Assert.Equal(0, queue.PendingCount);
-        Assert.Equal(0, queue.ActiveLeaseCount);
+        context.Value.ShouldBe("gamma");
+        context.Error.ShouldBe(error);
+        context.EnqueuedAt.ShouldBe(lease.EnqueuedAt);
+        context.Attempt.ShouldBe(1);
+        queue.PendingCount.ShouldBe(0);
+        queue.ActiveLeaseCount.ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
@@ -97,7 +98,7 @@ public class TaskQueueTests
         await queue.EnqueueAsync("value", TestContext.Current.CancellationToken);
         var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
 
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await lease.FailAsync(null!, requeue: true, TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await lease.FailAsync(null!, requeue: true, TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -121,17 +122,17 @@ public class TaskQueueTests
         var secondLeaseTask = queue.LeaseAsync(TestContext.Current.CancellationToken).AsTask();
         await AdvanceAsync(provider, TimeSpan.FromMilliseconds(40));
         var secondLease = await secondLeaseTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-        Assert.Equal(2, secondLease.Attempt);
-        Assert.Equal("delta", secondLease.Value);
-        Assert.NotNull(secondLease.LastError);
-        Assert.Equal(ErrorCodes.TaskQueueLeaseExpired, secondLease.LastError?.Code);
-        Assert.True(secondLease.LastError!.TryGetMetadata<int>("attempt", out var attemptMetadata));
-        Assert.Equal(1, attemptMetadata);
-        Assert.True(secondLease.LastError!.TryGetMetadata<DateTimeOffset>("expiredAt", out var expiredAt));
-        Assert.True(expiredAt >= firstLease.EnqueuedAt);
-        Assert.Equal(firstLease.EnqueuedAt, secondLease.EnqueuedAt);
-        Assert.True(secondLease.LastError!.TryGetMetadata<DateTimeOffset>("enqueuedAt", out var enqueuedAt));
-        Assert.Equal(firstLease.EnqueuedAt, enqueuedAt);
+        secondLease.Attempt.ShouldBe(2);
+        secondLease.Value.ShouldBe("delta");
+        secondLease.LastError.ShouldNotBeNull();
+        secondLease.LastError?.Code.ShouldBe(ErrorCodes.TaskQueueLeaseExpired);
+        secondLease.LastError!.TryGetMetadata<int>("attempt", out var attemptMetadata).ShouldBeTrue();
+        attemptMetadata.ShouldBe(1);
+        secondLease.LastError!.TryGetMetadata<DateTimeOffset>("expiredAt", out var expiredAt).ShouldBeTrue();
+        (expiredAt >= firstLease.EnqueuedAt).ShouldBeTrue();
+        secondLease.EnqueuedAt.ShouldBe(firstLease.EnqueuedAt);
+        secondLease.LastError!.TryGetMetadata<DateTimeOffset>("enqueuedAt", out var enqueuedAt).ShouldBeTrue();
+        enqueuedAt.ShouldBe(firstLease.EnqueuedAt);
 
         await secondLease.CompleteAsync(TestContext.Current.CancellationToken);
     }
@@ -172,15 +173,15 @@ public class TaskQueueTests
         await AdvanceAsync(provider, TimeSpan.FromMilliseconds(50));
 
         var context = await deadLetterSignal.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-        Assert.Single(contexts);
-        Assert.Equal("epsilon", context.Value);
-        Assert.Equal(2, context.Attempt);
-        Assert.Equal(ErrorCodes.TaskQueueLeaseExpired, context.Error.Code);
-        Assert.Equal(firstLease.EnqueuedAt, context.EnqueuedAt);
-        Assert.True(context.Error.TryGetMetadata<int>("attempt", out var attemptMetadata));
-        Assert.Equal(2, attemptMetadata);
-        Assert.Equal(0, queue.PendingCount);
-        Assert.Equal(0, queue.ActiveLeaseCount);
+        contexts.ShouldHaveSingleItem();
+        context.Value.ShouldBe("epsilon");
+        context.Attempt.ShouldBe(2);
+        context.Error.Code.ShouldBe(ErrorCodes.TaskQueueLeaseExpired);
+        context.EnqueuedAt.ShouldBe(firstLease.EnqueuedAt);
+        context.Error.TryGetMetadata<int>("attempt", out var attemptMetadata).ShouldBeTrue();
+        attemptMetadata.ShouldBe(2);
+        queue.PendingCount.ShouldBe(0);
+        queue.ActiveLeaseCount.ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
@@ -193,9 +194,9 @@ public class TaskQueueTests
 
         await lease.CompleteAsync(TestContext.Current.CancellationToken);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await lease.CompleteAsync(TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await lease.HeartbeatAsync(TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await lease.FailAsync(Error.From("after-complete", ErrorCodes.TaskQueueAbandoned), cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<InvalidOperationException>(async () => await lease.CompleteAsync(TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<InvalidOperationException>(async () => await lease.HeartbeatAsync(TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<InvalidOperationException>(async () => await lease.FailAsync(Error.From("after-complete", ErrorCodes.TaskQueueAbandoned), cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -224,9 +225,9 @@ public class TaskQueueTests
         var requeuedTask = queue.LeaseAsync(TestContext.Current.CancellationToken).AsTask();
         var requeued = await requeuedTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, requeued.Attempt);
-        Assert.Equal("omega", requeued.Value);
-        Assert.Same(error, requeued.LastError);
+        requeued.Attempt.ShouldBe(2);
+        requeued.Value.ShouldBe("omega");
+        requeued.LastError.ShouldBeSameAs(error);
     }
 
     [Fact(Timeout = 15_000)]
@@ -263,9 +264,9 @@ public class TaskQueueTests
 
         await queue.DisposeAsync();
 
-        var context = Assert.Single(contexts);
-        Assert.Equal("sigma", context.Value);
-        Assert.True(context.Attempt >= 2);
+        var context = contexts.ShouldHaveSingleItem();
+        context.Value.ShouldBe("sigma");
+        (context.Attempt >= 2).ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -275,8 +276,8 @@ public class TaskQueueTests
 
         await queue.DisposeAsync();
 
-        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await queue.EnqueueAsync("value", TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await queue.LeaseAsync(TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await queue.EnqueueAsync("value", TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await queue.LeaseAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -292,9 +293,9 @@ public class TaskQueueTests
         var secondLease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
         TaskQueueOwnershipToken secondToken = secondLease.OwnershipToken;
 
-        Assert.Equal(firstToken.SequenceId, secondToken.SequenceId);
-        Assert.Equal(firstToken.Attempt + 1, secondToken.Attempt);
-        Assert.NotEqual(firstToken.LeaseId, secondToken.LeaseId);
+        secondToken.SequenceId.ShouldBe(firstToken.SequenceId);
+        secondToken.Attempt.ShouldBe(firstToken.Attempt + 1);
+        secondToken.LeaseId.ShouldNotBe(firstToken.LeaseId);
     }
 
     [Fact(Timeout = 15_000)]
@@ -305,15 +306,15 @@ public class TaskQueueTests
         await queue.EnqueueAsync("bravo", TestContext.Current.CancellationToken);
 
         IReadOnlyList<TaskQueuePendingItem<string>> snapshot = await queue.DrainPendingItemsAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(2, snapshot.Count);
-        Assert.True(snapshot[0].SequenceId < snapshot[1].SequenceId);
+        snapshot.Count.ShouldBe(2);
+        (snapshot[0].SequenceId < snapshot[1].SequenceId).ShouldBeTrue();
 
         await using var restored = new TaskQueue<string>();
         await restored.RestorePendingItemsAsync(snapshot, TestContext.Current.CancellationToken);
 
-        Assert.Equal(snapshot.Count, restored.PendingCount);
+        restored.PendingCount.ShouldBe(snapshot.Count);
         var lease = await restored.LeaseAsync(TestContext.Current.CancellationToken);
-        Assert.Equal("alpha", lease.Value);
+        lease.Value.ShouldBe("alpha");
     }
 
     [Fact(Timeout = 15_000)]
@@ -345,10 +346,9 @@ public class TaskQueueTests
         provider.Advance(TimeSpan.FromMilliseconds(2));
         await lease.CompleteAsync(TestContext.Current.CancellationToken);
 
-        Assert.Collection(
-            notifications,
-            state => Assert.True(state.IsActive),
-            state => Assert.False(state.IsActive));
+        notifications.Count.ShouldBe(2);
+        notifications[0].IsActive.ShouldBeTrue();
+        notifications[1].IsActive.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -378,8 +378,8 @@ public class TaskQueueTests
 
         provider.Advance(TimeSpan.FromSeconds(3));
 
-        Assert.Equal(0, queue.PendingCount);
-        Assert.Equal(0, queue.ActiveLeaseCount);
+        queue.PendingCount.ShouldBe(0);
+        queue.ActiveLeaseCount.ShouldBe(0);
     }
 
     private static async Task AdvanceAsync(FakeTimeProvider provider, TimeSpan interval)

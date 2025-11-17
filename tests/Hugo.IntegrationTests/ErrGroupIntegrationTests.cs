@@ -1,4 +1,5 @@
 using Hugo.Policies;
+using Shouldly;
 
 using Unit = Hugo.Go.Unit;
 
@@ -34,9 +35,9 @@ public class ErrGroupIntegrationTests
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
-        Assert.Contains(nameof(ErrGroup), result.Error?.Message, StringComparison.Ordinal);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
+        result.Error?.Message.ShouldContain(nameof(ErrGroup));
     }
 
     [Fact(Timeout = 15_000)]
@@ -70,8 +71,8 @@ public class ErrGroupIntegrationTests
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(7, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(7);
     }
 
     [Fact(Timeout = 15_000)]
@@ -111,13 +112,13 @@ public class ErrGroupIntegrationTests
 
         await compensationStarted.Task;
         var completed = await Task.WhenAny(cancellationObserved.Task, Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
-        Assert.Same(cancellationObserved.Task, completed);
-        Assert.False(releaseCompensation.Task.IsCompleted);
+        completed.ShouldBeSameAs(cancellationObserved.Task);
+        releaseCompensation.Task.IsCompleted.ShouldBeFalse();
 
         releaseCompensation.TrySetResult();
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
+        result.IsFailure.ShouldBeTrue();
     }
 }

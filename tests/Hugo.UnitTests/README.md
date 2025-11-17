@@ -22,7 +22,7 @@ Hugo leans on deterministic primitives. Small mistakes in `Result` composition, 
 
 ### Principles
 
-1. **Test contracts, not plumbing.** Assertions focus on observable behavior such as error codes, serialized payloads, replay counts, or analyzer output.
+1. **Test contracts, not plumbing.** Checks focus on observable behavior such as error codes, serialized payloads, replay counts, or analyzer output.
 2. **Stay deterministic.** Favor in-memory stores, local builders, and stub clocks so each test can run in isolation without waiting for wall time.
 3. **Explain failure modes.** Every test should document what happens when a contract is violated (which error code, which exception, or which value is returned).
 
@@ -46,7 +46,7 @@ Hugo leans on deterministic primitives. Small mistakes in `Result` composition, 
 
 ## Setup
 
-1. Install the latest .NET 9 SDK and the .NET 10 preview SDK.
+1. Install the latest .NET 10 SDK.
 2. Restore the solution: `dotnet restore Hugo.slnx`.
 3. (Optional) set `DOTNET_ROLL_FORWARD=Major` if your environment blocks preview TFMs.
 
@@ -89,7 +89,7 @@ dotnet test tests/Hugo.UnitTests/Hugo.UnitTests.csproj --logger "trx;LogFileName
 - **Isolate dependencies.** Stick to `InMemoryDeterministicStateStore`, `ResultSagaBuilder`, or local builders rather than external providers.
 - **Intention-revealing names.** Keep the `Method_Condition_ShouldResult` format for new facts.
 - **Lean on property tests for algebraic laws.** Anything mapping or binding `Result`/`Optional` should have an FsCheck counterpart.
-- **Assert specific error codes.** Compare against `ErrorCodes` values instead of boolean flags to clarify failure modes.
+- **Check specific error codes.** Compare against `ErrorCodes` values instead of boolean flags to clarify failure modes.
 
 ## Scenarios & Examples
 
@@ -101,8 +101,8 @@ public void Fail_WithNullError_ShouldReturnUnspecified()
 {
     var result = Result.Fail<int>(null!);
 
-    Assert.True(result.IsFailure);
-    Assert.Equal(ErrorCodes.Unspecified, result.Error?.Code);
+    result.IsFailure.ShouldBeTrue();
+    result.Error?.Code.ShouldBe(ErrorCodes.Unspecified);
 }
 ```
 
@@ -117,8 +117,8 @@ public void TryGet_ShouldReturnExistingRecord()
 
     store.Set("key", record);
 
-    Assert.True(store.TryGet("key", out var retrieved));
-    Assert.Same(record, retrieved);
+    store.TryGet("key", out var retrieved).ShouldBeTrue();
+    retrieved.ShouldBeSameAs(record);
 }
 ```
 
@@ -148,9 +148,9 @@ public void Analyze_ComputesSummariesAndFindings()
     using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
     var report = CounterAnalyzer.Analyze(stream);
 
-    Assert.Equal(1, report.TotalRows);
-    Assert.Single(report.Counters);
-    Assert.Equal("Queue Depth", report.Counters[0].Name);
+    report.TotalRows.ShouldBe(1);
+    report.Counters.ShouldHaveSingleItem();
+    report.Counters[0].Name.ShouldBe("Queue Depth");
 }
 ```
 

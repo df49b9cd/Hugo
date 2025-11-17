@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Shouldly;
 
 using static Hugo.Go;
 
@@ -19,10 +20,10 @@ public class GoEdgeCaseTests
 
         wg.Add(task);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task);
+        await Should.ThrowAsync<OperationCanceledException>(async () => await task);
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(0, wg.Count);
+        wg.Count.ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
@@ -46,7 +47,7 @@ public class GoEdgeCaseTests
 
         await Task.WhenAll(tasks);
 
-        Assert.Equal(1, observedMax);
+        observedMax.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -55,6 +56,6 @@ public class GoEdgeCaseTests
         var channel = MakeChannel<int>(capacity: 1);
         channel.Writer.TryComplete();
 
-        await Assert.ThrowsAsync<ChannelClosedException>(async () => await channel.Writer.WriteAsync(42, TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ChannelClosedException>(async () => await channel.Writer.WriteAsync(42, TestContext.Current.CancellationToken));
     }
 }

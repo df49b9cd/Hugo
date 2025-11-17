@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using Shouldly;
 
 using Hugo.TaskQueues;
 using Hugo.TaskQueues.Backpressure;
@@ -56,8 +57,8 @@ public class TaskQueueDiagnosticsIntegrationTests
             observedReplication |= diagnosticsEvent is TaskQueueReplicationDiagnosticsEvent replication && replication.QueueName == "dispatch";
         }
 
-        Assert.True(observedBackpressure, "Expected to observe at least one backpressure diagnostics event.");
-        Assert.True(observedReplication, "Expected to observe at least one replication diagnostics event for queue 'dispatch'.");
+        observedBackpressure.ShouldBeTrue("Expected to observe at least one backpressure diagnostics event.");
+        observedReplication.ShouldBeTrue("Expected to observe at least one replication diagnostics event for queue 'dispatch'.");
     }
     private sealed class TestMeterFactory : IMeterFactory, IDisposable, IAsyncDisposable
     {

@@ -1,4 +1,6 @@
+using System.Linq;
 using System.Text;
+using Shouldly;
 
 using Hugo.Profiling;
 
@@ -38,24 +40,24 @@ public sealed class SpeedscopeAnalyzerTests
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
         var report = SpeedscopeAnalyzer.Analyze(stream);
 
-        Assert.Equal(5d, report.TotalDurationMilliseconds, 3);
-        Assert.Empty(report.Warnings);
+        report.TotalDurationMilliseconds.ShouldBe(5d, 3);
+        report.Warnings.ShouldBeEmpty();
 
-        var profile = Assert.Single(report.Profiles);
-        Assert.Equal("Main", profile.Name);
-        Assert.Equal(5d, profile.DurationMilliseconds, 3);
-        Assert.Equal("milliseconds", profile.Unit);
-        Assert.Equal(4, profile.EventCount);
+        var profile = report.Profiles.ShouldHaveSingleItem();
+        profile.Name.ShouldBe("Main");
+        profile.DurationMilliseconds.ShouldBe(5d, 3);
+        profile.Unit.ShouldBe("milliseconds");
+        profile.EventCount.ShouldBe(4);
 
-        var loop = Assert.Single(report.Frames, static frame => frame.Name == "MainLoop");
-        Assert.Equal(5d, loop.InclusiveMilliseconds, 3);
-        Assert.Equal(3d, loop.SelfMilliseconds, 3);
-        Assert.Equal(1, loop.CallCount);
+        var loop = report.Frames.Single(frame => frame.Name == "MainLoop");
+        loop.InclusiveMilliseconds.ShouldBe(5d, 3);
+        loop.SelfMilliseconds.ShouldBe(3d, 3);
+        loop.CallCount.ShouldBe(1);
 
-        var worker = Assert.Single(report.Frames, static frame => frame.Name == "Worker");
-        Assert.Equal(2d, worker.InclusiveMilliseconds, 3);
-        Assert.Equal(2d, worker.SelfMilliseconds, 3);
-        Assert.Equal(1, worker.CallCount);
+        var worker = report.Frames.Single(frame => frame.Name == "Worker");
+        worker.InclusiveMilliseconds.ShouldBe(2d, 3);
+        worker.SelfMilliseconds.ShouldBe(2d, 3);
+        worker.CallCount.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -84,7 +86,7 @@ public sealed class SpeedscopeAnalyzerTests
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
         var report = SpeedscopeAnalyzer.Analyze(stream);
 
-        Assert.NotEmpty(report.Warnings);
-        Assert.Contains(report.Warnings, static warning => warning.Contains("unclosed", StringComparison.OrdinalIgnoreCase));
+        report.Warnings.ShouldNotBeEmpty();
+        report.Warnings.ShouldContain(static warning => warning.Contains("unclosed", StringComparison.OrdinalIgnoreCase));
     }
 }

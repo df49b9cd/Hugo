@@ -1,4 +1,6 @@
+using System.Linq;
 using System.Text;
+using Shouldly;
 
 using Hugo.Profiling;
 
@@ -19,21 +21,21 @@ public sealed class CounterAnalyzerTests
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
         var report = CounterAnalyzer.Analyze(stream);
 
-        Assert.Equal(TimeSpan.FromSeconds(2), report.Duration);
-        Assert.Equal(5, report.TotalRows);
-        Assert.Equal(5, report.ParsedRows);
-        Assert.Empty(report.ParseErrors);
+        report.Duration.ShouldBe(TimeSpan.FromSeconds(2));
+        report.TotalRows.ShouldBe(5);
+        report.ParsedRows.ShouldBe(5);
+        report.ParseErrors.ShouldBeEmpty();
 
-        var waitGroup = Assert.Single(report.Counters, static summary => summary.Provider == "Hugo.Go");
-        Assert.Equal(2, waitGroup.Samples);
-        Assert.Equal(2, waitGroup.Max);
-        Assert.Equal(1, waitGroup.Mean);
+        var waitGroup = report.Counters.Single(static summary => summary.Provider == "Hugo.Go");
+        waitGroup.Samples.ShouldBe(2);
+        waitGroup.Max.ShouldBe(2);
+        waitGroup.Mean.ShouldBe(1);
 
-        Assert.Contains(report.Findings, static finding =>
+        report.Findings.ShouldContain(static finding =>
             finding.Severity == AnalyzerSeverity.Warning &&
             finding.Counter.Contains("waitgroup", StringComparison.OrdinalIgnoreCase));
 
-        Assert.Contains(report.Findings, static finding =>
+        report.Findings.ShouldContain(static finding =>
             finding.Counter.Contains("gc.pause.time", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -47,9 +49,9 @@ public sealed class CounterAnalyzerTests
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
         var report = CounterAnalyzer.Analyze(stream);
 
-        Assert.Equal(2, report.TotalRows);
-        Assert.Equal(0, report.ParsedRows);
-        Assert.Equal(2, report.ParseErrors.Count);
-        Assert.Empty(report.Counters);
+        report.TotalRows.ShouldBe(2);
+        report.ParsedRows.ShouldBe(0);
+        report.ParseErrors.Count.ShouldBe(2);
+        report.Counters.ShouldBeEmpty();
     }
 }

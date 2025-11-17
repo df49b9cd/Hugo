@@ -9,8 +9,6 @@ Hugo brings Go-inspired concurrency primitives, deterministic workflows, and fun
 | **Tutorials** | Follow-along introductions that assume no prior knowledge. Finish with a working sample. | [Getting started with channels and results](tutorials/getting-started.md) |
 | **How-to guides** | Copy-paste recipes for well-defined tasks. Each guide lists prerequisites, steps, validation checks, and troubleshooting tips. | [Coordinate fan-in workflows](how-to/fan-in-channels.md) |
 | **Reference** | Authoritative API catalogues and behavioural notes. Use when you already know what you are looking for. | [Concurrency primitives](reference/concurrency-primitives.md) |
-| **Explanation** | Design rationale and architectural decisions. Helps you understand trade-offs and evolution. | [Design principles](explanation/design-principles.md) |
-| **Meta** | Roadmap, project status, and audit trackers. | [Roadmap](meta/roadmap.md) |
 
 > **Tip:** Need the big picture first? Read the [README](../README.md) for a product overview, then return here when you are ready to dive deeper.
 
@@ -19,7 +17,6 @@ Hugo brings Go-inspired concurrency primitives, deterministic workflows, and fun
 - **Just installed Hugo?** Start with the [tutorial](tutorials/getting-started.md), then wire observability via [Publish metrics to OpenTelemetry](how-to/observe-with-opentelemetry.md).
 - **Shipping a feature?** Follow the relevant how-to: timeout/retry playbooks, fan-in coordination, workflow visibility, [TaskQueue diagnostics streaming](how-to/taskqueue-diagnostics.md), or profiling.
 - **Auditing behaviour?** Jump to the reference for `WaitGroup`, `SelectAsync`, result pipelines, deterministic gate helpers, or diagnostics instruments.
-- **Explaining trade-offs to your team?** Point them to [Design principles](explanation/design-principles.md) and the linked blog-inspired commentary.
 
 ## Navigation & search tips
 
@@ -46,5 +43,4 @@ Hugo brings Go-inspired concurrency primitives, deterministic workflows, and fun
 
 ## Stay in sync
 
-- Track progress and upcoming work in the [roadmap](meta/roadmap.md) and [async API audit](async-api-audit.md).
 - For contribution guidelines, coding standards, and CI expectations, see [CONTRIBUTING.md](../CONTRIBUTING.md).

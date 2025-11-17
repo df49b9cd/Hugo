@@ -1,3 +1,4 @@
+using Shouldly;
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -42,21 +43,21 @@ public partial class GoTests
         {
         }
 
-        Assert.True(executed);
+        executed.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
     public async ValueTask Defer_ShouldExecute_OnException()
     {
         var deferredActionExecuted = false;
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Should.ThrowAsync<InvalidOperationException>(() =>
         {
             using (Defer(() => deferredActionExecuted = true))
             {
                 throw new InvalidOperationException("Simulating an error.");
             }
         });
-        Assert.True(deferredActionExecuted);
+        deferredActionExecuted.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -69,7 +70,7 @@ public partial class GoTests
             var waitingTask = mutex.LockAsync(cts.Token);
             await Task.Delay(50, cts.Token);
             await cts.CancelAsync();
-            await Assert.ThrowsAsync<OperationCanceledException>(async () => await waitingTask);
+            await Should.ThrowAsync<OperationCanceledException>(async () => await waitingTask);
         }
     }
 
@@ -80,7 +81,7 @@ public partial class GoTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await mutex.LockAsync(cts.Token));
+        await Should.ThrowAsync<OperationCanceledException>(async () => await mutex.LockAsync(cts.Token));
     }
 
     [Fact(Timeout = 15_000)]
@@ -89,8 +90,8 @@ public partial class GoTests
         using var mutex = new Mutex();
         mutex.Dispose();
 
-        Assert.Throws<ObjectDisposedException>(() => mutex.EnterScope());
-        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await mutex.LockAsync(TestContext.Current.CancellationToken));
+        Should.Throw<ObjectDisposedException>(() => mutex.EnterScope());
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await mutex.LockAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -104,7 +105,7 @@ public partial class GoTests
                 reentrantLockTask,
                 Task.Delay(100, cancellationToken: TestContext.Current.CancellationToken)
             );
-            Assert.NotEqual(reentrantLockTask, completedTask);
+            completedTask.ShouldNotBe(reentrantLockTask);
         }
     }
 
@@ -163,7 +164,7 @@ public partial class GoTests
             wg.Add(task);
         }
         await wg.WaitAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(1, counter);
+        counter.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -173,14 +174,14 @@ public partial class GoTests
         var obj1 = pool.Get();
         pool.Put(obj1);
         var obj2 = pool.Get();
-        Assert.Same(obj1, obj2);
+        obj2.ShouldBeSameAs(obj1);
     }
 
     [Fact(Timeout = 15_000)]
     public void Pool_Get_ShouldThrow_WhenEmptyAndNoFactory()
     {
         var pool = new Pool<object>();
-        Assert.Throws<InvalidOperationException>(() => pool.Get());
+        Should.Throw<InvalidOperationException>(() => pool.Get());
     }
 
     [Fact(Timeout = 15_000)]
@@ -197,7 +198,7 @@ public partial class GoTests
             var task = Task.Run(
                 async () =>
                 {
-                    Assert.True(startSignal.Wait(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken), "Timed out waiting to start RWMutex readers.");
+                    startSignal.Wait(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken).ShouldBeTrue("Timed out waiting to start RWMutex readers.");
                     using (await rwMutex.RLockAsync())
                     {
                         var currentReaders = Interlocked.Increment(ref activeReaders);
@@ -217,7 +218,7 @@ public partial class GoTests
         startSignal.Set();
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(5, maxConcurrentReaders);
+        maxConcurrentReaders.ShouldBe(5);
     }
 
     [Fact(Timeout = 15_000)]
@@ -248,7 +249,7 @@ public partial class GoTests
             {
                 using (await rwMutex.RLockAsync())
                 {
-                    Assert.False(writeLockHeld);
+                    writeLockHeld.ShouldBeFalse();
                 }
             },
             TestContext.Current.CancellationToken
@@ -260,7 +261,7 @@ public partial class GoTests
             {
                 using (await rwMutex.LockAsync())
                 {
-                    Assert.False(writeLockHeld);
+                    writeLockHeld.ShouldBeFalse();
                 }
             },
             TestContext.Current.CancellationToken
@@ -269,7 +270,7 @@ public partial class GoTests
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.False(writeLockHeld);
+        writeLockHeld.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -278,8 +279,8 @@ public partial class GoTests
         var tempFile = Path.GetTempFileName();
         File.WriteAllText(tempFile, "Hello from GoSharp!");
         var result = ReadFileContent(tempFile);
-        Assert.True(result.IsSuccess);
-        Assert.Equal("Hello from GoSharp!", result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("Hello from GoSharp!");
         File.Delete(tempFile);
     }
 
@@ -287,9 +288,9 @@ public partial class GoTests
     public void ReadFileContent_ShouldFail_WithInvalidFile()
     {
         var result = ReadFileContent("non_existent_file.txt");
-        Assert.True(result.IsFailure);
-        Assert.NotNull(result.Error);
-        Assert.Contains("Could not find file", result.Error!.Message);
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldNotBeNull();
+        result.Error!.Message.ShouldContain("Could not find file");
     }
 
     [Fact(Timeout = 15_000)]
@@ -302,7 +303,7 @@ public partial class GoTests
             await channel.Writer.WriteAsync("Work complete!", TestContext.Current.CancellationToken);
         });
         var message = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
-        Assert.Equal("Work complete!", message);
+        message.ShouldBe("Work complete!");
     }
 
     [Fact(Timeout = 15_000)]
@@ -320,13 +321,13 @@ public partial class GoTests
             TestContext.Current.CancellationToken
         );
         await Task.Delay(50, TestContext.Current.CancellationToken);
-        Assert.False(writerTaskCompleted);
+        writerTaskCompleted.ShouldBeFalse();
         var firstItem = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
         await writerTask;
         var secondItem = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(1, firstItem);
-        Assert.Equal(2, secondItem);
-        Assert.True(writerTaskCompleted);
+        firstItem.ShouldBe(1);
+        secondItem.ShouldBe(2);
+        writerTaskCompleted.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -347,7 +348,7 @@ public partial class GoTests
             wg.Add(task);
         }
         await wg.WaitAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(5, counter);
+        counter.ShouldBe(5);
     }
 
     [Fact(Timeout = 15_000)]
@@ -355,7 +356,7 @@ public partial class GoTests
     {
         var wg = new WaitGroup();
         await wg.WaitAsync(TestContext.Current.CancellationToken);
-        Assert.True(true);
+        true.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -386,7 +387,7 @@ public partial class GoTests
             wg.Add(task);
         }
         await wg.WaitAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(numTasks * incrementsPerTask, counter);
+        counter.ShouldBe(numTasks * incrementsPerTask);
     }
 
     [Fact(Timeout = 15_000)]
@@ -394,8 +395,8 @@ public partial class GoTests
     {
         var wg = new WaitGroup();
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => wg.Add(0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => wg.Add(-1));
+        Should.Throw<ArgumentOutOfRangeException>(() => wg.Add(0));
+        Should.Throw<ArgumentOutOfRangeException>(() => wg.Add(-1));
     }
 
     [Fact(Timeout = 15_000)]
@@ -403,7 +404,7 @@ public partial class GoTests
     {
         var wg = new WaitGroup();
 
-        Assert.Throws<ArgumentNullException>(() => wg.Add((Task)null!));
+        Should.Throw<ArgumentNullException>(() => wg.Add((Task)null!));
     }
 
     [Fact(Timeout = 15_000)]
@@ -411,7 +412,7 @@ public partial class GoTests
     {
         var wg = new WaitGroup();
 
-        Assert.Throws<ArgumentNullException>(() => wg.Go((Func<Task>)null!, TestContext.Current.CancellationToken));
+        Should.Throw<ArgumentNullException>(() => wg.Go((Func<Task>)null!, TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -419,7 +420,7 @@ public partial class GoTests
     {
         var wg = new WaitGroup();
 
-        Assert.Throws<ArgumentNullException>(() => wg.Go((Func<CancellationToken, Task>)null!, TestContext.Current.CancellationToken));
+        Should.Throw<ArgumentNullException>(() => wg.Go((Func<CancellationToken, Task>)null!, TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -429,7 +430,7 @@ public partial class GoTests
         wg.Add(1);
         wg.Done();
 
-        Assert.Throws<InvalidOperationException>(() => wg.Done());
+        Should.Throw<InvalidOperationException>(() => wg.Done());
     }
 
     [Fact(Timeout = 15_000)]
@@ -441,7 +442,7 @@ public partial class GoTests
         using var cts = new CancellationTokenSource(20);
         var waitTask = wg.WaitAsync(cts.Token);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waitTask);
+        await Should.ThrowAsync<OperationCanceledException>(() => waitTask);
         wg.Done();
     }
 
@@ -455,7 +456,7 @@ public partial class GoTests
         tcs.SetResult();
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, wg.Count);
+        wg.Count.ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
@@ -466,12 +467,12 @@ public partial class GoTests
 
         var pending = mutex.LockAsync(TestContext.Current.CancellationToken);
         await Task.Delay(10, TestContext.Current.CancellationToken);
-        Assert.False(pending.IsCompleted);
+        pending.IsCompleted.ShouldBeFalse();
 
         await releaser.DisposeAsync();
         using (await pending)
         {
-            Assert.True(true);
+            true.ShouldBeTrue();
         }
     }
 
@@ -482,7 +483,7 @@ public partial class GoTests
         using (await rwMutex.LockAsync(TestContext.Current.CancellationToken))
         {
             using var cts = new CancellationTokenSource(20);
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await rwMutex.RLockAsync(cts.Token));
+            await Should.ThrowAsync<OperationCanceledException>(async () => await rwMutex.RLockAsync(cts.Token));
         }
     }
 
@@ -494,12 +495,12 @@ public partial class GoTests
         var pendingWriter = rwMutex.LockAsync(TestContext.Current.CancellationToken).AsTask();
 
         await Task.Delay(10, TestContext.Current.CancellationToken);
-        Assert.False(pendingWriter.IsCompleted);
+        pendingWriter.IsCompleted.ShouldBeFalse();
 
         await writer.DisposeAsync();
         using (await pendingWriter)
         {
-            Assert.True(true);
+            true.ShouldBeTrue();
         }
     }
 
@@ -508,7 +509,7 @@ public partial class GoTests
     {
         var pool = new Pool<object> { New = () => new object() };
 
-        Assert.Throws<ArgumentNullException>(() => pool.Put(null!));
+        Should.Throw<ArgumentNullException>(() => pool.Put(null!));
     }
 
     [Fact(Timeout = 15_000)]
@@ -527,8 +528,8 @@ public partial class GoTests
     [Fact(Timeout = 15_000)]
     public async Task Run_ShouldThrowWhenFuncIsNull()
     {
-        await Assert.ThrowsAsync<ArgumentNullException>(static () => Run((Func<Task>)null!));
-        await Assert.ThrowsAsync<ArgumentNullException>(static () => Run((Func<CancellationToken, Task>)null!, TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(static () => Run((Func<Task>)null!));
+        await Should.ThrowAsync<ArgumentNullException>(static () => Run((Func<CancellationToken, Task>)null!, TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -537,7 +538,7 @@ public partial class GoTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Run(_ => Task.Delay(1000, _), cts.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => Run(_ => Task.Delay(1000, _), cts.Token));
     }
 
     [Fact(Timeout = 15_000)]
@@ -546,7 +547,7 @@ public partial class GoTests
         var existing = Task.Delay(10, TestContext.Current.CancellationToken);
         var tracked = Run(existing);
 
-        Assert.Same(existing, tracked);
+        tracked.ShouldBeSameAs(existing);
         await tracked;
     }
 
@@ -563,7 +564,7 @@ public partial class GoTests
         var tracked = Run(WorkAsync());
         await tracked;
 
-        Assert.Equal(1, invoked);
+        invoked.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -582,8 +583,8 @@ public partial class GoTests
             return Task.CompletedTask;
         }, scheduler: scheduler);
 
-        Assert.Equal(1, executedOnScheduler);
-        Assert.Equal(1, scheduler.ExecutionCount);
+        executedOnScheduler.ShouldBe(1);
+        scheduler.ExecutionCount.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -604,8 +605,8 @@ public partial class GoTests
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, executedOnScheduler);
-        Assert.Equal(1, scheduler.ExecutionCount);
+        executedOnScheduler.ShouldBe(1);
+        scheduler.ExecutionCount.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -615,12 +616,12 @@ public partial class GoTests
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         wg.Go(tcs.Task);
-        Assert.Equal(1, wg.Count);
+        wg.Count.ShouldBe(1);
 
         tcs.TrySetResult();
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, wg.Count);
+        wg.Count.ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
@@ -630,7 +631,7 @@ public partial class GoTests
 
         ValueTask delayTask = Go.DelayAsync(TimeSpan.FromSeconds(5), provider, TestContext.Current.CancellationToken);
 
-        Assert.False(delayTask.IsCompleted);
+        delayTask.IsCompleted.ShouldBeFalse();
 
         provider.Advance(TimeSpan.FromSeconds(5));
 
@@ -638,7 +639,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task DelayAsync_ShouldThrow_WhenDelayIsNegative() => await Assert.ThrowsAsync<ArgumentOutOfRangeException>(static async () =>
+    public async Task DelayAsync_ShouldThrow_WhenDelayIsNegative() => await Should.ThrowAsync<ArgumentOutOfRangeException>(static async () =>
                                                                                await DelayAsync(TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
@@ -650,18 +651,18 @@ public partial class GoTests
 
         await cts.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await delayTask);
+        await Should.ThrowAsync<OperationCanceledException>(async () => await delayTask);
     }
 
     [Fact(Timeout = 15_000)]
-    public void ChannelCase_Create_ShouldThrow_WhenReaderIsNull() => Assert.Throws<ArgumentNullException>(static () => ChannelCase.Create<int, Go.Unit>(null!, static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value))));
+    public void ChannelCase_Create_ShouldThrow_WhenReaderIsNull() => Should.Throw<ArgumentNullException>(static () => ChannelCase.Create<int, Go.Unit>(null!, static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value))));
 
     [Fact(Timeout = 15_000)]
     public void ChannelCase_Create_ShouldThrow_WhenContinuationIsNull()
     {
         var channel = MakeChannel<int>();
 
-        Assert.Throws<ArgumentNullException>(() => ChannelCase.Create<int, Go.Unit>(channel.Reader, (Func<int, CancellationToken, ValueTask<Result<Go.Unit>>>)null!));
+        Should.Throw<ArgumentNullException>(() => ChannelCase.Create<int, Go.Unit>(channel.Reader, (Func<int, CancellationToken, ValueTask<Result<Go.Unit>>>)null!));
     }
 
     [Fact(Timeout = 15_000)]
@@ -669,14 +670,14 @@ public partial class GoTests
     {
         var channel = MakeChannel<int>();
 
-        Assert.Throws<ArgumentNullException>(() => ChannelCase.Create<int, Go.Unit>(channel.Reader, (Action<int>)null!));
+        Should.Throw<ArgumentNullException>(() => ChannelCase.Create<int, Go.Unit>(channel.Reader, (Action<int>)null!));
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldThrow_WhenCasesNull() => await Assert.ThrowsAsync<ArgumentNullException>(static async () => await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: null!));
+    public async Task SelectAsync_ShouldThrow_WhenCasesNull() => await Should.ThrowAsync<ArgumentNullException>(static async () => await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: null!));
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldThrow_WhenCasesEmpty() => await Assert.ThrowsAsync<ArgumentException>(static async () => await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: []));
+    public async Task SelectAsync_ShouldThrow_WhenCasesEmpty() => await Should.ThrowAsync<ArgumentException>(static async () => await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: []));
 
     [Fact(Timeout = 15_000)]
     public async Task SelectAsync_ShouldThrow_WhenTimeoutIsNegative()
@@ -684,7 +685,7 @@ public partial class GoTests
         var channel = MakeChannel<int>();
         var @case = ChannelCase.Create(channel.Reader, (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)));
 
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await SelectAsync<Go.Unit>(TimeSpan.FromMilliseconds(-5), cancellationToken: TestContext.Current.CancellationToken, cases: [@case]));
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(async () => await SelectAsync<Go.Unit>(TimeSpan.FromMilliseconds(-5), cancellationToken: TestContext.Current.CancellationToken, cases: [@case]));
     }
 
     [Fact(Timeout = 15_000)]
@@ -695,8 +696,8 @@ public partial class GoTests
 
         var result = await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Unit.Value)))]);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.SelectDrained, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.SelectDrained);
     }
 
     [Fact(Timeout = 15_000)]
@@ -711,13 +712,13 @@ public partial class GoTests
                 ChannelCase.CreateDefault(ct =>
                 {
                     invoked = true;
-                    Assert.True(ct.CanBeCanceled);
+                    ct.CanBeCanceled.ShouldBeTrue();
                     return ValueTask.FromResult(Result.Ok(Unit.Value));
                 })
             ]);
 
-        Assert.True(invoked);
-        Assert.True(result.IsSuccess);
+        invoked.ShouldBeTrue();
+        result.IsSuccess.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -730,9 +731,9 @@ public partial class GoTests
                 ChannelCase.CreateDefault(static () => Result.Fail<Unit>(Error.From("default failure", ErrorCodes.Validation)))
             ]);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
-        Assert.Equal("default failure", result.Error?.Message);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
+        result.Error?.Message.ShouldBe("default failure");
     }
 
     [Fact(Timeout = 15_000)]
@@ -754,17 +755,17 @@ public partial class GoTests
                 }),
                 ChannelCase.Create(channel.Reader, value =>
                 {
-                    Assert.Equal(42, value);
+                    value.ShouldBe(42);
                     return ValueTask.FromResult(Result.Ok(Unit.Value));
                 })
             ]);
 
-        Assert.True(result.IsSuccess);
-        Assert.False(defaultInvoked);
+        result.IsSuccess.ShouldBeTrue();
+        defaultInvoked.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldThrow_WhenMultipleDefaultCasesSupplied() => await Assert.ThrowsAsync<ArgumentException>(static async () =>
+    public async Task SelectAsync_ShouldThrow_WhenMultipleDefaultCasesSupplied() => await Should.ThrowAsync<ArgumentException>(static async () =>
                                                                                              await SelectAsync<Go.Unit>(
                                                                                                  cancellationToken: TestContext.Current.CancellationToken,
                                                                                                  cases:
@@ -782,9 +783,9 @@ public partial class GoTests
 
         var result = await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: [ChannelCase.Create<int, Go.Unit>(channel.Reader, (Action<int>)(static _ => throw new InvalidOperationException("boom")))]);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
-        Assert.Contains("boom", result.Error?.Message);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
+        result.Error?.Message.ShouldContain("boom");
     }
 
     [Fact(Timeout = 15_000)]
@@ -804,7 +805,7 @@ public partial class GoTests
                 ChannelCase.Create(channel1.Reader, (value, _) =>
                 {
                     firstExecuted = true;
-                    Assert.Equal(42, value);
+                    value.ShouldBe(42);
                     return ValueTask.FromResult(Result.Ok(Go.Unit.Value));
                 }),
                 ChannelCase.Create(channel2.Reader, (value, _) =>
@@ -820,9 +821,9 @@ public partial class GoTests
 
         var result = await selectTask;
 
-        Assert.True(result.IsSuccess);
-        Assert.True(firstExecuted);
-        Assert.False(secondExecuted);
+        result.IsSuccess.ShouldBeTrue();
+        firstExecuted.ShouldBeTrue();
+        secondExecuted.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -842,7 +843,7 @@ public partial class GoTests
                 ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)))
             ]);
 
-        Assert.False(selectTask.IsCompleted);
+        selectTask.IsCompleted.ShouldBeFalse();
 
         provider.Advance(TimeSpan.FromSeconds(1));
 
@@ -850,8 +851,8 @@ public partial class GoTests
 
         channel.Writer.TryComplete();
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Timeout);
     }
 
     [Fact(Timeout = 15_000)]
@@ -868,10 +869,10 @@ public partial class GoTests
 
         var result = await selectTask;
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
-        Assert.True(result.Error!.TryGetMetadata("cancellationToken", out CancellationToken recordedToken));
-        Assert.Equal(cts.Token, recordedToken);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+        result.Error!.TryGetMetadata("cancellationToken", out CancellationToken recordedToken).ShouldBeTrue();
+        recordedToken.ShouldBe(cts.Token);
         channel.Writer.TryComplete();
     }
 
@@ -898,7 +899,7 @@ public partial class GoTests
                     ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Ok(Unit.Value)))
                 ]);
 
-            Assert.True(result.IsSuccess);
+            result.IsSuccess.ShouldBeTrue();
 
             Activity[] recorded;
             lock (stoppedActivities)
@@ -906,12 +907,12 @@ public partial class GoTests
                 recorded = [.. stoppedActivities];
             }
 
-            var activity = Assert.Single(recorded, static activity => activity.DisplayName == "Go.Select");
-            Assert.Equal("Go.Select", activity.DisplayName);
-            Assert.Equal(ActivityStatusCode.Ok, activity.Status);
-            Assert.Equal(1, activity.GetTagItem("hugo.select.case_count"));
-            Assert.Equal("completed", activity.GetTagItem("hugo.select.outcome"));
-            Assert.NotNull(activity.GetTagItem("hugo.select.duration_ms"));
+            var activity = recorded.Single(static activity => activity.DisplayName == "Go.Select");
+            activity.DisplayName.ShouldBe("Go.Select");
+            activity.Status.ShouldBe(ActivityStatusCode.Ok);
+            activity.GetTagItem("hugo.select.case_count").ShouldBe(1);
+            activity.GetTagItem("hugo.select.outcome").ShouldBe("completed");
+            activity.GetTagItem("hugo.select.duration_ms").ShouldNotBeNull();
         }
         finally
         {
@@ -942,8 +943,8 @@ public partial class GoTests
                     ChannelCase.Create(channel.Reader, static (_, _) => ValueTask.FromResult(Result.Fail<Unit>(Error.From("failure", "error.activity"))))
                 ]);
 
-            Assert.True(result.IsFailure);
-            Assert.Equal("error.activity", result.Error?.Code);
+            result.IsFailure.ShouldBeTrue();
+            result.Error?.Code.ShouldBe("error.activity");
 
             Activity[] recorded;
             lock (stoppedActivities)
@@ -951,10 +952,10 @@ public partial class GoTests
                 recorded = [.. stoppedActivities];
             }
 
-            var activity = Assert.Single(recorded, static activity => activity.DisplayName == "Go.Select");
-            Assert.Equal(ActivityStatusCode.Error, activity.Status);
-            Assert.Equal("error", activity.GetTagItem("hugo.select.outcome"));
-            Assert.Equal("error.activity", activity.GetTagItem("hugo.error.code"));
+            var activity = recorded.Single(static activity => activity.DisplayName == "Go.Select");
+            activity.Status.ShouldBe(ActivityStatusCode.Error);
+            activity.GetTagItem("hugo.select.outcome").ShouldBe("error");
+            activity.GetTagItem("hugo.error.code").ShouldBe("error.activity");
         }
         finally
         {
@@ -992,15 +993,15 @@ public partial class GoTests
 
         await channel.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
         var first = await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: cases);
-        Assert.True(first.IsSuccess);
+        first.IsSuccess.ShouldBeTrue();
 
         await channel.Writer.WriteAsync(2, TestContext.Current.CancellationToken);
         channel.Writer.TryComplete();
 
         var second = await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: cases);
 
-        Assert.True(second.IsSuccess);
-        Assert.Equal(expected, observed);
+        second.IsSuccess.ShouldBeTrue();
+        observed.ShouldBe(expected);
     }
 
     [Theory]
@@ -1031,8 +1032,8 @@ public partial class GoTests
 
         var result = await selectTask;
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(expected, observed);
+        result.IsSuccess.ShouldBeTrue();
+        observed.ShouldBe(expected);
     }
 
     [Fact(Timeout = 15_000)]
@@ -1050,8 +1051,8 @@ public partial class GoTests
 
         var result = await selectTask;
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("value:7", result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("value:7");
     }
 
     [Fact(Timeout = 15_000)]
@@ -1068,9 +1069,9 @@ public partial class GoTests
 
         var result = await selectTask;
 
-        Assert.True(result.IsFailure);
-        Assert.Equal("boom", result.Error?.Message);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Message.ShouldBe("boom");
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 
     [Fact(Timeout = 15_000)]
@@ -1087,8 +1088,8 @@ public partial class GoTests
 
         var result = await selectTask;
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Timeout);
     }
 
     [Fact(Timeout = 15_000)]
@@ -1096,7 +1097,7 @@ public partial class GoTests
     {
         var builder = Select<int>(cancellationToken: TestContext.Current.CancellationToken);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await builder.ExecuteAsync());
+        await Should.ThrowAsync<InvalidOperationException>(async () => await builder.ExecuteAsync());
     }
 
     [Fact(Timeout = 15_000)]
@@ -1106,8 +1107,8 @@ public partial class GoTests
             .Default(static () => "fallback")
             .ExecuteAsync();
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("fallback", result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("fallback");
     }
 
     [Fact(Timeout = 15_000)]
@@ -1122,8 +1123,8 @@ public partial class GoTests
             .Default(static () => 5)
             .ExecuteAsync();
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(9, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(9);
     }
 
     [Fact(Timeout = 15_000)]
@@ -1142,8 +1143,8 @@ public partial class GoTests
             .Case(highPriority.Reader, priority: -1, static value => value)
             .ExecuteAsync();
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(1, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -1162,8 +1163,8 @@ public partial class GoTests
             .Case(second.Reader, static value => value)
             .ExecuteAsync();
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(7, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(7);
     }
 
     [Fact(Timeout = 15_000)]
@@ -1177,8 +1178,8 @@ public partial class GoTests
             .Default(static () => "fallback")
             .ExecuteAsync();
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("fallback", result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("fallback");
     }
 
     [Fact(Timeout = 15_000)]
@@ -1187,7 +1188,7 @@ public partial class GoTests
         var builder = Select<int>(cancellationToken: TestContext.Current.CancellationToken)
             .Default(() => 1);
 
-        Assert.Throws<InvalidOperationException>(() => builder.Default(() => 2));
+        Should.Throw<InvalidOperationException>(() => builder.Default(() => 2));
     }
 
     [Fact(Timeout = 15_000)]
@@ -1203,8 +1204,8 @@ public partial class GoTests
 
         var result = await selectTask;
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("expired", result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("expired");
     }
 
     [Fact(Timeout = 15_000)]
@@ -1217,13 +1218,13 @@ public partial class GoTests
 
         var waitTask = wg.WaitAsync(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken);
 
-        Assert.False(waitTask.IsCompleted);
+        waitTask.IsCompleted.ShouldBeFalse();
 
         provider.Advance(TimeSpan.FromSeconds(1));
 
         var timedOut = await waitTask;
 
-        Assert.False(timedOut);
+        timedOut.ShouldBeFalse();
 
         tcs.SetResult();
         await wg.WaitAsync(TestContext.Current.CancellationToken);
@@ -1239,13 +1240,13 @@ public partial class GoTests
 
         var waitTask = wg.WaitAsync(TimeSpan.FromSeconds(5), provider, TestContext.Current.CancellationToken);
 
-        Assert.False(waitTask.IsCompleted);
+        waitTask.IsCompleted.ShouldBeFalse();
 
         tcs.SetResult();
 
         var completed = await waitTask;
 
-        Assert.True(completed);
+        completed.ShouldBeTrue();
         await wg.WaitAsync(TestContext.Current.CancellationToken);
     }
 
@@ -1254,24 +1255,24 @@ public partial class GoTests
     {
         var channel = MakeChannel<int>(0);
 
-        Assert.True(channel.Writer.TryWrite(1));
-        Assert.True(channel.Writer.TryWrite(2));
+        channel.Writer.TryWrite(1).ShouldBeTrue();
+        channel.Writer.TryWrite(2).ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
-    public void MakeChannel_WithNullBoundedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((BoundedChannelOptions)null!));
+    public void MakeChannel_WithNullBoundedOptions_ShouldThrow() => Should.Throw<ArgumentNullException>(static () => MakeChannel<int>((BoundedChannelOptions)null!));
 
     [Fact(Timeout = 15_000)]
-    public void MakeChannel_WithNullUnboundedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((UnboundedChannelOptions)null!));
+    public void MakeChannel_WithNullUnboundedOptions_ShouldThrow() => Should.Throw<ArgumentNullException>(static () => MakeChannel<int>((UnboundedChannelOptions)null!));
 
     [Fact(Timeout = 15_000)]
-    public void MakeChannel_WithNullPrioritizedOptions_ShouldThrow() => Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((PrioritizedChannelOptions)null!));
+    public void MakeChannel_WithNullPrioritizedOptions_ShouldThrow() => Should.Throw<ArgumentNullException>(static () => MakeChannel<int>((PrioritizedChannelOptions)null!));
 
     [Fact(Timeout = 15_000)]
-    public void MakePrioritizedChannel_ShouldThrow_WhenPriorityLevelsInvalid() => Assert.Throws<ArgumentOutOfRangeException>(static () => MakePrioritizedChannel<int>(0));
+    public void MakePrioritizedChannel_ShouldThrow_WhenPriorityLevelsInvalid() => Should.Throw<ArgumentOutOfRangeException>(static () => MakePrioritizedChannel<int>(0));
 
     [Fact(Timeout = 15_000)]
-    public void MakePrioritizedChannel_ShouldThrow_WhenDefaultPriorityTooHigh() => Assert.Throws<ArgumentOutOfRangeException>(static () => MakePrioritizedChannel<int>(priorityLevels: 2, defaultPriority: 2));
+    public void MakePrioritizedChannel_ShouldThrow_WhenDefaultPriorityTooHigh() => Should.Throw<ArgumentOutOfRangeException>(static () => MakePrioritizedChannel<int>(priorityLevels: 2, defaultPriority: 2));
 
     private static readonly int[] expected = [2, 3, 1];
 
@@ -1294,7 +1295,7 @@ public partial class GoTests
             await reader.ReadAsync(TestContext.Current.CancellationToken)
         };
 
-        Assert.Equal(expected, results);
+        results.ShouldBe(expected);
     }
 
     [Fact(Timeout = 15_000)]
@@ -1311,8 +1312,8 @@ public partial class GoTests
         var first = await reader.ReadAsync(TestContext.Current.CancellationToken);
         var second = await reader.ReadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, first);
-        Assert.Equal(2, second);
+        first.ShouldBe(1);
+        second.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -1321,7 +1322,7 @@ public partial class GoTests
         var channel = MakeChannel<int>(new PrioritizedChannelOptions { PriorityLevels = 2 });
         var writer = channel.PrioritizedWriter;
 
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await writer.WriteAsync(42, priority: 5, TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(async () => await writer.WriteAsync(42, priority: 5, TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -1329,9 +1330,9 @@ public partial class GoTests
     {
         var result = Err<int>("message", ErrorCodes.Validation);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal("message", result.Error?.Message);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Message.ShouldBe("message");
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 
 

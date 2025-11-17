@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -28,11 +29,11 @@ public class DeterministicEffectStoreTests
             return ValueTask.FromResult(Result.Ok(99));
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(first.IsSuccess);
-        Assert.True(second.IsSuccess);
-        Assert.Equal(42, first.Value);
-        Assert.Equal(42, second.Value);
-        Assert.Equal(1, executionCount);
+        first.IsSuccess.ShouldBeTrue();
+        second.IsSuccess.ShouldBeTrue();
+        first.Value.ShouldBe(42);
+        second.Value.ShouldBe(42);
+        executionCount.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -56,11 +57,11 @@ public class DeterministicEffectStoreTests
             },
             TestContext.Current.CancellationToken);
 
-        Assert.True(first.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, first.Error?.Code);
-        Assert.True(second.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, second.Error?.Code);
-        Assert.False(executed);
+        first.IsFailure.ShouldBeTrue();
+        first.Error?.Code.ShouldBe(ErrorCodes.Validation);
+        second.IsFailure.ShouldBeTrue();
+        second.Error?.Code.ShouldBe(ErrorCodes.Validation);
+        executed.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -73,7 +74,7 @@ public class DeterministicEffectStoreTests
             "effect.type",
             _ => ValueTask.FromResult(Result.Ok(17)),
             TestContext.Current.CancellationToken);
-        Assert.True(initial.IsSuccess);
+        initial.IsSuccess.ShouldBeTrue();
 
         var mismatchExecuted = false;
         var mismatch = await effectStore.CaptureAsync(
@@ -85,9 +86,9 @@ public class DeterministicEffectStoreTests
             },
             TestContext.Current.CancellationToken);
 
-        Assert.True(mismatch.IsFailure);
-        Assert.Equal(ErrorCodes.DeterministicReplay, mismatch.Error?.Code);
-        Assert.False(mismatchExecuted);
+        mismatch.IsFailure.ShouldBeTrue();
+        mismatch.Error?.Code.ShouldBe(ErrorCodes.DeterministicReplay);
+        mismatchExecuted.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -112,11 +113,11 @@ public class DeterministicEffectStoreTests
             },
             TestContext.Current.CancellationToken);
 
-        Assert.True(first.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, first.Error?.Code);
-        Assert.True(second.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, second.Error?.Code);
-        Assert.False(exceptionExecuted);
+        first.IsFailure.ShouldBeTrue();
+        first.Error?.Code.ShouldBe(ErrorCodes.Exception);
+        second.IsFailure.ShouldBeTrue();
+        second.Error?.Code.ShouldBe(ErrorCodes.Exception);
+        exceptionExecuted.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -131,8 +132,8 @@ public class DeterministicEffectStoreTests
             "effect.kind",
             static () => Result.Ok(7));
 
-        Assert.True(mismatch.IsFailure);
-        Assert.Equal(ErrorCodes.DeterministicReplay, mismatch.Error?.Code);
+        mismatch.IsFailure.ShouldBeTrue();
+        mismatch.Error?.Code.ShouldBe(ErrorCodes.DeterministicReplay);
     }
 
     [Fact(Timeout = 15_000)]
@@ -144,7 +145,7 @@ public class DeterministicEffectStoreTests
 
         cts.Cancel();
 
-        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        await Should.ThrowAsync<OperationCanceledException>(async () =>
         {
             await effectStore.CaptureAsync<int>(
                 "effect.canceled",
@@ -156,7 +157,7 @@ public class DeterministicEffectStoreTests
                 cts.Token);
         });
 
-        Assert.False(store.TryGet("effect.canceled", out _));
+        store.TryGet("effect.canceled", out _).ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -182,11 +183,11 @@ public class DeterministicEffectStoreTests
                 return Result.Ok("other");
             });
 
-        Assert.True(first.IsSuccess);
-        Assert.True(second.IsSuccess);
-        Assert.Equal("value", first.Value);
-        Assert.Equal("value", second.Value);
-        Assert.Equal(1, executions);
+        first.IsSuccess.ShouldBeTrue();
+        second.IsSuccess.ShouldBeTrue();
+        first.Value.ShouldBe("value");
+        second.Value.ShouldBe("value");
+        executions.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -201,21 +202,21 @@ public class DeterministicEffectStoreTests
             "effect.cancellation",
             () => Result.Fail<int>(Error.Canceled(token: cts.Token)));
 
-        Assert.True(initial.IsFailure);
-        Assert.True(store.TryGet("effect.cancellation", out _));
+        initial.IsFailure.ShouldBeTrue();
+        store.TryGet("effect.cancellation", out _).ShouldBeTrue();
 
         var replay = await effectStore.CaptureAsync(
             "effect.cancellation",
             () => Result.Ok(1));
 
-        Assert.True(replay.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, replay.Error?.Code);
-        Assert.NotNull(replay.Error);
-        Assert.True(replay.Error!.Metadata.TryGetValue("cancellationToken", out var metadata));
-        var tokenMetadata = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(metadata);
-        Assert.True(tokenMetadata.TryGetValue("isCancellationRequested", out var requested));
-        Assert.Equal(true, requested);
-        Assert.True(tokenMetadata.TryGetValue("canBeCanceled", out var canBeCanceled));
-        Assert.Equal(cts.Token.CanBeCanceled, canBeCanceled);
+        replay.IsFailure.ShouldBeTrue();
+        replay.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+        replay.Error.ShouldNotBeNull();
+        replay.Error!.Metadata.TryGetValue("cancellationToken", out var metadata).ShouldBeTrue();
+        var tokenMetadata = metadata.ShouldBeAssignableTo<IReadOnlyDictionary<string, object?>>();
+        tokenMetadata!.TryGetValue("isCancellationRequested", out var requested).ShouldBeTrue();
+        requested.ShouldBe(true);
+        tokenMetadata.TryGetValue("canBeCanceled", out var canBeCanceled).ShouldBeTrue();
+        canBeCanceled.ShouldBe(cts.Token.CanBeCanceled);
     }
 }

@@ -1,3 +1,4 @@
+using Shouldly;
 namespace Hugo.Tests;
 
 public class InMemoryDeterministicStateStoreTests
@@ -7,7 +8,7 @@ public class InMemoryDeterministicStateStoreTests
     {
         var store = new InMemoryDeterministicStateStore();
 
-        Assert.Throws<ArgumentException>(() => store.TryGet("", out _));
+        Should.Throw<ArgumentException>(() => store.TryGet("", out _));
     }
 
     [Fact(Timeout = 15_000)]
@@ -16,7 +17,7 @@ public class InMemoryDeterministicStateStoreTests
         var store = new InMemoryDeterministicStateStore();
         var record = new DeterministicRecord("hugo.test", 1, [], DateTimeOffset.UtcNow);
 
-        Assert.Throws<ArgumentException>(() => store.Set(" ", record));
+        Should.Throw<ArgumentException>(() => store.Set(" ", record));
     }
 
     [Fact(Timeout = 15_000)]
@@ -24,7 +25,7 @@ public class InMemoryDeterministicStateStoreTests
     {
         var store = new InMemoryDeterministicStateStore();
 
-        Assert.Throws<ArgumentNullException>(() => store.Set("key", null!));
+        Should.Throw<ArgumentNullException>(() => store.Set("key", null!));
     }
 
     [Fact(Timeout = 15_000)]
@@ -35,7 +36,7 @@ public class InMemoryDeterministicStateStoreTests
 
         store.Set("key", record);
 
-        Assert.True(store.TryGet("key", out var retrieved));
-        Assert.Same(record, retrieved);
+        store.TryGet("key", out var retrieved).ShouldBeTrue();
+        retrieved.ShouldBeSameAs(record);
     }
 }

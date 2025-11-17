@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -18,15 +19,15 @@ public partial class GoTests
             singleReader: true,
             singleWriter: true);
 
-        Assert.True(channel.Writer.TryWrite(1));
-        Assert.True(channel.Writer.TryWrite(2));
-        Assert.True(channel.Writer.TryWrite(3));
+        channel.Writer.TryWrite(1).ShouldBeTrue();
+        channel.Writer.TryWrite(2).ShouldBeTrue();
+        channel.Writer.TryWrite(3).ShouldBeTrue();
 
-        Assert.True(channel.Reader.TryRead(out var first));
-        Assert.Equal(2, first);
-        Assert.True(channel.Reader.TryRead(out var second));
-        Assert.Equal(3, second);
-        Assert.False(channel.Reader.TryRead(out _));
+        channel.Reader.TryRead(out var first).ShouldBeTrue();
+        first.ShouldBe(2);
+        channel.Reader.TryRead(out var second).ShouldBeTrue();
+        second.ShouldBe(3);
+        channel.Reader.TryRead(out _).ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -40,9 +41,9 @@ public partial class GoTests
                 .AllowSynchronousContinuations()
                 .Configure(options => capturedOptions = options));
 
-        Assert.NotNull(channel);
-        Assert.NotNull(capturedOptions);
-        Assert.True(capturedOptions!.AllowSynchronousContinuations);
+        channel.ShouldNotBeNull();
+        capturedOptions.ShouldNotBeNull();
+        capturedOptions!.AllowSynchronousContinuations.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -55,9 +56,9 @@ public partial class GoTests
                 .AllowSynchronousContinuations()
                 .Configure(options => capturedOptions = options));
 
-        Assert.NotNull(channel);
-        Assert.NotNull(capturedOptions);
-        Assert.True(capturedOptions!.AllowSynchronousContinuations);
+        channel.ShouldNotBeNull();
+        capturedOptions.ShouldNotBeNull();
+        capturedOptions!.AllowSynchronousContinuations.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -67,13 +68,13 @@ public partial class GoTests
 
         for (var i = 0; i < 64; i++)
         {
-            Assert.True(channel.Writer.TryWrite(i));
+            channel.Writer.TryWrite(i).ShouldBeTrue();
         }
 
         for (var i = 0; i < 64; i++)
         {
-            Assert.True(channel.Reader.TryRead(out var value));
-            Assert.Equal(i, value);
+            channel.Reader.TryRead(out var value).ShouldBeTrue();
+            value.ShouldBe(i);
         }
     }
 
@@ -87,15 +88,15 @@ public partial class GoTests
 
         var channel = MakeChannel<int>(options);
 
-        Assert.True(channel.Writer.TryWrite(10));
-        Assert.True(channel.Writer.TryWrite(20));
-        Assert.True(channel.Reader.TryRead(out var value));
-        Assert.Equal(20, value);
+        channel.Writer.TryWrite(10).ShouldBeTrue();
+        channel.Writer.TryWrite(20).ShouldBeTrue();
+        channel.Reader.TryRead(out var value).ShouldBeTrue();
+        value.ShouldBe(20);
     }
 
     [Fact(Timeout = 15_000)]
     public void MakeChannel_WithBoundedOptionsNull_Throws() =>
-        Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((BoundedChannelOptions)null!));
+        Should.Throw<ArgumentNullException>(static () => MakeChannel<int>((BoundedChannelOptions)null!));
 
     [Fact(Timeout = 15_000)]
     public void MakeChannel_WithUnboundedOptions_CreatesChannel()
@@ -110,19 +111,19 @@ public partial class GoTests
 
         for (var i = 0; i < 32; i++)
         {
-            Assert.True(channel.Writer.TryWrite(i));
+            channel.Writer.TryWrite(i).ShouldBeTrue();
         }
 
         for (var i = 0; i < 32; i++)
         {
-            Assert.True(channel.Reader.TryRead(out var value));
-            Assert.Equal(i, value);
+            channel.Reader.TryRead(out var value).ShouldBeTrue();
+            value.ShouldBe(i);
         }
     }
 
     [Fact(Timeout = 15_000)]
     public void MakeChannel_WithUnboundedOptionsNull_Throws() =>
-        Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((UnboundedChannelOptions)null!));
+        Should.Throw<ArgumentNullException>(static () => MakeChannel<int>((UnboundedChannelOptions)null!));
 
     [Fact(Timeout = 15_000)]
     public async Task MakeChannel_WithPrioritizedOptions_UsesDefaultPriority()
@@ -142,13 +143,13 @@ public partial class GoTests
         var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
         var second = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(42, first);
-        Assert.Equal(99, second);
+        first.ShouldBe(42);
+        second.ShouldBe(99);
     }
 
     [Fact(Timeout = 15_000)]
     public void MakeChannel_WithPrioritizedOptionsNull_Throws() =>
-        Assert.Throws<ArgumentNullException>(static () => MakeChannel<int>((PrioritizedChannelOptions)null!));
+        Should.Throw<ArgumentNullException>(static () => MakeChannel<int>((PrioritizedChannelOptions)null!));
 
     [Fact(Timeout = 15_000)]
     public async Task MakePrioritizedChannel_ConfiguresOptions()
@@ -168,8 +169,8 @@ public partial class GoTests
         var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
         var second = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(200, first);
-        Assert.Equal(100, second);
+        first.ShouldBe(200);
+        second.ShouldBe(100);
     }
 
     [Fact(Timeout = 15_000)]
@@ -204,10 +205,10 @@ public partial class GoTests
         await producers;
         var result = await fanInTask;
 
-        Assert.True(result.IsSuccess);
-        Assert.Contains(11, observed);
-        Assert.Contains(22, observed);
-        Assert.Equal(2, observed.Count);
+        result.IsSuccess.ShouldBeTrue();
+        observed.ShouldContain(11);
+        observed.ShouldContain(22);
+        observed.Count.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -231,9 +232,9 @@ public partial class GoTests
 
         var result = await fanInTask;
 
-        Assert.True(result.IsSuccess);
-        Assert.Single(observed);
-        Assert.Contains(42, observed);
+        result.IsSuccess.ShouldBeTrue();
+        observed.ShouldHaveSingleItem();
+        observed.ShouldContain(42);
     }
 
     [Fact(Timeout = 15_000)]
@@ -250,9 +251,9 @@ public partial class GoTests
 
         var result = await fanInTask;
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
-        Assert.Equal("boom", result.Error?.Message);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
+        result.Error?.Message.ShouldBe("boom");
     }
 
     [Fact(Timeout = 15_000)]
@@ -266,8 +267,8 @@ public partial class GoTests
             static (int _, CancellationToken _) => Task.FromResult(Result.Ok(Unit.Value)),
             cancellationToken: cts.Token);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
         channel.Writer.TryComplete();
     }
 
@@ -306,27 +307,27 @@ public partial class GoTests
             await advanceLoop;
         }
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Timeout);
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectFanInAsync_WithNullReaders_Throws() => await Assert.ThrowsAsync<ArgumentNullException>(static async () => await SelectFanInAsync<object>(null!, static (_, _) => Task.FromResult(Result.Ok(Unit.Value)), cancellationToken: TestContext.Current.CancellationToken));
+    public async Task SelectFanInAsync_WithNullReaders_Throws() => await Should.ThrowAsync<ArgumentNullException>(static async () => await SelectFanInAsync<object>(null!, static (_, _) => Task.FromResult(Result.Ok(Unit.Value)), cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public async Task SelectFanInAsync_WithNullDelegate_Throws()
     {
         var channel = MakeChannel<int>();
 
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, CancellationToken, Task<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, Task<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInValueTaskAsync([channel.Reader], (Func<int, CancellationToken, ValueTask<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInValueTaskAsync([channel.Reader], (Func<int, ValueTask<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, CancellationToken, Task>)null!, cancellationToken: TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, Task>)null!, cancellationToken: TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInValueTaskAsync([channel.Reader], (Func<int, CancellationToken, ValueTask>)null!, cancellationToken: TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInValueTaskAsync([channel.Reader], (Func<int, ValueTask>)null!, cancellationToken: TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Action<int>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, CancellationToken, Task<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, Task<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await SelectFanInValueTaskAsync([channel.Reader], (Func<int, CancellationToken, ValueTask<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await SelectFanInValueTaskAsync([channel.Reader], (Func<int, ValueTask<Result<Unit>>>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, CancellationToken, Task>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Func<int, Task>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await SelectFanInValueTaskAsync([channel.Reader], (Func<int, CancellationToken, ValueTask>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await SelectFanInValueTaskAsync([channel.Reader], (Func<int, ValueTask>)null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await SelectFanInAsync([channel.Reader], (Action<int>)null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -351,7 +352,7 @@ public partial class GoTests
             ProduceAsync(source2.Writer, expected[^1]));
         var result = await fanInTask;
 
-        Assert.True(result.IsSuccess);
+        result.IsSuccess.ShouldBeTrue();
 
         var observed = new List<int>();
         await foreach (var value in destination.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
@@ -360,7 +361,7 @@ public partial class GoTests
         }
 
         observed.Sort();
-        Assert.Equal(expected, observed);
+        observed.ShouldBe(expected);
     }
 
     [Fact(Timeout = 15_000)]
@@ -377,9 +378,9 @@ public partial class GoTests
 
         var result = await fanInTask;
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await destination.Reader.Completion);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
+        await Should.ThrowAsync<InvalidOperationException>(async () => await destination.Reader.Completion);
     }
 
     [Fact(Timeout = 15_000)]
@@ -389,8 +390,8 @@ public partial class GoTests
 
         var result = await FanInAsync([], destination.Writer, completeDestination: true, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.True(destination.Reader.Completion.IsCompleted);
+        result.IsSuccess.ShouldBeTrue();
+        destination.Reader.Completion.IsCompleted.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -400,22 +401,22 @@ public partial class GoTests
 
         var result = await FanInAsync([], destination.Writer, completeDestination: false, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.False(destination.Reader.Completion.IsCompleted);
+        result.IsSuccess.ShouldBeTrue();
+        destination.Reader.Completion.IsCompleted.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
     public async Task FanInAsync_WithNullSources_Throws()
     {
         var destination = MakeChannel<int>();
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanInAsync(null!, destination.Writer, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await FanInAsync(null!, destination.Writer, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
     public async Task FanInAsync_WithNullDestination_Throws()
     {
         var source = MakeChannel<int>();
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanInAsync([source.Reader], null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await FanInAsync([source.Reader], null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -445,25 +446,25 @@ public partial class GoTests
         }
 
         values.Sort();
-        Assert.Equal(expected, values);
+        values.ShouldBe(expected);
     }
 
     [Fact(Timeout = 15_000)]
     public void FanIn_WithNullSources_Throws() =>
-        Assert.Throws<ArgumentNullException>(static () => FanIn<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
+        Should.Throw<ArgumentNullException>(static () => FanIn<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_WithNullSource_Throws()
     {
         var destination = MakeChannel<int>();
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync(null!, [destination.Writer], cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await FanOutAsync(null!, [destination.Writer], cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
     public async Task FanOutAsync_WithNullDestinations_Throws()
     {
         var source = MakeChannel<int>();
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await FanOutAsync(source.Reader, null!, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await FanOutAsync(source.Reader, null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -472,7 +473,7 @@ public partial class GoTests
         var source = MakeChannel<int>();
         IReadOnlyList<ChannelWriter<int>> destinations = [null!];
 
-        await Assert.ThrowsAsync<ArgumentException>(async () => await FanOutAsync(source.Reader, destinations, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentException>(async () => await FanOutAsync(source.Reader, destinations, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -481,7 +482,7 @@ public partial class GoTests
         var source = MakeChannel<int>();
         var destination = MakeChannel<int>();
 
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await FanOutAsync(source.Reader, [destination.Writer], deadline: TimeSpan.FromSeconds(-1), cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(async () => await FanOutAsync(source.Reader, [destination.Writer], deadline: TimeSpan.FromSeconds(-1), cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -490,16 +491,16 @@ public partial class GoTests
         var source = MakeChannel<int>();
         var result = await FanOutAsync(source.Reader, [], cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
+        result.IsSuccess.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
     public void FanOut_WithNullSource_Throws() =>
-        Assert.Throws<ArgumentNullException>(static () => FanOut<int>(null!, 1, cancellationToken: TestContext.Current.CancellationToken));
+        Should.Throw<ArgumentNullException>(static () => FanOut<int>(null!, 1, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public void FanOut_WithInvalidBranchCount_Throws() =>
-        Assert.Throws<ArgumentOutOfRangeException>(static () => FanOut(MakeChannel<int>().Reader, 0, cancellationToken: TestContext.Current.CancellationToken));
+        Should.Throw<ArgumentOutOfRangeException>(static () => FanOut(MakeChannel<int>().Reader, 0, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public void FanOut_ShouldUseChannelFactory()
@@ -519,8 +520,8 @@ public partial class GoTests
                     .Build();
             });
 
-        Assert.Equal(2, invocationCount);
-        Assert.Equal(2, branches.Count);
+        invocationCount.ShouldBe(2);
+        branches.Count.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -533,8 +534,8 @@ public partial class GoTests
         source.Writer.TryComplete();
 
         var value = await branches[0].ReadAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(1, value);
-        Assert.False(branches[0].Completion.IsCompleted);
+        value.ShouldBe(1);
+        branches[0].Completion.IsCompleted.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -547,7 +548,7 @@ public partial class GoTests
         source.Writer.TryComplete();
 
         var value = await branches[0].ReadAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(1, value);
+        value.ShouldBe(1);
         await branches[0].Completion;
     }
 
@@ -560,7 +561,7 @@ public partial class GoTests
 
         var merged = FanIn([source.Reader], cancellationToken: cts.Token);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await merged.ReadAsync(cts.Token));
+        await Should.ThrowAsync<OperationCanceledException>(async () => await merged.ReadAsync(cts.Token));
         source.Writer.TryComplete();
     }
 
@@ -581,9 +582,9 @@ public partial class GoTests
 
         var result = await fanOutTask;
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(17, await destination1.Reader.ReadAsync(TestContext.Current.CancellationToken));
-        Assert.Equal(17, await destination2.Reader.ReadAsync(TestContext.Current.CancellationToken));
+        result.IsSuccess.ShouldBeTrue();
+        (await destination1.Reader.ReadAsync(TestContext.Current.CancellationToken)).ShouldBe(17);
+        (await destination2.Reader.ReadAsync(TestContext.Current.CancellationToken)).ShouldBe(17);
     }
 
     [Fact(Timeout = 15_000)]
@@ -597,7 +598,7 @@ public partial class GoTests
             FullMode = BoundedChannelFullMode.Wait
         };
         var destination = Channel.CreateBounded<int>(destinationOptions);
-        Assert.True(destination.Writer.TryWrite(7));
+        destination.Writer.TryWrite(7).ShouldBeTrue();
 
         Task<Result<Unit>> fanOutTask = FanOutAsync(
             source.Reader,
@@ -633,8 +634,8 @@ public partial class GoTests
             await advanceLoop;
         }
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Timeout);
     }
 
     [Fact(Timeout = 15_000)]
@@ -653,8 +654,8 @@ public partial class GoTests
 
         var result = await fanOutTask;
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
     }
 
     [Fact(Timeout = 15_000)]
@@ -670,9 +671,9 @@ public partial class GoTests
         var value1 = await branches[0].ReadAsync(TestContext.Current.CancellationToken);
         var value2 = await branches[1].ReadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(99, value1);
-        Assert.Equal(99, value2);
-        await Assert.ThrowsAsync<ChannelClosedException>(async () => await branches[0].ReadAsync(TestContext.Current.CancellationToken));
-        await Assert.ThrowsAsync<ChannelClosedException>(async () => await branches[1].ReadAsync(TestContext.Current.CancellationToken));
+        value1.ShouldBe(99);
+        value2.ShouldBe(99);
+        await Should.ThrowAsync<ChannelClosedException>(async () => await branches[0].ReadAsync(TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ChannelClosedException>(async () => await branches[1].ReadAsync(TestContext.Current.CancellationToken));
     }
 }

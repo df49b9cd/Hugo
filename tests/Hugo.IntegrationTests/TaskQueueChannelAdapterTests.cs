@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -47,7 +48,7 @@ public class TaskQueueChannelAdapterTests
         var adapter = TaskQueueChannelAdapter<string>.Create(queue);
         var lease = await adapter.Reader.ReadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal("alpha", lease.Value);
+        lease.Value.ShouldBe("alpha");
         await lease.CompleteAsync(TestContext.Current.CancellationToken);
 
         await adapter.DisposeAsync();
@@ -63,7 +64,7 @@ public class TaskQueueChannelAdapterTests
         await adapter.DisposeAsync();
 
         await adapter.Reader.Completion.WaitAsync(TestContext.Current.CancellationToken);
-        Assert.False(adapter.Reader.TryRead(out _));
+        adapter.Reader.TryRead(out _).ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -78,7 +79,7 @@ public class TaskQueueChannelAdapterTests
         var first = await adapter.Reader.ReadAsync(TestContext.Current.CancellationToken);
         var second = await adapter.Reader.ReadAsync(TestContext.Current.CancellationToken);
 
-        Assert.NotEqual(first.Value, second.Value);
+        second.Value.ShouldNotBe(first.Value);
 
         await first.CompleteAsync(TestContext.Current.CancellationToken);
         await second.CompleteAsync(TestContext.Current.CancellationToken);
@@ -109,8 +110,8 @@ public class TaskQueueChannelAdapterTests
 
         var requeued = await adapter.Reader.ReadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, requeued.Attempt);
-        Assert.Equal("gamma", requeued.Value);
+        requeued.Attempt.ShouldBe(2);
+        requeued.Value.ShouldBe("gamma");
         await requeued.CompleteAsync(TestContext.Current.CancellationToken);
 
         await adapter.DisposeAsync();
@@ -136,7 +137,7 @@ public class TaskQueueChannelAdapterTests
 
         await adapter.DisposeAsync();
 
-        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await queue.EnqueueAsync("delta", TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await queue.EnqueueAsync("delta", TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -166,9 +167,9 @@ public class TaskQueueChannelAdapterTests
             lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
         }
 
-        Assert.NotNull(lease);
-        Assert.Equal("pending", lease!.Value);
-        Assert.Equal(2, lease.Attempt);
+        lease.ShouldNotBeNull();
+        lease!.Value.ShouldBe("pending");
+        lease.Attempt.ShouldBe(2);
 
         await lease.CompleteAsync(TestContext.Current.CancellationToken);
     }
@@ -197,11 +198,11 @@ public class TaskQueueChannelAdapterTests
             {
                 var current = queue.ActiveLeaseCount;
                 maxObserved = Math.Max(maxObserved, current);
-                Assert.InRange(current, 0, concurrency);
+                current.ShouldBeInRange(0, concurrency);
                 await Task.Delay(TimeSpan.FromMilliseconds(40), TestContext.Current.CancellationToken);
             }
 
-            Assert.True(maxObserved > 0, "Expected at least one outstanding lease while pumps were running.");
+            (maxObserved > 0).ShouldBeTrue("Expected at least one outstanding lease while pumps were running.");
         }
 
     }
