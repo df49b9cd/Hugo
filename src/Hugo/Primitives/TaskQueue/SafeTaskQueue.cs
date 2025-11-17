@@ -48,9 +48,9 @@ public sealed class SafeTaskQueueWrapper<T>(TaskQueue<T> queue, bool ownsQueue =
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
-        return await leaseResult
-            .MapAsync(static lease => new SafeTaskQueueLease<T>(lease), cancellationToken)
-            .ConfigureAwait(false);
+        return leaseResult.IsFailure
+            ? Result.Fail<SafeTaskQueueLease<T>>(leaseResult.Error!)
+            : Result.Ok(new SafeTaskQueueLease<T>(leaseResult.Value));
     }
 
     /// <summary>Creates a safe wrapper around an existing lease instance.</summary>
