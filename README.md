@@ -215,8 +215,6 @@ Hugo follows the Divio documentation system so you can find the right level of g
 - **Tutorials** – step-by-step introductions such as [Getting started with channels and results](docs/tutorials/getting-started.md).
 - **How-to guides** – task-oriented recipes for [fan-in coordination](docs/how-to/fan-in-channels.md), [OpenTelemetry export](docs/how-to/observe-with-opentelemetry.md), [workflow visibility](docs/how-to/workflow-visibility.md), profiling, and retry playbooks.
 - **Reference** – definitive API docs covering [concurrency primitives](docs/reference/concurrency-primitives.md), [result pipelines](docs/reference/result-pipelines.md), [deterministic coordination](docs/reference/deterministic-coordination.md), [diagnostics](docs/reference/diagnostics.md), and the [full API catalogue](docs/reference/api-reference.md).
-- **Explanation** – design trade-offs and rationale in [Design principles](docs/explanation/design-principles.md).
-- **Meta** – roadmap, async audit tracker, and project direction in [`docs/meta`](docs/meta/).
 
 Start at [`docs/index.md`](docs/index.md) for navigation and search hints.
 
@@ -251,14 +249,12 @@ Benchmark results are written to `BenchmarkDotNet.Artifacts/results/`.
 
 - Questions & bugs: open an issue on [GitHub](https://github.com/df49b9cd/Hugo/issues).
 - Security disclosures: contact the maintainer privately before filing a public issue.
-- Roadmap & project status: follow [`docs/meta/roadmap.md`](docs/meta/roadmap.md).
 
 ## Contributing
 
 - Review [CONTRIBUTING.md](CONTRIBUTING.md) for environment setup, coding standards, and workflow expectations.
 - Run `dotnet build Hugo.slnx` and `dotnet test` for `tests/Hugo.UnitTests`, `tests/Hugo.IntegrationTests`, and `tests/Hugo.FeatureTests` before submitting a pull request.
 - Collect coverage with `dotnet test --collect:"XPlat Code Coverage"` to match CI.
-- Update tutorials/how-to/reference docs alongside code changes and log strategic work in [`docs/meta/roadmap.md`](docs/meta/roadmap.md).
 
 ## License
 
