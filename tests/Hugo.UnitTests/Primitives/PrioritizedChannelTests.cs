@@ -142,7 +142,7 @@ public sealed class PrioritizedChannelTests
         private readonly TaskCompletionSource<bool> _waitSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource<bool> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public override ValueTask Completion => _completion.Task;
+        public override Task Completion => _completion.Task;
 
         public override bool TryRead(out int item)
         {
@@ -176,7 +176,7 @@ public sealed class PrioritizedChannelTests
             _exception = exception ?? throw new ArgumentNullException(nameof(exception));
         }
 
-        public override ValueTask Completion => Task.FromException(_exception);
+        public override Task Completion => Task.FromException(_exception);
 
         public override bool TryRead(out int item)
         {

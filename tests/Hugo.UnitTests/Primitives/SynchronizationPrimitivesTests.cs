@@ -8,7 +8,7 @@ public class SynchronizationPrimitivesTests
     private static readonly TimeSpan WriterDelay = TimeSpan.FromMilliseconds(10);
     private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(2);
 
-    private static void AssertIncomplete(Task task, TimeSpan timeout, CancellationToken cancellationToken) => Assert.False(task.Wait(timeout, cancellationToken), "Task completed before expected.");
+    private static void AssertIncomplete(ValueTask task, TimeSpan timeout, CancellationToken cancellationToken) => Assert.False(task.AsTask().Wait(timeout, cancellationToken), "Task completed before expected.");
 
     private static void AssertWait(ManualResetEventSlim gate, string message, CancellationToken cancellationToken) => Assert.True(gate.Wait(WaitTimeout, cancellationToken), message);
 
@@ -35,7 +35,7 @@ public class SynchronizationPrimitivesTests
         ValueTask second;
         try
         {
-            second = Task.Run(() =>
+            second = Go.RunValueTask(async ct =>
             {
                 secondStarted.Set();
                 using (mutex.EnterScope())
@@ -53,7 +53,7 @@ public class SynchronizationPrimitivesTests
             scope.Dispose();
         }
 
-        await second.WaitAsync(cancellation);
+        await second.AsTask().WaitAsync(cancellation);
         Assert.Equal(1, secondEntered);
     }
 
@@ -83,22 +83,22 @@ public class SynchronizationPrimitivesTests
             }
         }
 
-        ValueTask StartReader() => Task.Factory.StartNew(
+        ValueTask StartReader() => new(Task.Factory.StartNew(
             ReaderAction,
             cancellation,
             TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach,
-            TaskScheduler.Default);
+            TaskScheduler.Default));
 
         ValueTask reader1 = StartReader();
         ValueTask reader2 = StartReader();
         startReaders.Set();
-        await Task.WhenAll(reader1, reader2);
+        await Task.WhenAll(reader1.AsTask(), reader2.AsTask());
         Assert.Equal(2, maxInside);
 
         var readScope = rwMutex.EnterReadScope();
         using ManualResetEventSlim writerStarted = new(false);
         var writerEntered = 0;
-        ValueTask writer = Task.Run(() =>
+        ValueTask writer = Go.RunValueTask(async ct =>
         {
             writerStarted.Set();
             using (rwMutex.EnterWriteScope())
@@ -112,7 +112,7 @@ public class SynchronizationPrimitivesTests
         AssertIncomplete(writer, ShortDelay, cancellation);
         Assert.Equal(0, Volatile.Read(ref writerEntered));
         readScope.Dispose();
-        await writer.WaitAsync(cancellation);
+        await writer.AsTask().WaitAsync(cancellation);
         Assert.Equal(1, writerEntered);
     }
 
@@ -125,7 +125,7 @@ public class SynchronizationPrimitivesTests
         using ManualResetEventSlim readerStarted = new(false);
         var readerEntered = 0;
 
-        ValueTask reader = Task.Run(() =>
+        ValueTask reader = Go.RunValueTask(async ct =>
         {
             readerStarted.Set();
             using (rwMutex.EnterReadScope())
@@ -140,7 +140,7 @@ public class SynchronizationPrimitivesTests
         Assert.Equal(0, Volatile.Read(ref readerEntered));
 
         writeScope.Dispose();
-        await reader.WaitAsync(cancellation);
+        await reader.AsTask().WaitAsync(cancellation);
         Assert.Equal(1, readerEntered);
     }
 

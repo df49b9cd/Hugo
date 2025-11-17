@@ -473,7 +473,7 @@ public class FunctionalTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var ValueTask = Task.FromCanceled<Result<int>>(cts.Token);
+        var task = ValueTask.FromCanceled<Result<int>>(cts.Token);
         var result = await task.MapAsync(static v => v, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
@@ -486,7 +486,7 @@ public class FunctionalTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var ValueTask = Task.FromCanceled<Result<int>>(cts.Token);
+        var task = ValueTask.FromCanceled<Result<int>>(cts.Token);
         var result = await task.RecoverAsync(static _ => Ok(5), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
@@ -692,7 +692,7 @@ public class FunctionalTests
     [Fact(Timeout = 15_000)]
     public async ValueTask RecoverAsync_TaskResultWithAsyncRecover_ShouldReturnRecoveredResult()
     {
-        var ValueTask = ValueTask.FromResult(Err<int>("fail"));
+        var task = ValueTask.FromResult(Err<int>("fail"));
         var recovered = await task.RecoverAsync(static async (_, ct) =>
         {
             await Task.Delay(5, ct);
@@ -706,7 +706,7 @@ public class FunctionalTests
     [Fact(Timeout = 15_000)]
     public async ValueTask EnsureAsync_TaskResult_ShouldFailWhenPredicateFalse()
     {
-        var ValueTask = ValueTask.FromResult(Ok(1));
+        var task = ValueTask.FromResult(Ok(1));
         var ensured = await task.EnsureAsync(static async (_, ct) =>
         {
             await Task.Delay(5, ct);
@@ -763,7 +763,7 @@ public class FunctionalTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var ValueTask = Task.FromCanceled<Result<int>>(cts.Token);
+        var task = ValueTask.FromCanceled<Result<int>>(cts.Token);
         var result = await task.FinallyAsync(
             static async (value, ct) =>
             {

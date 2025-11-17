@@ -52,7 +52,7 @@ public sealed class SafeTaskQueueWrapper<T>(TaskQueue<T> queue, bool ownsQueue =
     /// <summary>Creates a safe wrapper around an existing lease instance.</summary>
     /// <param name="lease">The lease to wrap.</param>
     /// <returns>A safe lease wrapper.</returns>
-    public SafeTaskQueueLease<T> Wrap(TaskQueueLease<T> lease) => new SafeTaskQueueLease<T>(lease);
+    public SafeTaskQueueLease<T> Wrap(TaskQueueLease<T> lease) => new(lease);
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()

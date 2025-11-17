@@ -102,8 +102,10 @@ public class ResultStreamingTests
 
         await source.FanOutAsync([a.Writer, b.Writer], TestContext.Current.CancellationToken);
 
-        Assert.Equal([5, 6], await ReadAllValues(a.Reader));
-        Assert.Equal([5, 6], await ReadAllValues(b.Reader));
+        var aReaderResult = await ReadAllValues(a.Reader);
+        var bReaderResult = await ReadAllValues(b.Reader);
+        Assert.Equal([5, 6], aReaderResult);
+        Assert.Equal([5, 6], bReaderResult);
     }
 
     [Fact(Timeout = 15_000)]
@@ -115,8 +117,11 @@ public class ResultStreamingTests
 
         await source.PartitionAsync(v => v % 2 == 0, even.Writer, odd.Writer, TestContext.Current.CancellationToken);
 
-        Assert.Equal([2], await ReadAllValues(even.Reader));
-        Assert.Equal([1, 3], await ReadAllValues(odd.Reader));
+        var eveneReaderResult = await ReadAllValues(even.Reader);
+        var oddReaderResult = await ReadAllValues(odd.Reader);
+
+        Assert.Equal([2], eveneReaderResult);
+        Assert.Equal([1, 3], oddReaderResult);
     }
 
     [Fact(Timeout = 15_000)]
