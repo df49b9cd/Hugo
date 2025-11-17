@@ -1,7 +1,5 @@
 using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
-
 using Hugo.Policies;
 
 namespace Hugo;
@@ -25,21 +23,21 @@ public sealed class ResultPipelineSelectBuilder<TResult>
         _builder = new SelectBuilder<TResult>(timeout, effectiveProvider, effectiveToken);
     }
 
-    public ResultPipelineSelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue)
+    public ResultPipelineSelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, CancellationToken, ValueTask<Result<TResult>>> onValue)
     {
-        _builder.Case(reader, Wrap(onValue));
+        _builder.CaseValueTask(reader, Wrap(onValue));
         return this;
     }
 
-    public ResultPipelineSelectBuilder<TResult> Case<T>(ChannelReader<T> reader, int priority, Func<T, CancellationToken, Task<Result<TResult>>> onValue)
+    public ResultPipelineSelectBuilder<TResult> Case<T>(ChannelReader<T> reader, int priority, Func<T, CancellationToken, ValueTask<Result<TResult>>> onValue)
     {
-        _builder.Case(reader, priority, Wrap(onValue));
+        _builder.CaseValueTask(reader, priority, Wrap(onValue));
         return this;
     }
 
-    public ResultPipelineSelectBuilder<TResult> Default(Func<CancellationToken, Task<Result<TResult>>> onDefault)
+    public ResultPipelineSelectBuilder<TResult> Default(Func<CancellationToken, ValueTask<Result<TResult>>> onDefault)
     {
-        _builder.Default(Wrap(onDefault));
+        _builder.DefaultValueTask(Wrap(onDefault));
         return this;
     }
 
@@ -57,7 +55,7 @@ public sealed class ResultPipelineSelectBuilder<TResult>
         }
     }
 
-    private Func<T, CancellationToken, Task<Result<TResult>>> Wrap<T>(Func<T, CancellationToken, Task<Result<TResult>>> handler) =>
+    private Func<T, CancellationToken, ValueTask<Result<TResult>>> Wrap<T>(Func<T, CancellationToken, ValueTask<Result<TResult>>> handler) =>
         async (value, token) =>
         {
             var result = await handler(value, token).ConfigureAwait(false);
@@ -65,7 +63,7 @@ public sealed class ResultPipelineSelectBuilder<TResult>
             return result;
         };
 
-    private Func<CancellationToken, Task<Result<TResult>>> Wrap(Func<CancellationToken, Task<Result<TResult>>> handler) =>
+    private Func<CancellationToken, ValueTask<Result<TResult>>> Wrap(Func<CancellationToken, ValueTask<Result<TResult>>> handler) =>
         async token =>
         {
             var result = await handler(token).ConfigureAwait(false);

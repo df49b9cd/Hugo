@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
 using Hugo.Policies;
+using Unit = Hugo.Go.Unit;
 
 namespace Hugo;
 
@@ -85,16 +86,16 @@ public static partial class Result
     /// <param name="policy">The optional execution policy applied to each tier.</param>
     /// <param name="cancellationToken">The token used to cancel the fallback execution.</param>
     /// <param name="timeProvider">The optional time provider used for policy timing.</param>
-    /// <returns>A result describing the outcome of the fallback orchestration.</returns>
+    /// <returns>A <see cref="ValueTask{TResult}"/> describing the outcome of the fallback orchestration.</returns>
     [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Maintains existing API contract for callers relying on positional arguments.")]
-    public static Task<Result<T>> TieredFallbackAsync<T>(
+    public static ValueTask<Result<T>> TieredFallbackAsync<T>(
         IEnumerable<ResultFallbackTier<T>> tiers,
         ResultExecutionPolicy? policy = null,
         CancellationToken cancellationToken = default,
         TimeProvider? timeProvider = null) => TieredFallbackInternal(tiers, policy, cancellationToken, timeProvider ?? TimeProvider.System);
 
     [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Internal helper mirrors public API ordering for consistency.")]
-    private static async Task<Result<T>> TieredFallbackInternal<T>(
+    private static async ValueTask<Result<T>> TieredFallbackInternal<T>(
         IEnumerable<ResultFallbackTier<T>> tiers,
         ResultExecutionPolicy? policy,
         CancellationToken cancellationToken,
@@ -152,7 +153,7 @@ public static partial class Result
         return Fail<T>(aggregate);
     }
 
-    private static async Task<Result<T>> ExecuteTierAsync<T>(
+    private static async ValueTask<Result<T>> ExecuteTierAsync<T>(
         ResultFallbackTier<T> tier,
         int tierIndex,
         ResultExecutionPolicy policy,
@@ -180,7 +181,7 @@ public static partial class Result
                 return Fail<T>(DecorateTierError(single.Result.Error ?? Error.Unspecified(), tier.Name, tierIndex, 0));
             }
 
-            var successSource = new TaskCompletionSource<Result<T>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var successSource = new ResultCompletionSource<Result<T>>();
             var errors = new ConcurrentBag<Error>();
 
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -191,7 +192,9 @@ public static partial class Result
                 var operation = operations[i];
                 var strategyIndex = i;
 
-                group.Go(async ct =>
+                group.Go(ExecuteStrategyAsync);
+
+                async ValueTask<Result<Unit>> ExecuteStrategyAsync(CancellationToken ct)
                 {
                     var result = await ExecuteWithPolicyAsync(operation, $"{tier.Name}[{strategyIndex}]", policy, timeProvider, ct).ConfigureAwait(false);
                     if (result.Result.IsSuccess)
@@ -226,32 +229,31 @@ public static partial class Result
                         }
                     }
 
-                    return Result.Ok(Go.Unit.Value);
-                });
+                    return Result.Ok(Unit.Value);
+                }
             }
 
-            var waitTask = group.WaitAsync(cancellationToken);
-            var completed = await Task.WhenAny(successSource.Task, waitTask).ConfigureAwait(false);
-            if (completed == successSource.Task)
+            var waitValueTask = new ValueTask<Result<Unit>>(group.WaitAsync(cancellationToken));
+            var completed = await ValueTaskUtilities.WhenAny(successSource.ValueTask, waitValueTask).ConfigureAwait(false);
+            if (completed == 0)
             {
-                if (successSource.Task.IsCanceled)
+                if (successSource.IsCanceled)
                 {
                     return Fail<T>(Error.Canceled(token: cancellationToken));
                 }
 
                 try
                 {
-                    await waitTask.ConfigureAwait(false);
+                    await waitValueTask.ConfigureAwait(false);
                 }
                 catch
                 {
-                    // Ignore cancellations from peers cancelled after success.
                 }
 
-                return await successSource.Task.ConfigureAwait(false);
+                return await successSource.ValueTask.ConfigureAwait(false);
             }
 
-            var waitResult = await waitTask.ConfigureAwait(false);
+            var waitResult = await waitValueTask.ConfigureAwait(false);
             if (waitResult is { IsFailure: true, Error: { } groupError })
             {
                 if (groupError.Code == ErrorCodes.Canceled && cancellationToken.IsCancellationRequested)
@@ -265,9 +267,9 @@ public static partial class Result
                 }
             }
 
-            if (successSource.Task.IsCompletedSuccessfully)
+            if (successSource.IsCompletedSuccessfully)
             {
-                return await successSource.Task.ConfigureAwait(false);
+                return await successSource.ValueTask.ConfigureAwait(false);
             }
 
             if (!errors.IsEmpty)

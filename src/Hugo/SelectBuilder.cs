@@ -39,6 +39,13 @@ public sealed class SelectBuilder<TResult>
     public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task<Result<TResult>>> onValue) =>
         AddCase(reader, onValue, priority: 0);
 
+    public SelectBuilder<TResult> CaseValueTask<T>(ChannelReader<T> reader, Func<T, CancellationToken, ValueTask<Result<TResult>>> onValue)
+    {
+        ArgumentNullException.ThrowIfNull(onValue);
+        return Case(reader, (value, token) => onValue(value, token).AsTask());
+    }
+
+
     /// <summary>
     /// Registers a channel reader case with an explicit priority. Lower values indicate higher priority when multiple cases are ready.
     /// </summary>
@@ -46,6 +53,13 @@ public sealed class SelectBuilder<TResult>
     /// <param name="priority">The relative priority used to break ties between ready cases.</param>
     public SelectBuilder<TResult> Case<T>(ChannelReader<T> reader, int priority, Func<T, CancellationToken, Task<Result<TResult>>> onValue) =>
         AddCase(reader, onValue, priority);
+
+    public SelectBuilder<TResult> CaseValueTask<T>(ChannelReader<T> reader, int priority, Func<T, CancellationToken, ValueTask<Result<TResult>>> onValue)
+    {
+        ArgumentNullException.ThrowIfNull(onValue);
+        return Case(reader, priority, (value, token) => onValue(value, token).AsTask());
+    }
+
 
     /// <summary>
     /// Registers a channel reader case whose handler does not need the cancellation token.
@@ -232,6 +246,13 @@ public sealed class SelectBuilder<TResult>
         _defaultFactory = completion => CreateDefaultCase(onDefault, completion, priority: 0);
         return this;
     }
+
+    public SelectBuilder<TResult> DefaultValueTask(Func<CancellationToken, ValueTask<Result<TResult>>> onDefault)
+    {
+        ArgumentNullException.ThrowIfNull(onDefault);
+        return Default(token => onDefault(token).AsTask());
+    }
+
 
     /// <summary>
     /// Configures a default case whose handler does not observe cancellation.

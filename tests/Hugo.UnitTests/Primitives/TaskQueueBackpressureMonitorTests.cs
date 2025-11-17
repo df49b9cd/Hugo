@@ -9,7 +9,7 @@ namespace Hugo.Tests.Primitives;
 public class TaskQueueBackpressureMonitorTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task Monitor_ShouldEmitSignals_WhenThresholdsCrossed()
+    public async ValueTask Monitor_ShouldEmitSignals_WhenThresholdsCrossed()
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<string>(new TaskQueueOptions { Capacity = 16 }, provider);
@@ -53,7 +53,7 @@ public class TaskQueueBackpressureMonitorTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitForDrainingAsync_ShouldCompleteOrCancel()
+    public async ValueTask WaitForDrainingAsync_ShouldCompleteOrCancel()
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<int>(new TaskQueueOptions { Capacity = 8 }, provider);
@@ -96,7 +96,7 @@ public class TaskQueueBackpressureMonitorTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task DiagnosticsListener_ShouldBoundHistory()
+    public async ValueTask DiagnosticsListener_ShouldBoundHistory()
     {
         await using var diagnostics = new TaskQueueBackpressureDiagnosticsListener(capacity: 2);
 
@@ -123,7 +123,7 @@ public class TaskQueueBackpressureMonitorTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task BackpressureAwareRateLimiter_ShouldSwapLimiters()
+    public async ValueTask BackpressureAwareRateLimiter_ShouldSwapLimiters()
     {
         using var baseline = new ConcurrencyLimiter(new ConcurrencyLimiterOptions
         {

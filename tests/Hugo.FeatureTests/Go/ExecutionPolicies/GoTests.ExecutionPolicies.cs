@@ -1,6 +1,10 @@
+using System.Threading.Channels;
+
 using Microsoft.Extensions.Time.Testing;
 
 using static Hugo.Go;
+using Hugo;
+using Hugo.Policies;
 
 namespace Hugo.Tests;
 
@@ -101,6 +105,154 @@ public partial class GoTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(7, result.Value);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task RaceValueTaskAsync_ShouldReturnCanceled_WhenCallerCancels()
+    {
+        using var callerCts = new CancellationTokenSource();
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCts.Token, TestContext.Current.CancellationToken);
+
+        var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
+        {
+            static async ct =>
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return Ok(1);
+            },
+            static async ct =>
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                return Ok(2);
+            }
+        };
+
+        var raceTask = RaceValueTaskAsync<int>(operations, cancellationToken: linkedCts.Token);
+        callerCts.Cancel();
+
+        try
+        {
+            var result = await raceTask;
+            Assert.True(result.IsFailure);
+            Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        }
+        catch (OperationCanceledException)
+        {
+            // In some schedules, the race will surface cancellation via an exception instead of an Error result.
+        }
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task RaceValueTaskAsync_ShouldReturnFirstChannelMessage()
+    {
+        var first = Channel.CreateUnbounded<int>();
+        var second = Channel.CreateUnbounded<int>();
+
+        var operations = new List<Func<CancellationToken, ValueTask<Result<string>>>>
+        {
+            ct => ReadNextAsync("alpha", first.Reader, ct),
+            ct => ReadNextAsync("beta", second.Reader, ct)
+        };
+
+        var raceTask = RaceValueTaskAsync<string>(operations, cancellationToken: TestContext.Current.CancellationToken);
+
+        await first.Writer.WriteAsync(11, TestContext.Current.CancellationToken);
+        first.Writer.TryComplete();
+        second.Writer.TryComplete();
+
+        var result = await raceTask;
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("alpha:11", result.Value);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task RaceValueTaskAsync_WithWindowTimerFirst_ShouldStillDeliverBatches()
+    {
+        var provider = new FakeTimeProvider();
+        var source = Channel.CreateUnbounded<int>();
+        var scope = new CompensationScope();
+        var context = new ResultPipelineStepContext("window-race", scope, provider, TestContext.Current.CancellationToken);
+
+        var windowReader = ResultPipelineChannels.WindowAsync(
+            context,
+            source.Reader,
+            batchSize: 2,
+            flushInterval: TimeSpan.FromSeconds(1),
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Timer fires before any data, but race should still succeed once data arrives.
+        provider.Advance(TimeSpan.FromSeconds(1));
+
+        await source.Writer.WriteAsync(5, TestContext.Current.CancellationToken);
+        await source.Writer.WriteAsync(6, TestContext.Current.CancellationToken);
+        source.Writer.TryComplete();
+
+        var operations = new Func<CancellationToken, ValueTask<Result<IReadOnlyList<int>>>>[]
+        {
+            async ct =>
+            {
+                var batches = new List<IReadOnlyList<int>>();
+                while (await windowReader.WaitToReadAsync(ct))
+                {
+                    while (windowReader.TryRead(out var batch))
+                    {
+                        batches.Add(batch);
+                    }
+                }
+
+                return batches.Count switch
+                {
+                    > 0 => Ok(batches[0]),
+                    _ => Err<IReadOnlyList<int>>("no batches")
+                };
+            },
+            async ct =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+                return Err<IReadOnlyList<int>>("timeout");
+            }
+        };
+
+        var raceResult = await RaceValueTaskAsync<IReadOnlyList<int>>(
+            operations,
+            cancellationToken: TestContext.Current.CancellationToken,
+            timeProvider: provider);
+
+        Assert.True(raceResult.IsSuccess);
+        Assert.Equal([5, 6], raceResult.Value);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task CollectErrorsAsync_ShouldAggregateFailuresAcrossStreams()
+    {
+        var stream = CollectingStream();
+
+        var result = await stream.CollectErrorsAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Aggregate, result.Error?.Code);
+    }
+
+    private static async IAsyncEnumerable<Result<int>> CollectingStream()
+    {
+        yield return Ok(1);
+        await Task.Yield();
+        yield return Err<int>("fail-1", ErrorCodes.Validation);
+        yield return Err<int>("fail-2", ErrorCodes.Validation);
+    }
+
+    private static async ValueTask<Result<string>> ReadNextAsync(string label, ChannelReader<int> reader, CancellationToken token)
+    {
+        while (await reader.WaitToReadAsync(token))
+        {
+            while (reader.TryRead(out var value))
+            {
+                return Ok($"{label}:{value}");
+            }
+        }
+
+        return Err<string>($"{label} closed before producing a value.", ErrorCodes.Unspecified);
     }
 
     [Fact(Timeout = 15_000)]

@@ -90,9 +90,9 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ThenAsync_ShouldComposeSyncBinder_WithAsyncResult()
+    public async ValueTask ThenAsync_ShouldComposeSyncBinder_WithAsyncResult()
     {
-        var result = await Task.FromResult(Ok("start"))
+        var result = await ValueTask.FromResult(Ok("start"))
             .ThenAsync(static value => Ok(value + "-next"), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
@@ -100,11 +100,11 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ThenAsync_ShouldComposeAsyncBinder()
+    public async ValueTask ThenAsync_ShouldComposeAsyncBinder()
     {
         var result = await Ok("start")
             .ThenAsync(
-                static (value, _) => Task.FromResult(Ok(value + "-async")),
+                static (value, _) => ValueTask.FromResult(Ok(value + "-async")),
                 TestContext.Current.CancellationToken
             );
 
@@ -113,7 +113,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ThenAsync_ShouldComposeValueTaskBinder()
+    public async ValueTask ThenAsync_ShouldComposeValueTaskBinder()
     {
         var result = await Ok("start")
             .ThenValueTaskAsync(
@@ -130,7 +130,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ThenAsync_ShouldComposeValueTaskResultSource()
+    public async ValueTask ThenAsync_ShouldComposeValueTaskResultSource()
     {
         static ValueTask<Result<string>> Stage() => ValueTask.FromResult(Result.Ok("begin"));
 
@@ -151,17 +151,17 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MapAsync_ShouldTransformAsync()
+    public async ValueTask MapAsync_ShouldTransformAsync()
     {
         var result = await Ok(5)
-            .MapAsync(static (value, _) => Task.FromResult(value * 3), TestContext.Current.CancellationToken);
+            .MapAsync(static (value, _) => ValueTask.FromResult(value * 3), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(15, result.Value);
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MapAsync_ShouldSupportValueTaskMapper()
+    public async ValueTask MapAsync_ShouldSupportValueTaskMapper()
     {
         var result = await Ok(7)
             .MapValueTaskAsync(static async ValueTask<int> (value, token) =>
@@ -175,7 +175,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MapAsync_ShouldSupportValueTaskResultSource()
+    public async ValueTask MapAsync_ShouldSupportValueTaskResultSource()
     {
         var mapped = await ValueTask.FromResult(Result.Ok(3))
             .MapAsync(static value => value + 1, TestContext.Current.CancellationToken);
@@ -205,7 +205,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TapAsync_ShouldSupportAsyncSideEffects()
+    public async ValueTask TapAsync_ShouldSupportAsyncSideEffects()
     {
         var tapped = false;
         var result = await Ok(1)
@@ -223,7 +223,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TapAsync_ShouldSupportValueTaskSideEffects()
+    public async ValueTask TapAsync_ShouldSupportValueTaskSideEffects()
     {
         var callCount = 0;
         var result = await Ok(2)
@@ -241,7 +241,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TapErrorAsync_ShouldSupportValueTaskSideEffects()
+    public async ValueTask TapErrorAsync_ShouldSupportValueTaskSideEffects()
     {
         var observed = 0;
         var result = await ValueTask.FromResult(Result.Fail<int>(Error.From("fail", ErrorCodes.Validation)))
@@ -268,10 +268,10 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RecoverAsync_Result_ShouldConvertFailure()
+    public async ValueTask RecoverAsync_Result_ShouldConvertFailure()
     {
         var recovered = await Err<int>("fail").RecoverAsync(
-            static (error, _) => Task.FromResult(Ok(error.Message.Length)),
+            static (error, _) => ValueTask.FromResult(Ok(error.Message.Length)),
             TestContext.Current.CancellationToken
         );
 
@@ -280,7 +280,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RecoverAsync_ShouldSupportValueTaskRecover()
+    public async ValueTask RecoverAsync_ShouldSupportValueTaskRecover()
     {
         var recovered = await Err<int>("boom").RecoverValueTaskAsync(
             static async ValueTask<Result<int>> (error, token) =>
@@ -296,7 +296,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RecoverAsync_ShouldSupportValueTaskResultSource()
+    public async ValueTask RecoverAsync_ShouldSupportValueTaskResultSource()
     {
         var recovered = await ValueTask.FromResult(Result.Fail<int>(Error.From("oops")))
             .RecoverAsync(static error => Result.Ok(error.Message.Length), TestContext.Current.CancellationToken);
@@ -306,11 +306,11 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RecoverAsync_ShouldConvertFailure()
+    public async ValueTask RecoverAsync_ShouldConvertFailure()
     {
-        var recovered = await Task.FromResult(Err<int>("fail"))
+        var recovered = await ValueTask.FromResult(Err<int>("fail"))
             .RecoverAsync(
-                static (err, _) => Task.FromResult(Ok(err.Message.Length)),
+                static (err, _) => ValueTask.FromResult(Ok(err.Message.Length)),
                 TestContext.Current.CancellationToken
             );
 
@@ -328,10 +328,10 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task EnsureAsync_ShouldFail_WhenPredicateIsFalse()
+    public async ValueTask EnsureAsync_ShouldFail_WhenPredicateIsFalse()
     {
         var result = await Ok(5).EnsureAsync(
-            static (v, _) => Task.FromResult(v > 10),
+            static (v, _) => ValueTask.FromResult(v > 10),
             cancellationToken: TestContext.Current.CancellationToken
         );
 
@@ -340,7 +340,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task EnsureAsync_ShouldSupportValueTaskPredicate()
+    public async ValueTask EnsureAsync_ShouldSupportValueTaskPredicate()
     {
         var result = await Ok(42).EnsureValueTaskAsync(
             static async ValueTask<bool> (value, token) =>
@@ -355,7 +355,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task EnsureAsync_ShouldSupportValueTaskResultSource()
+    public async ValueTask EnsureAsync_ShouldSupportValueTaskResultSource()
     {
         var evaluation = await ValueTask.FromResult(Result.Ok(1))
             .EnsureValueTaskAsync(static (value, _) => new ValueTask<bool>(value > 10), cancellationToken: TestContext.Current.CancellationToken);
@@ -386,16 +386,16 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FinallyAsync_ShouldSelectBranch_ForTask()
+    public async ValueTask FinallyAsync_ShouldSelectBranch_ForTask()
     {
-        var success = await Task.FromResult(Ok(1))
+        var success = await ValueTask.FromResult(Ok(1))
             .FinallyAsync(
                 static v => $"{v}-success",
                 static err => err.Message,
                 TestContext.Current.CancellationToken
             );
 
-        var failure = await Task.FromResult(Err<int>("fail"))
+        var failure = await ValueTask.FromResult(Err<int>("fail"))
             .FinallyAsync(
                 static v => v.ToString(CultureInfo.InvariantCulture),
                 static err => err.Message,
@@ -419,11 +419,11 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Pipeline_ShouldHandleMixedOperations()
+    public async ValueTask Pipeline_ShouldHandleMixedOperations()
     {
         var result = await Ok(1)
             .ThenAsync(
-                static (v, _) => Task.FromResult(Ok(v + 1)),
+                static (v, _) => ValueTask.FromResult(Ok(v + 1)),
                 TestContext.Current.CancellationToken
             )
             .MapAsync(static v => v * 5, TestContext.Current.CancellationToken)
@@ -431,12 +431,12 @@ public class FunctionalTests
                 static (value, _) =>
                 {
                     Assert.Equal(10, value);
-                    return Task.CompletedTask;
+                    return ValueTask.CompletedTask;
                 },
                 TestContext.Current.CancellationToken
             )
             .EnsureAsync(
-                static (value, _) => Task.FromResult(value == 10),
+                static (value, _) => ValueTask.FromResult(value == 10),
                 cancellationToken: TestContext.Current.CancellationToken
             )
             .RecoverAsync(
@@ -449,7 +449,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Cancellation_ShouldPropagateThroughChain()
+    public async ValueTask Cancellation_ShouldPropagateThroughChain()
     {
         using var cts = new CancellationTokenSource(50);
 
@@ -468,12 +468,12 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MapAsync_ShouldReturnCancellationError_WhenTaskCanceled()
+    public async ValueTask MapAsync_ShouldReturnCancellationError_WhenTaskCanceled()
     {
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var task = Task.FromCanceled<Result<int>>(cts.Token);
+        var task = ValueTask.FromCanceled<Result<int>>(cts.Token);
         var result = await task.MapAsync(static v => v, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
@@ -481,12 +481,12 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RecoverAsync_ShouldSkip_WhenCancellationOccurs()
+    public async ValueTask RecoverAsync_ShouldSkip_WhenCancellationOccurs()
     {
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var task = Task.FromCanceled<Result<int>>(cts.Token);
+        var task = ValueTask.FromCanceled<Result<int>>(cts.Token);
         var result = await task.RecoverAsync(static _ => Ok(5), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
@@ -503,7 +503,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task OnSuccessAsync_Result_ShouldInvokeAction()
+    public async ValueTask OnSuccessAsync_Result_ShouldInvokeAction()
     {
         var invoked = false;
         var result = await Ok(2).OnSuccessAsync(
@@ -520,10 +520,10 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task OnSuccessAsync_TaskResult_WithAsyncAction_ShouldInvoke()
+    public async ValueTask OnSuccessAsync_TaskResult_WithAsyncAction_ShouldInvoke()
     {
         var invoked = false;
-        var result = await Task.FromResult(Ok(3)).OnSuccessAsync(
+        var result = await ValueTask.FromResult(Ok(3)).OnSuccessAsync(
             async (value, ct) =>
             {
                 await Task.Delay(5, ct);
@@ -537,7 +537,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task OnSuccessAsync_ShouldSupportValueTaskAction()
+    public async ValueTask OnSuccessAsync_ShouldSupportValueTaskAction()
     {
         var invoked = false;
         var result = await Ok(9).OnSuccessValueTaskAsync(
@@ -554,7 +554,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task OnFailureAsync_ShouldSupportValueTaskAction()
+    public async ValueTask OnFailureAsync_ShouldSupportValueTaskAction()
     {
         Error? observed = null;
         var result = await Err<int>("fail").OnFailureValueTaskAsync(
@@ -580,7 +580,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task OnFailureAsync_Result_ShouldInvokeAction()
+    public async ValueTask OnFailureAsync_Result_ShouldInvokeAction()
     {
         Error? captured = null;
         var result = await Err<int>("fail").OnFailureAsync(
@@ -597,10 +597,10 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task OnFailureAsync_TaskResult_WithAsyncAction_ShouldInvoke()
+    public async ValueTask OnFailureAsync_TaskResult_WithAsyncAction_ShouldInvoke()
     {
         Error? captured = null;
-        var result = await Task.FromResult(Err<int>("fail")).OnFailureAsync(
+        var result = await ValueTask.FromResult(Err<int>("fail")).OnFailureAsync(
             async (error, ct) =>
             {
                 await Task.Delay(5, ct);
@@ -614,10 +614,10 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TapErrorAsync_TaskResult_WithAction_ShouldInvoke()
+    public async ValueTask TapErrorAsync_TaskResult_WithAction_ShouldInvoke()
     {
         Error? captured = null;
-        var result = await Task.FromResult(Err<int>("fail")).TapErrorAsync(
+        var result = await ValueTask.FromResult(Err<int>("fail")).TapErrorAsync(
             error => captured = error,
             TestContext.Current.CancellationToken
         );
@@ -637,10 +637,10 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TeeAsync_TaskResult_WithAction_ShouldInvoke()
+    public async ValueTask TeeAsync_TaskResult_WithAction_ShouldInvoke()
     {
         var tapped = false;
-        var resultTask = Task.FromResult(Ok("value"));
+        var resultTask = ValueTask.FromResult(Ok("value"));
         var result = await resultTask.TeeAsync(_ => tapped = true, TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
@@ -648,10 +648,10 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TeeAsync_TaskResult_WithAsyncSideEffect_ShouldInvoke()
+    public async ValueTask TeeAsync_TaskResult_WithAsyncSideEffect_ShouldInvoke()
     {
         var tapped = false;
-        var resultTask = Task.FromResult(Ok(5));
+        var resultTask = ValueTask.FromResult(Ok(5));
         var result = await resultTask.TeeAsync(async (_, ct) =>
         {
             await Task.Delay(5, ct);
@@ -663,9 +663,9 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MapAsync_TaskResult_ShouldTransformValue()
+    public async ValueTask MapAsync_TaskResult_ShouldTransformValue()
     {
-        var resultTask = Task.FromResult(Ok(2));
+        var resultTask = ValueTask.FromResult(Ok(2));
         var mapped = await resultTask.MapAsync(static v => v * 3, TestContext.Current.CancellationToken);
 
         Assert.True(mapped.IsSuccess);
@@ -673,9 +673,9 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MapAsync_TaskResult_WithAsyncMapper_ShouldTransformValue()
+    public async ValueTask MapAsync_TaskResult_WithAsyncMapper_ShouldTransformValue()
     {
-        var resultTask = Task.FromResult(Ok(3));
+        var resultTask = ValueTask.FromResult(Ok(3));
         var mapped = await resultTask.MapAsync(
             static async (value, ct) =>
             {
@@ -690,9 +690,9 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RecoverAsync_TaskResultWithAsyncRecover_ShouldReturnRecoveredResult()
+    public async ValueTask RecoverAsync_TaskResultWithAsyncRecover_ShouldReturnRecoveredResult()
     {
-        var task = Task.FromResult(Err<int>("fail"));
+        var task = ValueTask.FromResult(Err<int>("fail"));
         var recovered = await task.RecoverAsync(static async (_, ct) =>
         {
             await Task.Delay(5, ct);
@@ -704,9 +704,9 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task EnsureAsync_TaskResult_ShouldFailWhenPredicateFalse()
+    public async ValueTask EnsureAsync_TaskResult_ShouldFailWhenPredicateFalse()
     {
-        var task = Task.FromResult(Ok(1));
+        var task = ValueTask.FromResult(Ok(1));
         var ensured = await task.EnsureAsync(static async (_, ct) =>
         {
             await Task.Delay(5, ct);
@@ -718,7 +718,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FinallyAsync_Result_ShouldInvokeAsyncHandlers()
+    public async ValueTask FinallyAsync_Result_ShouldInvokeAsyncHandlers()
     {
         var result = await Ok(1).FinallyAsync(
             static async (value, ct) =>
@@ -738,9 +738,9 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FinallyAsync_TaskResult_ShouldInvokeAsyncHandlers()
+    public async ValueTask FinallyAsync_TaskResult_ShouldInvokeAsyncHandlers()
     {
-        var outcome = await Task.FromResult(Ok("value")).FinallyAsync(
+        var outcome = await ValueTask.FromResult(Ok("value")).FinallyAsync(
             static async (value, ct) =>
             {
                 await Task.Delay(5, ct);
@@ -758,12 +758,12 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FinallyAsync_TaskResult_ShouldReturnCanceledError()
+    public async ValueTask FinallyAsync_TaskResult_ShouldReturnCanceledError()
     {
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var task = Task.FromCanceled<Result<int>>(cts.Token);
+        var task = ValueTask.FromCanceled<Result<int>>(cts.Token);
         var result = await task.FinallyAsync(
             static async (value, ct) =>
             {
@@ -782,7 +782,7 @@ public class FunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FinallyAsync_ValueTaskResult_ShouldSupportValueTaskContinuations()
+    public async ValueTask FinallyAsync_ValueTaskResult_ShouldSupportValueTaskContinuations()
     {
         var outcome = await ValueTask.FromResult(Result.Ok("value"))
             .FinallyValueTaskAsync(

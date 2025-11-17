@@ -181,7 +181,7 @@ public static class Optional
     /// <typeparam name="T">The value type.</typeparam>
     /// <param name="value">The value to wrap.</param>
     /// <returns>An optional containing <paramref name="value"/>.</returns>
-    public static Optional<T> Some<T>(T value) => new Optional<T>(value);
+    public static Optional<T> Some<T>(T value) => new(value);
 
     /// <summary>
     /// Returns an empty optional.

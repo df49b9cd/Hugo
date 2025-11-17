@@ -49,7 +49,7 @@ public sealed class TaskQueueReplicationIntegrationTests
         ];
 
         Assert.Equal(kinds, captured.Select(e => e.Kind));
-        Assert.Equal(new long[] { 1, 2, 3 }, captured.Select(e => e.SequenceNumber));
+        Assert.Equal([1, 2, 3], captured.Select(e => e.SequenceNumber));
         Assert.All(captured, evt => Assert.Equal("replication.integration", evt.QueueName));
     }
 

@@ -13,8 +13,7 @@ public class ErrGroupIntegrationTests
         {
             new ResultFallbackTier<int>(
                 "misuse",
-                new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>[]
-                {
+                [
                     async (_, ct) =>
                     {
                         var inner = new ErrGroup(ct);
@@ -30,7 +29,7 @@ public class ErrGroupIntegrationTests
                             inner.Dispose();
                         }
                     }
-                })
+                ])
         };
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
@@ -47,8 +46,7 @@ public class ErrGroupIntegrationTests
         {
             new ResultFallbackTier<int>(
                 "primary",
-                new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>[]
-                {
+                [
                     async (_, ct) =>
                     {
                         await Task.Delay(TimeSpan.FromMilliseconds(10), ct);
@@ -67,7 +65,7 @@ public class ErrGroupIntegrationTests
 
                         return Result.Ok(0);
                     }
-                })
+                ])
         };
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);

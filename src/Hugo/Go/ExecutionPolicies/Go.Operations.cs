@@ -113,6 +113,6 @@ public static partial class Go
                 : new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>(
                     (_, ct) => operation(ct)));
 
-        return new ValueTask<Result<T>>(Result.WhenAny(adapted, policy, timeProvider, cancellationToken));
+        return Result.WhenAny(adapted, policy, timeProvider, cancellationToken);
     }
 }

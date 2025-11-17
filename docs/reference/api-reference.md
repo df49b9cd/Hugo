@@ -57,6 +57,7 @@ All factory methods ultimately increment success/failure counters through `GoDia
 - Retry orchestration: `RetryWithPolicyAsync` executes a delegate under a `ResultExecutionPolicy` (see [Policies](#hugopolicies-namespace)).
 - Fallbacks: `TieredFallbackAsync` evaluates ordered `ResultFallbackTier<T>` groups, racing strategies within a tier and enriching errors with `fallbackTier`, `tierIndex`, and `strategyIndex` metadata.
 - Streaming helpers (from `Result.Streaming`): `MapStreamAsync`, `FlatMapStreamAsync`, `FilterStreamAsync`, `ToChannelAsync`, `ReadAllAsync`, `FanInAsync`, `FanOutAsync`, `WindowAsync`, `PartitionAsync`, plus consumption helpers (`ForEachAsync`, `ForEachLinkedCancellationAsync`, `TapSuccessEachAsync`, `TapFailureEachAsync`, `CollectErrorsAsync`).
+- Streaming tap variants: `TapSuccessEachAggregateErrorsAsync` / `TapFailureEachAggregateErrorsAsync` (invoke taps, traverse the whole stream, and surface an aggregate error if any failures occur) and `TapSuccessEachIgnoreErrorsAsync` / `TapFailureEachIgnoreErrorsAsync` (invoke taps but always return success).
 
 #### `Functional` extensions
 

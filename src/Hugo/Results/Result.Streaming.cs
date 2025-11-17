@@ -3,7 +3,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 
 namespace Hugo;
 
@@ -18,13 +17,6 @@ public static partial class Result
     /// <param name="selector">The projection applied to each item.</param>
     /// <param name="cancellationToken">The token used to cancel the projection.</param>
     /// <returns>An asynchronous sequence of results.</returns>
-    public static IAsyncEnumerable<Result<TOut>> MapStreamAsync<TIn, TOut>(
-        IAsyncEnumerable<TIn> source,
-        Func<TIn, CancellationToken, Task<Result<TOut>>> selector,
-        CancellationToken cancellationToken = default) => selector is null
-            ? throw new ArgumentNullException(nameof(selector))
-            : MapStreamAsync(source, (value, token) => new ValueTask<Result<TOut>>(selector(value, token)), cancellationToken);
-
     /// <summary>Projects an asynchronous sequence into a new asynchronous sequence of results, stopping on first failure.</summary>
     /// <typeparam name="TIn">The type of the source items.</typeparam>
     /// <typeparam name="TOut">The type of the projected results.</typeparam>
@@ -207,18 +199,20 @@ public static partial class Result
     /// <param name="sources">The result sequences to merge.</param>
     /// <param name="writer">The channel writer that receives merged results.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>A task that completes when the merge finishes.</returns>
+    /// <returns>A <see cref="ValueTask"/> that completes when the merge finishes.</returns>
     public static async ValueTask FanInAsync<T>(IEnumerable<IAsyncEnumerable<Result<T>>> sources, ChannelWriter<Result<T>> writer, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(writer);
 
-        Task[] forwarders = [.. sources.Select(source => Go.Run(async _ => await ForwardToChannelInternalAsync(source, writer, completeWriter: false, cancellationToken).ConfigureAwait(false), cancellationToken))];
+        ValueTask[] forwarders = [.. sources.Select(source => Go.RunValueTask(
+            ct => ForwardToChannelInternalAsync(source, writer, completeWriter: false, ct),
+            cancellationToken))];
 
         Exception? failure = null;
         try
         {
-            await Task.WhenAll(forwarders).ConfigureAwait(false);
+            await ValueTaskUtilities.WhenAll(forwarders).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -243,7 +237,7 @@ public static partial class Result
     /// <param name="source">The sequence to broadcast.</param>
     /// <param name="writers">The writers that receive each result.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>A task that completes when broadcasting finishes.</returns>
+    /// <returns>A <see cref="ValueTask"/> that completes when broadcasting finishes.</returns>
     public static async ValueTask FanOutAsync<T>(this IAsyncEnumerable<Result<T>> source, IReadOnlyList<ChannelWriter<Result<T>>> writers, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -316,34 +310,31 @@ public static partial class Result
     /// <param name="trueWriter">The writer that receives results satisfying the predicate.</param>
     /// <param name="falseWriter">The writer that receives results that do not satisfy the predicate.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>A task that completes when partitioning finishes.</returns>
-    public static ValueTask PartitionAsync<T>(this IAsyncEnumerable<Result<T>> source, Func<T, bool> predicate, ChannelWriter<Result<T>> trueWriter, ChannelWriter<Result<T>> falseWriter, CancellationToken cancellationToken = default)
+    /// <returns>A <see cref="ValueTask"/> that completes when partitioning finishes.</returns>
+    public static async ValueTask PartitionAsync<T>(this IAsyncEnumerable<Result<T>> source, Func<T, bool> predicate, ChannelWriter<Result<T>> trueWriter, ChannelWriter<Result<T>> falseWriter, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(predicate);
         ArgumentNullException.ThrowIfNull(trueWriter);
         ArgumentNullException.ThrowIfNull(falseWriter);
 
-        return new ValueTask(Task.Run(async () =>
+        try
         {
-            try
+            await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
-                await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    var target = result.IsSuccess && predicate(result.Value) ? trueWriter : falseWriter;
-                    await target.WriteAsync(result, cancellationToken).ConfigureAwait(false);
-                }
+                cancellationToken.ThrowIfCancellationRequested();
+                var target = result.IsSuccess && predicate(result.Value) ? trueWriter : falseWriter;
+                await target.WriteAsync(result, cancellationToken).ConfigureAwait(false);
             }
-            finally
-            {
-                trueWriter.TryComplete();
-                falseWriter.TryComplete();
-            }
-        }, cancellationToken));
+        }
+        finally
+        {
+            trueWriter.TryComplete();
+            falseWriter.TryComplete();
+        }
     }
 
-    private static async Task ForwardToChannelInternalAsync<T>(IAsyncEnumerable<Result<T>> source, ChannelWriter<Result<T>> writer, bool completeWriter, CancellationToken cancellationToken)
+    private static async ValueTask ForwardToChannelInternalAsync<T>(IAsyncEnumerable<Result<T>> source, ChannelWriter<Result<T>> writer, bool completeWriter, CancellationToken cancellationToken)
     {
         try
         {
@@ -431,16 +422,50 @@ public static partial class Result
         Func<T, CancellationToken, ValueTask> tap,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(tap);
-        return source.ForEachAsync(async (result, token) =>
-        {
-            if (result.IsSuccess)
-            {
-                await tap(result.Value, token).ConfigureAwait(false);
-            }
 
-            return Result.Ok(Unit.Value);
-        }, cancellationToken);
+        return IterateAsync(
+            source,
+            tapOnSuccess: tap,
+            tapOnFailure: null,
+            aggregateErrors: false,
+            ignoreFailures: false,
+            cancellationToken);
+    }
+
+    public static ValueTask<Result<Unit>> TapSuccessEachAggregateErrorsAsync<T>(
+        this IAsyncEnumerable<Result<T>> source,
+        Func<T, CancellationToken, ValueTask> tap,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(tap);
+
+        return IterateAsync(
+            source,
+            tapOnSuccess: tap,
+            tapOnFailure: null,
+            aggregateErrors: true,
+            ignoreFailures: false,
+            cancellationToken);
+    }
+
+    public static ValueTask<Result<Unit>> TapSuccessEachIgnoreErrorsAsync<T>(
+        this IAsyncEnumerable<Result<T>> source,
+        Func<T, CancellationToken, ValueTask> tap,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(tap);
+
+        return IterateAsync(
+            source,
+            tapOnSuccess: tap,
+            tapOnFailure: null,
+            aggregateErrors: false,
+            ignoreFailures: true,
+            cancellationToken);
     }
 
     public static ValueTask<Result<Unit>> TapFailureEachAsync<T>(
@@ -448,16 +473,103 @@ public static partial class Result
         Func<Error, CancellationToken, ValueTask> tap,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(tap);
-        return source.ForEachAsync(async (result, token) =>
-        {
-            if (result.IsFailure && result.Error is not null)
-            {
-                await tap(result.Error, token).ConfigureAwait(false);
-            }
 
+        return IterateAsync(
+            source,
+            tapOnSuccess: null,
+            tapOnFailure: tap,
+            aggregateErrors: false,
+            ignoreFailures: false,
+            cancellationToken);
+    }
+
+    public static ValueTask<Result<Unit>> TapFailureEachAggregateErrorsAsync<T>(
+        this IAsyncEnumerable<Result<T>> source,
+        Func<Error, CancellationToken, ValueTask> tap,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(tap);
+
+        return IterateAsync(
+            source,
+            tapOnSuccess: null,
+            tapOnFailure: tap,
+            aggregateErrors: true,
+            ignoreFailures: false,
+            cancellationToken);
+    }
+
+    public static ValueTask<Result<Unit>> TapFailureEachIgnoreErrorsAsync<T>(
+        this IAsyncEnumerable<Result<T>> source,
+        Func<Error, CancellationToken, ValueTask> tap,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(tap);
+
+        return IterateAsync(
+            source,
+            tapOnSuccess: null,
+            tapOnFailure: tap,
+            aggregateErrors: false,
+            ignoreFailures: true,
+            cancellationToken);
+    }
+
+    private static async ValueTask<Result<Unit>> IterateAsync<T>(
+        IAsyncEnumerable<Result<T>> source,
+        Func<T, CancellationToken, ValueTask>? tapOnSuccess,
+        Func<Error, CancellationToken, ValueTask>? tapOnFailure,
+        bool aggregateErrors,
+        bool ignoreFailures,
+        CancellationToken cancellationToken)
+    {
+        Error? firstFailure = null;
+        List<Error>? allFailures = aggregateErrors ? new List<Error>() : null;
+
+        await foreach (var result in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            if (result.IsSuccess)
+            {
+                if (tapOnSuccess is not null)
+                {
+                    await tapOnSuccess(result.Value, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                var error = result.Error ?? Error.Unspecified();
+                firstFailure ??= error;
+                allFailures?.Add(error);
+
+                if (tapOnFailure is not null)
+                {
+                    await tapOnFailure(error, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+
+        if (firstFailure is null)
+        {
             return Result.Ok(Unit.Value);
-        }, cancellationToken);
+        }
+
+        if (ignoreFailures)
+        {
+            return Result.Ok(Unit.Value);
+        }
+
+        if (aggregateErrors && allFailures is not null && allFailures.Count > 1)
+        {
+            return Result.Fail<Unit>(Error.Aggregate("One or more failures occurred while processing the stream.", [.. allFailures]));
+        }
+
+        return Result.Fail<Unit>(aggregateErrors && allFailures is not null && allFailures.Count == 1
+            ? allFailures[0]
+            : firstFailure);
     }
 
     public static async ValueTask<Result<IReadOnlyList<T>>> CollectErrorsAsync<T>(
@@ -488,7 +600,7 @@ public static partial class Result
 
         var aggregate = errors.Count == 1
             ? errors[0]
-            : Error.Aggregate("One or more failures occurred while processing the stream.", errors.ToArray());
+            : Error.Aggregate("One or more failures occurred while processing the stream.", [.. errors]);
 
         return Result.Fail<IReadOnlyList<T>>(aggregate);
     }

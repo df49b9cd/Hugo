@@ -9,7 +9,7 @@ public sealed class PrioritizedChannelTests
     private static readonly TimeSpan WriteReleaseTimeout = TimeSpan.FromSeconds(1);
 
     [Fact(Timeout = 15_000)]
-    public async Task PrioritizedChannel_ShouldRespectCapacity_WhenReaderSlow()
+    public async ValueTask PrioritizedChannel_ShouldRespectCapacity_WhenReaderSlow()
     {
         var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
         {
@@ -49,7 +49,7 @@ public sealed class PrioritizedChannelTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task PrioritizedChannel_ShouldDrainSingleItemPerLane()
+    public async ValueTask PrioritizedChannel_ShouldDrainSingleItemPerLane()
     {
         var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
         {
@@ -81,7 +81,7 @@ public sealed class PrioritizedChannelTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task PrioritizedChannel_WaitToReadAsync_ShouldRespectCancellation()
+    public async ValueTask PrioritizedChannel_WaitToReadAsync_ShouldRespectCancellation()
     {
         var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
         {
@@ -98,7 +98,7 @@ public sealed class PrioritizedChannelTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task PrioritizedChannel_ShouldPropagateLaneException()
+    public async ValueTask PrioritizedChannel_ShouldPropagateLaneException()
     {
         var failingLane = new AsyncLaneReader();
         var reader = CreatePrioritizedReader(failingLane);
@@ -112,7 +112,7 @@ public sealed class PrioritizedChannelTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task PrioritizedChannel_ShouldObserveCancelledLane()
+    public async ValueTask PrioritizedChannel_ShouldObserveCancelledLane()
     {
         var cancelingLane = new AsyncLaneReader();
         var reader = CreatePrioritizedReader(cancelingLane);
@@ -125,7 +125,7 @@ public sealed class PrioritizedChannelTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task PrioritizedChannel_ShouldPropagateSynchronousLaneFault()
+    public async ValueTask PrioritizedChannel_ShouldPropagateSynchronousLaneFault()
     {
         var lane = new ImmediateFaultLaneReader(new InvalidOperationException("sync fault"));
         var reader = CreatePrioritizedReader(lane);

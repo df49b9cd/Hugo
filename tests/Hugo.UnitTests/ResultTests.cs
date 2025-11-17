@@ -209,23 +209,27 @@ public class ResultTests
     [Fact(Timeout = 15_000)]
     public async ValueTask TraverseAsync_ShouldAggregateSuccessfulValues()
     {
-        var result = await Result.TraverseAsync([1, 2], static n => Task.FromResult(Result.Ok(n + 1)), TestContext.Current.CancellationToken);
+        var result = await Result.TraverseAsync([1, 2], static n => ValueTask.FromResult(Result.Ok(n + 1)), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsSuccess);
         Assert.Equal([2, 3], result.Value);
     }
 
     [Fact(Timeout = 15_000)]
-    public async ValueTask TraverseAsync_ShouldThrow_WhenSourceIsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => Result.TraverseAsync((IEnumerable<int>)null!, static _ => Task.FromResult(Result.Ok(0)), TestContext.Current.CancellationToken));
+    public async ValueTask TraverseAsync_ShouldThrow_WhenSourceIsNull() =>
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await Result.TraverseAsync((IEnumerable<int>)null!, static _ => ValueTask.FromResult(Result.Ok(0)), TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
-    public async ValueTask TraverseAsync_ShouldThrow_WhenSelectorIsNull() => await Assert.ThrowsAsync<ArgumentNullException>(static () => Result.TraverseAsync([], (Func<int, Task<Result<int>>>)null!, TestContext.Current.CancellationToken));
+    public async ValueTask TraverseAsync_ShouldThrow_WhenSelectorIsNull() =>
+        await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            await Result.TraverseAsync([], (Func<int, ValueTask<Result<int>>>)null!, TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public async ValueTask TraverseAsync_ShouldReturnFailure()
     {
         var error = Error.From("fail");
-        var result = await Result.TraverseAsync([1, 2], n => Task.FromResult(n == 2 ? Result.Fail<int>(error) : Result.Ok(n)), TestContext.Current.CancellationToken);
+        var result = await Result.TraverseAsync([1, 2], n => ValueTask.FromResult(n == 2 ? Result.Fail<int>(error) : Result.Ok(n)), TestContext.Current.CancellationToken);
 
         Assert.True(result.IsFailure);
         Assert.Same(error, result.Error);
@@ -237,7 +241,7 @@ public class ResultTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var result = await Result.TraverseAsync([1], static _ => Task.FromResult(Result.Ok(1)), cts.Token);
+        var result = await Result.TraverseAsync([1], static _ => ValueTask.FromResult(Result.Ok(1)), cts.Token);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
@@ -258,7 +262,7 @@ public class ResultTests
             {
                 observedToken = token;
                 observed = true;
-                return Task.FromResult(Result.Ok(value));
+                return ValueTask.FromResult(Result.Ok(value));
             },
             cts.Token);
 
@@ -278,7 +282,7 @@ public class ResultTests
             static (value, token) =>
             {
                 token.ThrowIfCancellationRequested();
-                return Task.FromResult(Result.Ok(value));
+                return ValueTask.FromResult(Result.Ok(value));
             },
             cts.Token);
 
@@ -514,7 +518,7 @@ public class ResultTests
 
         var collected = new List<Result<int>>();
 
-        Func<int, CancellationToken, Task<Result<int>>> selector = static async (value, ct) =>
+        Func<int, CancellationToken, ValueTask<Result<int>>> selector = static async ValueTask<Result<int>> (value, ct) =>
         {
             await Task.Delay(10, ct);
             return Result.Ok(value + 1);
@@ -775,7 +779,8 @@ public class ResultTests
             return ValueTask.CompletedTask;
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
+        Assert.True(result.IsFailure);
+        Assert.Equal("skip", result.Error?.Message);
         Assert.Equal(3, sum);
     }
 
@@ -801,7 +806,8 @@ public class ResultTests
             return ValueTask.CompletedTask;
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
+        Assert.True(result.IsFailure);
+        Assert.Equal("first", result.Error?.Message);
         Assert.Equal(new[] { "first", "second" }, observed);
     }
 
@@ -827,7 +833,7 @@ public class ResultTests
 
         var successResult = await SuccessStream().CollectErrorsAsync(TestContext.Current.CancellationToken);
         Assert.True(successResult.IsSuccess);
-        Assert.Equal(new[] { 4, 5 }, successResult.Value);
+        Assert.Equal([4, 5], successResult.Value);
     }
 
     [Fact(Timeout = 15_000)]
