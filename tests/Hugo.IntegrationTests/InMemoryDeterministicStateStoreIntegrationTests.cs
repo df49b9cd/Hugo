@@ -8,7 +8,7 @@ public sealed class InMemoryDeterministicStateStoreIntegrationTests
     public void SetAndTryGet_ShouldRoundTripRecord()
     {
         var store = new InMemoryDeterministicStateStore();
-        var record = new DeterministicRecord("kind", version: 1, payload: ReadOnlyMemory<byte>.Empty, recordedAt: DateTimeOffset.UtcNow);
+        var record = new DeterministicRecord("kind", version: 1, payload: ReadOnlyMemory<byte>.Empty.Span, recordedAt: DateTimeOffset.UtcNow);
 
         store.Set("key", record);
 

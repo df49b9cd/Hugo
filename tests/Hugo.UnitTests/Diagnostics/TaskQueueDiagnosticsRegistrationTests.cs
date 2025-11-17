@@ -46,7 +46,9 @@ public class TaskQueueDiagnosticsRegistrationTests
             await using var queue = new TaskQueue<string>(new TaskQueueOptions { Name = queueName, Capacity = 4 });
             await queue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
             meterListener.RecordObservableInstruments();
-            SpinWait.SpinUntil(() => captured.Count > 0, TimeSpan.FromSeconds(2));
+            SpinWait.SpinUntil(
+                () => captured.Any(list => TryGetQueueName(list, out string? name) && name == queueName),
+                TimeSpan.FromSeconds(2));
         }
 
         GoDiagnostics.Reset();
@@ -54,8 +56,7 @@ public class TaskQueueDiagnosticsRegistrationTests
         captured.ShouldNotBeEmpty();
         Dictionary<string, object?> tags = captured
             .Select(ToDictionary)
-            .LastOrDefault(entry => entry.TryGetValue("taskqueue.name", out var name) && (string?)name == queueName)
-            ?? ToDictionary(captured.Last());
+            .First(entry => entry.TryGetValue("taskqueue.name", out var name) && (string?)name == queueName);
 
         tags.ShouldContainKeyAndValue("service.name", "omnirelay.control");
         tags.ShouldContainKeyAndValue("taskqueue.shard", "shard-a");
@@ -122,6 +123,21 @@ public class TaskQueueDiagnosticsRegistrationTests
         }
 
         return dict;
+    }
+
+    private static bool TryGetQueueName(TagList tags, out string? queueName)
+    {
+        foreach ((string key, object? value) in tags)
+        {
+            if (key == "taskqueue.name")
+            {
+                queueName = value?.ToString();
+                return true;
+            }
+        }
+
+        queueName = null;
+        return false;
     }
     private sealed class TestMeterFactory : IMeterFactory, IDisposable, IAsyncDisposable
     {

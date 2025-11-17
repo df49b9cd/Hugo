@@ -55,7 +55,7 @@ public sealed class CheckpointingTaskQueueReplicationSinkTests
 
         await sink.ProcessAsync(ToAsync(events), CancellationToken.None);
 
-        sink.AppliedEvents.ShouldHaveCount(2);
+        sink.AppliedEvents.Count.ShouldBe(2);
         checkpointStore.ReadCount.ShouldBe(1);
 
         checkpointStore.PersistedCheckpoint.ShouldNotBeNull();
@@ -120,7 +120,7 @@ public sealed class CheckpointingTaskQueueReplicationSinkTests
 
         await sink.ProcessAsync(ToAsync(events), CancellationToken.None);
 
-        sink.AppliedEvents.ShouldHaveCount(1);
+        sink.AppliedEvents.Count.ShouldBe(1);
         sink.AppliedEvents.Single().SequenceNumber.ShouldBe(4);
 
         checkpointStore.PersistedCheckpoint.ShouldNotBeNull();
