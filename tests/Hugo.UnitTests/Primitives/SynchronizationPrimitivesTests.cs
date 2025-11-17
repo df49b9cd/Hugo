@@ -151,4 +151,45 @@ public class SynchronizationPrimitivesTests
         var once = new Once();
         Should.Throw<ArgumentNullException>(() => once.Do(null!));
     }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask RwMutex_RLockAsync_ShouldReleaseWriterWhenLastReaderDisposes()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        using var rwMutex = new RwMutex();
+
+        var firstReader = await rwMutex.RLockAsync(cancellation);
+        var secondReader = await rwMutex.RLockAsync(cancellation);
+
+        var writerEntered = 0;
+        var writer = Go.Run(async ct =>
+        {
+            await using (await rwMutex.LockAsync(ct))
+            {
+                Interlocked.Exchange(ref writerEntered, 1);
+            }
+        }, cancellationToken: cancellation);
+
+        writer.AsTask().IsCompleted.ShouldBeFalse();
+
+        await firstReader.DisposeAsync();
+        await secondReader.DisposeAsync();
+
+        await writer.AsTask().WaitAsync(cancellation);
+        writerEntered.ShouldBe(1);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask RwMutex_RLockAsync_ShouldObserveCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        using var rwMutex = new RwMutex();
+
+        await using (await rwMutex.RLockAsync(TestContext.Current.CancellationToken))
+        {
+            cts.Cancel();
+            var acquiring = rwMutex.RLockAsync(cts.Token);
+            await Should.ThrowAsync<OperationCanceledException>(async () => await acquiring.AsTask());
+        }
+    }
 }

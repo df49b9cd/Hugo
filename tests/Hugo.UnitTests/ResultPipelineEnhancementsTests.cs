@@ -313,6 +313,46 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask WhenAll_ShouldIncludePartialFailuresMetadata_OnCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var operations = new[]
+        {
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>(async (_, token) =>
+            {
+                started.TrySetResult();
+                await Task.Delay(Timeout.Infinite, token);
+                return Result.Ok(1);
+            }),
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((_, _) =>
+                ValueTask.FromResult(Result.Fail<int>(Error.From("peer failed", ErrorCodes.Exception))))
+        };
+
+        var aggregateTask = Result.WhenAll(operations, cancellationToken: cts.Token);
+
+        await started.Task.WaitAsync(TestContext.Current.CancellationToken);
+        await cts.CancelAsync();
+
+        var result = await aggregateTask;
+
+        result.IsFailure.ShouldBeTrue();
+        var error = result.Error.ShouldNotBeNull();
+        error.Code.ShouldBeOneOf(ErrorCodes.Canceled, ErrorCodes.Aggregate);
+
+        if (error.Metadata.TryGetValue("whenall.partialFailures", out var metadata))
+        {
+            var partials = metadata.ShouldBeOfType<Error[]>();
+            partials.ShouldContain(partial => partial.Code == ErrorCodes.Exception);
+        }
+        else
+        {
+            error.Code.ShouldBe(ErrorCodes.Aggregate);
+        }
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask WhenAll_ShouldRunCompensation_OnOperationCanceledException()
     {
         var compensationInvocations = 0;

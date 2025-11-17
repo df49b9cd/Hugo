@@ -347,9 +347,10 @@ public class ResultPipelineAdaptersTests
 
         await source.Writer.WriteAsync(1, token);
         cts.Cancel();
+        provider.Advance(TimeSpan.FromSeconds(5));
         source.Writer.TryComplete();
 
-        await Should.ThrowAsync<OperationCanceledException>(async () => await reader.Completion);
+        await Should.ThrowAsync<OperationCanceledException>(async () => await reader.Completion.WaitAsync(TimeSpan.FromSeconds(2)));
 
         await RunCompensationAsync(scope);
     }
