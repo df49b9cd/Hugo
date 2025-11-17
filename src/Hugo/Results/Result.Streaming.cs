@@ -114,17 +114,126 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(selector);
 
-        await foreach (var value in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+        var configuredSource = source.WithCancellation(cancellationToken).ConfigureAwait(false);
+        var outerEnumerator = configuredSource.GetAsyncEnumerator();
+        try
         {
-            var inner = selector(value, cancellationToken) ?? throw new InvalidOperationException("Selector returned null stream.");
-            await foreach (var projected in inner.WithCancellation(cancellationToken).ConfigureAwait(false))
+            while (true)
             {
-                yield return projected;
-                if (projected.IsFailure)
+                Result<TOut> failure = default;
+                var hasFailure = false;
+
+                bool hasNext;
+                try
+                {
+                    hasNext = await outerEnumerator.MoveNextAsync();
+                }
+                catch (OperationCanceledException oce)
+                {
+                    failure = Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+                    hasFailure = true;
+                    hasNext = false;
+                }
+                catch (Exception ex)
+                {
+                    failure = Fail<TOut>(Error.FromException(ex));
+                    hasFailure = true;
+                    hasNext = false;
+                }
+
+                if (hasFailure)
+                {
+                    yield return failure;
+                    yield break;
+                }
+
+                if (!hasNext)
                 {
                     yield break;
                 }
+
+                var current = outerEnumerator.Current;
+                IAsyncEnumerable<Result<TOut>>? innerStream = null;
+                try
+                {
+                    innerStream = selector(current, cancellationToken);
+                }
+                catch (OperationCanceledException oce)
+                {
+                    failure = Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+                    hasFailure = true;
+                }
+                catch (Exception ex)
+                {
+                    failure = Fail<TOut>(Error.FromException(ex));
+                    hasFailure = true;
+                }
+
+                if (innerStream is null && !hasFailure)
+                {
+                    failure = Fail<TOut>(Error.From("Selector returned null stream."));
+                    hasFailure = true;
+                }
+
+                if (hasFailure)
+                {
+                    yield return failure;
+                    yield break;
+                }
+
+                var configuredInner = innerStream!.WithCancellation(cancellationToken).ConfigureAwait(false);
+                var innerEnumerator = configuredInner.GetAsyncEnumerator();
+                try
+                {
+                    while (true)
+                    {
+                        bool innerHasNext;
+                        try
+                        {
+                            innerHasNext = await innerEnumerator.MoveNextAsync();
+                        }
+                        catch (OperationCanceledException oce)
+                        {
+                            failure = Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+                            hasFailure = true;
+                            innerHasNext = false;
+                        }
+                        catch (Exception ex)
+                        {
+                            failure = Fail<TOut>(Error.FromException(ex));
+                            hasFailure = true;
+                            innerHasNext = false;
+                        }
+
+                        if (hasFailure)
+                        {
+                            yield return failure;
+                            yield break;
+                        }
+
+                        if (!innerHasNext)
+                        {
+                            break;
+                        }
+
+                        var projected = innerEnumerator.Current;
+                        yield return projected;
+
+                        if (projected.IsFailure)
+                        {
+                            yield break;
+                        }
+                    }
+                }
+                finally
+                {
+                    await innerEnumerator.DisposeAsync();
+                }
             }
+        }
+        finally
+        {
+            await outerEnumerator.DisposeAsync();
         }
     }
 
@@ -296,14 +405,14 @@ public static partial class Result
                 buffer.Add(result.Value);
                 if (buffer.Count >= size)
                 {
-                    yield return Ok<IReadOnlyList<T>>(buffer.ToArray());
+                    yield return Ok<IReadOnlyList<T>>([.. buffer]);
                     buffer.Clear();
                 }
             }
 
             if (buffer.Count > 0)
             {
-                yield return Ok<IReadOnlyList<T>>(buffer.ToArray());
+                yield return Ok<IReadOnlyList<T>>([.. buffer]);
             }
         }
 
