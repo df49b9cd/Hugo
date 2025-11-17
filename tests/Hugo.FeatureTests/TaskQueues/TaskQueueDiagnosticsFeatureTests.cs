@@ -54,9 +54,9 @@ public class TaskQueueDiagnosticsFeatureTests
 
         var replication = events.First(evt => evt is TaskQueueReplicationDiagnosticsEvent).ShouldBeOfType<TaskQueueReplicationDiagnosticsEvent>();
         replication.QueueName.ShouldBe("dispatch");
-        replication.SequenceNumber >= 1.ShouldBeTrue();
-        replication.SequenceDelta >= 1.ShouldBeTrue();
-        replication.WallClockLag >= TimeSpan.Zero.ShouldBeTrue();
+        (replication.SequenceNumber >= 1).ShouldBeTrue();
+        (replication.SequenceDelta >= 1).ShouldBeTrue();
+        (replication.WallClockLag >= TimeSpan.Zero).ShouldBeTrue();
 
         var serialized = JsonSerializer.Serialize(replication, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         serialized.ShouldContain("\"queueName\":\"dispatch\"");

@@ -214,7 +214,7 @@ public class DeterministicEffectStoreTests
         replay.Error.ShouldNotBeNull();
         replay.Error!.Metadata.TryGetValue("cancellationToken", out var metadata).ShouldBeTrue();
         var tokenMetadata = metadata.ShouldBeAssignableTo<IReadOnlyDictionary<string, object?>>();
-        tokenMetadata.TryGetValue("isCancellationRequested", out var requested).ShouldBeTrue();
+        tokenMetadata!.TryGetValue("isCancellationRequested", out var requested).ShouldBeTrue();
         requested.ShouldBe(true);
         tokenMetadata.TryGetValue("canBeCanceled", out var canBeCanceled).ShouldBeTrue();
         canBeCanceled.ShouldBe(cts.Token.CanBeCanceled);

@@ -129,7 +129,7 @@ public class TaskQueueTests
         secondLease.LastError!.TryGetMetadata<int>("attempt", out var attemptMetadata).ShouldBeTrue();
         attemptMetadata.ShouldBe(1);
         secondLease.LastError!.TryGetMetadata<DateTimeOffset>("expiredAt", out var expiredAt).ShouldBeTrue();
-        expiredAt >= firstLease.EnqueuedAt.ShouldBeTrue();
+        (expiredAt >= firstLease.EnqueuedAt).ShouldBeTrue();
         secondLease.EnqueuedAt.ShouldBe(firstLease.EnqueuedAt);
         secondLease.LastError!.TryGetMetadata<DateTimeOffset>("enqueuedAt", out var enqueuedAt).ShouldBeTrue();
         enqueuedAt.ShouldBe(firstLease.EnqueuedAt);
@@ -266,7 +266,7 @@ public class TaskQueueTests
 
         var context = contexts.ShouldHaveSingleItem();
         context.Value.ShouldBe("sigma");
-        context.Attempt >= 2.ShouldBeTrue();
+        (context.Attempt >= 2).ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -307,7 +307,7 @@ public class TaskQueueTests
 
         IReadOnlyList<TaskQueuePendingItem<string>> snapshot = await queue.DrainPendingItemsAsync(TestContext.Current.CancellationToken);
         snapshot.Count.ShouldBe(2);
-        snapshot[0].SequenceId < snapshot[1].SequenceId.ShouldBeTrue();
+        (snapshot[0].SequenceId < snapshot[1].SequenceId).ShouldBeTrue();
 
         await using var restored = new TaskQueue<string>();
         await restored.RestorePendingItemsAsync(snapshot, TestContext.Current.CancellationToken);

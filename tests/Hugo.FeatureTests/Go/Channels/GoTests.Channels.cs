@@ -583,8 +583,8 @@ public partial class GoTests
         var result = await fanOutTask;
 
         result.IsSuccess.ShouldBeTrue();
-        await destination1.Reader.ReadAsync(TestContext.Current.CancellationToken).ShouldBe(17);
-        await destination2.Reader.ReadAsync(TestContext.Current.CancellationToken).ShouldBe(17);
+        (await destination1.Reader.ReadAsync(TestContext.Current.CancellationToken)).ShouldBe(17);
+        (await destination2.Reader.ReadAsync(TestContext.Current.CancellationToken)).ShouldBe(17);
     }
 
     [Fact(Timeout = 15_000)]

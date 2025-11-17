@@ -103,14 +103,14 @@ public class TaskQueueBackpressureFeatureTests
             await Task.WhenAll(producer, consumer);
             await monitor.WaitForDrainingAsync(TestContext.Current.CancellationToken);
 
-            transitions >= 2.ShouldBeTrue();
+            (transitions >= 2).ShouldBeTrue();
             pendingSamples.ShouldNotBeEmpty();
             durations.ShouldNotBeEmpty();
             activeDelta.ShouldBe(0);
 
             var snapshot = diagnostics.Latest;
             snapshot.IsActive.ShouldBeFalse();
-            snapshot.PendingCount <= 2.ShouldBeTrue();
+            (snapshot.PendingCount <= 2).ShouldBeTrue();
         }
         finally
         {

@@ -109,7 +109,7 @@ public class TaskQueueBackpressureIntegrationTests
 
         first.IsActive.ShouldBeTrue();
         second.IsActive.ShouldBeFalse();
-        first.ObservedAt <= second.ObservedAt.ShouldBeTrue();
+        (first.ObservedAt <= second.ObservedAt).ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -146,7 +146,7 @@ public class TaskQueueBackpressureIntegrationTests
         await consumer;
         var cleared = await draining;
         cleared.IsActive.ShouldBeFalse();
-        cleared.PendingCount <= 1.ShouldBeTrue();
+        (cleared.PendingCount <= 1).ShouldBeTrue();
     }
 
     private static async Task EventuallyAsync(Func<bool> condition, int attempts = 25, int delayMs = 10)

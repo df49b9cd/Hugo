@@ -97,7 +97,7 @@ public class TimerTests
         var second = await secondTask;
 
         second.ShouldNotBe(first);
-        second - first.ShouldBe(TimeSpan.FromSeconds(2));
+        (second - first).ShouldBe(TimeSpan.FromSeconds(2));
 
         await ticker.StopAsync();
 
@@ -130,7 +130,7 @@ public class TimerTests
         provider.Advance(TimeSpan.FromSeconds(1));
         DateTimeOffset second = await secondTask;
 
-        second - first.ShouldBe(TimeSpan.FromSeconds(1));
+        (second - first).ShouldBe(TimeSpan.FromSeconds(1));
 
         await cts.CancelAsync();
 
@@ -164,7 +164,7 @@ public class TimerTests
         }
 
         available.ShouldBeTrue();
-        second - first.ShouldBe(TimeSpan.FromSeconds(1));
+        (second - first).ShouldBe(TimeSpan.FromSeconds(1));
 
         await ticker.StopAsync();
     }

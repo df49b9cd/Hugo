@@ -907,7 +907,7 @@ public partial class GoTests
                 recorded = [.. stoppedActivities];
             }
 
-            var activity = recorded.ShouldHaveSingleItem(static activity => activity.DisplayName == "Go.Select");
+            var activity = recorded.Single(static activity => activity.DisplayName == "Go.Select");
             activity.DisplayName.ShouldBe("Go.Select");
             activity.Status.ShouldBe(ActivityStatusCode.Ok);
             activity.GetTagItem("hugo.select.case_count").ShouldBe(1);
@@ -952,7 +952,7 @@ public partial class GoTests
                 recorded = [.. stoppedActivities];
             }
 
-            var activity = recorded.ShouldHaveSingleItem(static activity => activity.DisplayName == "Go.Select");
+            var activity = recorded.Single(static activity => activity.DisplayName == "Go.Select");
             activity.Status.ShouldBe(ActivityStatusCode.Error);
             activity.GetTagItem("hugo.select.outcome").ShouldBe("error");
             activity.GetTagItem("hugo.error.code").ShouldBe("error.activity");

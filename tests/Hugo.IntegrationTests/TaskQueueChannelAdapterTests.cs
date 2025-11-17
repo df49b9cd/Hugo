@@ -202,7 +202,7 @@ public class TaskQueueChannelAdapterTests
                 await Task.Delay(TimeSpan.FromMilliseconds(40), TestContext.Current.CancellationToken);
             }
 
-            maxObserved > 0.ShouldBeTrue("Expected at least one outstanding lease while pumps were running.");
+            (maxObserved > 0).ShouldBeTrue("Expected at least one outstanding lease while pumps were running.");
         }
 
     }

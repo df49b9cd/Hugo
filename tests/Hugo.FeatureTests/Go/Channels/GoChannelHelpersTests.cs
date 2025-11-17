@@ -27,7 +27,8 @@ public class GoChannelHelpersTests
 
         ChannelReader<int>[] result = CollectSources(list);
 
-        result.ShouldHaveSingleItem(reader);
+        var item = result.ShouldHaveSingleItem();
+        item.ShouldBeSameAs(reader);
         result.ShouldNotBeSameAs(list);
     }
 
