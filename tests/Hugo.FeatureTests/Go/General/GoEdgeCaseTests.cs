@@ -58,4 +58,21 @@ public class GoEdgeCaseTests
 
         await Should.ThrowAsync<ChannelClosedException>(async () => await channel.Writer.WriteAsync(42, TestContext.Current.CancellationToken));
     }
+
+    [Fact(Timeout = 15_000)]
+    public async Task WaitAsync_ShouldThrow_WhenCanceledBeforeOperationsFinish()
+    {
+        var wg = new WaitGroup();
+        var blocker = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        wg.Go(new ValueTask(blocker.Task));
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Should.ThrowAsync<OperationCanceledException>(async () => await wg.WaitAsync(cts.Token));
+
+        blocker.TrySetResult();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
+    }
 }

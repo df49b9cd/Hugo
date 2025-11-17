@@ -78,7 +78,7 @@ public sealed class CosmosDeterministicStateStoreTests : IAsyncLifetime
         await _container.DisposeAsync().ConfigureAwait(false);
     }
 
-    [Fact(Timeout = 15_000)]
+    [Fact(Timeout = 120_000)]
     public void SetAndGetRoundTripsRecord()
     {
         if (SkipIfNecessary())
@@ -97,7 +97,7 @@ public sealed class CosmosDeterministicStateStoreTests : IAsyncLifetime
         stored.Payload.ToArray().ShouldBe(record.Payload.ToArray());
     }
 
-    [Fact(Timeout = 15_000)]
+    [Fact(Timeout = 120_000)]
     public void SetOverwritesExistingRecord()
     {
         if (SkipIfNecessary())

@@ -53,6 +53,24 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask WhenAll_ShouldReturnCanceled_WhenCallerTokenAlreadyCanceled()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var operations = new[]
+        {
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>(
+                (_, _) => ValueTask.FromResult(Result.Ok(1)))
+        };
+
+        var result = await Result.WhenAll(operations, cancellationToken: cts.Token);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask WhenAll_ShouldThrow_WhenOperationNull()
     {
         var operations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>?[] { null };

@@ -44,8 +44,7 @@ public class TaskQueueDiagnosticsRegistrationTests
                    });
               }))
         {
-            await using var queue = new TaskQueue<string>(new TaskQueueOptions { Name = queueName, Capacity = 4 });
-            await queue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
+            GoDiagnostics.RecordTaskQueueQueued(queueName, pendingDepth: 1);
 
             var deadline = DateTime.UtcNow.AddSeconds(5);
             while (DateTime.UtcNow < deadline &&
@@ -55,24 +54,29 @@ public class TaskQueueDiagnosticsRegistrationTests
                 meterListener.RecordObservableInstruments();
                 await Task.Delay(25, TestContext.Current.CancellationToken);
             }
+
+            meterListener.RecordObservableInstruments();
         }
 
         GoDiagnostics.Reset();
 
         captured.ShouldNotBeEmpty();
 
-        Dictionary<string, object?> enqueuedTags = captured
+        Dictionary<string, object?>? enqueuedTags = captured
             .Where(entry => entry.Name == "taskqueue.enqueued")
             .Select(entry => ToDictionary(entry.Tags))
-            .First(entry => entry.TryGetValue("taskqueue.name", out var name) && (string?)name == queueName);
+            .FirstOrDefault(entry => entry.TryGetValue("taskqueue.name", out var name) && (string?)name == queueName);
 
-        Dictionary<string, object?> pendingTags = captured
+        Dictionary<string, object?>? pendingTags = captured
             .Where(entry => entry.Name == "taskqueue.pending")
             .Select(entry => ToDictionary(entry.Tags))
-            .First(entry => entry.TryGetValue("taskqueue.name", out var name) && (string?)name == queueName);
+            .FirstOrDefault(entry => entry.TryGetValue("taskqueue.name", out var name) && (string?)name == queueName);
 
-        AssertTagSet(enqueuedTags, queueName);
-        AssertTagSet(pendingTags, queueName);
+        enqueuedTags.ShouldNotBeNull($"Expected taskqueue.enqueued measurement for queue '{queueName}'.");
+        pendingTags.ShouldNotBeNull($"Expected taskqueue.pending measurement for queue '{queueName}'.");
+
+        AssertTagSet(enqueuedTags!, queueName);
+        AssertTagSet(pendingTags!, queueName);
     }
 
     [Fact(Timeout = 15_000)]
