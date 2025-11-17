@@ -248,28 +248,14 @@ public static class ResultPipelineChannels
             {
                 while (true)
                 {
-                    using var raceCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                    var raceToken = raceCts.Token;
-
-                    var readerReadyTask = source.WaitToReadAsync(raceToken);
-                    var delayTask = CreateDelayTask(provider, flushInterval, raceToken);
+                    var readerReadyTask = source.WaitToReadAsync(token);
+                    var delayTask = CreateDelayTask(provider, flushInterval, token);
 
                     var winner = await ValueTaskUtilities.WhenAny(readerReadyTask, delayTask).ConfigureAwait(false);
 
                     if (winner == 1)
                     {
-                        try
-                        {
-                            await delayTask.ConfigureAwait(false);
-                        }
-                        catch (OperationCanceledException oce) when (oce.CancellationToken == raceToken)
-                        {
-                            throw new OperationCanceledException(token);
-                        }
-                        finally
-                        {
-                            raceCts.Cancel();
-                        }
+                        await delayTask.ConfigureAwait(false);
 
                         if (buffer.Count > 0)
                         {
@@ -280,20 +266,7 @@ public static class ResultPipelineChannels
                         continue;
                     }
 
-                    bool hasData;
-                    try
-                    {
-                        hasData = await readerReadyTask.ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException oce) when (oce.CancellationToken == raceToken)
-                    {
-                        throw new OperationCanceledException(token);
-                    }
-                    finally
-                    {
-                        raceCts.Cancel();
-                    }
-
+                    var hasData = await readerReadyTask.ConfigureAwait(false);
                     if (!hasData)
                     {
                         break;

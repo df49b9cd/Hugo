@@ -300,6 +300,37 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async Task WindowAsync_ShouldSurviveTimerBeforeData()
+    {
+        var provider = new FakeTimeProvider();
+        var (context, scope) = CreateContext("window-timer-first", provider);
+        var source = Channel.CreateUnbounded<int>();
+        var reader = ResultPipelineChannels.WindowAsync(context, source.Reader, batchSize: 2, flushInterval: TimeSpan.FromSeconds(1), cancellationToken: TestContext.Current.CancellationToken);
+
+        // Fire the timer before any data arrives.
+        provider.Advance(TimeSpan.FromSeconds(1));
+
+        // Now send a full batch after the timer tick.
+        await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
+        await source.Writer.WriteAsync(2, TestContext.Current.CancellationToken);
+        source.Writer.TryComplete();
+
+        var batches = new List<IReadOnlyList<int>>();
+        while (await reader.WaitToReadAsync(TestContext.Current.CancellationToken))
+        {
+            while (reader.TryRead(out var batch))
+            {
+                batches.Add(batch);
+            }
+        }
+
+        Assert.Single(batches);
+        Assert.Equal(new[] { 1, 2 }, batches[0]);
+
+        await RunCompensationAsync(scope);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async Task TimeProviderDelay_ShouldRespectFakeTimeProviderAdvances()
     {
         var provider = new FakeTimeProvider();

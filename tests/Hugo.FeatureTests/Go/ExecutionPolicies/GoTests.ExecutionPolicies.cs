@@ -1,9 +1,10 @@
-using System.Collections.Generic;
 using System.Threading.Channels;
 
 using Microsoft.Extensions.Time.Testing;
 
 using static Hugo.Go;
+using Hugo;
+using Hugo.Policies;
 
 namespace Hugo.Tests;
 
@@ -163,6 +164,63 @@ public partial class GoTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal("alpha:11", result.Value);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task RaceValueTaskAsync_WithWindowTimerFirst_ShouldStillDeliverBatches()
+    {
+        var provider = new FakeTimeProvider();
+        var source = Channel.CreateUnbounded<int>();
+        var scope = new CompensationScope();
+        var context = new ResultPipelineStepContext("window-race", scope, provider, TestContext.Current.CancellationToken);
+
+        var windowReader = ResultPipelineChannels.WindowAsync(
+            context,
+            source.Reader,
+            batchSize: 2,
+            flushInterval: TimeSpan.FromSeconds(1),
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        // Timer fires before any data, but race should still succeed once data arrives.
+        provider.Advance(TimeSpan.FromSeconds(1));
+
+        await source.Writer.WriteAsync(5, TestContext.Current.CancellationToken);
+        await source.Writer.WriteAsync(6, TestContext.Current.CancellationToken);
+        source.Writer.TryComplete();
+
+        var operations = new Func<CancellationToken, ValueTask<Result<IReadOnlyList<int>>>>[]
+        {
+            async ct =>
+            {
+                var batches = new List<IReadOnlyList<int>>();
+                while (await windowReader.WaitToReadAsync(ct))
+                {
+                    while (windowReader.TryRead(out var batch))
+                    {
+                        batches.Add(batch);
+                    }
+                }
+
+                return batches.Count switch
+                {
+                    > 0 => Ok(batches[0]),
+                    _ => Err<IReadOnlyList<int>>("no batches")
+                };
+            },
+            async ct =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+                return Err<IReadOnlyList<int>>("timeout");
+            }
+        };
+
+        var raceResult = await RaceValueTaskAsync<IReadOnlyList<int>>(
+            operations,
+            cancellationToken: TestContext.Current.CancellationToken,
+            timeProvider: provider);
+
+        Assert.True(raceResult.IsSuccess);
+        Assert.Equal(new[] { 5, 6 }, raceResult.Value);
     }
 
     private static async ValueTask<Result<string>> ReadNextAsync(string label, ChannelReader<int> reader, CancellationToken token)
