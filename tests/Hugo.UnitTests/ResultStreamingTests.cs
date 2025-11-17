@@ -29,10 +29,10 @@ public class ResultStreamingTests
 
         var results = await CollectAsync(projected);
 
-        Assert.Equal(2, results.Count);
-        Assert.True(results[0].IsSuccess);
-        Assert.Equal(10, results[0].Value);
-        Assert.True(results[1].IsFailure);
+        results.Count.ShouldBe(2);
+        results[0].IsSuccess.ShouldBeTrue();
+        results[0].Value.ShouldBe(10);
+        results[1].IsFailure.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -42,8 +42,8 @@ public class ResultStreamingTests
 
         var aggregated = await stream.CollectErrorsAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(aggregated.IsFailure);
-        Assert.Equal(ErrorCodes.Aggregate, aggregated.Error?.Code);
+        aggregated.IsFailure.ShouldBeTrue();
+        aggregated.Error?.Code.ShouldBe(ErrorCodes.Aggregate);
     }
 
     [Fact(Timeout = 15_000)]
@@ -60,10 +60,10 @@ public class ResultStreamingTests
 
         var results = await CollectAsync(flattened);
 
-        Assert.Equal(2, results.Count); // only first inner success and failure
-        Assert.True(results[0].IsSuccess);
-        Assert.Equal(10, results[0].Value);
-        Assert.True(results[1].IsFailure);
+        results.Count.ShouldBe(2); // only first inner success and failure
+        results[0].IsSuccess.ShouldBeTrue();
+        results[0].Value.ShouldBe(10);
+        results[1].IsFailure.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -74,10 +74,10 @@ public class ResultStreamingTests
         var filtered = Result.FilterStreamAsync(stream, v => v % 3 == 0, TestContext.Current.CancellationToken);
         var results = await CollectAsync(filtered);
 
-        Assert.Equal(2, results.Count);
-        Assert.True(results[0].IsFailure); // failure preserved
-        Assert.True(results[1].IsSuccess);
-        Assert.Equal(3, results[1].Value);
+        results.Count.ShouldBe(2);
+        results[0].IsFailure.ShouldBeTrue(); // failure preserved
+        results[1].IsSuccess.ShouldBeTrue();
+        results[1].Value.ShouldBe(3);
     }
 
     [Fact(Timeout = 15_000)]
@@ -90,7 +90,7 @@ public class ResultStreamingTests
 
         var list = channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal([1, 2], list.Select(r => r.Value));
+        list.Select(r => r.Value).ShouldBe([1, 2]);
     }
 
     [Fact(Timeout = 15_000)]
@@ -104,8 +104,8 @@ public class ResultStreamingTests
 
         var aReaderResult = await ReadAllValues(a.Reader);
         var bReaderResult = await ReadAllValues(b.Reader);
-        Assert.Equal([5, 6], aReaderResult);
-        Assert.Equal([5, 6], bReaderResult);
+        aReaderResult.ShouldBe([5, 6]);
+        bReaderResult.ShouldBe([5, 6]);
     }
 
     [Fact(Timeout = 15_000)]
@@ -120,8 +120,8 @@ public class ResultStreamingTests
         var eveneReaderResult = await ReadAllValues(even.Reader);
         var oddReaderResult = await ReadAllValues(odd.Reader);
 
-        Assert.Equal([2], eveneReaderResult);
-        Assert.Equal([1, 3], oddReaderResult);
+        eveneReaderResult.ShouldBe([2]);
+        oddReaderResult.ShouldBe([1, 3]);
     }
 
     [Fact(Timeout = 15_000)]
@@ -138,12 +138,12 @@ public class ResultStreamingTests
                 return Result.Fail<Unit>(Error.From("stop"));
             }
 
-            Assert.True(ct.CanBeCanceled);
+            ct.CanBeCanceled.ShouldBeTrue();
             return Result.Ok(Unit.Value);
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(new[] { 1, 2 }, seen);
+        result.IsFailure.ShouldBeTrue();
+        seen.ShouldBe(new[] { 1, 2 });
     }
 
     [Fact(Timeout = 15_000)]
@@ -158,8 +158,8 @@ public class ResultStreamingTests
             await Task.Yield();
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(3, hits); // only successes 1 and 2
+        result.IsFailure.ShouldBeTrue();
+        hits.ShouldBe(3); // only successes 1 and 2
     }
 
     [Fact(Timeout = 15_000)]
@@ -174,8 +174,8 @@ public class ResultStreamingTests
             await Task.Yield();
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(2, count);
+        result.IsFailure.ShouldBeTrue();
+        count.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -190,9 +190,9 @@ public class ResultStreamingTests
             await Task.Yield();
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Aggregate, result.Error?.Code);
-        Assert.Equal(3, sum); // only successes 1 and 2
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Aggregate);
+        sum.ShouldBe(3); // only successes 1 and 2
     }
 
     [Fact(Timeout = 15_000)]
@@ -207,9 +207,9 @@ public class ResultStreamingTests
             await Task.Yield();
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Aggregate, result.Error?.Code);
-        Assert.Equal(2, count);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Aggregate);
+        count.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -224,8 +224,8 @@ public class ResultStreamingTests
             await Task.Yield();
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(3, sum);
+        result.IsSuccess.ShouldBeTrue();
+        sum.ShouldBe(3);
     }
 
     [Fact(Timeout = 15_000)]
@@ -240,8 +240,8 @@ public class ResultStreamingTests
             await Task.Yield();
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(2, count);
+        result.IsSuccess.ShouldBeTrue();
+        count.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -260,8 +260,8 @@ public class ResultStreamingTests
             return result.Value == 2 ? Result.Fail<Unit>(Error.From("stop")) : Result.Ok(Unit.Value);
         }, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(new[] { 1, 2 }, seen);
+        result.IsFailure.ShouldBeTrue();
+        seen.ShouldBe(new[] { 1, 2 });
     }
 
     private static async IAsyncEnumerable<Result<int>> GetSequence(IEnumerable<int> values)

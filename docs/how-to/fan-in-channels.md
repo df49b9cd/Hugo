@@ -14,7 +14,7 @@ Result: A consolidated reader that downstream consumers can process sequentially
 
 ## Prerequisites
 
-- .NET 9 or 10 SDK.
+- .NET 10 SDK.
 - A reference to the `Hugo` package.
 - Familiarity with [`WaitGroup`](../reference/concurrency-primitives.md#waitgroup) and the tutorial [Getting started with channels and results](../tutorials/getting-started.md).
 

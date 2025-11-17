@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Shouldly;
 
 using Hugo.Policies;
 
@@ -42,8 +43,8 @@ public class GoRaceValueTaskAsyncIntegrationTests
             policy,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(99, result.Value);
-        Assert.Equal(3, attempts);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(99);
+        attempts.ShouldBe(3);
     }
 }

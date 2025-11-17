@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Linq;
+using Shouldly;
 
 using Hugo.TaskQueues;
 using Hugo.TaskQueues.Diagnostics;
@@ -46,11 +47,11 @@ public class TaskQueueDiagnosticsRegistrationTests
 
         GoDiagnostics.Reset();
 
-        Assert.NotEmpty(captured);
+        captured.ShouldNotBeEmpty();
         var tags = captured.Last(entry => entry.Any(tag => tag.Key == "taskqueue.name" && (string?)tag.Value == "dispatch"));
-        Assert.Contains(tags, entry => entry.Key == "service.name" && (string?)entry.Value == "omnirelay.control");
-        Assert.Contains(tags, entry => entry.Key == "taskqueue.shard" && (string?)entry.Value == "shard-a");
-        Assert.Contains(tags, entry => entry.Key == "custom.tag" && (string?)entry.Value == "diagnostics-test");
+        entry => entry.Key == "service.name" && (string?)entry.Value == "omnirelay.control".ShouldContain(tags);
+        entry => entry.Key == "taskqueue.shard" && (string?)entry.Value == "shard-a".ShouldContain(tags);
+        entry => entry.Key == "custom.tag" && (string?)entry.Value == "diagnostics-test".ShouldContain(tags);
     }
 
     [Fact(Timeout = 15_000)]
@@ -94,8 +95,8 @@ public class TaskQueueDiagnosticsRegistrationTests
             SpinWait.SpinUntil(() => depthMeasurements > 0, TimeSpan.FromSeconds(1));
         }
 
-        Assert.Equal(0, throughputMeasurements);
-        Assert.True(depthMeasurements > 0);
+        throughputMeasurements.ShouldBe(0);
+        depthMeasurements > 0.ShouldBeTrue();
 
         GoDiagnostics.Reset();
     }

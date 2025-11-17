@@ -13,7 +13,7 @@ Estimated time: 10–15 minutes.
 
 ## Prerequisites
 
-- .NET 9 or .NET 10 SDK installed (`dotnet --version` should report `9.*` or `10.*`).
+- .NET 10 SDK installed (`dotnet --version` should report `9.*` or `10.*`).
 - A terminal and editor.
 - A new folder for the sample (`mkdir HugoQuickstart` if you prefer to create it manually).
 

@@ -24,7 +24,7 @@ Many bugs appear only when several deterministic primitives cooperate: a gate re
 
 1. **Mirror production wiring.** Instantiate real `TaskQueue<T>`, `DeterministicGate`, `WorkflowExecutionContext`, etc., with the same options consumers would set.
 2. **Favor deterministic dependencies.** Use `FakeTimeProvider`, `InMemoryDeterministicStateStore`, and lightweight dead-letter handlers to avoid flakiness.
-3. **Assert observable contracts.** Focus on pending counts, error codes, metadata, upgrade decisions, and logical clock values rather than private details.
+3. **Validate observable contracts.** Focus on pending counts, error codes, metadata, upgrade decisions, and logical clock values rather than private details.
 
 ### Test Taxonomy
 
@@ -44,7 +44,7 @@ Many bugs appear only when several deterministic primitives cooperate: a gate re
 
 ## Setup
 
-1. Install .NET 9 SDK and the .NET 10 preview SDK.
+1. Install the .NET 10 SDK.
 2. Restore dependencies: `dotnet restore Hugo.slnx`.
 3. Allow preview TFMs if necessary: `export DOTNET_ROLL_FORWARD=Major`.
 
@@ -85,7 +85,7 @@ dotnet test tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj --logger "t
 - **Use fake time everywhere.** Advance leases, heartbeats, and workflow clocks with `FakeTimeProvider` instead of `Task.Delay`.
 - **Share fixtures for concurrent resources.** Apply `[Collection("TaskQueueConcurrency")]` or custom collections when tests mutate shared queues.
 - **Propagate `TestContext.Current.CancellationToken`.** Pass it through every async call so cancellation behavior stays covered.
-- **Assert both sides of contracts.** After enqueuing and leasing, verify counts (`PendingCount`, `ActiveLeaseCount`) as well as return values.
+- **Validate both sides of contracts.** After enqueuing and leasing, verify counts (`PendingCount`, `ActiveLeaseCount`) as well as return values.
 - **Model realistic metadata.** Workflow tests should populate attributes, schedules, and retries to catch serialization regressions.
 - **Prefer helpers over duplication.** Reuse local `CreateContext`, `CreateGate`, or dead-letter helpers when scenarios repeat.
 
@@ -102,8 +102,8 @@ var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
 
 await lease.CompleteAsync(TestContext.Current.CancellationToken);
 
-Assert.Equal(0, queue.PendingCount);
-Assert.Equal(0, queue.ActiveLeaseCount);
+queue.PendingCount.ShouldBe(0);
+queue.ActiveLeaseCount.ShouldBe(0);
 ```
 
 This pattern validates enqueue/lease/complete flows while observing queue metrics.
@@ -126,8 +126,8 @@ var result = await gate.ExecuteAsync(
     metadata: null,
     TestContext.Current.CancellationToken);
 
-Assert.True(result.IsSuccess);
-Assert.Equal(42, result.Value);
+result.IsSuccess.ShouldBeTrue();
+result.Value.ShouldBe(42);
 ```
 
 Use this structure when asserting upgrade/legacy decision logic and effect deduplication.
@@ -141,8 +141,8 @@ var context = CreateContext(metadata: metadata);
 using var scope = WorkflowExecution.Enter(context, TestContext.Current.CancellationToken);
 var snapshot = context.SnapshotVisibility();
 
-Assert.Equal(WorkflowStatus.Active, snapshot.Status);
-Assert.Equal("us-east", snapshot.Attributes["region"]);
+snapshot.Status.ShouldBe(WorkflowStatus.Active);
+snapshot.Attributes["region"].ShouldBe("us-east");
 ```
 
 Great for verifying logical clocks, visibility snapshots, and completion metadata.
@@ -164,7 +164,7 @@ await using var queue = new SafeTaskQueue<string>(
 await queue.EnqueueAsync("gamma", TestContext.Current.CancellationToken);
 await queue.AbandonAsync("gamma", Error.From("fatal", ErrorCodes.TaskQueueAbandoned), TestContext.Current.CancellationToken);
 
-Assert.Contains("gamma", deadLetters);
+deadLetters.ShouldContain("gamma");
 ```
 
 Demonstrates how integration tests cover failure paths and dead-letter handlers end-to-end.

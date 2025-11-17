@@ -6,7 +6,7 @@
 [![NuGet](https://img.shields.io/nuget/v/Hugo.svg?logo=nuget)](https://www.nuget.org/packages/Hugo)
 [![NuGet Diagnostics](https://img.shields.io/nuget/v/Hugo.Diagnostics.OpenTelemetry.svg?logo=nuget&label=Hugo.Diagnostics.OpenTelemetry)](https://www.nuget.org/packages/Hugo.Diagnostics.OpenTelemetry)
 
-> Go-style concurrency primitives and functional result pipelines for .NET 9/10 applications.
+> Go-style concurrency primitives and functional result pipelines for 10 applications.
 
 ## Table of contents
 
@@ -45,7 +45,7 @@
 
 - Targets `net10.0`.
 - Works with generic host builders, ASP.NET background services, worker services, and isolated Azure Functions workers.
-- Verified with the .NET 10 preview SDK; install it alongside .NET 9 for the same coverage as CI.
+- Verified with the .NET 10 SDK;
 
 ## Trimming & AOT considerations
 

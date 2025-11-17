@@ -1,3 +1,4 @@
+using Shouldly;
 namespace Hugo.Tests;
 
 public class ErrorTests
@@ -8,9 +9,9 @@ public class ErrorTests
         var error = Error.From("boom", ErrorCodes.Exception);
         var enriched = error.WithMetadata("key", 123);
 
-        Assert.Equal(error.Message, enriched.Message);
-        Assert.True(enriched.Metadata.ContainsKey("key"));
-        Assert.Equal(123, enriched.Metadata["key"]);
+        enriched.Message.ShouldBe(error.Message);
+        enriched.Metadata.ContainsKey("key").ShouldBeTrue();
+        enriched.Metadata["key"].ShouldBe(123);
     }
 
     [Fact(Timeout = 15_000)]
@@ -18,7 +19,7 @@ public class ErrorTests
     {
         var error = Error.From("message");
 
-        Assert.Throws<ArgumentException>(() => error.WithMetadata(" ", 1));
+        Should.Throw<ArgumentException>(() => error.WithMetadata(" ", 1));
     }
 
     [Fact(Timeout = 15_000)]
@@ -27,7 +28,7 @@ public class ErrorTests
         var error = Error.From("boom").WithMetadata("Key", 1);
         var enriched = error.WithMetadata([new KeyValuePair<string, object?>("key", 2)]);
 
-        Assert.Equal(2, enriched.Metadata["key"]);
+        enriched.Metadata["key"].ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -35,7 +36,7 @@ public class ErrorTests
     {
         var error = Error.From("message");
 
-        Assert.Throws<ArgumentNullException>(() => error.WithMetadata((IEnumerable<KeyValuePair<string, object?>>)null!));
+        Should.Throw<ArgumentNullException>(() => error.WithMetadata((IEnumerable<KeyValuePair<string, object?>>)null!));
     }
 
     [Fact(Timeout = 15_000)]
@@ -44,8 +45,8 @@ public class ErrorTests
         var error = Error.From("message");
         var reclassified = error.WithCode(ErrorCodes.Validation);
 
-        Assert.Equal(ErrorCodes.Validation, reclassified.Code);
-        Assert.Null(error.Code);
+        reclassified.Code.ShouldBe(ErrorCodes.Validation);
+        error.Code.ShouldBeNull();
     }
 
     [Fact(Timeout = 15_000)]
@@ -55,19 +56,19 @@ public class ErrorTests
         var cause = new InvalidOperationException("oops");
         var enriched = error.WithCause(cause);
 
-        Assert.Same(cause, enriched.Cause);
+        enriched.Cause.ShouldBeSameAs(cause);
     }
 
     [Fact(Timeout = 15_000)]
-    public void FromException_ShouldThrow_WhenExceptionIsNull() => Assert.Throws<ArgumentNullException>(static () => Error.FromException(null!));
+    public void FromException_ShouldThrow_WhenExceptionIsNull() => Should.Throw<ArgumentNullException>(static () => Error.FromException(null!));
 
     [Fact(Timeout = 15_000)]
     public void TryGetMetadata_ShouldReturnValue()
     {
         var error = Error.From("message").WithMetadata("count", 5);
 
-        Assert.True(error.TryGetMetadata("count", out int value));
-        Assert.Equal(5, value);
+        error.TryGetMetadata("count", out int value).ShouldBeTrue();
+        value.ShouldBe(5);
     }
 
     [Fact(Timeout = 15_000)]
@@ -75,7 +76,7 @@ public class ErrorTests
     {
         var error = Error.From("message");
 
-        Assert.False(error.TryGetMetadata("missing", out int _));
+        error.TryGetMetadata("missing", out int _).ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -84,9 +85,9 @@ public class ErrorTests
         var duration = TimeSpan.FromSeconds(5);
         var error = Error.Timeout(duration);
 
-        Assert.Equal(ErrorCodes.Timeout, error.Code);
-        Assert.True(error.Metadata.TryGetValue("duration", out var value));
-        Assert.Equal(duration, value);
+        error.Code.ShouldBe(ErrorCodes.Timeout);
+        error.Metadata.TryGetValue("duration", out var value).ShouldBeTrue();
+        value.ShouldBe(duration);
     }
 
     [Fact(Timeout = 15_000)]
@@ -95,9 +96,9 @@ public class ErrorTests
         using var cts = new CancellationTokenSource();
         var error = Error.Canceled(token: cts.Token);
 
-        Assert.Equal(ErrorCodes.Canceled, error.Code);
-        Assert.True(error.Metadata.ContainsKey("cancellationToken"));
-        Assert.IsType<OperationCanceledException>(error.Cause);
+        error.Code.ShouldBe(ErrorCodes.Canceled);
+        error.Metadata.ContainsKey("cancellationToken").ShouldBeTrue();
+        error.Cause.ShouldBeOfType<OperationCanceledException>();
     }
 
     [Fact(Timeout = 15_000)]
@@ -107,10 +108,10 @@ public class ErrorTests
         var second = Error.From("two");
         var aggregate = Error.Aggregate("many", first, second);
 
-        Assert.Equal(ErrorCodes.Aggregate, aggregate.Code);
-        Assert.True(aggregate.Metadata.TryGetValue("errors", out var value));
-        Assert.Contains(first, (Error[])value!);
-        Assert.Contains(second, (Error[])value!);
+        aggregate.Code.ShouldBe(ErrorCodes.Aggregate);
+        aggregate.Metadata.TryGetValue("errors", out var value).ShouldBeTrue();
+        (Error[])value!.ShouldContain(first);
+        (Error[])value!.ShouldContain(second);
     }
 
     [Fact(Timeout = 15_000)]
@@ -118,18 +119,18 @@ public class ErrorTests
     {
         var error = Error.From("invalid payload", ErrorCodes.Validation);
 
-        Assert.Equal("Validation", error.Metadata["error.name"]);
-        Assert.Equal("Input validation failed or precondition was not satisfied.", error.Metadata["error.description"]);
-        Assert.Equal("General", error.Metadata["error.category"]);
+        error.Metadata["error.name"].ShouldBe("Validation");
+        error.Metadata["error.description"].ShouldBe("Input validation failed or precondition was not satisfied.");
+        error.Metadata["error.category"].ShouldBe("General");
     }
 
     [Fact(Timeout = 15_000)]
     public void ErrorCodes_ShouldExposeDescriptors()
     {
-        Assert.True(ErrorCodes.TryGetDescriptor(ErrorCodes.Timeout, out var descriptor));
-        Assert.Equal("Timeout", descriptor.Name);
-        Assert.Equal("error.timeout", descriptor.Code);
-        Assert.Equal("General", descriptor.Category);
-        Assert.Equal("Operation exceeded the allotted deadline.", descriptor.Description);
+        ErrorCodes.TryGetDescriptor(ErrorCodes.Timeout, out var descriptor).ShouldBeTrue();
+        descriptor.Name.ShouldBe("Timeout");
+        descriptor.Code.ShouldBe("error.timeout");
+        descriptor.Category.ShouldBe("General");
+        descriptor.Description.ShouldBe("Operation exceeded the allotted deadline.");
     }
 }

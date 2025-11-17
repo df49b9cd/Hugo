@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Shouldly;
 
 namespace Hugo.Tests.Primitives;
 
@@ -8,9 +9,9 @@ public class SynchronizationPrimitivesTests
     private static readonly TimeSpan WriterDelay = TimeSpan.FromMilliseconds(10);
     private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(2);
 
-    private static void AssertIncomplete(ValueTask task, TimeSpan timeout, CancellationToken cancellationToken) => Assert.False(task.AsTask().Wait(timeout, cancellationToken), "Task completed before expected.");
+    private static void AssertIncomplete(ValueTask task, TimeSpan timeout, CancellationToken cancellationToken) => task.AsTask().Wait(timeout, cancellationToken).ShouldBeFalse("Task completed before expected.");
 
-    private static void AssertWait(ManualResetEventSlim gate, string message, CancellationToken cancellationToken) => Assert.True(gate.Wait(WaitTimeout, cancellationToken), message);
+    private static void AssertWait(ManualResetEventSlim gate, string message, CancellationToken cancellationToken) => gate.Wait(WaitTimeout, cancellationToken).ShouldBeTrue(message);
 
     private static void BusyWait(TimeSpan duration, CancellationToken cancellationToken)
     {
@@ -46,7 +47,7 @@ public class SynchronizationPrimitivesTests
 
             AssertWait(secondStarted, "Timed out waiting for second mutex waiter to start.", cancellation);
             AssertIncomplete(second, ShortDelay, cancellation);
-            Assert.Equal(0, Volatile.Read(ref secondEntered));
+            Volatile.Read(ref secondEntered).ShouldBe(0);
         }
         finally
         {
@@ -54,7 +55,7 @@ public class SynchronizationPrimitivesTests
         }
 
         await second.AsTask().WaitAsync(cancellation);
-        Assert.Equal(1, secondEntered);
+        secondEntered.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -69,7 +70,7 @@ public class SynchronizationPrimitivesTests
 
         void ReaderAction()
         {
-            Assert.True(startReaders.Wait(WaitTimeout, cancellation), "Timed out waiting to start readers.");
+            startReaders.Wait(WaitTimeout, cancellation).ShouldBeTrue("Timed out waiting to start readers.");
             using (rwMutex.EnterReadScope())
             {
                 int current = Interlocked.Increment(ref inside);
@@ -93,7 +94,7 @@ public class SynchronizationPrimitivesTests
         ValueTask reader2 = StartReader();
         startReaders.Set();
         await Task.WhenAll(reader1.AsTask(), reader2.AsTask());
-        Assert.Equal(2, maxInside);
+        maxInside.ShouldBe(2);
 
         var readScope = rwMutex.EnterReadScope();
         using ManualResetEventSlim writerStarted = new(false);
@@ -110,10 +111,10 @@ public class SynchronizationPrimitivesTests
 
         AssertWait(writerStarted, "Timed out waiting for writer to start.", cancellation);
         AssertIncomplete(writer, ShortDelay, cancellation);
-        Assert.Equal(0, Volatile.Read(ref writerEntered));
+        Volatile.Read(ref writerEntered).ShouldBe(0);
         readScope.Dispose();
         await writer.AsTask().WaitAsync(cancellation);
-        Assert.Equal(1, writerEntered);
+        writerEntered.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -137,17 +138,17 @@ public class SynchronizationPrimitivesTests
 
         AssertWait(readerStarted, "Timed out waiting for reader to start.", cancellation);
         AssertIncomplete(reader, ShortDelay, cancellation);
-        Assert.Equal(0, Volatile.Read(ref readerEntered));
+        Volatile.Read(ref readerEntered).ShouldBe(0);
 
         writeScope.Dispose();
         await reader.AsTask().WaitAsync(cancellation);
-        Assert.Equal(1, readerEntered);
+        readerEntered.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
     public void Once_Do_ShouldThrow_WhenActionNull()
     {
         var once = new Once();
-        Assert.Throws<ArgumentNullException>(() => once.Do(null!));
+        Should.Throw<ArgumentNullException>(() => once.Do(null!));
     }
 }

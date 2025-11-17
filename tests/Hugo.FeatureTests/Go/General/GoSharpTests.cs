@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Shouldly;
 
 using static Hugo.Go;
 
@@ -23,7 +24,7 @@ public class GoSharpTests
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(3, counter);
+        counter.ShouldBe(3);
     }
 
     [Fact(Timeout = 15_000)]
@@ -39,7 +40,7 @@ public class GoSharpTests
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(true);
+        true.ShouldBeTrue();
     }
 
     private static readonly int[] expected = [0, 2, 1];
@@ -55,12 +56,12 @@ public class GoSharpTests
             order.Add(0);
         }
 
-        Assert.Equal(expected, order);
+        order.ShouldBe(expected);
     }
 
     [Fact(Timeout = 15_000)]
     public void Defer_ShouldThrow_WhenActionNull() =>
-        Assert.Throws<ArgumentNullException>(static () => new Defer(null!));
+        Should.Throw<ArgumentNullException>(static () => new Defer(null!));
 
     [Fact(Timeout = 15_000)]
     public void Err_WithExceptionAndCode_ShouldCaptureMetadata()
@@ -68,9 +69,9 @@ public class GoSharpTests
         var ex = new InvalidOperationException("boom");
         var result = Err<int>(ex, "custom.code");
 
-        Assert.True(result.IsFailure);
-        Assert.Equal("custom.code", result.Error?.Code);
-        Assert.True(result.Error?.Metadata.ContainsKey("exceptionType"));
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe("custom.code");
+        result.Error?.Metadata.ContainsKey("exceptionType").ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -85,12 +86,12 @@ public class GoSharpTests
 
         var channel = MakeChannel<int>(options);
 
-        Assert.True(channel.Writer.TryWrite(1));
-        Assert.True(channel.Writer.TryWrite(2));
+        channel.Writer.TryWrite(1).ShouldBeTrue();
+        channel.Writer.TryWrite(2).ShouldBeTrue();
 
         var value = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, value);
+        value.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -101,13 +102,13 @@ public class GoSharpTests
 
         for (var i = 0; i < 5; i++)
         {
-            Assert.True(channel.Writer.TryWrite(i));
+            channel.Writer.TryWrite(i).ShouldBeTrue();
         }
 
         for (var i = 0; i < 5; i++)
         {
             var value = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
-            Assert.Equal(i, value);
+            value.ShouldBe(i);
         }
     }
 }

@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -12,16 +13,16 @@ public class GoFunctionalTests
     public void Err_ShouldReturnDefaultError_WhenGivenNull()
     {
         var result = Err<string>((Error?)null);
-        Assert.True(result.IsFailure);
-        Assert.Equal("An unspecified error occurred.", result.Error?.Message);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Message.ShouldBe("An unspecified error occurred.");
     }
 
     [Fact(Timeout = 15_000)]
     public void Ok_ShouldWrapValue()
     {
         var result = Ok(42);
-        Assert.True(result.IsSuccess);
-        Assert.Equal(42, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(42);
     }
 
     [Fact(Timeout = 15_000)]
@@ -30,10 +31,10 @@ public class GoFunctionalTests
         var ex = new InvalidOperationException("boom");
         var result = Err<string>(ex);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
-        Assert.Equal("boom", result.Error?.Message);
-        Assert.True(result.Error?.Metadata.ContainsKey("exceptionType"));
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
+        result.Error?.Message.ShouldBe("boom");
+        result.Error?.Metadata.ContainsKey("exceptionType").ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -47,7 +48,7 @@ public class GoFunctionalTests
         },
         cts.Token);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
+        await Should.ThrowAsync<OperationCanceledException>(() => task);
     }
 
     [Fact(Timeout = 15_000)]
@@ -55,8 +56,8 @@ public class GoFunctionalTests
     {
         var channel = MakeChannel<int>(capacity: 1, fullMode: BoundedChannelFullMode.DropOldest, singleReader: true, singleWriter: true);
 
-        Assert.NotNull(channel);
-        Assert.False(channel.Reader.Completion.IsCompleted);
+        channel.ShouldNotBeNull();
+        channel.Reader.Completion.IsCompleted.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -65,7 +66,7 @@ public class GoFunctionalTests
         var options = new UnboundedChannelOptions { SingleReader = true, SingleWriter = false };
         var channel = MakeChannel<int>(options);
 
-        Assert.NotNull(channel);
+        channel.ShouldNotBeNull();
     }
 
     [Fact(Timeout = 15_000)]
@@ -80,7 +81,7 @@ public class GoFunctionalTests
         },
         cts.Token);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wg.WaitAsync(cts.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => wg.WaitAsync(cts.Token));
     }
 
     [Fact(Timeout = 15_000)]
@@ -115,8 +116,8 @@ public class GoFunctionalTests
             .Map(items => items.Sum())
             .Ensure(sum => sum == 3, sum => Error.From($"Unexpected sum {sum}", ErrorCodes.Validation));
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(3, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(3);
     }
 
     private static readonly int[] expected = [42];
@@ -155,14 +156,14 @@ public class GoFunctionalTests
                 })
             ]);
 
-        Assert.False(selectTask.IsCompleted);
+        selectTask.IsCompleted.ShouldBeFalse();
 
         provider.Advance(TimeSpan.FromSeconds(3));
 
         var result = await selectTask;
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(expected, collected);
+        result.IsSuccess.ShouldBeTrue();
+        collected.ShouldBe(expected);
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
     }

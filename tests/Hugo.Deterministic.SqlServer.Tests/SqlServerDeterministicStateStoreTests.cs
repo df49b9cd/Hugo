@@ -1,4 +1,5 @@
 using System;
+using Shouldly;
 
 using Hugo;
 using Hugo.Deterministic.SqlServer;
@@ -73,11 +74,11 @@ public sealed class SqlServerDeterministicStateStoreTests : IAsyncLifetime
 
         store.Set("roundtrip", record);
 
-        Assert.True(store.TryGet("roundtrip", out DeterministicRecord stored));
-        Assert.Equal(record.Kind, stored.Kind);
-        Assert.Equal(record.Version, stored.Version);
-        Assert.Equal(record.RecordedAt, stored.RecordedAt, TimeSpan.FromSeconds(1));
-        Assert.Equal(record.Payload.ToArray(), stored.Payload.ToArray());
+        store.TryGet("roundtrip", out DeterministicRecord stored).ShouldBeTrue();
+        stored.Kind.ShouldBe(record.Kind);
+        stored.Version.ShouldBe(record.Version);
+        stored.RecordedAt.ShouldBe(record.RecordedAt, TimeSpan.FromSeconds(1));
+        stored.Payload.ToArray().ShouldBe(record.Payload.ToArray());
     }
 
     [Fact(Timeout = 15_000, Skip = "broken test")]
@@ -104,10 +105,10 @@ public sealed class SqlServerDeterministicStateStoreTests : IAsyncLifetime
         store.Set("update", first);
         store.Set("update", second);
 
-        Assert.True(store.TryGet("update", out DeterministicRecord stored));
-        Assert.Equal(second.Version, stored.Version);
-        Assert.Equal(second.Payload.ToArray(), stored.Payload.ToArray());
-        Assert.Equal(second.RecordedAt, stored.RecordedAt, TimeSpan.FromSeconds(1));
+        store.TryGet("update", out DeterministicRecord stored).ShouldBeTrue();
+        stored.Version.ShouldBe(second.Version);
+        stored.Payload.ToArray().ShouldBe(second.Payload.ToArray());
+        stored.RecordedAt.ShouldBe(second.RecordedAt, TimeSpan.FromSeconds(1));
     }
 
     private bool SkipIfNecessary()

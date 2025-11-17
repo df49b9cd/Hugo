@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Shouldly;
 
 using Hugo;
 using Hugo.Policies;
@@ -42,12 +43,12 @@ public class ResultPipelineAdaptersTests
 
         var result = await ResultPipelineChannels.SelectAsync(context, cases, cancellationToken: testToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.True(scope.HasActions);
+        result.IsSuccess.ShouldBeTrue();
+        scope.HasActions.ShouldBeTrue();
 
         var policy = ResultExecutionPolicy.None.WithCompensation(ResultCompensationPolicy.SequentialReverse);
         await Result.RunCompensationAsync(policy, scope, testToken);
-        Assert.Equal(1, compensationInvocations);
+        compensationInvocations.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -82,12 +83,12 @@ public class ResultPipelineAdaptersTests
             handler,
             cancellationToken: testToken);
 
-        Assert.True(fanInResult.IsSuccess);
-        Assert.True(scope.HasActions);
+        fanInResult.IsSuccess.ShouldBeTrue();
+        scope.HasActions.ShouldBeTrue();
 
         var policy = ResultExecutionPolicy.None.WithCompensation(ResultCompensationPolicy.SequentialReverse);
         await Result.RunCompensationAsync(policy, scope, testToken);
-        Assert.Equal(2, compensationCount);
+        compensationCount.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -110,9 +111,9 @@ public class ResultPipelineAdaptersTests
             maxAttempts: 3,
             cancellationToken: testToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(43, result.Value + 1);
-        Assert.Equal(3, attempts);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value + 1.ShouldBe(43);
+        attempts.ShouldBe(3);
     }
 
     [Fact(Timeout = 15_000)]
@@ -127,8 +128,8 @@ public class ResultPipelineAdaptersTests
             timeout: TimeSpan.FromMilliseconds(10),
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Timeout);
     }
 
     [Fact(Timeout = 15_000)]
@@ -149,11 +150,11 @@ public class ResultPipelineAdaptersTests
             })));
 
         var result = await builder.ExecuteAsync();
-        Assert.True(result.IsSuccess);
-        Assert.Equal(7, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(7);
 
         await RunCompensationAsync(scope);
-        Assert.Equal(1, builderCompensations);
+        builderCompensations.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -174,7 +175,7 @@ public class ResultPipelineAdaptersTests
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
         await RunCompensationAsync(scope);
-        Assert.Equal(1, waitGroupCompensations);
+        waitGroupCompensations.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -182,12 +183,12 @@ public class ResultPipelineAdaptersTests
     {
         var (context, scope) = CreateContext("timer");
         var result = await ResultPipelineTimers.DelayAsync(context, TimeSpan.Zero, TestContext.Current.CancellationToken);
-        Assert.True(result.IsSuccess);
+        result.IsSuccess.ShouldBeTrue();
 
         var ticker = ResultPipelineTimers.NewTicker(context, TimeSpan.FromMilliseconds(5), TestContext.Current.CancellationToken);
         await ticker.DisposeAsync();
 
-        Assert.True(scope.HasActions);
+        scope.HasActions.ShouldBeTrue();
         await RunCompensationAsync(scope);
     }
 
@@ -205,7 +206,7 @@ public class ResultPipelineAdaptersTests
         foreach (var reader in readers)
         {
             var value = await reader.ReadAsync(testToken);
-            Assert.Equal(5, value);
+            value.ShouldBe(5);
         }
 
         await RunCompensationAsync(scope);
@@ -254,10 +255,10 @@ public class ResultPipelineAdaptersTests
         second.Writer.TryComplete();
 
         var result = await mergeTask;
-        Assert.True(result.IsSuccess);
+        result.IsSuccess.ShouldBeTrue();
 
         var merged = await readerTask;
-        Assert.Equal(new[] { 1, 2 }, merged);
+        merged.ShouldBe(new[] { 1, 2 });
         await RunCompensationAsync(scope);
     }
 
@@ -292,9 +293,9 @@ public class ResultPipelineAdaptersTests
         source.Writer.TryComplete();
 
         var batches = await batchesTask;
-        Assert.Equal(2, batches.Count);
-        Assert.Equal([1, 2], batches[0]);
-        Assert.Equal([3], batches[1]);
+        batches.Count.ShouldBe(2);
+        batches[0].ShouldBe([1, 2]);
+        batches[1].ShouldBe([3]);
 
         await RunCompensationAsync(scope);
     }
@@ -324,8 +325,8 @@ public class ResultPipelineAdaptersTests
             }
         }
 
-        Assert.Single(batches);
-        Assert.Equal([1, 2], batches[0]);
+        batches.ShouldHaveSingleItem();
+        batches[0].ShouldBe([1, 2]);
 
         await RunCompensationAsync(scope);
     }
@@ -339,7 +340,7 @@ public class ResultPipelineAdaptersTests
         provider.Advance(TimeSpan.FromSeconds(1));
 
         var completed = await waitTask;
-        Assert.True(completed);
+        completed.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -359,10 +360,10 @@ public class ResultPipelineAdaptersTests
         });
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
-        Assert.True(result.IsFailure);
+        result.IsFailure.ShouldBeTrue();
 
         await RunCompensationAsync(scope);
-        Assert.Equal(1, compensationCount);
+        compensationCount.ShouldBe(1);
     }
 
     private static (ResultPipelineStepContext Context, CompensationScope Scope) CreateContext(string name, TimeProvider? provider = null)

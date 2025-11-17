@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Threading.RateLimiting;
+using Shouldly;
 
 using Hugo.TaskQueues.Backpressure;
 
@@ -102,14 +103,14 @@ public class TaskQueueBackpressureFeatureTests
             await Task.WhenAll(producer, consumer);
             await monitor.WaitForDrainingAsync(TestContext.Current.CancellationToken);
 
-            Assert.True(transitions >= 2);
-            Assert.NotEmpty(pendingSamples);
-            Assert.NotEmpty(durations);
-            Assert.Equal(0, activeDelta);
+            transitions >= 2.ShouldBeTrue();
+            pendingSamples.ShouldNotBeEmpty();
+            durations.ShouldNotBeEmpty();
+            activeDelta.ShouldBe(0);
 
             var snapshot = diagnostics.Latest;
-            Assert.False(snapshot.IsActive);
-            Assert.True(snapshot.PendingCount <= 2);
+            snapshot.IsActive.ShouldBeFalse();
+            snapshot.PendingCount <= 2.ShouldBeTrue();
         }
         finally
         {

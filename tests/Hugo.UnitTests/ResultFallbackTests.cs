@@ -1,4 +1,5 @@
 using Hugo.Policies;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -9,16 +10,16 @@ namespace Hugo.Tests;
 public class ResultFallbackTests
 {
     [Fact(Timeout = 15_000)]
-    public void ResultFallbackTier_ShouldThrow_WhenOperationsEmpty() => Assert.Throws<ArgumentException>(static () => new ResultFallbackTier<int>("empty", []));
+    public void ResultFallbackTier_ShouldThrow_WhenOperationsEmpty() => Should.Throw<ArgumentException>(static () => new ResultFallbackTier<int>("empty", []));
 
     [Fact(Timeout = 15_000)]
     public async ValueTask TieredFallbackAsync_ShouldReturnValidationError_WhenNoTiersProvided()
     {
         var result = await Result.TieredFallbackAsync(Array.Empty<ResultFallbackTier<int>>(), cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
-        Assert.Equal("No fallback tiers were provided.", result.Error?.Message);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
+        result.Error?.Message.ShouldBe("No fallback tiers were provided.");
     }
 
     [Fact(Timeout = 15_000)]
@@ -31,8 +32,8 @@ public class ResultFallbackTests
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(42, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(42);
     }
 
     [Fact(Timeout = 15_000)]
@@ -48,8 +49,8 @@ public class ResultFallbackTests
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(100, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(100);
     }
 
     [Fact(Timeout = 15_000)]
@@ -67,21 +68,21 @@ public class ResultFallbackTests
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal("Fallback pipeline exhausted all tiers.", result.Error?.Message);
-        Assert.NotNull(result.Error);
-        Assert.True(result.Error!.Metadata.TryGetValue("errors", out var nestedObj));
-        var nestedErrors = Assert.IsType<Error[]>(nestedObj);
-        Assert.Equal(2, nestedErrors.Length);
-        Assert.Contains(nestedErrors, static error =>
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Message.ShouldBe("Fallback pipeline exhausted all tiers.");
+        result.Error.ShouldNotBeNull();
+        result.Error!.Metadata.TryGetValue("errors", out var nestedObj).ShouldBeTrue();
+        var nestedErrors = nestedObj.ShouldBeOfType<Error[]>();
+        nestedErrors.Length.ShouldBe(2);
+        static error =>
         {
-            return error.Metadata.TryGetValue("fallbackTier", out var value) && string.Equals("primary", value?.ToString(), StringComparison.Ordinal);
+            return error.Metadata.TryGetValue("fallbackTier", out var value) && string.Equals("primary", value?.ToString(), StringComparison.Ordinal.ShouldContain(nestedErrors);
         });
-        Assert.Contains(nestedErrors, static error =>
+        static error =>
         {
-            return error.Metadata.TryGetValue("fallbackTier", out var value) && string.Equals("secondary", value?.ToString(), StringComparison.Ordinal);
+            return error.Metadata.TryGetValue("fallbackTier", out var value) && string.Equals("secondary", value?.ToString(), StringComparison.Ordinal.ShouldContain(nestedErrors);
         });
-        Assert.All(nestedErrors, static error => Assert.True(error.Metadata.ContainsKey("strategyIndex")));
+        nestedErrors.ShouldAllBe(error => error.Metadata.ContainsKey("strategyIndex"));
     }
 
     [Fact(Timeout = 15_000)]
@@ -97,8 +98,8 @@ public class ResultFallbackTests
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: cts.Token);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
     }
 
     [Fact(Timeout = 15_000)]
@@ -135,9 +136,9 @@ public class ResultFallbackTests
 
         var result = await Result.TieredFallbackAsync(tiers, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(7, result.Value);
-        Assert.True(cancellationCount > 0);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(7);
+        cancellationCount > 0.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -161,8 +162,8 @@ public class ResultFallbackTests
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(2, attempts);
+        result.IsSuccess.ShouldBeTrue();
+        attempts.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -181,7 +182,7 @@ public class ResultFallbackTests
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 }

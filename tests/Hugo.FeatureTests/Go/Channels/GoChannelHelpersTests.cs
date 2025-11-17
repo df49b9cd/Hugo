@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -15,7 +16,7 @@ public class GoChannelHelpersTests
 
         ChannelReader<int>[] result = CollectSources(readers);
 
-        Assert.Same(readers, result);
+        result.ShouldBeSameAs(readers);
     }
 
     [Fact(Timeout = 15_000)]
@@ -26,8 +27,8 @@ public class GoChannelHelpersTests
 
         ChannelReader<int>[] result = CollectSources(list);
 
-        Assert.Single(result, reader);
-        Assert.NotSame(list, result);
+        result.ShouldHaveSingleItem(reader);
+        result.ShouldNotBeSameAs(list);
     }
 
     [Fact(Timeout = 15_000)]
@@ -41,7 +42,7 @@ public class GoChannelHelpersTests
 
         ChannelReader<int>[] result = CollectSources(CreateReaders());
 
-        Assert.Equal(2, result.Length);
+        result.Length.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -49,7 +50,7 @@ public class GoChannelHelpersTests
     {
         ChannelReader<int>[] result = CollectSources(Array.Empty<ChannelReader<int>>());
 
-        Assert.Empty(result);
+        result.ShouldBeEmpty();
     }
 
     [Fact(Timeout = 15_000)]
@@ -66,7 +67,7 @@ public class GoChannelHelpersTests
             provider: null,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess, result.Error?.Code);
+        result.IsSuccess.ShouldBeTrue(result.Error?.Code);
     }
 
     [Fact(Timeout = 15_000)]
@@ -81,8 +82,8 @@ public class GoChannelHelpersTests
             provider: null,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure, result.Error?.Code);
-        Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue(result.Error?.Code);
+        result.Error?.Code.ShouldBe(ErrorCodes.Timeout);
     }
 
     [Fact(Timeout = 15_000)]
@@ -99,8 +100,8 @@ public class GoChannelHelpersTests
             provider: null,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 
     [Fact(Timeout = 15_000)]
@@ -120,8 +121,8 @@ public class GoChannelHelpersTests
 
         Result<Go.Unit> result = await task;
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
     }
 
     [Fact(Timeout = 15_000)]
@@ -142,7 +143,7 @@ public class GoChannelHelpersTests
             provider: null,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess, result.Error?.Code);
+        result.IsSuccess.ShouldBeTrue(result.Error?.Code);
 
         var values = new List<int>();
         await foreach (int item in destination.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
@@ -150,8 +151,8 @@ public class GoChannelHelpersTests
             values.Add(item);
         }
 
-        Assert.Equal([1, 2], values);
-        Assert.True(destination.Reader.Completion.IsCompletedSuccessfully);
+        values.ShouldBe([1, 2]);
+        destination.Reader.Completion.IsCompletedSuccessfully.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -171,8 +172,8 @@ public class GoChannelHelpersTests
             provider: null,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.False(destination.Reader.Completion.IsCompleted);
+        result.IsSuccess.ShouldBeTrue();
+        destination.Reader.Completion.IsCompleted.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -193,8 +194,8 @@ public class GoChannelHelpersTests
             provider: null,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
     }
 
     [Fact(Timeout = 15_000)]
@@ -216,7 +217,7 @@ public class GoChannelHelpersTests
             provider: TimeProvider.System,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
+        result.IsSuccess.ShouldBeTrue();
 
         var values1 = new List<int>();
         await foreach (int item in destination1.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
@@ -230,10 +231,10 @@ public class GoChannelHelpersTests
             values2.Add(item);
         }
 
-        Assert.Equal([1, 2], values1);
-        Assert.Equal([1, 2], values2);
-        Assert.True(destination1.Reader.Completion.IsCompletedSuccessfully);
-        Assert.True(destination2.Reader.Completion.IsCompletedSuccessfully);
+        values1.ShouldBe([1, 2]);
+        values2.ShouldBe([1, 2]);
+        destination1.Reader.Completion.IsCompletedSuccessfully.ShouldBeTrue();
+        destination2.Reader.Completion.IsCompletedSuccessfully.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -254,8 +255,8 @@ public class GoChannelHelpersTests
             provider: TimeProvider.System,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.ChannelCompleted, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.ChannelCompleted);
     }
 
     [Fact(Timeout = 15_000)]
@@ -284,9 +285,9 @@ public class GoChannelHelpersTests
 
         Result<Go.Unit> result = await task;
 
-        Assert.True(result.IsFailure, result.Error?.Code);
-        Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
-        Assert.True(blockingWriter.Completed);
+        result.IsFailure.ShouldBeTrue(result.Error?.Code);
+        result.Error?.Code.ShouldBe(ErrorCodes.Timeout);
+        blockingWriter.Completed.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -308,8 +309,8 @@ public class GoChannelHelpersTests
 
         Result<Go.Unit> result = await task;
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
     }
 
     [Fact(Timeout = 15_000)]
@@ -320,13 +321,13 @@ public class GoChannelHelpersTests
 
         CompleteWriters([channel1.Writer, channel2.Writer], exception: null);
 
-        Assert.True(channel1.Reader.Completion.IsCompletedSuccessfully);
-        Assert.True(channel2.Reader.Completion.IsCompletedSuccessfully);
+        channel1.Reader.Completion.IsCompletedSuccessfully.ShouldBeTrue();
+        channel2.Reader.Completion.IsCompletedSuccessfully.ShouldBeTrue();
 
         Channel<int> channel3 = Channel.CreateUnbounded<int>();
         CompleteWriters([channel3.Writer], new InvalidOperationException());
 
-        Assert.True(channel3.Reader.Completion.IsFaulted);
+        channel3.Reader.Completion.IsFaulted.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -337,7 +338,7 @@ public class GoChannelHelpersTests
 
         Exception exception = CreateChannelOperationException(error);
 
-        Assert.IsType<OperationCanceledException>(exception);
+        exception.ShouldBeOfType<OperationCanceledException>();
     }
 
     [Fact(Timeout = 15_000)]
@@ -348,7 +349,7 @@ public class GoChannelHelpersTests
 
         Exception exception = CreateChannelOperationException(error);
 
-        Assert.Same(cause, exception);
+        exception.ShouldBeSameAs(cause);
     }
 }
 

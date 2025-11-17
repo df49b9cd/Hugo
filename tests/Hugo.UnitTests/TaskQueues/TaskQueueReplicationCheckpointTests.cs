@@ -1,4 +1,5 @@
 using Hugo.TaskQueues.Replication;
+using Shouldly;
 
 namespace Hugo.UnitTests.TaskQueues;
 
@@ -12,20 +13,20 @@ public sealed class TaskQueueReplicationCheckpointTests
 
         checkpoint = checkpoint.Advance("peer-a", 5, now);
 
-        Assert.Equal(5, checkpoint.GlobalPosition);
-        Assert.False(checkpoint.ShouldProcess("peer-a", 5));
-        Assert.True(checkpoint.ShouldProcess("peer-a", 6));
-        Assert.False(checkpoint.ShouldProcess("peer-b", 3));
+        checkpoint.GlobalPosition.ShouldBe(5);
+        checkpoint.ShouldProcess("peer-a", 5).ShouldBeFalse();
+        checkpoint.ShouldProcess("peer-a", 6).ShouldBeTrue();
+        checkpoint.ShouldProcess("peer-b", 3).ShouldBeFalse();
 
         checkpoint = checkpoint.Advance("peer-b", 3, now.AddSeconds(1));
 
-        Assert.True(checkpoint.TryGetPeerPosition("peer-b", out long peerB));
-        Assert.Equal(3, peerB);
-        Assert.Equal(5, checkpoint.GlobalPosition);
+        checkpoint.TryGetPeerPosition("peer-b", out long peerB).ShouldBeTrue();
+        peerB.ShouldBe(3);
+        checkpoint.GlobalPosition.ShouldBe(5);
 
         checkpoint = checkpoint.Advance("peer-b", 12, now.AddSeconds(2));
 
-        Assert.Equal(12, checkpoint.GlobalPosition);
-        Assert.False(checkpoint.ShouldProcess("peer-b", 11));
+        checkpoint.GlobalPosition.ShouldBe(12);
+        checkpoint.ShouldProcess("peer-b", 11).ShouldBeFalse();
     }
 }

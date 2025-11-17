@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Channels;
+using Shouldly;
 
 namespace Hugo.Tests.Primitives;
 
@@ -26,26 +27,26 @@ public sealed class PrioritizedChannelTests
         await writer.WriteAsync(1, priority: 0, ct);
         await writer.WriteAsync(2, priority: 0, ct);
 
-        Assert.True(await reader.WaitToReadAsync(ct));
+        await reader.WaitToReadAsync(ct).ShouldBeTrue();
 
         await writer.WriteAsync(3, priority: 0, ct);
 
         var blockedWrite = writer.WriteAsync(4, priority: 0, ct).AsTask();
         await Task.Delay(ShortDelay, ct);
-        Assert.False(blockedWrite.IsCompleted);
+        blockedWrite.IsCompleted.ShouldBeFalse();
 
-        Assert.True(reader.TryRead(out var first));
-        Assert.Equal(1, first);
+        reader.TryRead(out var first).ShouldBeTrue();
+        first.ShouldBe(1);
 
-        Assert.True(reader.TryRead(out var second));
-        Assert.Equal(2, second);
+        reader.TryRead(out var second).ShouldBeTrue();
+        second.ShouldBe(2);
 
-        Assert.True(reader.TryRead(out var third));
-        Assert.Equal(3, third);
+        reader.TryRead(out var third).ShouldBeTrue();
+        third.ShouldBe(3);
 
         await blockedWrite.WaitAsync(WriteReleaseTimeout, ct);
-        Assert.True(reader.TryRead(out var fourth));
-        Assert.Equal(4, fourth);
+        reader.TryRead(out var fourth).ShouldBeTrue();
+        fourth.ShouldBe(4);
     }
 
     [Fact(Timeout = 15_000)]
@@ -71,13 +72,13 @@ public sealed class PrioritizedChannelTests
             await writer.WriteAsync(20 + i, priority: 1, ct);
         }
 
-        Assert.True(await channel.Reader.WaitToReadAsync(ct));
+        await channel.Reader.WaitToReadAsync(ct).ShouldBeTrue();
 
         var prioritizedReader = channel.PrioritizedReader;
-        Assert.Equal(2, prioritizedReader.BufferedItemCount);
-        Assert.Equal(1, prioritizedReader.GetBufferedCountForPriority(0));
-        Assert.Equal(1, prioritizedReader.GetBufferedCountForPriority(1));
-        Assert.Equal(0, prioritizedReader.GetBufferedCountForPriority(2));
+        prioritizedReader.BufferedItemCount.ShouldBe(2);
+        prioritizedReader.GetBufferedCountForPriority(0).ShouldBe(1);
+        prioritizedReader.GetBufferedCountForPriority(1).ShouldBe(1);
+        prioritizedReader.GetBufferedCountForPriority(2).ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
@@ -91,7 +92,7 @@ public sealed class PrioritizedChannelTests
 
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 
-        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        await Should.ThrowAsync<OperationCanceledException>(async () =>
         {
             _ = await channel.Reader.WaitToReadAsync(cts.Token);
         });
@@ -107,8 +108,8 @@ public sealed class PrioritizedChannelTests
         var waitTask = reader.WaitToReadAsync(ct).AsTask();
         failingLane.Fail(new InvalidOperationException("lane failed"));
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => waitTask);
-        Assert.Equal("lane failed", ex.Message);
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => waitTask);
+        ex.Message.ShouldBe("lane failed");
     }
 
     [Fact(Timeout = 15_000)]
@@ -121,7 +122,7 @@ public sealed class PrioritizedChannelTests
         var waitTask = reader.WaitToReadAsync(ct).AsTask();
         cancelingLane.Cancel();
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() => waitTask);
+        await Should.ThrowAsync<OperationCanceledException>(() => waitTask);
     }
 
     [Fact(Timeout = 15_000)]
@@ -130,8 +131,8 @@ public sealed class PrioritizedChannelTests
         var lane = new ImmediateFaultLaneReader(new InvalidOperationException("sync fault"));
         var reader = CreatePrioritizedReader(lane);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => reader.WaitToReadAsync(TestContext.Current.CancellationToken).AsTask());
-        Assert.Equal("sync fault", ex.Message);
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => reader.WaitToReadAsync(TestContext.Current.CancellationToken).AsTask());
+        ex.Message.ShouldBe("sync fault");
     }
 
     private static PrioritizedChannel<int>.PrioritizedChannelReader CreatePrioritizedReader(params ChannelReader<int>[] lanes) =>

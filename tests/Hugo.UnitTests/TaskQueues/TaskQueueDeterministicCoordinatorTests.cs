@@ -1,6 +1,7 @@
 using Hugo;
 using Hugo.TaskQueues;
 using Hugo.TaskQueues.Replication;
+using Shouldly;
 
 namespace Hugo.UnitTests.TaskQueues;
 
@@ -52,10 +53,10 @@ public sealed class TaskQueueDeterministicCoordinatorTests
             },
             TestContext.Current.CancellationToken);
 
-        Assert.True(first.IsSuccess);
-        Assert.True(second.IsSuccess);
-        Assert.Equal(7, first.Value);
-        Assert.Equal(7, second.Value);
-        Assert.Equal(1, callCount);
+        first.IsSuccess.ShouldBeTrue();
+        second.IsSuccess.ShouldBeTrue();
+        first.Value.ShouldBe(7);
+        second.Value.ShouldBe(7);
+        callCount.ShouldBe(1);
     }
 }

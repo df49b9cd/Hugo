@@ -24,7 +24,7 @@ Hugo’s Go-like helpers shine only when you stitch them together. Bugs often em
 
 1. **Model user workflows.** Each spec should read like an example from the docs—channels, timers, wait groups, and policies working together.
 2. **Stay deterministic.** Drive time with `FakeTimeProvider` and use in-memory channels so every run is repeatable.
-3. **Assert business outcomes.** Check end results (`ErrorCodes.Timeout`, aggregated values, prioritised ordering) rather than internal state.
+3. **Validate business outcomes.** Check end results (`ErrorCodes.Timeout`, aggregated values, prioritised ordering) rather than internal state.
 
 ### Test Taxonomy
 
@@ -44,7 +44,7 @@ Hugo’s Go-like helpers shine only when you stitch them together. Bugs often em
 
 ## Setup
 
-1. Install the latest .NET 9 SDK and .NET 10 preview SDK.
+1. Install the latest .NET 10 preview SDK.
 2. Restore the workspace: `dotnet restore Hugo.slnx`.
 3. Ensure preview TFMs are allowed (set `DOTNET_ROLL_FORWARD=Major` if needed).
 
@@ -103,8 +103,8 @@ var result = await Select<int>(cancellationToken: TestContext.Current.Cancellati
     .Default(static () => 0)
     .ExecuteAsync();
 
-Assert.True(result.IsSuccess);
-Assert.Equal(9, result.Value);
+result.IsSuccess.ShouldBeTrue();
+result.Value.ShouldBe(9);
 ```
 
 This pattern demonstrates how select builders prioritize ready cases over defaults and is ideal for documenting fan-in behavior.
@@ -116,10 +116,10 @@ var channel = BoundedChannel<int>(capacity: 1)
     .WithFullMode(BoundedChannelFullMode.DropOldest)
     .Build();
 
-Assert.True(channel.Writer.TryWrite(1));
-Assert.True(channel.Writer.TryWrite(2));
-Assert.True(channel.Reader.TryRead(out var value));
-Assert.Equal(2, value);
+channel.Writer.TryWrite(1).ShouldBeTrue();
+channel.Writer.TryWrite(2).ShouldBeTrue();
+channel.Reader.TryRead(out var value).ShouldBeTrue();
+value.ShouldBe(2);
 ```
 
 Use this template when validating bounded capacity, drop modes, or prioritized channels without spinning real workers.
@@ -139,8 +139,8 @@ var result = await WithTimeoutAsync(
     timeProvider: provider,
     TestContext.Current.CancellationToken);
 
-Assert.True(result.IsFailure);
-Assert.Equal(ErrorCodes.Timeout, result.Error?.Code);
+result.IsFailure.ShouldBeTrue();
+result.Error?.Code.ShouldBe(ErrorCodes.Timeout);
 ```
 
 Tie timeout-oriented assertions to `FakeTimeProvider` to keep policies repeatable.
@@ -152,10 +152,10 @@ var provider = new FakeTimeProvider();
 var reader = After(TimeSpan.FromSeconds(5), provider, TestContext.Current.CancellationToken);
 
 var readTask = reader.ReadAsync(TestContext.Current.CancellationToken).AsTask();
-Assert.False(readTask.IsCompleted);
+readTask.IsCompleted.ShouldBeFalse();
 
 provider.Advance(TimeSpan.FromSeconds(5));
-Assert.Equal(42, await readTask);
+ (await readTask).ShouldBe(42);
 ```
 
 Feature tests should cover lifecycle events—single-fire timers, cancellable tickers, and backpressure on channel readers.

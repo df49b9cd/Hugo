@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Shouldly;
 
 namespace Hugo.Tests;
 
@@ -6,11 +7,11 @@ public class GoWaitGroupExtensionsTests
 {
     [Fact(Timeout = 15_000)]
     public void Go_ShouldThrow_WhenWaitGroupNull() =>
-        Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static () => Task.CompletedTask));
+        Should.Throw<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static () => Task.CompletedTask));
 
     [Fact(Timeout = 15_000)]
     public void Go_ShouldThrow_WhenFuncNull() =>
-        Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<Task>)null!));
+        Should.Throw<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<Task>)null!));
 
     [Fact(Timeout = 15_000)]
     public async Task Go_ShouldRunFunctionAndTrackWaitGroup()
@@ -26,17 +27,17 @@ public class GoWaitGroupExtensionsTests
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, counter);
-        Assert.Equal(0, wg.Count);
+        counter.ShouldBe(1);
+        wg.Count.ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
     public void Go_WithCancellationToken_ShouldThrow_WhenWaitGroupNull() =>
-        Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static _ => Task.CompletedTask, CancellationToken.None));
+        Should.Throw<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(null!, static _ => Task.CompletedTask, CancellationToken.None));
 
     [Fact(Timeout = 15_000)]
     public void Go_WithCancellationToken_ShouldThrow_WhenFuncNull() =>
-        Assert.Throws<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<CancellationToken, Task>)null!, CancellationToken.None));
+        Should.Throw<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<CancellationToken, Task>)null!, CancellationToken.None));
 
     [Fact(Timeout = 15_000)]
     public async Task Go_WithCancellationToken_ShouldPassTokenAndComplete()
@@ -53,9 +54,9 @@ public class GoWaitGroupExtensionsTests
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 
-        var token = Assert.Single(observed);
-        Assert.Equal(cts.Token, token);
-        Assert.Equal(0, wg.Count);
+        var token = observed.ShouldHaveSingleItem();
+        token.ShouldBe(cts.Token);
+        wg.Count.ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
@@ -74,8 +75,8 @@ public class GoWaitGroupExtensionsTests
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.False(invoked);
-        Assert.Equal(0, wg.Count);
+        invoked.ShouldBeFalse();
+        wg.Count.ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
@@ -87,7 +88,7 @@ public class GoWaitGroupExtensionsTests
 
         GoWaitGroupExtensions.Go(wg, async () =>
         {
-            Assert.Equal(scheduler, TaskScheduler.Current);
+            TaskScheduler.Current.ShouldBe(scheduler);
             executed.TrySetResult();
             await Task.CompletedTask;
         }, scheduler: scheduler);
@@ -95,7 +96,7 @@ public class GoWaitGroupExtensionsTests
         await wg.WaitAsync(TestContext.Current.CancellationToken);
         await executed.Task.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, scheduler.ExecutionCount);
+        scheduler.ExecutionCount.ShouldBe(1);
     }
 
     private sealed class InlineTaskScheduler : TaskScheduler

@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using Shouldly;
 
 using Hugo.Policies;
 using Hugo.Sagas;
@@ -37,9 +38,9 @@ public class ResultPipelineEnhancementsTests
 
         var result = await Result.WhenAll(operations, policy: new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse), cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal([1, 2], result.Value);
-        Assert.Equal(0, compensations);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe([1, 2]);
+        compensations.ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
@@ -47,8 +48,8 @@ public class ResultPipelineEnhancementsTests
     {
         var result = await Result.WhenAll(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBeEmpty();
     }
 
     [Fact(Timeout = 15_000)]
@@ -56,7 +57,7 @@ public class ResultPipelineEnhancementsTests
     {
         var operations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>?[] { null };
 
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await Result.WhenAll(operations!, cancellationToken: TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<ArgumentNullException>(async () => await Result.WhenAll(operations!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -80,8 +81,8 @@ public class ResultPipelineEnhancementsTests
         var policy = new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse);
         var result = await Result.WhenAll(operations, policy, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(1, compensationInvoked);
+        result.IsFailure.ShouldBeTrue();
+        compensationInvoked.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -114,9 +115,9 @@ public class ResultPipelineEnhancementsTests
         var policy = new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse);
         var result = await Result.WhenAny([fast, slow], policy, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("fast", result.Value);
-        Assert.Equal(1, compensation); // slow compensation should fire.
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("fast");
+        compensation.ShouldBe(1); // slow compensation should fire.
     }
 
     [Fact(Timeout = 15_000)]
@@ -139,8 +140,8 @@ public class ResultPipelineEnhancementsTests
 
         var result = await Result.WhenAny([winner, failingPeer], cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("winner", result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("winner");
     }
 
     [Fact(Timeout = 15_000)]
@@ -157,8 +158,8 @@ public class ResultPipelineEnhancementsTests
 
         var result = await Result.WhenAny([winner, canceledPeer], cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(1, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -175,8 +176,8 @@ public class ResultPipelineEnhancementsTests
 
         var result = await Result.WhenAny(ops, cancellationToken: cts.Token);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
     }
 
     [Fact(Timeout = 15_000)]
@@ -184,9 +185,9 @@ public class ResultPipelineEnhancementsTests
     {
         var result = await Result.WhenAny(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
-        Assert.Equal("No operations provided for WhenAny.", result.Error?.Message);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
+        result.Error?.Message.ShouldBe("No operations provided for WhenAny.");
     }
 
     [Fact(Timeout = 15_000)]
@@ -201,11 +202,11 @@ public class ResultPipelineEnhancementsTests
 
         var result = await Result.WhenAny(operations, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal("All operations failed.", result.Error?.Message);
-        Assert.True(result.Error!.Metadata.TryGetValue("errors", out var nested));
-        var errors = Assert.IsType<Error[]>(nested);
-        Assert.Equal(2, errors.Length);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Message.ShouldBe("All operations failed.");
+        result.Error!.Metadata.TryGetValue("errors", out var nested).ShouldBeTrue();
+        var errors = nested.ShouldBeOfType<Error[]>();
+        errors.Length.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -220,9 +221,9 @@ public class ResultPipelineEnhancementsTests
 
         var result = await Result.WhenAny(operations, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
-        Assert.Equal("All operations were canceled.", result.Error?.Message);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+        result.Error?.Message.ShouldBe("All operations were canceled.");
     }
 
     [Fact(Timeout = 15_000)]
@@ -245,8 +246,8 @@ public class ResultPipelineEnhancementsTests
         var policy = new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse);
         var result = await saga.ExecuteAsync(policy, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(1, compensation);
+        result.IsFailure.ShouldBeTrue();
+        compensation.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -287,10 +288,10 @@ public class ResultPipelineEnhancementsTests
 
         var result = await aggregateTask;
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
         await compensationFinished.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
-        Assert.Equal(1, compensationInvocations);
+        compensationInvocations.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -326,10 +327,10 @@ public class ResultPipelineEnhancementsTests
 
         var result = await Result.WhenAll(operations, policy: policy, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
         await compensationFinished.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
-        Assert.Equal(1, compensationInvocations);
+        compensationInvocations.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -364,9 +365,9 @@ public class ResultPipelineEnhancementsTests
 
         var result = await Result.WhenAll(operations, policy: policy, cancellationToken: cts.Token);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
-        Assert.Equal(0, compensationInvocations);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+        compensationInvocations.ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
@@ -382,9 +383,9 @@ public class ResultPipelineEnhancementsTests
 
         var result = await saga.ExecuteAsync(ResultExecutionPolicy.None, TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.True(result.Value.TryGet("chargeResult", out string? charge));
-        Assert.Equal("reserveId-charged", charge);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.TryGet("chargeResult", out string? charge).ShouldBeTrue();
+        charge.ShouldBe("reserveId-charged");
     }
 
     [Fact(Timeout = 15_000)]
@@ -398,11 +399,11 @@ public class ResultPipelineEnhancementsTests
         var collected = new List<int>();
         await foreach (var item in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
         {
-            Assert.True(item.IsSuccess);
+            item.IsSuccess.ShouldBeTrue();
             collected.Add(item.Value);
         }
 
-        Assert.Equal(new[] { 1, 2, 3 }, collected);
+        collected.ShouldBe(new[] { 1, 2, 3 });
 
         static async IAsyncEnumerable<Result<int>> GetSequence([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -432,12 +433,12 @@ public class ResultPipelineEnhancementsTests
         var collected = new List<int>();
         await foreach (var result in channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
         {
-            Assert.True(result.IsSuccess);
+            result.IsSuccess.ShouldBeTrue();
             collected.Add(result.Value);
         }
 
         collected.Sort();
-        Assert.Equal([0, 1, 2, 3], collected);
+        collected.ShouldBe([0, 1, 2, 3]);
     }
 
     [Fact(Timeout = 15_000)]
@@ -459,7 +460,7 @@ public class ResultPipelineEnhancementsTests
             yield return Result.Ok(11);
         }
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        var exception = await Should.ThrowAsync<InvalidOperationException>(async () =>
             await Result.FanInAsync([Faulty(TestContext.Current.CancellationToken), Healthy(TestContext.Current.CancellationToken)], channel.Writer, TestContext.Current.CancellationToken));
 
         var buffered = new List<Result<int>>();
@@ -468,10 +469,10 @@ public class ResultPipelineEnhancementsTests
             buffered.Add(item);
         }
 
-        Assert.Contains(buffered, result => result.IsSuccess && result.Value == 1);
-        Assert.True(channel.Reader.Completion.IsFaulted);
-        var completionException = await Assert.ThrowsAsync<InvalidOperationException>(async () => await channel.Reader.Completion);
-        Assert.Same(exception, completionException);
+        result => result.IsSuccess && result.Value == 1.ShouldContain(buffered);
+        channel.Reader.Completion.IsFaulted.ShouldBeTrue();
+        var completionException = await Should.ThrowAsync<InvalidOperationException>(async () => await channel.Reader.Completion);
+        completionException.ShouldBeSameAs(exception);
     }
 
     [Fact(Timeout = 15_000)]
@@ -492,8 +493,8 @@ public class ResultPipelineEnhancementsTests
         var firstValues = await ReadAllValuesAsync(first.Reader);
         var secondValues = await ReadAllValuesAsync(second.Reader);
 
-        Assert.Equal([3, 4], firstValues);
-        Assert.Equal([3, 4], secondValues);
+        firstValues.ShouldBe([3, 4]);
+        secondValues.ShouldBe([3, 4]);
     }
 
     [Fact(Timeout = 15_000)]
@@ -508,13 +509,13 @@ public class ResultPipelineEnhancementsTests
         var evenResults = await ReadAllResultsAsync(evenWriter.Reader);
         var oddResults = await ReadAllResultsAsync(oddWriter.Reader);
 
-        Assert.All(evenResults, static result => Assert.True(result.IsSuccess));
-        Assert.Equal([2], [.. evenResults.Select(static result => result.Value)]);
+        evenResults.ShouldAllBe(static result => result.IsSuccess);
+        [.. evenResults.Select(static result => result.Value)].ShouldBe([2]);
 
-        Assert.Equal(2, oddResults.Count);
-        Assert.True(oddResults[0].IsSuccess);
-        Assert.Equal(1, oddResults[0].Value);
-        Assert.True(oddResults[1].IsFailure);
+        oddResults.Count.ShouldBe(2);
+        oddResults[0].IsSuccess.ShouldBeTrue();
+        oddResults[0].Value.ShouldBe(1);
+        oddResults[1].IsFailure.ShouldBeTrue();
 
         static async IAsyncEnumerable<Result<int>> GetSequence()
         {
@@ -534,15 +535,15 @@ public class ResultPipelineEnhancementsTests
         var toChannelTask = Sequence(linkedCts.Token).ToChannelAsync(channel.Writer, linkedCts.Token).AsTask();
 
         var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
-        Assert.True(first.IsSuccess);
+        first.IsSuccess.ShouldBeTrue();
 
         cts.Cancel();
 
         await toChannelTask;
 
         var sentinel = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
-        Assert.True(sentinel.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, sentinel.Error?.Code);
+        sentinel.IsFailure.ShouldBeTrue();
+        sentinel.Error?.Code.ShouldBe(ErrorCodes.Canceled);
         await channel.Reader.Completion;
 
         static async IAsyncEnumerable<Result<int>> Sequence([EnumeratorCancellation] CancellationToken ct = default)
@@ -560,13 +561,13 @@ public class ResultPipelineEnhancementsTests
         var batches = new List<IReadOnlyList<int>>();
         await foreach (var batch in source.WindowAsync(2, TestContext.Current.CancellationToken))
         {
-            Assert.True(batch.IsSuccess);
+            batch.IsSuccess.ShouldBeTrue();
             batches.Add(batch.Value);
         }
 
-        Assert.Equal(2, batches.Count);
-        Assert.Equal([1, 2], batches[0]);
-        Assert.Equal([3], batches[1]);
+        batches.Count.ShouldBe(2);
+        batches[0].ShouldBe([1, 2]);
+        batches[1].ShouldBe([3]);
 
         static async IAsyncEnumerable<Result<int>> GetSequence([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -589,17 +590,17 @@ public class ResultPipelineEnhancementsTests
         };
 
         var grouped = Result.Group(data, static value => value % 2);
-        Assert.True(grouped.IsSuccess);
-        Assert.Equal(2, grouped.Value.Count);
+        grouped.IsSuccess.ShouldBeTrue();
+        grouped.Value.Count.ShouldBe(2);
 
         var partitioned = Result.Partition(data, static value => value % 2 == 0);
-        Assert.True(partitioned.IsSuccess);
-        Assert.Equal([2, 4], partitioned.Value.True);
-        Assert.Equal([1, 3], partitioned.Value.False);
+        partitioned.IsSuccess.ShouldBeTrue();
+        partitioned.Value.True.ShouldBe([2, 4]);
+        partitioned.Value.False.ShouldBe([1, 3]);
 
         var windowed = Result.Window(data, 3);
-        Assert.True(windowed.IsSuccess);
-        Assert.Equal(2, windowed.Value.Count);
+        windowed.IsSuccess.ShouldBeTrue();
+        windowed.Value.Count.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -613,18 +614,18 @@ public class ResultPipelineEnhancementsTests
         };
 
         var grouped = Result.Group(data, value => value);
-        Assert.True(grouped.IsFailure);
-        Assert.Same(error, grouped.Error);
+        grouped.IsFailure.ShouldBeTrue();
+        grouped.Error.ShouldBeSameAs(error);
 
         var partitioned = Result.Partition(data, value => value > 0);
-        Assert.True(partitioned.IsFailure);
-        Assert.Same(error, partitioned.Error);
+        partitioned.IsFailure.ShouldBeTrue();
+        partitioned.Error.ShouldBeSameAs(error);
 
         var windowed = Result.Window(data, 2);
-        Assert.True(windowed.IsFailure);
-        Assert.Same(error, windowed.Error);
+        windowed.IsFailure.ShouldBeTrue();
+        windowed.Error.ShouldBeSameAs(error);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => Result.Window(data, 0));
+        Should.Throw<ArgumentOutOfRangeException>(() => Result.Window(data, 0));
     }
 
     [Fact(Timeout = 15_000)]
@@ -645,9 +646,9 @@ public class ResultPipelineEnhancementsTests
             return Result.Ok(42);
         }, policy, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(42, result.Value);
-        Assert.Equal(3, attempts);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(42);
+        attempts.ShouldBe(3);
     }
 
     [Fact(Timeout = 15_000)]
@@ -662,9 +663,9 @@ public class ResultPipelineEnhancementsTests
             return ValueTask.FromResult(Result.Fail<int>(Error.From("still failing", ErrorCodes.Exception)));
         }, policy, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(3, attempts);
-        Assert.Equal("still failing", result.Error?.Message);
+        result.IsFailure.ShouldBeTrue();
+        attempts.ShouldBe(3);
+        result.Error?.Message.ShouldBe("still failing");
     }
 
     private static async Task<int[]> ReadAllValuesAsync(ChannelReader<Result<int>> reader)
@@ -672,7 +673,7 @@ public class ResultPipelineEnhancementsTests
         var values = new List<int>();
         await foreach (var result in reader.ReadAllAsync(TestContext.Current.CancellationToken))
         {
-            Assert.True(result.IsSuccess);
+            result.IsSuccess.ShouldBeTrue();
             values.Add(result.Value);
         }
 

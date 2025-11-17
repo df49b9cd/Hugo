@@ -11,7 +11,7 @@ This sample extends the deterministic worker pipeline to a relational deployment
 
 ## Prerequisites
 
-- .NET 9 or .NET 10 SDK.
+- .NET 10 SDK.
 - SQL Server instance (LocalDB, Docker, Azure SQL, etc.).
 - Optional: OpenTelemetry collector or Prometheus endpoint if you want to forward telemetry.
 

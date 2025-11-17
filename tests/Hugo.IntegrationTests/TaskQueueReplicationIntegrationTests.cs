@@ -1,5 +1,6 @@
 using Hugo.TaskQueues;
 using Hugo.TaskQueues.Replication;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -48,9 +49,9 @@ public sealed class TaskQueueReplicationIntegrationTests
             TaskQueueReplicationEventKind.Completed
         ];
 
-        Assert.Equal(kinds, captured.Select(e => e.Kind));
-        Assert.Equal([1, 2, 3], captured.Select(e => e.SequenceNumber));
-        Assert.All(captured, evt => Assert.Equal("replication.integration", evt.QueueName));
+        captured.Select(e => e.Kind).ShouldBe(kinds);
+        captured.Select(e => e.SequenceNumber).ShouldBe([1, 2, 3]);
+        captured.ShouldAllBe(evt => evt.QueueName == "replication.integration");
     }
 
     [Fact(Timeout = 15_000)]
@@ -91,12 +92,12 @@ public sealed class TaskQueueReplicationIntegrationTests
         var firstSink = new RecordingReplicationSink("stream", store, provider);
         await firstSink.ProcessAsync(ToAsyncEnumerable(events.Take(3)), TestContext.Current.CancellationToken);
 
-        Assert.Equal(new long[] { 1, 2, 3 }, firstSink.Processed);
+        firstSink.Processed.ShouldBe(new long[] { 1, 2, 3 });
 
         var resumedSink = new RecordingReplicationSink("stream", store, provider);
         await resumedSink.ProcessAsync(ToAsyncEnumerable(events), TestContext.Current.CancellationToken);
 
-        Assert.Equal(new long[] { 4, 5, 6 }, resumedSink.Processed);
+        resumedSink.Processed.ShouldBe(new long[] { 4, 5, 6 });
     }
 
     private static async IAsyncEnumerable<TaskQueueReplicationEvent<int>> ToAsyncEnumerable(IEnumerable<TaskQueueReplicationEvent<int>> events)

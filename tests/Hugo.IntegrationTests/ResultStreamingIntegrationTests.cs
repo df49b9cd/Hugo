@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Shouldly;
 
 using Hugo;
 
@@ -20,8 +21,8 @@ public class ResultStreamingIntegrationTests
 
         var collected = await ReadAll(writer.Reader);
 
-        Assert.Equal(3, collected.Count);
-        Assert.Equal([1, 2, 3], collected.Select(r => r.Value).OrderBy(v => v));
+        collected.Count.ShouldBe(3);
+        collected.Select(r => r.Value).OrderBy(v => v).ShouldBe([1, 2, 3]);
     }
 
     private static async IAsyncEnumerable<Result<int>> Sequence(IEnumerable<int> values)

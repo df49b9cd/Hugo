@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -52,12 +53,12 @@ public class DeterministicGateTests
             null,
             TestContext.Current.CancellationToken);
 
-        Assert.True(first.IsSuccess);
-        Assert.True(second.IsSuccess);
-        Assert.Equal(42, first.Value);
-        Assert.Equal(42, second.Value);
-        Assert.Equal(1, upgradedCount);
-        Assert.Equal(0, legacyCount);
+        first.IsSuccess.ShouldBeTrue();
+        second.IsSuccess.ShouldBeTrue();
+        first.Value.ShouldBe(42);
+        second.Value.ShouldBe(42);
+        upgradedCount.ShouldBe(1);
+        legacyCount.ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
@@ -106,12 +107,12 @@ public class DeterministicGateTests
             null,
             TestContext.Current.CancellationToken);
 
-        Assert.True(first.IsSuccess);
-        Assert.True(second.IsSuccess);
-        Assert.Equal(50, first.Value);
-        Assert.Equal(50, second.Value);
-        Assert.Equal(0, upgradedCount);
-        Assert.Equal(1, legacyCount);
+        first.IsSuccess.ShouldBeTrue();
+        second.IsSuccess.ShouldBeTrue();
+        first.Value.ShouldBe(50);
+        second.Value.ShouldBe(50);
+        upgradedCount.ShouldBe(0);
+        legacyCount.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -132,8 +133,8 @@ public class DeterministicGateTests
             null,
             TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Validation, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
 
     [Fact(Timeout = 15_000)]
@@ -166,12 +167,12 @@ public class DeterministicGateTests
         var first = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
         var second = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(first.IsSuccess);
-        Assert.True(second.IsSuccess);
-        Assert.Equal(99, first.Value);
-        Assert.Equal(99, second.Value);
-        Assert.Equal(1, executions);
-        Assert.True(store.TryGet("change.workflow::v2::upgrade", out _));
+        first.IsSuccess.ShouldBeTrue();
+        second.IsSuccess.ShouldBeTrue();
+        first.Value.ShouldBe(99);
+        second.Value.ShouldBe(99);
+        executions.ShouldBe(1);
+        store.TryGet("change.workflow::v2::upgrade", out _).ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -190,8 +191,8 @@ public class DeterministicGateTests
 
         var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("fallback", result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("fallback");
     }
 
     [Fact(Timeout = 15_000)]
@@ -208,11 +209,11 @@ public class DeterministicGateTests
 
         var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.VersionConflict, result.Error?.Code);
-        Assert.NotNull(result.Error);
-        Assert.True(result.Error!.Metadata.TryGetValue("version", out var metadataVersion));
-        Assert.Equal(2, Assert.IsType<int>(metadataVersion));
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.VersionConflict);
+        result.Error.ShouldNotBeNull();
+        result.Error!.Metadata.TryGetValue("version", out var metadataVersion).ShouldBeTrue();
+        metadataVersion.ShouldBeOfType<int>().ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -245,14 +246,14 @@ public class DeterministicGateTests
 
         var first = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(first.IsSuccess);
-        Assert.Equal("new", first.Value);
-        Assert.Equal(1, newCount);
-        Assert.Equal(0, existingCount);
+        first.IsSuccess.ShouldBeTrue();
+        first.Value.ShouldBe("new");
+        newCount.ShouldBe(1);
+        existingCount.ShouldBe(0);
 
         var changeIdExisting = "change.workflow.predicates.existing";
         var decision = versionGate.Require(changeIdExisting, 1, 2, _ => 2);
-        Assert.True(decision.IsSuccess);
+        decision.IsSuccess.ShouldBeTrue();
 
         var newBranchHits = 0;
         var versionBranchHits = 0;
@@ -275,10 +276,10 @@ public class DeterministicGateTests
 
         var second = await existingWorkflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(second.IsSuccess);
-        Assert.Equal("existing", second.Value);
-        Assert.Equal(0, newBranchHits);
-        Assert.Equal(1, versionBranchHits);
+        second.IsSuccess.ShouldBeTrue();
+        second.Value.ShouldBe("existing");
+        newBranchHits.ShouldBe(0);
+        versionBranchHits.ShouldBe(1);
     }
 
     [Theory]
@@ -289,7 +290,7 @@ public class DeterministicGateTests
         var (gate, _, _) = CreateGate();
         var builder = gate.Workflow<int>("change.workflow.bounds.version", 1, 2);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Should.Throw<ArgumentOutOfRangeException>(() =>
             builder.ForVersion(version, (ctx, ct) => ValueTask.FromResult(Result.Ok(1))));
     }
 
@@ -302,7 +303,7 @@ public class DeterministicGateTests
         var (gate, _, _) = CreateGate();
         var builder = gate.Workflow<int>("change.workflow.bounds.range", 1, 3);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Should.Throw<ArgumentOutOfRangeException>(() =>
             builder.ForRange(minVersion, maxVersion, (ctx, ct) => ValueTask.FromResult(Result.Ok(1))));
     }
 
@@ -321,9 +322,9 @@ public class DeterministicGateTests
 
         var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("change.workflow.scope::v1::step", effectId);
-        Assert.True(store.TryGet("change.workflow.scope::v1::step", out _));
+        result.IsSuccess.ShouldBeTrue();
+        effectId.ShouldBe("change.workflow.scope::v1::step");
+        store.TryGet("change.workflow.scope::v1::step", out _).ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -336,8 +337,8 @@ public class DeterministicGateTests
 
         var result = await workflow.ExecuteAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
     }
 
     [RequiresDynamicCode("Calls Hugo.VersionGate.VersionGate(IDeterministicStateStore, TimeProvider, JsonSerializerOptions)")]

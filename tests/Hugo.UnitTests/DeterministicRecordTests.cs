@@ -1,3 +1,4 @@
+using Shouldly;
 namespace Hugo.Tests;
 
 public class DeterministicRecordTests
@@ -9,7 +10,7 @@ public class DeterministicRecordTests
     {
         var payload = new byte[] { 1 };
 
-        Assert.Throws<ArgumentException>(() => new DeterministicRecord(kind, 1, payload, DateTimeOffset.UtcNow));
+        Should.Throw<ArgumentException>(() => new DeterministicRecord(kind, 1, payload, DateTimeOffset.UtcNow));
     }
 
     [Fact(Timeout = 15_000)]
@@ -17,7 +18,7 @@ public class DeterministicRecordTests
     {
         var payload = new byte[] { 1 };
 
-        Assert.Throws<ArgumentException>(() => new DeterministicRecord(null!, 1, payload, DateTimeOffset.UtcNow));
+        Should.Throw<ArgumentException>(() => new DeterministicRecord(null!, 1, payload, DateTimeOffset.UtcNow));
     }
 
     [Fact(Timeout = 15_000)]
@@ -28,6 +29,6 @@ public class DeterministicRecordTests
 
         payload[0] = 42;
 
-        Assert.Equal(1, record.Payload.Span[0]);
+        record.Payload.Span[0].ShouldBe(1);
     }
 }

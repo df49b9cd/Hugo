@@ -1,4 +1,5 @@
 using System.Reflection;
+using Shouldly;
 
 using Hugo.Policies;
 
@@ -29,10 +30,10 @@ public class ErrGroupTests
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(2, counter);
-        Assert.Null(group.Error);
-        Assert.False(group.Token.IsCancellationRequested);
+        result.IsSuccess.ShouldBeTrue();
+        counter.ShouldBe(2);
+        group.Error.ShouldBeNull();
+        group.Token.IsCancellationRequested.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -67,12 +68,12 @@ public class ErrGroupTests
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal("boom", result.Error?.Message);
-        Assert.Equal(group.Error?.Message, result.Error?.Message);
-        Assert.True(group.Token.IsCancellationRequested);
-        Assert.True(result.Error?.Code == ErrorCodes.Exception);
-        Assert.True(await cancellationObserved.Task);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Message.ShouldBe("boom");
+        result.Error?.Message.ShouldBe(group.Error?.Message);
+        group.Token.IsCancellationRequested.ShouldBeTrue();
+        result.Error?.Code == ErrorCodes.Exception.ShouldBeTrue();
+        await cancellationObserved.Task.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -88,10 +89,10 @@ public class ErrGroupTests
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
-        Assert.Equal("explode", result.Error?.Message);
-        Assert.True(group.Token.IsCancellationRequested);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
+        result.Error?.Message.ShouldBe("explode");
+        group.Token.IsCancellationRequested.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -110,9 +111,9 @@ public class ErrGroupTests
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
-        Assert.True(group.Token.IsCancellationRequested);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+        group.Token.IsCancellationRequested.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
@@ -129,9 +130,9 @@ public class ErrGroupTests
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.True(observedToken.CanBeCanceled);
-        Assert.Equal(group.Token, observedToken);
+        result.IsSuccess.ShouldBeTrue();
+        observedToken.CanBeCanceled.ShouldBeTrue();
+        observedToken.ShouldBe(group.Token);
     }
 
     [Fact(Timeout = 15_000)]
@@ -149,8 +150,8 @@ public class ErrGroupTests
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(1, counter);
+        result.IsSuccess.ShouldBeTrue();
+        counter.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -162,9 +163,9 @@ public class ErrGroupTests
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
-        Assert.Contains("action failed", result.Error?.Message);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
+        result.Error?.Message.ShouldContain("action failed");
     }
 
     [Fact(Timeout = 15_000)]
@@ -181,15 +182,15 @@ public class ErrGroupTests
 
         await started.Task;
         group.Cancel();
-        Assert.NotNull(group.Error);
-        Assert.Equal(ErrorCodes.Canceled, group.Error?.Code);
+        group.Error.ShouldNotBeNull();
+        group.Error?.Code.ShouldBe(ErrorCodes.Canceled);
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
-        Assert.True(group.Token.IsCancellationRequested);
-        Assert.Same(group.Error, result.Error);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+        group.Token.IsCancellationRequested.ShouldBeTrue();
+        result.Error.ShouldBeSameAs(group.Error);
     }
 
     [Fact(Timeout = 15_000)]
@@ -209,8 +210,8 @@ public class ErrGroupTests
 
         var result = await waitTask;
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
 
         group.Cancel();
     }
@@ -221,15 +222,15 @@ public class ErrGroupTests
         using var group = new ErrGroup();
 
         group.Cancel();
-        Assert.NotNull(group.Error);
-        Assert.Equal(ErrorCodes.Canceled, group.Error?.Code);
+        group.Error.ShouldNotBeNull();
+        group.Error?.Code.ShouldBe(ErrorCodes.Canceled);
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
-        Assert.True(group.Token.IsCancellationRequested);
-        Assert.Same(group.Error, result.Error);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+        group.Token.IsCancellationRequested.ShouldBeTrue();
+        result.Error.ShouldBeSameAs(group.Error);
     }
 
     [Fact(Timeout = 15_000)]
@@ -247,15 +248,15 @@ public class ErrGroupTests
         await failureRecorded.Task;
         SpinWait.SpinUntil(() => group.Error is not null, TimeSpan.FromSeconds(1));
         group.Cancel();
-        Assert.Equal(ErrorCodes.Exception, group.Error?.Code);
-        Assert.Equal("boom", group.Error?.Message);
+        group.Error?.Code.ShouldBe(ErrorCodes.Exception);
+        group.Error?.Message.ShouldBe("boom");
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
-        Assert.Equal("boom", result.Error?.Message);
-        Assert.Same(group.Error, result.Error);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
+        result.Error?.Message.ShouldBe("boom");
+        result.Error.ShouldBeSameAs(group.Error);
     }
 
     [Theory]
@@ -265,9 +266,9 @@ public class ErrGroupTests
         var group = new ErrGroup();
         group.Dispose();
 
-        var exception = Assert.Throws<ObjectDisposedException>(() => register(group));
+        var exception = Should.Throw<ObjectDisposedException>(() => register(group));
 
-        Assert.Equal(typeof(ErrGroup).FullName, exception.ObjectName);
+        exception.ObjectName.ShouldBe(typeof(ErrGroup).FullName);
     }
 
     [Fact(Timeout = 15_000)]
@@ -283,7 +284,7 @@ public class ErrGroupTests
         {
             ready.Set();
             disposed.Wait(cancellationToken);
-            return Assert.Throws<ObjectDisposedException>(() => group.Go(() =>
+            return Should.Throw<ObjectDisposedException>(() => group.Go(() =>
             {
                 Interlocked.Increment(ref executed);
             }));
@@ -299,8 +300,8 @@ public class ErrGroupTests
         var exception = await registration;
         await tearDown;
 
-        Assert.Equal(typeof(ErrGroup).FullName, exception.ObjectName);
-        Assert.Equal(0, Volatile.Read(ref executed));
+        exception.ObjectName.ShouldBe(typeof(ErrGroup).FullName);
+        Volatile.Read(ref executed).ShouldBe(0);
     }
 
     [Fact(Timeout = 15_000)]
@@ -320,7 +321,7 @@ public class ErrGroupTests
         await started.Task;
         group.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waitingTask);
+        await Should.ThrowAsync<OperationCanceledException>(() => waitingTask);
     }
 
     public static IEnumerable<object[]> DisposedGoOverloads()
@@ -386,16 +387,16 @@ public class ErrGroupTests
         await compensationStarted.Task;
         var completed = await Task.WhenAny(peerCanceled.Task, Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
 
-        Assert.Same(peerCanceled.Task, completed);
-        Assert.False(allowCompensationToFinish.Task.IsCompleted);
+        completed.ShouldBeSameAs(peerCanceled.Task);
+        allowCompensationToFinish.Task.IsCompleted.ShouldBeFalse();
 
         allowCompensationToFinish.TrySetResult();
         await simulatedCompensationCompleted.Task.WaitAsync(TestContext.Current.CancellationToken);
 
         var result = await group.WaitAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorCodes.Exception, result.Error?.Code);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
     }
 
     [Fact(Timeout = 15_000)]
@@ -406,18 +407,18 @@ public class ErrGroupTests
         var aggregated = Error.Aggregate("ErrGroup step failed with compensation error.", failure, Error.From("compensation failed", ErrorCodes.Exception));
 
         var trySetError = typeof(ErrGroup).GetMethod("TrySetError", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(trySetError);
+        trySetError.ShouldNotBeNull();
         var setResult = (bool?)trySetError!.Invoke(group, [failure]);
-        Assert.True(setResult);
+        setResult.ShouldBeTrue();
 
         var updateError = typeof(ErrGroup).GetMethod("UpdateError", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(updateError);
+        updateError.ShouldNotBeNull();
         updateError!.Invoke(group, [failure, aggregated]);
 
         var errorField = typeof(ErrGroup).GetField("_error", BindingFlags.Instance | BindingFlags.NonPublic);
         var recorded = (Error?)errorField?.GetValue(group);
 
-        Assert.Equal(aggregated, recorded);
+        recorded.ShouldBe(aggregated);
     }
 
     [Fact(Timeout = 15_000)]
@@ -434,8 +435,8 @@ public class ErrGroupTests
 
         var error = await Result.RunCompensationAsync(policy, scope, CancellationToken.None);
 
-        Assert.Null(error);
-        Assert.Equal(1, invocationCount);
+        error.ShouldBeNull();
+        invocationCount.ShouldBe(1);
     }
 
     private static Func<CancellationToken, ValueTask<Result<Unit>>> AsValueTask(Func<CancellationToken, Task<Result<Unit>>> work) =>

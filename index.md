@@ -1,6 +1,6 @@
 # Hugo Documentation
 
-Welcome to Hugo, a library bringing Go-style concurrency primitives and functional result pipelines to .NET 9/10.
+Welcome to Hugo, a library bringing Go-style concurrency primitives and functional result pipelines to .NET 10.
 
 ## Quick Links
 
@@ -64,7 +64,7 @@ await foreach (var value in channel.Reader.ReadAllAsync(cancellationToken))
     var result = Ok(value)
         .Ensure(text => !string.IsNullOrWhiteSpace(text))
         .Map(text => text.ToUpperInvariant());
-        
+
     if (result.IsSuccess)
         Console.WriteLine(result.Value);
 }

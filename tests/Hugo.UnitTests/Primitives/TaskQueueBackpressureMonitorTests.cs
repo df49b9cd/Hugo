@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Shouldly;
 
 using Hugo.TaskQueues.Backpressure;
 
@@ -34,7 +35,7 @@ public class TaskQueueBackpressureMonitorTests
             activated = await diagnostics.Reader.ReadAsync(TestContext.Current.CancellationToken);
         }
         while (!activated.IsActive);
-        Assert.True(activated.IsActive);
+        activated.IsActive.ShouldBeTrue();
 
         var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
         await lease.CompleteAsync(TestContext.Current.CancellationToken);
@@ -48,8 +49,8 @@ public class TaskQueueBackpressureMonitorTests
             cleared = await diagnostics.Reader.ReadAsync(TestContext.Current.CancellationToken);
         }
         while (cleared.IsActive);
-        Assert.False(cleared.IsActive);
-        Assert.Equal(1, queue.PendingCount);
+        cleared.IsActive.ShouldBeFalse();
+        queue.PendingCount.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
@@ -83,7 +84,7 @@ public class TaskQueueBackpressureMonitorTests
         using var cancelCts = new CancellationTokenSource();
         var canceled = monitor.WaitForDrainingAsync(cancelCts.Token).AsTask();
         cancelCts.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await canceled);
+        await Should.ThrowAsync<OperationCanceledException>(async () => await canceled);
 
         var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
         await lease.CompleteAsync(TestContext.Current.CancellationToken);
@@ -92,7 +93,7 @@ public class TaskQueueBackpressureMonitorTests
         await lease2.CompleteAsync(TestContext.Current.CancellationToken);
 
         var cleared = await drainingTask;
-        Assert.False(cleared.IsActive);
+        cleared.IsActive.ShouldBeFalse();
     }
 
     [Fact(Timeout = 15_000)]
@@ -118,8 +119,8 @@ public class TaskQueueBackpressureMonitorTests
             retained.Add(signal.PendingCount);
         }
 
-        Assert.Equal(new[] { 3L, 4L }, retained);
-        Assert.Equal(4, diagnostics.Latest.PendingCount);
+        retained.ShouldBe(new[] { 3L, 4L });
+        diagnostics.Latest.PendingCount.ShouldBe(4);
     }
 
     [Fact(Timeout = 15_000)]
@@ -139,13 +140,13 @@ public class TaskQueueBackpressureMonitorTests
         });
         using var listener = new BackpressureAwareRateLimiter(baseline, throttled);
 
-        Assert.Same(baseline, listener.CurrentLimiter);
-        Assert.Same(baseline, listener.LimiterSelector());
+        listener.CurrentLimiter.ShouldBeSameAs(baseline);
+        listener.LimiterSelector().ShouldBeSameAs(baseline);
 
         await listener.OnSignalAsync(new TaskQueueBackpressureSignal(true, 32, 16, 8, DateTimeOffset.UtcNow), TestContext.Current.CancellationToken);
-        Assert.Same(throttled, listener.CurrentLimiter);
+        listener.CurrentLimiter.ShouldBeSameAs(throttled);
 
         await listener.OnSignalAsync(new TaskQueueBackpressureSignal(false, 2, 16, 8, DateTimeOffset.UtcNow), TestContext.Current.CancellationToken);
-        Assert.Same(baseline, listener.LimiterSelector());
+        listener.LimiterSelector().ShouldBeSameAs(baseline);
     }
 }

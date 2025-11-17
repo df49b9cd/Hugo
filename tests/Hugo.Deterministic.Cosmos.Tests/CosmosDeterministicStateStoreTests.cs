@@ -1,6 +1,7 @@
 using System;
 using System.Net.Http;
 using System.Threading;
+using Shouldly;
 
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Configurations;
@@ -96,10 +97,10 @@ public sealed class CosmosDeterministicStateStoreTests : IAsyncLifetime
         DeterministicRecord record = new("workflow.test", 1, [1, 2, 3], DateTimeOffset.UtcNow);
         store.Set("roundtrip", record);
 
-        Assert.True(store.TryGet("roundtrip", out DeterministicRecord stored));
-        Assert.Equal(record.Kind, stored.Kind);
-        Assert.Equal(record.Version, stored.Version);
-        Assert.Equal(record.Payload.ToArray(), stored.Payload.ToArray());
+        store.TryGet("roundtrip", out DeterministicRecord stored).ShouldBeTrue();
+        stored.Kind.ShouldBe(record.Kind);
+        stored.Version.ShouldBe(record.Version);
+        stored.Payload.ToArray().ShouldBe(record.Payload.ToArray());
     }
 
     [Fact(Timeout = 15_000)]
@@ -118,9 +119,9 @@ public sealed class CosmosDeterministicStateStoreTests : IAsyncLifetime
         store.Set("update", first);
         store.Set("update", second);
 
-        Assert.True(store.TryGet("update", out DeterministicRecord stored));
-        Assert.Equal(second.Version, stored.Version);
-        Assert.Equal(second.Payload.ToArray(), stored.Payload.ToArray());
+        store.TryGet("update", out DeterministicRecord stored).ShouldBeTrue();
+        stored.Version.ShouldBe(second.Version);
+        stored.Payload.ToArray().ShouldBe(second.Payload.ToArray());
     }
 
     private CosmosDeterministicStateStore CreateStore()

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -44,7 +45,7 @@ public class WindowPipelineIntegrationTests
             }
         }
 
-        Assert.Single(batches);
-        Assert.Equal([10, 11, 12], batches[0]);
+        batches.ShouldHaveSingleItem();
+        batches[0].ShouldBe([10, 11, 12]);
     }
 }

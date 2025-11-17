@@ -1,5 +1,6 @@
 using System.Diagnostics.Metrics;
 using System.Text.Json;
+using Shouldly;
 
 using Hugo;
 using Hugo.TaskQueues;
@@ -51,16 +52,16 @@ public class TaskQueueDiagnosticsFeatureTests
             events.Add(await diagnostics.Events.ReadAsync(cts.Token));
         }
 
-        var replication = Assert.IsType<TaskQueueReplicationDiagnosticsEvent>(events.First(evt => evt is TaskQueueReplicationDiagnosticsEvent));
-        Assert.Equal("dispatch", replication.QueueName);
-        Assert.True(replication.SequenceNumber >= 1);
-        Assert.True(replication.SequenceDelta >= 1);
-        Assert.True(replication.WallClockLag >= TimeSpan.Zero);
+        var replication = events.First(evt => evt is TaskQueueReplicationDiagnosticsEvent).ShouldBeOfType<TaskQueueReplicationDiagnosticsEvent>();
+        replication.QueueName.ShouldBe("dispatch");
+        replication.SequenceNumber >= 1.ShouldBeTrue();
+        replication.SequenceDelta >= 1.ShouldBeTrue();
+        replication.WallClockLag >= TimeSpan.Zero.ShouldBeTrue();
 
         var serialized = JsonSerializer.Serialize(replication, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-        Assert.Contains("\"queueName\":\"dispatch\"", serialized);
-        Assert.Contains("\"sequenceNumber\":", serialized);
-        Assert.Contains("\"flags\":", serialized);
+        serialized.ShouldContain("\"queueName\":\"dispatch\"");
+        serialized.ShouldContain("\"sequenceNumber\":");
+        serialized.ShouldContain("\"flags\":");
     }
     private sealed class TestMeterFactory : IMeterFactory, IDisposable, IAsyncDisposable
     {

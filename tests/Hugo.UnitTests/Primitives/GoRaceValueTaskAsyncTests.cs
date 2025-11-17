@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Shouldly;
 
 using Hugo.Policies;
 
@@ -39,8 +40,8 @@ public class GoRaceValueTaskAsyncTests
             compensationPolicy,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(2, result.Value);
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -56,12 +57,12 @@ public class GoRaceValueTaskAsyncTests
             operations,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsFailure);
-        Assert.NotNull(result.Error);
-        Assert.Equal(ErrorCodes.Aggregate, result.Error!.Code);
-        Assert.True(result.Error.Metadata.TryGetValue("errors", out var nested));
-        var innerErrors = Assert.IsType<Error[]>(nested);
-        Assert.Equal(2, innerErrors.Length);
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldNotBeNull();
+        result.Error!.Code.ShouldBe(ErrorCodes.Aggregate);
+        result.Error.Metadata.TryGetValue("errors", out var nested).ShouldBeTrue();
+        var innerErrors = nested.ShouldBeOfType<Error[]>();
+        innerErrors.Length.ShouldBe(2);
     }
 
     [Fact(Timeout = 15_000)]
@@ -83,7 +84,7 @@ public class GoRaceValueTaskAsyncTests
             operations,
             cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.True(result.IsSuccess);
+        result.IsSuccess.ShouldBeTrue();
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         timeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
@@ -119,8 +120,8 @@ public class GoRaceValueTaskAsyncTests
         try
         {
             var result = await raceTask;
-            Assert.True(result.IsFailure);
-            Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+            result.IsFailure.ShouldBeTrue();
+            result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
         }
         catch (OperationCanceledException)
         {

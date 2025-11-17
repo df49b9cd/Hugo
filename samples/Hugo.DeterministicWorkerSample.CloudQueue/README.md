@@ -11,7 +11,7 @@ This sample demonstrates deterministic processing against cloud infrastructure. 
 
 ## Prerequisites
 
-- .NET 9 or .NET 10 SDK.
+- .NET 10 SDK.
 - Azure Storage queue connection string (e.g., `UseDevelopmentStorage=true` for Azurite).
 - Azure Cosmos DB account or emulator connection string.
 - Optional: OpenTelemetry collector or Prometheus endpoint for telemetry.

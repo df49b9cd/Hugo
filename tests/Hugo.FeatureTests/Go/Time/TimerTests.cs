@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
 
@@ -15,14 +16,14 @@ public class TimerTests
         var reader = After(TimeSpan.FromSeconds(5), provider, TestContext.Current.CancellationToken);
 
         var readTask = reader.ReadAsync(TestContext.Current.CancellationToken).AsTask();
-        Assert.False(readTask.IsCompleted);
+        readTask.IsCompleted.ShouldBeFalse();
 
         provider.Advance(TimeSpan.FromSeconds(5));
 
         var value = await readTask;
-        Assert.Equal(provider.GetUtcNow(), value);
+        value.ShouldBe(provider.GetUtcNow());
 
-        await Assert.ThrowsAsync<ChannelClosedException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+        await Should.ThrowAsync<ChannelClosedException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
     }
 
     [Fact(Timeout = 15_000)]
@@ -31,9 +32,9 @@ public class TimerTests
         var provider = new FakeTimeProvider();
         var task = AfterAsync(TimeSpan.Zero, provider, TestContext.Current.CancellationToken);
 
-        Assert.True(task.IsCompleted);
+        task.IsCompleted.ShouldBeTrue();
         var timestamp = await task;
-        Assert.Equal(provider.GetUtcNow(), timestamp);
+        timestamp.ShouldBe(provider.GetUtcNow());
     }
 
     [Fact(Timeout = 15_000)]
@@ -42,18 +43,18 @@ public class TimerTests
         var provider = new FakeTimeProvider();
         ValueTask<DateTimeOffset> task = AfterValueTaskAsync(TimeSpan.Zero, provider, TestContext.Current.CancellationToken);
 
-        Assert.True(task.IsCompleted);
+        task.IsCompleted.ShouldBeTrue();
         var timestamp = await task;
-        Assert.Equal(provider.GetUtcNow(), timestamp);
+        timestamp.ShouldBe(provider.GetUtcNow());
     }
 
     [Fact(Timeout = 15_000)]
     public void After_ShouldThrow_WhenDelayIsInfinite() =>
-        Assert.Throws<ArgumentOutOfRangeException>(static () => After(Timeout.InfiniteTimeSpan, provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
+        Should.Throw<ArgumentOutOfRangeException>(static () => After(Timeout.InfiniteTimeSpan, provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public void After_ShouldThrow_WhenDelayIsNegative() =>
-        Assert.Throws<ArgumentOutOfRangeException>(static () => After(TimeSpan.FromMilliseconds(-1), provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
+        Should.Throw<ArgumentOutOfRangeException>(static () => After(TimeSpan.FromMilliseconds(-1), provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public async Task AfterAsync_ShouldRespectCancellation()
@@ -65,7 +66,7 @@ public class TimerTests
 
         await cts.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task.AsTask());
+        await Should.ThrowAsync<OperationCanceledException>(async () => await task.AsTask());
     }
 
     [Fact(Timeout = 15_000)]
@@ -78,7 +79,7 @@ public class TimerTests
 
         await cts.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task.AsTask());
+        await Should.ThrowAsync<OperationCanceledException>(async () => await task.AsTask());
     }
 
     [Fact(Timeout = 15_000)]
@@ -95,12 +96,12 @@ public class TimerTests
         provider.Advance(TimeSpan.FromSeconds(2));
         var second = await secondTask;
 
-        Assert.NotEqual(first, second);
-        Assert.Equal(TimeSpan.FromSeconds(2), second - first);
+        second.ShouldNotBe(first);
+        second - first.ShouldBe(TimeSpan.FromSeconds(2));
 
         await ticker.StopAsync();
 
-        await Assert.ThrowsAsync<ChannelClosedException>(() => ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+        await Should.ThrowAsync<ChannelClosedException>(() => ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask());
     }
 
     [Theory]
@@ -110,7 +111,7 @@ public class TimerTests
     {
         TimeSpan period = TimeSpan.FromSeconds(seconds);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => NewTicker(period, provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
+        Should.Throw<ArgumentOutOfRangeException>(() => NewTicker(period, provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
@@ -129,12 +130,12 @@ public class TimerTests
         provider.Advance(TimeSpan.FromSeconds(1));
         DateTimeOffset second = await secondTask;
 
-        Assert.Equal(TimeSpan.FromSeconds(1), second - first);
+        second - first.ShouldBe(TimeSpan.FromSeconds(1));
 
         await cts.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await reader.Completion);
+        await Should.ThrowAsync<OperationCanceledException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+        await Should.ThrowAsync<OperationCanceledException>(async () => await reader.Completion);
     }
 
     [Fact(Timeout = 15_000)]
@@ -143,7 +144,7 @@ public class TimerTests
         var provider = new FakeTimeProvider();
         await using var ticker = NewTicker(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken);
 
-        Assert.False(ticker.TryRead(out _));
+        ticker.TryRead(out _).ShouldBeFalse();
 
         var firstTask = ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask();
         provider.Advance(TimeSpan.FromSeconds(1));
@@ -162,8 +163,8 @@ public class TimerTests
             }
         }
 
-        Assert.True(available);
-        Assert.Equal(TimeSpan.FromSeconds(1), second - first);
+        available.ShouldBeTrue();
+        second - first.ShouldBe(TimeSpan.FromSeconds(1));
 
         await ticker.StopAsync();
     }
@@ -176,7 +177,7 @@ public class TimerTests
 
         ticker.Stop();
 
-        Assert.True(ticker.Reader.Completion.IsCompleted);
+        ticker.Reader.Completion.IsCompleted.ShouldBeTrue();
 
         ticker.Dispose();
     }
