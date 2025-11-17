@@ -296,6 +296,65 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask WindowAsync_ShouldFlushOnlyWhenSourceCompletes_WithInfiniteInterval()
+    {
+        var provider = new FakeTimeProvider();
+        var (context, scope) = CreateContext("window-infinite", provider);
+        var source = Channel.CreateUnbounded<int>();
+        var token = TestContext.Current.CancellationToken;
+
+        var reader = ResultPipelineChannels.WindowAsync(
+            context,
+            source.Reader,
+            batchSize: 3,
+            flushInterval: Timeout.InfiniteTimeSpan,
+            cancellationToken: token);
+
+        await source.Writer.WriteAsync(1, token);
+        await source.Writer.WriteAsync(2, token);
+        source.Writer.TryComplete();
+
+        var batches = new List<IReadOnlyList<int>>();
+        while (await reader.WaitToReadAsync(token))
+        {
+            while (reader.TryRead(out var batch))
+            {
+                batches.Add(batch);
+            }
+        }
+
+        batches.ShouldHaveSingleItem();
+        batches[0].ShouldBe([1, 2]);
+
+        await RunCompensationAsync(scope);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask WindowAsync_ShouldPropagateCancellation()
+    {
+        var provider = new FakeTimeProvider();
+        using var cts = new CancellationTokenSource();
+        var (context, scope) = CreateContext("window-cancel", provider);
+        var source = Channel.CreateUnbounded<int>();
+        var token = TestContext.Current.CancellationToken;
+
+        var reader = ResultPipelineChannels.WindowAsync(
+            context,
+            source.Reader,
+            batchSize: 2,
+            flushInterval: TimeSpan.FromSeconds(1),
+            cancellationToken: cts.Token);
+
+        await source.Writer.WriteAsync(1, token);
+        cts.Cancel();
+        source.Writer.TryComplete();
+
+        await Should.ThrowAsync<OperationCanceledException>(async () => await reader.Completion);
+
+        await RunCompensationAsync(scope);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask WindowAsync_ShouldSurviveTimerBeforeData()
     {
         var provider = new FakeTimeProvider();
