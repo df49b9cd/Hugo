@@ -22,7 +22,7 @@ env:
   GITHUB_PACKAGES_FEED: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
 
 jobs:
-  build-and-test:
+  build-and-test-and-pack:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
@@ -43,9 +43,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Build CI image
+      - name: Build image
         id: build-image
-        run: docker build --target ci -f docker/ci/Dockerfile.ci -t hugo-ci .
+        run: docker build --target build -f docker/ci/Dockerfile.ci -t hugo-ci .
+
+      - name: Run Test in image
+        id: test-image
+        run: docker build --target test -f docker/ci/Dockerfile.ci -t hugo-ci .
+
+      - name: Pack nugets
+        id: pack-image
+        run: docker build --target pack -f docker/ci/Dockerfile.ci -t hugo-ci .
 
       - name: Extract CI artifacts
         if: ${{ steps.build-image.outcome == 'success' }}

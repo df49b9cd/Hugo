@@ -52,13 +52,11 @@ RUN dotnet restore Hugo.slnx
 FROM restore AS build
 RUN dotnet build Hugo.slnx -c Release --no-restore
 
-FROM build AS ci
+FROM build AS test
 SHELL ["/bin/bash","-c"]
 ARG TEST_PROJECTS
-ARG PACK_PROJECTS
 RUN set -euo pipefail && \
-    mkdir -p /repo/artifacts/test-results /repo/artifacts/coverage /repo/artifacts/packages && \
-    pack_dir="/repo/artifacts/packages" && \
+    mkdir -p /repo/artifacts/test-results /repo/artifacts/coverage && \
     for proj in ${TEST_PROJECTS}; do \
         name=$(basename "${proj%.csproj}"); \
         result_dir="/repo/artifacts/test-results/${name}"; \
@@ -72,7 +70,16 @@ RUN set -euo pipefail && \
             --collect:"XPlat Code Coverage"; \
         coverage_file=$(find "${result_dir}" -maxdepth 2 -name 'coverage.cobertura.xml' -print -quit); \
         if [[ -n "${coverage_file}" ]]; then cp "${coverage_file}" "${coverage_dir}/"; fi; \
-    done && \
+    done
+
+CMD ["bash"]
+
+FROM test AS pack
+SHELL ["/bin/bash","-c"]
+ARG PACK_PROJECTS
+RUN set -euo pipefail && \
+    mkdir -p /repo/artifacts/packages && \
+    pack_dir="/repo/artifacts/packages" && \
     for proj in ${PACK_PROJECTS}; do \
         dotnet pack "${proj}" \
             -c Release \
