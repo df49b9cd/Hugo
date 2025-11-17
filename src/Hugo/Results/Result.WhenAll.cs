@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 
 using Hugo.Policies;
 
@@ -159,6 +160,11 @@ public static partial class Result
             return Fail<T>(Error.From("No operations provided for WhenAny.", ErrorCodes.Validation));
         }
 
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Fail<T>(Error.Canceled(token: cancellationToken));
+        }
+
         var effectivePolicy = policy ?? ResultExecutionPolicy.None;
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var compensationScope = new CompensationScope();
@@ -188,7 +194,7 @@ public static partial class Result
             operationScopes[operationIndex] = operationScope;
             waitGroup.Add(1);
 #pragma warning disable CA2012
-            _ = Go.RunValueTask(
+            var runner = Go.RunValueTask(
                 async ct =>
                 {
                     try
@@ -206,6 +212,11 @@ public static partial class Result
                 },
                 linkedCts.Token);
 #pragma warning restore CA2012
+
+            if (runner.IsCompleted && runner.AsTask().IsCanceled)
+            {
+                waitGroup.Done();
+            }
         }
 
 #pragma warning disable CA2012

@@ -162,6 +162,24 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask WhenAny_ShouldNotHang_WhenCallerTokenAlreadyCanceled()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var ops = new[]
+        {
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((_, _) => ValueTask.FromResult(Result.Ok(1))),
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((_, _) => ValueTask.FromResult(Result.Ok(2)))
+        };
+
+        var result = await Result.WhenAny(ops, cancellationToken: cts.Token);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorCodes.Canceled, result.Error?.Code);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask WhenAny_ShouldReturnValidationError_WhenNoOperations()
     {
         var result = await Result.WhenAny(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
