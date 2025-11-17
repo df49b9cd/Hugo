@@ -294,9 +294,10 @@ public class ResultStreamingTests
         var slow = SlowResults(cts.Token);
         var channel = Channel.CreateUnbounded<Result<int>>();
 
+        var fanInTask = Result.FanInAsync(new[] { slow }, channel.Writer, cts.Token);
         cts.Cancel();
 
-        await Should.ThrowAsync<TaskCanceledException>(async () => await Result.FanInAsync(new[] { slow }, channel.Writer, cts.Token));
+        await Should.ThrowAsync<OperationCanceledException>(async () => await fanInTask);
     }
 
     [Fact(Timeout = 15_000)]

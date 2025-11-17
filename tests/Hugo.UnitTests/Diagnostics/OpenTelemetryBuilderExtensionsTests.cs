@@ -58,7 +58,13 @@ public class OpenTelemetryBuilderExtensionsTests
         await using var queue = new TaskQueue<int>(new TaskQueueOptions { Name = "otel.queue", Capacity = 8 });
         await queue.EnqueueAsync(1, TestContext.Current.CancellationToken);
 
-        SpinWait.SpinUntil(() => measurements.Count > 0, TimeSpan.FromSeconds(3)).ShouldBeTrue();
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < deadline && measurements.Count == 0)
+        {
+            meterListener.RecordObservableInstruments();
+            await Task.Delay(25, TestContext.Current.CancellationToken);
+        }
+
         measurements.ShouldNotBeEmpty();
 
         var options = provider.GetRequiredService<IOptions<HugoOpenTelemetryOptions>>();
