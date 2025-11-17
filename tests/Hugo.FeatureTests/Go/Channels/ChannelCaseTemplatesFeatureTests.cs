@@ -32,4 +32,25 @@ public sealed class ChannelCaseTemplatesFeatureTests
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(7);
     }
+
+    [Fact(Timeout = 15_000)]
+    public async Task SelectAsync_ShouldPrioritizeImmediateReadyCase()
+    {
+        var idle = Channel.CreateUnbounded<string>();
+        var ready = Channel.CreateUnbounded<string>();
+
+        await ready.Writer.WriteAsync("ready", TestContext.Current.CancellationToken);
+
+        ChannelCase<string>[] cases =
+        [
+            ChannelCase.Create(idle.Reader, (value, _) => ValueTask.FromResult(Result.Ok(value))),
+            ChannelCase.Create(ready.Reader, (value, _) => ValueTask.FromResult(Result.Ok(value)))
+        ];
+
+        Result<string> result = await SelectAsync(cases: cases, cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe("ready");
+        idle.Reader.TryRead(out _).ShouldBeFalse();
+    }
 }
