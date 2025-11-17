@@ -46,4 +46,39 @@ public sealed class WaitGroupTests
         Should.Throw<ArgumentOutOfRangeException>(() => waitGroup.Add(delta));
         waitGroup.Count.ShouldBe(0);
     }
+
+    [Fact(Timeout = 15_000)]
+    public async Task WaitAsync_ShouldThrow_WhenCancellationAlreadyRequested()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var waitGroup = new WaitGroup();
+
+        await Should.ThrowAsync<OperationCanceledException>(async () => await waitGroup.WaitAsync(cts.Token));
+        waitGroup.Count.ShouldBe(0);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void Done_ShouldThrow_WhenCounterBecomesNegative()
+    {
+        var waitGroup = new WaitGroup();
+
+        Should.Throw<InvalidOperationException>(() => waitGroup.Done());
+        waitGroup.Count.ShouldBe(0);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task Go_ShouldReleaseCount_WhenWorkFaults()
+    {
+        var waitGroup = new WaitGroup();
+
+        waitGroup.Go(static async () =>
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("boom");
+        }, cancellationToken: TestContext.Current.CancellationToken);
+
+        await waitGroup.WaitAsync(TestContext.Current.CancellationToken);
+        waitGroup.Count.ShouldBe(0);
+    }
 }

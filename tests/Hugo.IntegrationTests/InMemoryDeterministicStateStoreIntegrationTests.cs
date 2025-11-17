@@ -52,4 +52,13 @@ public sealed class InMemoryDeterministicStateStoreIntegrationTests
         Should.Throw<ArgumentException>(() => store.TryGet(key!, out _));
         Should.Throw<ArgumentException>(() => store.TryAdd(key!, record));
     }
+
+    [Fact(Timeout = 15_000)]
+    public void TryGet_ShouldReturnFalse_WhenKeyMissing()
+    {
+        var store = new InMemoryDeterministicStateStore();
+
+        store.TryGet("missing", out var record).ShouldBeFalse();
+        record.ShouldBe(default);
+    }
 }
