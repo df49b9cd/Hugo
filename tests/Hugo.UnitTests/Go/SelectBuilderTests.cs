@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 
 namespace Hugo.Tests.Selecting;
@@ -28,10 +29,16 @@ public sealed class SelectBuilderTests
     [Fact(Timeout = 15_000)]
     public async Task Deadline_ShouldCompleteWithTimeoutResult()
     {
-        var builder = global::Hugo.Go.Select<string>(timeout: TimeSpan.FromMilliseconds(10), cancellationToken: TestContext.Current.CancellationToken)
-            .Deadline(TimeSpan.FromMilliseconds(5), () => Task.FromResult(Result.Ok("deadline")));
+        var provider = new FakeTimeProvider();
+        var builder = global::Hugo.Go.Select<string>(
+                timeout: TimeSpan.FromMilliseconds(10),
+                provider: provider,
+                cancellationToken: TestContext.Current.CancellationToken)
+            .Deadline(TimeSpan.FromMilliseconds(5), provider: provider, onDeadline: () => Task.FromResult(Result.Ok("deadline")));
 
-        var result = await builder.ExecuteAsync();
+        Task<Result<string>> execution = builder.ExecuteAsync().AsTask();
+        provider.Advance(TimeSpan.FromMilliseconds(5));
+        var result = await execution;
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe("deadline");
