@@ -45,7 +45,8 @@ public class TaskQueueDiagnosticsRegistrationTests
         {
             await using var queue = new TaskQueue<string>(new TaskQueueOptions { Name = queueName, Capacity = 4 });
             await queue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
-            SpinWait.SpinUntil(() => captured.Count > 0, TimeSpan.FromSeconds(1));
+            meterListener.RecordObservableInstruments();
+            SpinWait.SpinUntil(() => captured.Count > 0, TimeSpan.FromSeconds(2));
         }
 
         GoDiagnostics.Reset();
