@@ -24,7 +24,7 @@ public class SynchronizationPrimitivesTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Mutex_EnterScope_ShouldProvideExclusiveAccess()
+    public async ValueTask Mutex_EnterScope_ShouldProvideExclusiveAccess()
     {
         var cancellation = TestContext.Current.CancellationToken;
         using var mutex = new Mutex();
@@ -32,7 +32,7 @@ public class SynchronizationPrimitivesTests
         using ManualResetEventSlim secondStarted = new(false);
 
         var scope = mutex.EnterScope();
-        Task second;
+        ValueTask second;
         try
         {
             second = Task.Run(() =>
@@ -58,7 +58,7 @@ public class SynchronizationPrimitivesTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RwMutex_EnterReadScope_ShouldAllowConcurrentReadersAndBlockWriter()
+    public async ValueTask RwMutex_EnterReadScope_ShouldAllowConcurrentReadersAndBlockWriter()
     {
         var cancellation = TestContext.Current.CancellationToken;
         using var rwMutex = new RwMutex();
@@ -83,14 +83,14 @@ public class SynchronizationPrimitivesTests
             }
         }
 
-        Task StartReader() => Task.Factory.StartNew(
+        ValueTask StartReader() => Task.Factory.StartNew(
             ReaderAction,
             cancellation,
             TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach,
             TaskScheduler.Default);
 
-        Task reader1 = StartReader();
-        Task reader2 = StartReader();
+        ValueTask reader1 = StartReader();
+        ValueTask reader2 = StartReader();
         startReaders.Set();
         await Task.WhenAll(reader1, reader2);
         Assert.Equal(2, maxInside);
@@ -98,7 +98,7 @@ public class SynchronizationPrimitivesTests
         var readScope = rwMutex.EnterReadScope();
         using ManualResetEventSlim writerStarted = new(false);
         var writerEntered = 0;
-        Task writer = Task.Run(() =>
+        ValueTask writer = Task.Run(() =>
         {
             writerStarted.Set();
             using (rwMutex.EnterWriteScope())
@@ -117,7 +117,7 @@ public class SynchronizationPrimitivesTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RwMutex_EnterWriteScope_ShouldBlockReadersUntilReleased()
+    public async ValueTask RwMutex_EnterWriteScope_ShouldBlockReadersUntilReleased()
     {
         var cancellation = TestContext.Current.CancellationToken;
         using var rwMutex = new RwMutex();
@@ -125,7 +125,7 @@ public class SynchronizationPrimitivesTests
         using ManualResetEventSlim readerStarted = new(false);
         var readerEntered = 0;
 
-        Task reader = Task.Run(() =>
+        ValueTask reader = Task.Run(() =>
         {
             readerStarted.Set();
             using (rwMutex.EnterReadScope())

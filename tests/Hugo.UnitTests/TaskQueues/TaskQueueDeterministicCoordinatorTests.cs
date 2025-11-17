@@ -7,7 +7,7 @@ namespace Hugo.UnitTests.TaskQueues;
 public sealed class TaskQueueDeterministicCoordinatorTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task ExecuteAsync_ShouldCaptureHandlerDeterministically()
+    public async ValueTask ExecuteAsync_ShouldCaptureHandlerDeterministically()
     {
         var store = new InMemoryDeterministicStateStore();
         DeterministicEffectStore effectStore = new(

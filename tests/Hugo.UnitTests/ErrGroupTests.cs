@@ -9,7 +9,7 @@ namespace Hugo.Tests;
 public class ErrGroupTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task WaitAsync_ShouldReturnSuccess_WhenAllOperationsComplete()
+    public async ValueTask WaitAsync_ShouldReturnSuccess_WhenAllOperationsComplete()
     {
         using var group = new ErrGroup();
         var counter = 0;
@@ -36,7 +36,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitAsync_ShouldReturnFirstError_AndCancelRemainingOperations()
+    public async ValueTask WaitAsync_ShouldReturnFirstError_AndCancelRemainingOperations()
     {
         using var group = new ErrGroup();
         var enteredSecond = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -76,7 +76,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitAsync_ShouldSurfaceExceptionsAsStructuredErrors()
+    public async ValueTask WaitAsync_ShouldSurfaceExceptionsAsStructuredErrors()
     {
         using var group = new ErrGroup();
 
@@ -95,7 +95,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitAsync_ShouldReturnCanceled_WhenLinkedTokenCancels()
+    public async ValueTask WaitAsync_ShouldReturnCanceled_WhenLinkedTokenCancels()
     {
         using var externalCts = new CancellationTokenSource();
         using var group = new ErrGroup(externalCts.Token);
@@ -116,7 +116,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Go_WithCancellationAwareTask_ShouldCompleteSuccessfully()
+    public async ValueTask Go_WithCancellationAwareTask_ShouldCompleteSuccessfully()
     {
         using var group = new ErrGroup();
         var observedToken = default(CancellationToken);
@@ -135,7 +135,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Go_WithoutTokenFunction_ShouldRunSuccessfully()
+    public async ValueTask Go_WithoutTokenFunction_ShouldRunSuccessfully()
     {
         using var group = new ErrGroup();
         var counter = 0;
@@ -154,7 +154,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Go_Action_ShouldCaptureExceptionsAsErrors()
+    public async ValueTask Go_Action_ShouldCaptureExceptionsAsErrors()
     {
         using var group = new ErrGroup();
 
@@ -168,7 +168,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Cancel_ShouldCancelRunningWork()
+    public async ValueTask Cancel_ShouldCancelRunningWork()
     {
         using var group = new ErrGroup();
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -193,7 +193,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitAsync_ShouldReturnCanceled_WhenWaitTokenCanceled()
+    public async ValueTask WaitAsync_ShouldReturnCanceled_WhenWaitTokenCanceled()
     {
         using var group = new ErrGroup();
         using var cts = new CancellationTokenSource();
@@ -216,7 +216,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Cancel_ShouldSurfaceCanceledResult_WhenNoWorkStarted()
+    public async ValueTask Cancel_ShouldSurfaceCanceledResult_WhenNoWorkStarted()
     {
         using var group = new ErrGroup();
 
@@ -233,7 +233,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Cancel_ShouldNotOverwriteExistingError()
+    public async ValueTask Cancel_ShouldNotOverwriteExistingError()
     {
         using var group = new ErrGroup();
         var failureRecorded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -271,7 +271,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Go_ShouldNotRunWork_WhenDisposeRacesWithRegistration()
+    public async ValueTask Go_ShouldNotRunWork_WhenDisposeRacesWithRegistration()
     {
         var group = new ErrGroup();
         using var ready = new ManualResetEventSlim(false);
@@ -304,7 +304,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Token_ShouldRemainAwaitableAfterDispose()
+    public async ValueTask Token_ShouldRemainAwaitableAfterDispose()
     {
         var group = new ErrGroup();
         var token = group.Token;
@@ -341,7 +341,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task PipelineFailure_ShouldCancelPeersBeforeCompensation()
+    public async ValueTask PipelineFailure_ShouldCancelPeersBeforeCompensation()
     {
         using var group = new ErrGroup();
         var peerCanceled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -421,7 +421,7 @@ public class ErrGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Go_Pipeline_ShouldExecuteCompensationPolicyOncePerScope()
+    public async ValueTask Go_Pipeline_ShouldExecuteCompensationPolicyOncePerScope()
     {
         var scope = new CompensationScope();
         scope.Register(static _ => ValueTask.CompletedTask);

@@ -9,7 +9,7 @@ namespace Hugo.Tests;
 public class ResultPipelineEnhancementsTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task WhenAll_ShouldReturnValues_WhenAllStepsSucceed()
+    public async ValueTask WhenAll_ShouldReturnValues_WhenAllStepsSucceed()
     {
         var compensations = 0;
         var operations = new List<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>
@@ -43,7 +43,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WhenAll_ShouldReturnEmptyResult_WhenNoOperations()
+    public async ValueTask WhenAll_ShouldReturnEmptyResult_WhenNoOperations()
     {
         var result = await Result.WhenAll(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
 
@@ -52,7 +52,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WhenAll_ShouldThrow_WhenOperationNull()
+    public async ValueTask WhenAll_ShouldThrow_WhenOperationNull()
     {
         var operations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>?[] { null };
 
@@ -60,7 +60,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WhenAll_ShouldRunCompensation_OnFailure()
+    public async ValueTask WhenAll_ShouldRunCompensation_OnFailure()
     {
         var compensationInvoked = 0;
         var operations = new List<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>
@@ -85,7 +85,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WhenAny_ShouldSelectFirstSuccess_AndCompensateOthers()
+    public async ValueTask WhenAny_ShouldSelectFirstSuccess_AndCompensateOthers()
     {
         var compensation = 0;
 
@@ -120,7 +120,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WhenAny_ShouldReturnSuccess_WhenPeerFailsAfterWinner()
+    public async ValueTask WhenAny_ShouldReturnSuccess_WhenPeerFailsAfterWinner()
     {
         var winnerReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -144,7 +144,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WhenAny_ShouldIgnorePostWinnerCancellations()
+    public async ValueTask WhenAny_ShouldIgnorePostWinnerCancellations()
     {
         var winner = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((_, _) =>
             ValueTask.FromResult(Result.Ok(1)));
@@ -162,7 +162,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WhenAny_ShouldReturnValidationError_WhenNoOperations()
+    public async ValueTask WhenAny_ShouldReturnValidationError_WhenNoOperations()
     {
         var result = await Result.WhenAny(Array.Empty<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
 
@@ -172,7 +172,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WhenAny_ShouldAggregateFailures_WhenNoWinner()
+    public async ValueTask WhenAny_ShouldAggregateFailures_WhenNoWinner()
     {
         var operations = new[]
         {
@@ -191,7 +191,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WhenAny_ShouldReturnCanceledError_WhenAllOperationsCanceled()
+    public async ValueTask WhenAny_ShouldReturnCanceledError_WhenAllOperationsCanceled()
     {
         var operations = new[]
         {
@@ -208,7 +208,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ResultSaga_ShouldRollback_WhenStepFails()
+    public async ValueTask ResultSaga_ShouldRollback_WhenStepFails()
     {
         var compensation = 0;
 
@@ -232,7 +232,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WhenAll_ShouldRunCompensation_OnExternalCancellation()
+    public async ValueTask WhenAll_ShouldRunCompensation_OnExternalCancellation()
     {
         using var cts = new CancellationTokenSource();
         var compensationInvocations = 0;
@@ -276,7 +276,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WhenAll_ShouldRunCompensation_OnOperationCanceledException()
+    public async ValueTask WhenAll_ShouldRunCompensation_OnOperationCanceledException()
     {
         var compensationInvocations = 0;
         var firstCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -315,7 +315,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WhenAll_ShouldSkipCompensation_WhenNoTasksCompleted()
+    public async ValueTask WhenAll_ShouldSkipCompensation_WhenNoTasksCompleted()
     {
         using var cts = new CancellationTokenSource();
         cts.Cancel();
@@ -352,7 +352,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ResultSaga_ShouldReturnState_OnSuccess()
+    public async ValueTask ResultSaga_ShouldReturnState_OnSuccess()
     {
         var saga = new ResultSagaBuilder()
             .AddStep("reserve", static (_, _) => ValueTask.FromResult(Result.Ok("reserveId")))
@@ -370,7 +370,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task StreamingExtensions_ShouldBridgeChannelsAndEnumerables()
+    public async ValueTask StreamingExtensions_ShouldBridgeChannelsAndEnumerables()
     {
         var channel = Channel.CreateUnbounded<Result<int>>();
         var data = GetSequence(TestContext.Current.CancellationToken);
@@ -396,7 +396,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsync_ShouldMergeSourcesAndCompleteWriter()
+    public async ValueTask FanInAsync_ShouldMergeSourcesAndCompleteWriter()
     {
         var channel = Channel.CreateUnbounded<Result<int>>();
 
@@ -423,7 +423,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsync_ShouldPropagateSourceFailure()
+    public async ValueTask FanInAsync_ShouldPropagateSourceFailure()
     {
         var channel = Channel.CreateUnbounded<Result<int>>();
 
@@ -457,7 +457,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_ShouldBroadcastResultsToAllWriters()
+    public async ValueTask FanOutAsync_ShouldBroadcastResultsToAllWriters()
     {
         var first = Channel.CreateUnbounded<Result<int>>();
         var second = Channel.CreateUnbounded<Result<int>>();
@@ -479,7 +479,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task PartitionAsync_ShouldSplitResultsAndCompleteWriters()
+    public async ValueTask PartitionAsync_ShouldSplitResultsAndCompleteWriters()
     {
         var source = GetSequence();
         var evenWriter = Channel.CreateUnbounded<Result<int>>();
@@ -507,7 +507,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ToChannelAsync_ShouldEmitCanceledSentinelWhenEnumerationCanceled()
+    public async ValueTask ToChannelAsync_ShouldEmitCanceledSentinelWhenEnumerationCanceled()
     {
         var channel = Channel.CreateUnbounded<Result<int>>();
         using var cts = new CancellationTokenSource();
@@ -536,7 +536,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WindowAsync_ShouldBatchValues()
+    public async ValueTask WindowAsync_ShouldBatchValues()
     {
         var source = GetSequence(TestContext.Current.CancellationToken);
         var batches = new List<IReadOnlyList<int>>();
@@ -610,7 +610,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RetryWithPolicyAsync_ShouldRetryUntilSuccess()
+    public async ValueTask RetryWithPolicyAsync_ShouldRetryUntilSuccess()
     {
         var attempts = 0;
         var policy = new ResultExecutionPolicy(ResultRetryPolicy.FixedDelay(3, TimeSpan.FromMilliseconds(5)), Compensation: ResultCompensationPolicy.SequentialReverse);
@@ -633,7 +633,7 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RetryWithPolicyAsync_ShouldReturnFailureAfterExhaustingRetries()
+    public async ValueTask RetryWithPolicyAsync_ShouldReturnFailureAfterExhaustingRetries()
     {
         var attempts = 0;
         var policy = new ResultExecutionPolicy(ResultRetryPolicy.FixedDelay(3, TimeSpan.Zero), Compensation: ResultCompensationPolicy.SequentialReverse);

@@ -9,7 +9,7 @@ namespace Hugo.Tests;
 public class GoRaceValueTaskAsyncTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task RaceValueTaskAsync_ShouldReturnFastestSuccessfulResult()
+    public async ValueTask RaceValueTaskAsync_ShouldReturnFastestSuccessfulResult()
     {
         var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
         {
@@ -44,7 +44,7 @@ public class GoRaceValueTaskAsyncTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RaceValueTaskAsync_ShouldAggregateFailures_WhenAllOperationsFail()
+    public async ValueTask RaceValueTaskAsync_ShouldAggregateFailures_WhenAllOperationsFail()
     {
         var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
         {
@@ -65,7 +65,7 @@ public class GoRaceValueTaskAsyncTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RaceValueTaskAsync_ShouldCancelLosingOperations()
+    public async ValueTask RaceValueTaskAsync_ShouldCancelLosingOperations()
     {
         var loserCanceled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -91,7 +91,7 @@ public class GoRaceValueTaskAsyncTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RaceValueTaskAsync_ShouldReturnCanceled_WhenCallerCancels()
+    public async ValueTask RaceValueTaskAsync_ShouldReturnCanceled_WhenCallerCancels()
     {
         using var cts = new CancellationTokenSource();
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, TestContext.Current.CancellationToken);

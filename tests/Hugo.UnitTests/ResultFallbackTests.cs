@@ -12,7 +12,7 @@ public class ResultFallbackTests
     public void ResultFallbackTier_ShouldThrow_WhenOperationsEmpty() => Assert.Throws<ArgumentException>(static () => new ResultFallbackTier<int>("empty", []));
 
     [Fact(Timeout = 15_000)]
-    public async Task TieredFallbackAsync_ShouldReturnValidationError_WhenNoTiersProvided()
+    public async ValueTask TieredFallbackAsync_ShouldReturnValidationError_WhenNoTiersProvided()
     {
         var result = await Result.TieredFallbackAsync(Array.Empty<ResultFallbackTier<int>>(), cancellationToken: TestContext.Current.CancellationToken);
 
@@ -22,7 +22,7 @@ public class ResultFallbackTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TieredFallbackAsync_ShouldReturnPrimaryResult()
+    public async ValueTask TieredFallbackAsync_ShouldReturnPrimaryResult()
     {
         var tiers = new[]
         {
@@ -36,7 +36,7 @@ public class ResultFallbackTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TieredFallbackAsync_ShouldUseSecondaryTierWhenPrimaryFails()
+    public async ValueTask TieredFallbackAsync_ShouldUseSecondaryTierWhenPrimaryFails()
     {
         var tiers = new[]
         {
@@ -53,7 +53,7 @@ public class ResultFallbackTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TieredFallbackAsync_ShouldAggregateErrorsWhenAllTiersFail()
+    public async ValueTask TieredFallbackAsync_ShouldAggregateErrorsWhenAllTiersFail()
     {
         var tiers = new[]
         {
@@ -85,7 +85,7 @@ public class ResultFallbackTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TieredFallbackAsync_ShouldPropagateCancellation()
+    public async ValueTask TieredFallbackAsync_ShouldPropagateCancellation()
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await cts.CancelAsync();
@@ -102,7 +102,7 @@ public class ResultFallbackTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TieredFallbackAsync_ShouldCancelRemainingStrategiesAfterSuccess()
+    public async ValueTask TieredFallbackAsync_ShouldCancelRemainingStrategiesAfterSuccess()
     {
         var cancellationCount = 0;
 
@@ -141,7 +141,7 @@ public class ResultFallbackTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ErrGroup_ShouldRespectRetryPolicyWhenRunningPipelineSteps()
+    public async ValueTask ErrGroup_ShouldRespectRetryPolicyWhenRunningPipelineSteps()
     {
         using var group = new ErrGroup();
         var attempts = 0;
@@ -166,7 +166,7 @@ public class ResultFallbackTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ErrGroup_ShouldSurfaceFailureWhenAllAttemptsFail()
+    public async ValueTask ErrGroup_ShouldSurfaceFailureWhenAllAttemptsFail()
     {
         using var group = new ErrGroup();
         var provider = new FakeTimeProvider();

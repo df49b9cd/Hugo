@@ -10,7 +10,7 @@ namespace Hugo.Tests.Diagnostics;
 public class TaskQueueDiagnosticsRegistrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task AddTaskQueueDiagnostics_ShouldApplyTagEnrichers()
+    public async ValueTask AddTaskQueueDiagnostics_ShouldApplyTagEnrichers()
     {
         using var meterListener = new MeterListener();
         var captured = new List<TagList>();
@@ -54,7 +54,7 @@ public class TaskQueueDiagnosticsRegistrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ConfigureTaskQueueMetrics_ShouldGateThroughputInstruments()
+    public async ValueTask ConfigureTaskQueueMetrics_ShouldGateThroughputInstruments()
     {
         using var meterListener = new MeterListener();
         var throughputMeasurements = 0;

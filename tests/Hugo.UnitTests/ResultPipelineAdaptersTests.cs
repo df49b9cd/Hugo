@@ -17,7 +17,7 @@ namespace Hugo.Tests;
 public class ResultPipelineAdaptersTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldAbsorbCompensation()
+    public async ValueTask SelectAsync_ShouldAbsorbCompensation()
     {
         var channel = Channel.CreateUnbounded<int>();
         var testToken = TestContext.Current.CancellationToken;
@@ -51,7 +51,7 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsync_ShouldTrackCompensationPerValue()
+    public async ValueTask FanInAsync_ShouldTrackCompensationPerValue()
     {
         var channelA = Channel.CreateUnbounded<int>();
         var channelB = Channel.CreateUnbounded<int>();
@@ -91,7 +91,7 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RetryAsync_ShouldRetryUntilSuccess()
+    public async ValueTask RetryAsync_ShouldRetryUntilSuccess()
     {
         int attempts = 0;
         var testToken = TestContext.Current.CancellationToken;
@@ -116,7 +116,7 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WithTimeoutAsync_ShouldReturnTimeoutError()
+    public async ValueTask WithTimeoutAsync_ShouldReturnTimeoutError()
     {
         var result = await ResultPipeline.WithTimeoutAsync(
             async (_, token) =>
@@ -132,7 +132,7 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectBuilder_ShouldComposeCases()
+    public async ValueTask SelectBuilder_ShouldComposeCases()
     {
         var (context, scope) = CreateContext("builder");
         var channel = Channel.CreateUnbounded<int>();
@@ -157,7 +157,7 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitGroupGo_ShouldAbsorbCompensations()
+    public async ValueTask WaitGroupGo_ShouldAbsorbCompensations()
     {
         var (context, scope) = CreateContext("wg");
         var wg = new WaitGroup();
@@ -178,7 +178,7 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TimerAdapters_ShouldRegisterCompensation()
+    public async ValueTask TimerAdapters_ShouldRegisterCompensation()
     {
         var (context, scope) = CreateContext("timer");
         var result = await ResultPipelineTimers.DelayAsync(context, TimeSpan.Zero, TestContext.Current.CancellationToken);
@@ -192,7 +192,7 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOut_ShouldDistributeToBranches()
+    public async ValueTask FanOut_ShouldDistributeToBranches()
     {
         var (context, scope) = CreateContext("fanout");
         var source = Channel.CreateUnbounded<int>();
@@ -212,7 +212,7 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MergeWithStrategyAsync_ShouldHonorDelegateOrdering()
+    public async ValueTask MergeWithStrategyAsync_ShouldHonorDelegateOrdering()
     {
         var (context, scope) = CreateContext("merge-strategy");
         var first = Channel.CreateUnbounded<int>();
@@ -262,7 +262,7 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WindowAsync_ShouldFlushOnBatchOrInterval()
+    public async ValueTask WindowAsync_ShouldFlushOnBatchOrInterval()
     {
         var provider = new FakeTimeProvider();
         var (context, scope) = CreateContext("window", provider);
@@ -300,7 +300,7 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WindowAsync_ShouldSurviveTimerBeforeData()
+    public async ValueTask WindowAsync_ShouldSurviveTimerBeforeData()
     {
         var provider = new FakeTimeProvider();
         var (context, scope) = CreateContext("window-timer-first", provider);
@@ -331,7 +331,7 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TimeProviderDelay_ShouldRespectFakeTimeProviderAdvances()
+    public async ValueTask TimeProviderDelay_ShouldRespectFakeTimeProviderAdvances()
     {
         var provider = new FakeTimeProvider();
         var waitTask = TimeProviderDelay.WaitAsync(provider, TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
@@ -343,7 +343,7 @@ public class ResultPipelineAdaptersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ErrGroupAdapter_ShouldAbsorbPipelineResults()
+    public async ValueTask ErrGroupAdapter_ShouldAbsorbPipelineResults()
     {
         var (context, scope) = CreateContext("errgroup");
         using var group = new ErrGroup();
@@ -372,7 +372,7 @@ public class ResultPipelineAdaptersTests
         return (context, scope);
     }
 
-    private static async Task RunCompensationAsync(CompensationScope scope)
+    private static async ValueTask RunCompensationAsync(CompensationScope scope)
     {
         var policy = ResultExecutionPolicy.None.WithCompensation(ResultCompensationPolicy.SequentialReverse);
         await Result.RunCompensationAsync(policy, scope, TestContext.Current.CancellationToken);
