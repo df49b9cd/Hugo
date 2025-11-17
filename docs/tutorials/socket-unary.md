@@ -64,7 +64,7 @@ await Result
 
 ## Heartbeats & Observability
 
-- Record per-attempt metrics: wrap the inner lambda with `TapSuccessEachAsync` / `TapFailureEachAsync`.
+- Record per-attempt metrics: wrap the inner lambda with `TapSuccessEachAsync` / `TapFailureEachAsync` (or the aggregate/ignore variants when you need all failures reported or telemetry-only behavior).
 - Emit heartbeat pings before the real payload by inserting a `socket.WriteAsync(heartbeat)` call guarded by `Result.PipelineTimers.NewTicker` if devices expect “keepalive” frames.
 
 ## HttpClient Example
@@ -100,7 +100,7 @@ async ValueTask<Result<HttpResponseMessage>> InvokeHttpAsync(
 
 - **Functional chain:** `ValidateRequest().ThenAsync(_ => InvokeHttpAsync(...)).TapFailure(logError)` keeps validation, transport, and post-processing unified.
 - **Compensation:** Attach rollback handlers for cache entries, staged commands, or feature flags toggled prior to the HTTP call.
-- **Telemetry:** Use `TapSuccessEachAsync` to increment per-endpoint counters and `TapFailureEachAsync` to emit structured logs for failed status codes.
+- **Telemetry:** Use `TapSuccessEachAsync` to increment per-endpoint counters and `TapFailureEachAsync` to emit structured logs for failed status codes. For non-blocking metrics, swap in the `IgnoreErrors` variants; for SLA rollups, prefer the `AggregateErrors` variants.
 
 ## When to Use
 

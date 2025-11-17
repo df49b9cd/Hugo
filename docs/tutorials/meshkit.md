@@ -31,7 +31,7 @@ SafeTaskQueue<MeshMessage> ──> TaskQueueChannelAdapter ──> Result pipeli
 | Gossip merge | `ResultPipelineChannels.MergeWithStrategyAsync`, `BroadcastAsync` | Combine unsolicited gossip, replies, and control messages |
 | Upgrade orchestration | `DeterministicGate`, `DeterministicEffectStore` | Toggle between legacy socket path and gRPC path without duplicate effects |
 | Security | Result compensations + `ResultPipeline.RetryAsync` | Stage certificates, tear down on failure, retry handshake/sends |
-| Observability | `TapSuccessEachAsync`, `TapFailureEachAsync`, `CollectErrorsAsync` | Emit metrics, gather aggregate errors for dashboards |
+| Observability | `TapSuccessEachAsync`, `TapFailureEachAsync`, `CollectErrorsAsync`, `Tap*AggregateErrorsAsync`, `Tap*IgnoreErrorsAsync` | Emit metrics, choose per-stream failure semantics (aggregate vs ignore) |
 
 ## Step 1 – Secure gRPC Client/Server Setup
 
@@ -228,14 +228,14 @@ Continue to monitor the SafeTaskQueue:
 
 ```csharp
 await meshQueue.PoisonReader.ReadAllAsync(ct)
-    .TapSuccessEachAsync((poison, _) => _metrics.RecordPoison(poison.MessageType));
+    .TapSuccessEachAggregateErrorsAsync((poison, _) => _metrics.RecordPoison(poison.MessageType));
 ```
 
 Provide remediation steps (e.g., dead-letter storage or manual intervention) via compensations or optional `Result.Pipeline.RetryAsync`.
 
 ## Step 7 – Observability
 
-- `TapSuccessEachAsync`/`TapFailureEachAsync` on outbound/inbound streams record per-peer success/failure counts.
+- `TapSuccessEachAsync`/`TapFailureEachAsync` on outbound/inbound streams record per-peer success/failure counts; swap to `AggregateErrorsAsync` for dashboards that need every error, or `IgnoreErrorsAsync` for fire-and-forget telemetry.
 - `CollectErrorsAsync` aggregates failures over time; you can log them or push to a monitoring system.
 - Use `ResultPipelineTimers` to emit heartbeat metrics even if no gossip is flowing.
 

@@ -25,7 +25,7 @@ await sourceStream
 
 This pattern already works for both success and failure cases, but Hugo now ships dedicated helpers to keep call sites tidy.
 
-## Tap Only Successes
+## Tap Only Successes (fail-fast)
 
 ```csharp
 await ingress
@@ -36,7 +36,7 @@ await ingress
     }, ct);
 ```
 
-## Tap Only Failures
+## Tap Only Failures (fail-fast)
 
 ```csharp
 await ingress
@@ -55,12 +55,48 @@ await Result.MapStreamAsync(ingress, ValidateAsync, ct)
     {
         _successCounter.Increment();
         return ValueTask.CompletedTask;
-    }, ct)
+    }, ct)                                   // fail-fast: returns first failure
     .TapFailureEachAsync((error, token) =>
     {
         _failureCounter.Add(error.Message);
         return ValueTask.CompletedTask;
     }, ct);
+```
+
+## Aggregate Errors (validation/reporting)
+
+```csharp
+var result = await ingress
+    .TapSuccessEachAggregateErrorsAsync((record, token) =>
+    {
+        _successCounter.Increment();
+        return ValueTask.CompletedTask;
+    }, ct)
+    .TapFailureEachAggregateErrorsAsync((error, token) =>
+    {
+        _failureCounter.Add(error.Message);
+        return ValueTask.CompletedTask;
+    }, ct);
+
+// result.Error is aggregate when any failures occur
+```
+
+## Ignore Errors (telemetry-only)
+
+```csharp
+var result = await ingress
+    .TapSuccessEachIgnoreErrorsAsync((record, token) =>
+    {
+        _metrics.RecordSuccess(record.Id);
+        return ValueTask.CompletedTask;
+    }, ct)
+    .TapFailureEachIgnoreErrorsAsync((error, token) =>
+    {
+        _metrics.RecordFailure(error.Code ?? ErrorCodes.Unspecified);
+        return ValueTask.CompletedTask;
+    }, ct);
+
+// result is always success; use only for non-blocking telemetry
 ```
 
 ## Summary

@@ -70,6 +70,6 @@ await filteredStream.ForEachAsync(async (result, token) =>
 ## Summary
 
 - `Result.FilterStreamAsync` drops successful records that fail your predicate while leaving failure results untouched for diagnostics.
-- Use synchronous logging inside the predicate or combine with `TapFailureEachAsync` / `TapSuccessEachAsync` to emit telemetry.
+- Use synchronous logging inside the predicate or combine with `TapFailureEachAsync` / `TapSuccessEachAsync` (or their `AggregateErrors`/`IgnoreErrors` variants) to emit telemetry with the failure semantics you need.
 - `ForEachAsync` provides a fluent way to consume the resulting stream without `await foreach`.
 - Because the flow keeps using `Result<T>`, compensations and diagnostics remain consistent.
