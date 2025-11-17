@@ -1,164 +1,73 @@
-You are an agent - please keep going until the user’s query is completely resolved, before ending your turn and yielding back to the user.
+# Hugo Agent Handbook
+- Public APIs must expose XML documentation comments, guard clauses, cancellation tokens and return `Result<T>` instead of throwing exceptions.
+- Place braces on their own lines and prefer expression clarity over terseness.
+- Use descriptive test names (e.g. `ErrGroupTests.WaitAsync_ShouldReturnSuccess`).
 
-Your thinking should be thorough and so it's fine if it's very long. However, avoid unnecessary repetition and verbosity. You should be concise, but thorough.
+Commit messages follow the **Conventional Commits** specification (`feat:`, `fix:`, `docs:` etc.), remain focused and update the `CHANGELOG.md` under an `[Unreleased]` section. Before opening a pull request, ensure that builds pass on .NET 10, that all unit, integration and deterministic tests succeed, and that coverage has been collected. Fill out the PR template, link issues (`Fixes #123`), summarise behavioural changes and respond promptly. Squash merge is the default strategy.
 
-You MUST iterate and keep going until the problem is solved.
+## Core Concepts
 
-You have everything you need to resolve this problem. I want you to fully solve this autonomously before coming back to me.
+### Concurrency Primitives
 
-Only terminate your turn when you are sure that the problem is solved and all items have been checked off. Go through the problem step by step, and make sure to verify that your changes are correct. NEVER end your turn without having truly and completely solved the problem, and when you say you are going to make a tool call, make sure you ACTUALLY make the tool call, instead of ending your turn.
+Hugo exposes a set of primitives under the `Hugo.Go` namespace:
 
-THE PROBLEM CAN NOT BE SOLVED WITHOUT EXTENSIVE INTERNET RESEARCH.
+**WaitGroup** – Tracks asynchronous operations and delays shutdown until tasks complete. Use `WaitGroup.Go` to schedule work, `WaitGroup.Add` to increment counters, `WaitGroup.Done` to signal completion and `WaitGroup.WaitAsync` to await completion【25089511936501†L18-L33】. Cancelling a wait group surfaces `Error.Canceled`, and metrics such as `waitgroup.additions` and `waitgroup.completions` are emitted when diagnostics are configured【25089511936501†L48-L53】.
 
-Your knowledge on everything is out of date because your training date is in the past.
+**Mutex** and **RwMutex** – Provide mutual exclusion for exclusive or shared access. Asynchronous locks honour cancellation tokens and must be released via `await using`【25089511936501†L55-L74】.
 
-You CANNOT successfully complete this task without using web seach to verify your understanding of third party packages and dependencies is up to date. You must web search for how to properly use libraries, packages, frameworks, dependencies, etc. every single time you install or implement one. It is not enough to just search, you must also read the  content of the pages you find and recursively gather all relevant information by fetching additional links until you have all the information you need.
+**Channels** – Use `MakeChannel<T>` to create bounded or unbounded channels for message passing. Prioritised channels allow multiple priority levels, and DI‑friendly builders register channel readers and writers automatically【25089511936501†L100-L139】. Bounded channels respect full modes (`DropOldest`, `Wait`, etc.), and `TryComplete` propagates faults to readers【25089511936501†L120-L124】.
 
-Always tell the user what you are going to do before making a tool call with a single concise sentence. This will help them understand what you are doing and why.
+**TaskQueue<T>** – Builds cooperative leasing semantics on top of channels: producers enqueue work items, workers lease them for a configurable duration and can heartbeat, complete or fail each lease【25089511936501†L145-L188】. The queue automatically requeues expired leases and supports draining/restore operations for rolling upgrades【25089511936501†L194-L212】. Task queue health checks and backpressure monitors integrate with ASP.NET Core health probes and rate limiters【25089511936501†L213-L274】.
 
-If the user request is "resume" or "continue" or "try again", check the previous conversation history to see what the next incomplete step in the todo list is. Continue from that step, and do not hand back control to the user until the entire todo list is complete and all items are checked off. Inform the user that you are continuing from the last incomplete step, and what that step is.
+**Select and Fan‑In Helpers** – Await whichever channel case becomes ready first (`SelectAsync`), or merge multiple channels into one (`FanInAsync`). These helpers capture attempts, completions, latency, timeouts and cancellations in diagnostics【25089511936501†L346-L383】. See the [fan‑in how‑to guide](docs/how-to/fan-in-channels.md) for a worked example【592713217241589†L20-L29】.
 
-Take your time and think through every step - remember to check your solution rigorously and watch out for boundary cases, especially with the changes you made. Use the sequential thinking tool if available. Your solution must be perfect. If not, continue working on it. At the end, you must test your code rigorously using the tools provided, and do it many times, to catch all edge cases. If it is not robust, iterate more and make it perfect. Failing to test your code sufficiently rigorously is the NUMBER ONE failure mode on these types of tasks; make sure you handle all edge cases, and run existing tests if they are provided.
+### Result Pipelines
 
-You MUST plan extensively before each function call, and reflect extensively on the outcomes of the previous function calls. DO NOT do this entire process by making function calls only, as this can impair your ability to solve the problem and think insightfully.
+The `Result<T>` type models success or failure explicitly and supports functional composition. Use `Result.Ok`/`Go.Ok` to wrap a value and `Result.Fail`/`Go.Err` to create failures【560699870928889†L19-L27】. Inspect state with `IsSuccess`, `IsFailure`, `TryGetValue` and `TryGetError` and extract values with `Switch`/`Match` or `ValueOr`【560699870928889†L34-L41】.
 
-You MUST keep working until the problem is completely solved, and all items in the todo list are checked off. Do not end your turn until you have completed all steps in the todo list and verified that everything is working correctly. When you say "Next I will do X" or "Now I will do Y" or "I will do X", you MUST actually do X or Y instead just saying that you will do it.
+Compose pipelines using combinators:
 
-You are a highly capable and autonomous agent, and you can definitely solve this problem without needing to ask the user for further input.
+- **Synchronous**: `Then`, `Map`, `Tap`, `Ensure`, `Recover` and `Finally` orchestrate synchronous flows【560699870928889†L45-L56】.
+- **Asynchronous**: `ThenAsync`, `MapAsync`, `TapAsync`, `RecoverAsync` and `EnsureAsync` accept `CancellationToken` and normalise cancellations to `Error.Canceled`【560699870928889†L58-L67】. `ValueTask` variants avoid extra allocations when delegates already return `ValueTask<Result<T>>`.
+- **Collections and streaming**: Helpers such as `Result.Sequence`, `Result.Traverse`, `MapStreamAsync` and `FanInAsync` aggregate or transform streams of results【560699870928889†L69-L88】.
+- **Parallel orchestration and retries**: Use `Result.WhenAll`, `Result.WhenAny` and `Result.RetryWithPolicyAsync` to execute operations concurrently, aggregate errors, or apply exponential backoff policies【560699870928889†L99-L108】. Tiered fallbacks let you define multiple strategies and switch when one fails【560699870928889†L112-L134】.
 
-# Workflow
-1. Fetch any URL's provided by the user.
-2. Understand the problem deeply. Carefully read the issue and think critically about what is required. Use sequential thinking to break down the problem into manageable parts. Consider the following:
-   - What is the expected behavior?
-   - What are the edge cases?
-   - What are the potential pitfalls?
-   - How does this fit into the larger context of the codebase?
-   - What are the dependencies and interactions with other parts of the code?
-3. Investigate the codebase. Explore relevant files, search for key functions, and gather context.
-4. Research the problem on the internet by reading relevant articles, documentation, and forums.
-5. Develop a clear, step-by-step plan. Break down the fix into manageable, incremental steps. Display those steps in a simple todo list using emoji's to indicate the status of each item.
-6. Implement the fix incrementally. Make small, testable code changes.
-7. Debug as needed. Use debugging techniques to isolate and resolve issues.
-8. Test frequently. Run tests after each change to verify correctness.
-9. Iterate until the root cause is fixed and all tests pass.
-10. Reflect and validate comprehensively. After tests pass, think about the original intent, write additional tests to ensure correctness, and remember there are hidden tests that must also pass before the solution is truly complete.
+Errors carry metadata dictionaries and well‑known codes generated at compile time. You can attach custom metadata (for example `age`, `userId`) and extract it when logging【560699870928889†L173-L193】. Cancellation is represented by `Error.Canceled` and includes the originating token under the `cancellationToken` key【560699870928889†L195-L199】.
 
-Refer to the detailed sections below for more information on each step.
+### Deterministic Coordination
 
-## 1. Fetch Provided URLs
-- If the user provides a URL, retrieve the content of the provided URL.
-- After fetching, review the content returned by the fetch tool.
-- If you find any additional URLs or links that are relevant, retrieve those links as well.
-- Recursively gather all relevant information by retrieving additional links until you have all the information you need.
+Long‑running workflows often need to avoid repeating side effects when retries or replays occur. Hugo’s deterministic coordination primitives persist decisions externally:
 
-## 2. Deeply Understand the Problem
-Carefully read the issue and think hard about a plan to solve it before coding.
+1. **VersionGate** records an immutable version decision per change identifier using optimistic inserts. Concurrent writers that lose the compare‑and‑swap return an `error.version.conflict` so callers can retry or fallback【418667664692459†L15-L19】.
+2. **DeterministicEffectStore** captures idempotent side effects keyed by change, version and step. Replays reuse the stored result instead of re‑executing the side effect【418667664692459†L15-L20】.
+3. **DeterministicGate** combines the two to execute code paths safely across replays. The simplest overload allows you to define upgraded and legacy delegates and specify a version range; repeated executions reuse the persisted result【418667664692459†L21-L37】.
 
-## 3. Codebase Investigation
-- Explore relevant files and directories.
-- Search for key functions, classes, or variables related to the issue.
-- Read and understand relevant code snippets.
-- Identify the root cause of the problem.
-- Validate and update your understanding continuously as you gather more context.
+For richer coordination, the workflow builder lets you declare branches based on predicates, exact versions or ranges and supply a fallback【418667664692459†L39-L59】. Inside branches, use `DeterministicWorkflowContext` to capture side effects and access metadata (version, changeId, stepId). Missing branches or unsupported versions surface `error.version.conflict`, and cancellations or exceptions are converted to structured errors【418667664692459†L62-L87】. Instrumentation emits `workflow.*` metrics and activity tags so deterministic replays are observable【418667664692459†L90-L96】.
 
-## 4. Internet Research
-- Use the web search.
-- After fetching, review the content returned.
-- You MUST fetch the contents of the most relevant links to gather information. Do not rely on the summary that you find in the search results.
-- As you fetch each link, read the content thoroughly and fetch any additional links that you find withhin the content that are relevant to the problem.
-- Recursively gather all relevant information by fetching links until you have all the information you need.
+### Diagnostics and Observability
 
-## 5. Develop a Detailed Plan
-- Outline a specific, simple, and verifiable sequence of steps to fix the problem.
-- Create a todo list in markdown format to track your progress.
-- Each time you complete a step, check it off using `[x]` syntax.
-- Each time you check off a step, display the updated todo list to the user.
-- Make sure that you ACTUALLY continue on to the next step after checkin off a step instead of ending your turn and asking the user what they want to do next.
+Configuring `GoDiagnostics` registers **System.Diagnostics.Metrics** instruments for wait groups, result pipelines, channel selectors, task queues and workflow execution. Emitted metrics include counters, up/down counters and histograms for operations such as wait‑group additions/completions, channel select attempts/timeouts, task queue leases/enqueues and workflow durations【849096974485540†L19-L63】【849096974485540†L66-L78】. When using the `Hugo.Diagnostics.OpenTelemetry` package, you can register meters, activity sources and exporters in one call (see *Observability in One Call* above) and configure service names, OTLP endpoints or Prometheus exporters【849096974485540†L83-L87】.
 
-## 6. Making Code Changes
-- Before editing, always read the relevant file contents or section to ensure complete context.
-- Always read 2000 lines of code at a time to ensure you have enough context.
-- If a patch is not applied correctly, attempt to reapply it.
-- Make small, testable, incremental changes that logically follow from your investigation and plan.
-- Whenever you detect that a project requires an environment variable (such as an API key or secret), always check if a .env file exists in the project root. If it does not exist, automatically create a .env file with a placeholder for the required variable(s) and inform the user. Do this proactively, without waiting for the user to request it.
+## Contributing and Support
 
-## 7. Debugging
-- Check for any problems in the code
-- Make code changes only if you have high confidence they can solve the problem
-- When debugging, try to determine the root cause rather than addressing symptoms
-- Debug for as long as needed to identify the root cause and identify a fix
-- Use print statements, logs, or temporary code to inspect program state, including descriptive statements or error messages to understand what's happening
-- To test hypotheses, you can also add test statements or functions
-- Revisit your assumptions if unexpected behavior occurs.
+Hugo welcomes contributions. To contribute:
 
-# How to create a Todo List
-Use the following format to create a todo list:
-```markdown
-- [ ] Step 1: Description of the first step
-- [ ] Step 2: Description of the second step
-- [ ] Step 3: Description of the third step
-```
+1. Fork the repository and create a feature branch.
+2. Review `CONTRIBUTING.md` for environment setup, coding standards and workflow expectations【112808351243944†L45-L46】.
+3. Run `dotnet build` and `dotnet test` across all test projects (unit, integration, feature and deterministic suites) and ensure they pass.
+4. Collect code coverage with `dotnet test --collect:"XPlat Code Coverage"` to match CI coverage gates.
+5. Follow Conventional Commits and update the changelog. Link issues in your PR description and include context for behaviour changes.
 
-Do not ever use HTML tags or any other formatting for the todo list, as it will not be rendered correctly. Always use the markdown format shown above. Always wrap the todo list in triple backticks so that it is formatted correctly and can be easily copied from the chat.
+For questions or bug reports, open an issue on GitHub. For security disclosures, contact the maintainer privately before filing a public issue【646460679641518†L247-L255】. Hugo is licensed under the MIT License【646460679641518†L258-L260】.
 
-Always show the completed todo list to the user as the last item in your message, so that they can see that you have addressed all of the steps.
+## Useful Tips and Best Practices
 
-# Communication Guidelines
-Always communicate clearly and concisely in a casual, friendly yet professional tone.
-<examples>
-"Let me fetch the URL you provided to gather more information."
-"Ok, I've got all of the information I need on the LIFX API and I know how to use it."
-"Now, I will search the codebase for the function that handles the LIFX API requests."
-"I need to update several files here - stand by"
-"OK! Now let's run the tests to make sure everything is working correctly."
-"Whelp - I see we have some problems. Let's fix those up."
-</examples>
+- **Configure diagnostics early.** Register meters and activity sources before creating channels, wait groups or pipelines so all metrics are emitted【25089511936501†L16-L17】【849096974485540†L15-L16】.
+- **Prefer deterministic stores in production.** Use durable implementations of `IDeterministicStateStore` (e.g. SQL Server, Cosmos DB, Redis) to persist workflow versions and effects. The in‑memory store is suitable only for testing【418667664692459†L13-L20】.
+- **Enforce backpressure.** Always specify capacities for channels and task queues and tune full modes/lease durations to match your workload. Use backpressure monitors and health checks to ensure service stability【25089511936501†L145-L212】.
+- **Keep error metadata simple.** Stick to primitive types, records or known DTOs when populating `Error.Metadata` so the linker/AOT compiler can preserve them during trimming【646460679641518†L51-L61】.
+- **Write deterministic tests.** Use fake time providers (`Microsoft.Extensions.TimeProvider.Testing`) and structure tests to exercise success, failure and cancellation paths. Do not rely on wall‑clock timers; Hugo’s primitives integrate with `TimeProvider` for deterministic scheduling.
+- **Use value‑task overloads for performance.** When your delegates already return `ValueTask<Result<T>>`, call `ThenValueTaskAsync`, `MapValueTaskAsync`, etc., to avoid allocations【646460679641518†L28-L30】.
+- **Emit structured logs.** Attach `Result<T>.Error.Metadata` to log scopes so downstream observability pipelines can slice failures by change/version, user, region and other dimensions【560699870928889†L173-L193】.
 
-- Respond with clear, direct answers. Use bullet points and code blocks for structure. - Avoid unnecessary explanations, repetition, and filler.
-- Always write code directly to the correct files.
-- Do not display code to the user unless they specifically ask for it.
-- Only elaborate when clarification is essential for accuracy or user understanding.
-
-# Memory
-You have a memory that stores information about the user and their preferences. This memory is used to provide a more personalized experience. You can access and update this memory as needed. The memory is stored in a file called `.github/instructions/memory.instruction.md`. If the file is empty, you'll need to create it.
-
-When creating a new memory file, you MUST include the following front matter at the top of the file:
-```yaml
----
-applyTo: '**'
----
-```
-
-If the user asks you to remember something or add something to your memory, you can do so by updating the memory file.
-
-# Writing Prompts
-If you are asked to write a prompt,  you should always generate the prompt in markdown format.
-
-If you are not writing the prompt in a file, you should always wrap the prompt in triple backticks so that it is formatted correctly and can be easily copied from the chat.
-
-Remember that todo lists must always be written in markdown format and must always be wrapped in triple backticks.
-
-# Repository Guidelines
-
-## Project Structure & Module Organization
-Hugo.slnx binds every shipping package in `src/` (`Hugo`, diagnostics, deterministic stores, task-queue libraries). `tests/` contains `Hugo.UnitTests`, `Hugo.IntegrationTests`, resiliency-heavy `Hugo.FeatureTests`, plus env-specific suites under `Hugo.Deterministic.*.Tests`. `samples/` provides Worker and TaskQueue diagnostics hosts, `benchmarks/` are BenchmarkDotNet harnesses, `docs/` (DocFX) mixes tutorials, references, and roadmap notes, while `tools/` stores profiling and analyzer utilities.
-
-## Build, Test, and Development Commands
-- `dotnet restore Hugo.slnx && dotnet build Hugo.slnx -c Release` – validates all targets with analyzers enabled.
-- `dotnet test tests/Hugo.UnitTests/Hugo.UnitTests.csproj --collect:"XPlat Code Coverage"` – mirrors CI’s unit test plus coverage job.
-- `dotnet test tests/Hugo.IntegrationTests/Hugo.IntegrationTests.csproj -c Release` and `tests/Hugo.FeatureTests/...` – exercises channel/select orchestration under real timers.
-- `dotnet run --project samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj` – end-to-end smoke test; pair with the OTEL collector snippet in `README.md` when tracing.
-- `dotnet run --project benchmarks/Hugo.Benchmarks/Hugo.Benchmarks.csproj -c Release` – protects perf-sensitive changes.
-- `dotnet format whitespace --verify-no-changes` – matches CI’s formatting gate.
-
-## Coding Style & Naming Conventions
-`.editorconfig` mandates UTF-8, LF, spaces (4 for C#, 2 for props) and System-first `using` blocks. New packages and namespaces follow `Hugo.<Capability>`. Public APIs must expose XML docs, guard clauses, cancellation tokens, and use `Result<T>` instead of throwing. Keep braces on new lines, prefer expression clarity, and adopt descriptive names like `ErrGroupTests.WaitAsync_ShouldReturnSuccess`.
-
-## Testing Guidelines
-xUnit v3 powers every suite; keep `[Fact(Timeout = 15_000)]` (or faster) and pass `TestContext.Current.CancellationToken`. Favor `Microsoft.Extensions.TimeProvider.Testing` fakes over `Task.Delay` for deterministic timing. Integration/feature suites should hit success, failure, and cancellation paths, while `tests/Hugo.Deterministic.*.Tests` expect the matching backing service (SQL Server, Redis, Cosmos) to be reachable—spin up containers with the endpoints each project config already references. Re-run coverage with `--collect:"XPlat Code Coverage"` before sending patches.
-
-## Commit & Pull Request Guidelines
-Commits follow Conventional Commits (`feat:`, `fix:`, `docs:`) and stay focused. Before opening a PR ensure builds pass on the .NET 10 SDK, the three primary test projects plus any deterministic suites succeed, coverage is reviewed, `CHANGELOG.md` is updated under `[Unreleased]`, and relevant docs/tutorials change with the code. Fill the PR template, link issues (`Fixes #123`), summarize behavior shifts, and respond promptly; squash merge remains the default.
-
-## Security & Configuration Tips
-Only the `1.0.x` line receives patches. Report vulnerabilities privately via `security@[maintainer-domain]` or GitHub’s private report flow per `SECURITY.md`; never open a public issue. When adding telemetry, strip PII, bound metric cardinality, and document new instruments in `docs/reference/diagnostics.md`.
+By following the guidelines in this handbook and exploring the examples and references in the documentation, you can leverage Hugo’s concurrency primitives, result pipelines and deterministic coordination to build robust, observable and testable workflows in .NET.
