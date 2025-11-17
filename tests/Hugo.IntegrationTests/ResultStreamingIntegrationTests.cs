@@ -38,7 +38,9 @@ public class ResultStreamingIntegrationTests
 
         cts.Cancel();
 
-        await Should.ThrowAsync<OperationCanceledException>(async () => await fanInTask);
+        var result = await fanInTask;
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
         await Should.ThrowAsync<OperationCanceledException>(async () => await writer.Reader.Completion);
     }
 

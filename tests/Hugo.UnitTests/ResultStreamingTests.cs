@@ -317,7 +317,9 @@ public class ResultStreamingTests
         var fanInTask = Result.FanInAsync(new[] { slow }, channel.Writer, cts.Token);
         cts.Cancel();
 
-        await Should.ThrowAsync<OperationCanceledException>(async () => await fanInTask);
+        var result = await fanInTask;
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
     }
 
     [Fact(Timeout = 15_000)]
@@ -336,8 +338,10 @@ public class ResultStreamingTests
 
         var channel = Channel.CreateUnbounded<Result<int>>();
 
-        await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await Result.FanInAsync(new[] { Throwing(TestContext.Current.CancellationToken) }, channel.Writer, TestContext.Current.CancellationToken));
+        var result = await Result.FanInAsync(new[] { Throwing(TestContext.Current.CancellationToken) }, channel.Writer, TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Cause.ShouldBeOfType<InvalidOperationException>();
 
         await Should.ThrowAsync<ChannelClosedException>(async () => await channel.Writer.WriteAsync(Result.Ok(99), TestContext.Current.CancellationToken));
         channel.Reader.Completion.IsFaulted.ShouldBeTrue();

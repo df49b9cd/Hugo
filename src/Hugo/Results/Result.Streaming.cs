@@ -305,8 +305,8 @@ public static partial class Result
     /// <param name="sources">The result sequences to merge.</param>
     /// <param name="writer">The channel writer that receives merged results.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>A <see cref="ValueTask"/> that completes when the merge finishes.</returns>
-    public static async ValueTask FanInAsync<T>(IEnumerable<IAsyncEnumerable<Result<T>>> sources, ChannelWriter<Result<T>> writer, CancellationToken cancellationToken = default)
+    /// <returns>A result indicating success or describing the failure that occurred.</returns>
+    public static async ValueTask<Result<Unit>> FanInAsync<T>(IEnumerable<IAsyncEnumerable<Result<T>>> sources, ChannelWriter<Result<T>> writer, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(writer);
@@ -337,12 +337,17 @@ public static partial class Result
         if (failure is null)
         {
             writer.TryComplete();
+            return Ok(Unit.Value);
         }
-        else
+
+        if (failure is OperationCanceledException oce)
         {
-            writer.TryComplete(failure);
-            throw failure;
+            writer.TryComplete(oce);
+            return Fail<Unit>(Error.Canceled(token: oce.CancellationToken));
         }
+
+        writer.TryComplete(failure);
+        return Fail<Unit>(Error.FromException(failure));
     }
 
     /// <param name="source">The sequence to broadcast.</param>

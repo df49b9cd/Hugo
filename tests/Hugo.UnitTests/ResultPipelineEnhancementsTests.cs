@@ -478,8 +478,9 @@ public class ResultPipelineEnhancementsTests
             yield return Result.Ok(11);
         }
 
-        var exception = await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await Result.FanInAsync([Faulty(TestContext.Current.CancellationToken), Healthy(TestContext.Current.CancellationToken)], channel.Writer, TestContext.Current.CancellationToken));
+        var result = await Result.FanInAsync([Faulty(TestContext.Current.CancellationToken), Healthy(TestContext.Current.CancellationToken)], channel.Writer, TestContext.Current.CancellationToken);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Cause.ShouldBeOfType<InvalidOperationException>();
 
         var buffered = new List<Result<int>>();
         while (channel.Reader.TryRead(out var item))
@@ -489,8 +490,7 @@ public class ResultPipelineEnhancementsTests
 
         buffered.ShouldContain(static result => result.IsSuccess && result.Value == 1);
         channel.Reader.Completion.IsFaulted.ShouldBeTrue();
-        var completionException = await Should.ThrowAsync<InvalidOperationException>(async () => await channel.Reader.Completion);
-        completionException.ShouldBeSameAs(exception);
+        await Should.ThrowAsync<InvalidOperationException>(async () => await channel.Reader.Completion);
     }
 
     [Fact(Timeout = 15_000)]
