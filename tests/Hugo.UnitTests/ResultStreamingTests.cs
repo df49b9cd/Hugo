@@ -90,7 +90,7 @@ public class ResultStreamingTests
 
         var list = channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(new[] { 1, 2 }, list.Select(r => r.Value));
+        Assert.Equal([1, 2], list.Select(r => r.Value));
     }
 
     [Fact(Timeout = 15_000)]
@@ -109,14 +109,14 @@ public class ResultStreamingTests
     [Fact(Timeout = 15_000)]
     public async ValueTask PartitionAsync_ShouldRouteByPredicate()
     {
-        var source = GetResults(new[] { Result.Ok(1), Result.Ok(2), Result.Ok(3) });
+        var source = GetResults([Result.Ok(1), Result.Ok(2), Result.Ok(3)]);
         var even = Channel.CreateUnbounded<Result<int>>();
         var odd = Channel.CreateUnbounded<Result<int>>();
 
         await source.PartitionAsync(v => v % 2 == 0, even.Writer, odd.Writer, TestContext.Current.CancellationToken);
 
-        Assert.Equal(new[] { 2 }, await ReadAllValues(even.Reader));
-        Assert.Equal(new[] { 1, 3 }, await ReadAllValues(odd.Reader));
+        Assert.Equal([2], await ReadAllValues(even.Reader));
+        Assert.Equal([1, 3], await ReadAllValues(odd.Reader));
     }
 
     [Fact(Timeout = 15_000)]
@@ -176,7 +176,7 @@ public class ResultStreamingTests
     [Fact(Timeout = 15_000)]
     public async ValueTask ForEachAsync_ShouldReturnFailureFromCallback()
     {
-        var stream = GetSequence(new[] { 1, 2, 3 });
+        var stream = GetSequence([1, 2, 3]);
         var seen = new List<int>();
 
         var result = await stream.ForEachAsync(async (result, ct) =>
@@ -231,7 +231,7 @@ public class ResultStreamingTests
     }
 
     private static IAsyncEnumerable<Result<int>> SuccessfulStream(int seed) =>
-        GetResults(new[] { Result.Ok(seed * 10) });
+        GetResults([Result.Ok(seed * 10)]);
 
     private static async IAsyncEnumerable<Result<int>> FailingStream([EnumeratorCancellation] CancellationToken ct)
     {

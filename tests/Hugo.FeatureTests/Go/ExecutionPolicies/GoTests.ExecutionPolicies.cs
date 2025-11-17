@@ -220,7 +220,7 @@ public partial class GoTests
             timeProvider: provider);
 
         Assert.True(raceResult.IsSuccess);
-        Assert.Equal(new[] { 5, 6 }, raceResult.Value);
+        Assert.Equal([5, 6], raceResult.Value);
     }
 
     [Fact(Timeout = 15_000)]

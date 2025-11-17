@@ -407,12 +407,12 @@ public class ErrGroupTests
 
         var trySetError = typeof(ErrGroup).GetMethod("TrySetError", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(trySetError);
-        var setResult = (bool?)trySetError!.Invoke(group, new object?[] { failure });
+        var setResult = (bool?)trySetError!.Invoke(group, [failure]);
         Assert.True(setResult);
 
         var updateError = typeof(ErrGroup).GetMethod("UpdateError", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(updateError);
-        updateError!.Invoke(group, new object?[] { failure, aggregated });
+        updateError!.Invoke(group, [failure, aggregated]);
 
         var errorField = typeof(ErrGroup).GetField("_error", BindingFlags.Instance | BindingFlags.NonPublic);
         var recorded = (Error?)errorField?.GetValue(group);

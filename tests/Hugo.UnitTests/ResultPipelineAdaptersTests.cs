@@ -78,7 +78,7 @@ public class ResultPipelineAdaptersTests
 
         var fanInResult = await ResultPipelineChannels.FanInAsync(
             context,
-            new[] { channelA.Reader, channelB.Reader },
+            [channelA.Reader, channelB.Reader],
             handler,
             cancellationToken: testToken);
 
@@ -243,7 +243,7 @@ public class ResultPipelineAdaptersTests
 
         var mergeTask = ResultPipelineChannels.MergeWithStrategyAsync(
             context,
-            new[] { first.Reader, second.Reader },
+            [first.Reader, second.Reader],
             destination.Writer,
             strategy,
             cancellationToken: token);
@@ -293,8 +293,8 @@ public class ResultPipelineAdaptersTests
 
         var batches = await batchesTask;
         Assert.Equal(2, batches.Count);
-        Assert.Equal(new[] { 1, 2 }, batches[0]);
-        Assert.Equal(new[] { 3 }, batches[1]);
+        Assert.Equal([1, 2], batches[0]);
+        Assert.Equal([3], batches[1]);
 
         await RunCompensationAsync(scope);
     }
@@ -325,7 +325,7 @@ public class ResultPipelineAdaptersTests
         }
 
         Assert.Single(batches);
-        Assert.Equal(new[] { 1, 2 }, batches[0]);
+        Assert.Equal([1, 2], batches[0]);
 
         await RunCompensationAsync(scope);
     }

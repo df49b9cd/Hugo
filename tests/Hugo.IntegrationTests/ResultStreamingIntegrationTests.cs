@@ -12,16 +12,16 @@ public class ResultStreamingIntegrationTests
     [Fact(Timeout = 15_000)]
     public async Task FanInAsync_ShouldMergeMultipleStreams()
     {
-        var sourceA = Sequence(new[] { 1, 2 });
-        var sourceB = Sequence(new[] { 3 });
+        var sourceA = Sequence([1, 2]);
+        var sourceB = Sequence([3]);
         var writer = Channel.CreateUnbounded<Result<int>>();
 
-        await Result.FanInAsync(new[] { sourceA, sourceB }, writer.Writer, TestContext.Current.CancellationToken);
+        await Result.FanInAsync([sourceA, sourceB], writer.Writer, TestContext.Current.CancellationToken);
 
         var collected = await ReadAll(writer.Reader);
 
         Assert.Equal(3, collected.Count);
-        Assert.Equal(new[] { 1, 2, 3 }, collected.Select(r => r.Value).OrderBy(v => v));
+        Assert.Equal([1, 2, 3], collected.Select(r => r.Value).OrderBy(v => v));
     }
 
     private static async IAsyncEnumerable<Result<int>> Sequence(IEnumerable<int> values)

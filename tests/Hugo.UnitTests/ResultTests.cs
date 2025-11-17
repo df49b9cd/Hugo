@@ -831,7 +831,7 @@ public class ResultTests
 
         var successResult = await SuccessStream().CollectErrorsAsync(TestContext.Current.CancellationToken);
         Assert.True(successResult.IsSuccess);
-        Assert.Equal(new[] { 4, 5 }, successResult.Value);
+        Assert.Equal([4, 5], successResult.Value);
     }
 
     [Fact(Timeout = 15_000)]

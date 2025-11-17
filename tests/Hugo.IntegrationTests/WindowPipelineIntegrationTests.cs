@@ -45,6 +45,6 @@ public class WindowPipelineIntegrationTests
         }
 
         Assert.Single(batches);
-        Assert.Equal(new[] { 10, 11, 12 }, batches[0]);
+        Assert.Equal([10, 11, 12], batches[0]);
     }
 }
