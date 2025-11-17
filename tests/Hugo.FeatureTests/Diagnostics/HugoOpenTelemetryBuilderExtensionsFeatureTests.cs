@@ -44,4 +44,25 @@ public sealed class HugoOpenTelemetryBuilderExtensionsFeatureTests
             .Any(service => service.GetType().Name == "HugoDiagnosticsRegistrationService")
             .ShouldBeTrue();
     }
+
+    [Fact(Timeout = 15_000)]
+    public void AddHugoDiagnostics_WithOptionsInstance_ShouldRegisterSingletonInstance()
+    {
+        var builder = Host.CreateApplicationBuilder();
+        var options = new HugoOpenTelemetryOptions
+        {
+            ServiceName = "options-instance"
+        };
+
+        builder.Services.AddOpenTelemetry().AddHugoDiagnostics(options);
+
+        using var host = builder.Build();
+
+        var resolved = host.Services.GetRequiredService<IOptions<HugoOpenTelemetryOptions>>().Value;
+        ReferenceEquals(resolved, options).ShouldBeTrue();
+
+        host.Services.GetServices<IHostedService>()
+            .Any(service => service.GetType().Name == "HugoDiagnosticsRegistrationService")
+            .ShouldBeTrue();
+    }
 }

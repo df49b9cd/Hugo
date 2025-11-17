@@ -16,4 +16,13 @@ public sealed class RwMutexTests
 
         Should.Throw<ObjectDisposedException>(() => mutex.EnterWriteScope());
     }
+
+    [Fact(Timeout = 15_000)]
+    public async Task LockAsync_ShouldThrowObjectDisposedException_WhenDisposed()
+    {
+        var mutex = new RwMutex();
+        mutex.Dispose();
+
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await mutex.LockAsync(TestContext.Current.CancellationToken));
+    }
 }

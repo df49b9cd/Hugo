@@ -45,4 +45,25 @@ public sealed class ResultPipelineWaitGroupExtensionsTests
 
         parentScope.HasActions.ShouldBeFalse();
     }
+
+    [Fact(Timeout = 15_000)]
+    public async Task Go_ShouldHonorExplicitStepName()
+    {
+        var waitGroup = new WaitGroup();
+        var parentContext = new ResultPipelineStepContext("parent", new CompensationScope(), TimeProvider.System, TestContext.Current.CancellationToken);
+        string? observedName = null;
+
+        waitGroup.Go(
+            parentContext,
+            (ctx, _) =>
+            {
+                observedName = ctx.StepName;
+                return ValueTask.FromResult(Result.Ok(Go.Unit.Value));
+            },
+            stepName: "custom-step");
+
+        await waitGroup.WaitAsync(TestContext.Current.CancellationToken);
+
+        observedName.ShouldBe("custom-step");
+    }
 }

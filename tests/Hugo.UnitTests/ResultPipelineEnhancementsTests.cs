@@ -687,6 +687,27 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
+    public void Partition_ShouldReturnFailureWithoutEvaluatingRemainingItems()
+    {
+        var evaluations = 0;
+        var data = new[]
+        {
+            Result.Ok(1),
+            Result.Fail<int>(Error.From("boom")),
+            Result.Ok(3)
+        };
+
+        var partitioned = Result.Partition(data, value =>
+        {
+            evaluations++;
+            return value % 2 == 0;
+        });
+
+        partitioned.IsFailure.ShouldBeTrue();
+        evaluations.ShouldBe(1);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask RetryWithPolicyAsync_ShouldRetryUntilSuccess()
     {
         var attempts = 0;

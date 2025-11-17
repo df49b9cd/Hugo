@@ -125,4 +125,48 @@ public sealed class ValueTaskUtilitiesTests
 
         winner.ShouldBe(1);
     }
+
+    [Fact(Timeout = 15_000)]
+    public async Task ContinueWith_ShouldExposeFaultedTask_WhenOperationThrows()
+    {
+        var source = new ValueTask<int>(Task.FromException<int>(new InvalidOperationException("boom")));
+        ValueTask<int>? forwarded = null;
+
+        await source.ContinueWith(task => forwarded = task);
+
+        forwarded.ShouldNotBeNull();
+        forwarded!.Value.IsCompleted.ShouldBeTrue();
+        forwarded.Value.IsFaulted.ShouldBeTrue();
+        await Should.ThrowAsync<InvalidOperationException>(async () => await forwarded.Value);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task ContinueWith_ShouldExposeCanceledTask_WhenOperationCanceled()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var source = new ValueTask<int>(Task.FromCanceled<int>(cts.Token));
+        ValueTask<int>? forwarded = null;
+
+        await source.ContinueWith(task => forwarded = task);
+
+        forwarded.ShouldNotBeNull();
+        forwarded!.Value.IsCanceled.ShouldBeTrue();
+        var exception = await Should.ThrowAsync<OperationCanceledException>(async () => await forwarded.Value);
+        exception.CancellationToken.ShouldBe(cts.Token);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task YieldAsync_ShouldDelayContinuation_UntilYieldCompletes()
+    {
+        var yielded = false;
+
+        var yield = ValueTaskUtilities.YieldAsync();
+        yielded = yield.IsCompleted;
+
+        await yield;
+
+        yielded.ShouldBeFalse();
+    }
 }
