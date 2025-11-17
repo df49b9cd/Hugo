@@ -23,9 +23,7 @@ public sealed class ChannelCaseTemplatesFeatureTests
             ChannelCaseTemplates.From(ready.Reader)
         ];
 
-        ChannelCase<int>[] cases = templates
-            .Select(template => template.With<int>((value, _) => ValueTask.FromResult(Result.Ok(value))))
-            .ToArray();
+        ChannelCase<int>[] cases = [.. templates.Select(template => template.With<int>((value, _) => ValueTask.FromResult(Result.Ok(value))))];
 
         var result = await SelectAsync(cases: cases, cancellationToken: TestContext.Current.CancellationToken);
 

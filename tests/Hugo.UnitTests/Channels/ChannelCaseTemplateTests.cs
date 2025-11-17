@@ -69,9 +69,7 @@ public sealed class ChannelCaseTemplateTests
         IEnumerable<ChannelCaseTemplate<int>> templates =
             [ChannelCaseTemplates.From(first.Reader), ChannelCaseTemplates.From(second.Reader)];
 
-        ChannelCase<int>[] cases = templates
-            .Select(template => template.With<int>((value, _) => ValueTask.FromResult(Result.Ok(value))))
-            .ToArray();
+        ChannelCase<int>[] cases = [.. templates.Select(template => template.With<int>((value, _) => ValueTask.FromResult(Result.Ok(value))))];
 
         var result = await Go.SelectAsync(cases: cases, cancellationToken: TestContext.Current.CancellationToken);
 

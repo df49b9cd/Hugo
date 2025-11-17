@@ -259,7 +259,7 @@ public static class ResultPipelineChannels
 
                         if (buffer.Count > 0)
                         {
-                            await output.Writer.WriteAsync(buffer.ToArray(), token).ConfigureAwait(false);
+                            await output.Writer.WriteAsync([.. buffer], token).ConfigureAwait(false);
                             buffer.Clear();
                         }
 
@@ -268,7 +268,7 @@ public static class ResultPipelineChannels
                             buffer.Add(pending);
                             if (buffer.Count >= batchSize)
                             {
-                                await output.Writer.WriteAsync(buffer.ToArray(), token).ConfigureAwait(false);
+                                await output.Writer.WriteAsync([.. buffer], token).ConfigureAwait(false);
                                 buffer.Clear();
                             }
                         }
@@ -292,7 +292,7 @@ public static class ResultPipelineChannels
                         buffer.Add(item);
                         if (buffer.Count >= batchSize)
                         {
-                            await output.Writer.WriteAsync(buffer.ToArray(), token).ConfigureAwait(false);
+                            await output.Writer.WriteAsync([.. buffer], token).ConfigureAwait(false);
                             buffer.Clear();
                         }
                     }
@@ -300,7 +300,7 @@ public static class ResultPipelineChannels
 
                 if (buffer.Count > 0)
                 {
-                    await output.Writer.WriteAsync(buffer.ToArray(), token).ConfigureAwait(false);
+                    await output.Writer.WriteAsync([.. buffer], token).ConfigureAwait(false);
                 }
 
                 output.Writer.TryComplete();

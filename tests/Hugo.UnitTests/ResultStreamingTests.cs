@@ -364,13 +364,17 @@ public class ResultStreamingTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async ValueTask FlatMapStreamAsync_ShouldThrowWhenSelectorReturnsNull()
+    public async ValueTask FlatMapStreamAsync_ShouldReturnFailureWhenSelectorReturnsNull()
     {
         var source = GetValues([1]);
 
         var stream = Result.FlatMapStreamAsync<int, int>(source, (_, _) => null!, TestContext.Current.CancellationToken);
 
-        await Should.ThrowAsync<InvalidOperationException>(async () => await CollectAsync(stream));
+        var collected = await CollectAsync(stream);
+
+        collected.ShouldHaveSingleItem();
+        collected[0].IsFailure.ShouldBeTrue();
+        collected[0].Error?.Message.ShouldBe("Selector returned null stream.");
     }
 
     [Fact(Timeout = 15_000)]
@@ -480,6 +484,6 @@ public class ResultStreamingTests
                 list.Add(item.Value);
             }
         }
-        return list.ToArray();
+        return [.. list];
     }
 }
