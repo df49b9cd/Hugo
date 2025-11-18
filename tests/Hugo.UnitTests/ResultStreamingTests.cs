@@ -398,6 +398,63 @@ public class ResultStreamingTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask MapStreamAsync_ShouldHandleMoveNextException()
+    {
+        async IAsyncEnumerable<int> Throwing([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Yield();
+            yield return await Task.FromException<int>(new InvalidOperationException("move-next exploded"));
+        }
+
+        var projected = Result.MapStreamAsync(
+            Throwing(TestContext.Current.CancellationToken),
+            (value, _) => ValueTask.FromResult(Result.Ok(value)),
+            TestContext.Current.CancellationToken);
+
+        var results = await CollectAsync(projected);
+
+        results.ShouldHaveSingleItem().Error?.Code.ShouldBe(ErrorCodes.Exception);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask FlatMapStreamAsync_ShouldSurfaceInnerMoveNextException()
+    {
+        async IAsyncEnumerable<Result<int>> ExplodingInner([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Yield();
+            yield return await Task.FromException<Result<int>>(new InvalidOperationException("inner boom"));
+        }
+
+        var flattened = Result.FlatMapStreamAsync(
+            GetValues([1]),
+            (_, _) => ExplodingInner(TestContext.Current.CancellationToken),
+            TestContext.Current.CancellationToken);
+
+        var results = await CollectAsync(flattened);
+
+        results.ShouldHaveSingleItem().Error?.Code.ShouldBe(ErrorCodes.Exception);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask FlatMapStreamAsync_ShouldReturnCanceledWhenOuterEnumerationStops()
+    {
+        async IAsyncEnumerable<int> CancelingOuter([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Yield();
+            yield return await Task.FromCanceled<int>(ct);
+        }
+
+        var flattened = Result.FlatMapStreamAsync(
+            CancelingOuter(TestContext.Current.CancellationToken),
+            (_, _) => SuccessfulStream(1),
+            TestContext.Current.CancellationToken);
+
+        var results = await CollectAsync(flattened);
+
+        results.ShouldHaveSingleItem().Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask FanInAsync_ShouldCompleteWriterWithFailure()
     {
 #pragma warning disable CS0162

@@ -1,3 +1,4 @@
+using Hugo.Policies;
 using Shouldly;
 
 namespace Hugo.Tests;
@@ -52,5 +53,23 @@ public sealed class ResultOperatorsTests
         result.Value.Count.ShouldBe(2);
         result.Value[0].ShouldBe([1, 2]);
         result.Value[1].ShouldBe([3]);
+    }
+
+    [Fact(Timeout = 5_000)]
+    public async ValueTask RetryWithPolicyAsync_ShouldAggregateCompensationFailure()
+    {
+        var compensationPolicy = new ResultCompensationPolicy(_ => throw new InvalidOperationException("comp failure"));
+        var policy = ResultExecutionPolicy.None.WithCompensation(compensationPolicy);
+
+        var result = await Result.RetryWithPolicyAsync<int>(async (context, _) =>
+        {
+            context.RegisterCompensation(_ => ValueTask.CompletedTask);
+            await Task.Yield();
+            return Result.Fail<int>(Error.From("operation failed"));
+        }, policy, timeProvider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldNotBeNull();
+        result.Error?.Message.ShouldContain("operation failed");
     }
 }

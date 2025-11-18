@@ -82,6 +82,32 @@ public sealed class ResultStreamingFeatureTests
         right.Reader.Completion.IsCompleted.ShouldBeTrue();
     }
 
+    [Fact(Timeout = 15_000)]
+    public async Task WindowAsync_ShouldYieldTrailingWindowAndSurfaceFailure()
+    {
+        async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct)
+        {
+            yield return Result.Ok(1);
+            yield return Result.Ok(2);
+            yield return Result.Fail<int>(Error.From("feature-window-fail"));
+            yield return Result.Ok(3);
+            await Task.Delay(5, ct);
+        }
+
+        var windows = new List<Result<IReadOnlyList<int>>>();
+        await foreach (var outcome in Source(TestContext.Current.CancellationToken).WindowAsync(2, TestContext.Current.CancellationToken))
+        {
+            windows.Add(outcome);
+        }
+
+        windows.Count.ShouldBe(3);
+        windows[0].IsSuccess.ShouldBeTrue();
+        windows[0].Value.ShouldBe([1, 2]);
+        windows[1].IsFailure.ShouldBeTrue();
+        windows[2].IsSuccess.ShouldBeTrue();
+        windows[2].Value.ShouldBe([3]);
+    }
+
     private static async IAsyncEnumerable<int> Values([EnumeratorCancellation] CancellationToken token)
     {
         yield return 1;
