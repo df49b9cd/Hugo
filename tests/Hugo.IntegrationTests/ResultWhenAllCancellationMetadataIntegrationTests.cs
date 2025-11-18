@@ -63,6 +63,50 @@ public sealed class ResultWhenAllCancellationMetadataIntegrationTests
     }
 
     [Fact(Timeout = 30_000)]
+    public async Task BuildWhenAllCancellationErrorAsync_ShouldCapturePendingOperationExceptions()
+    {
+        var pipelineScope = new CompensationScope();
+        var policy = ResultExecutionPolicy.None.WithCompensation(new ResultCompensationPolicy(_ => throw new InvalidOperationException("comp-fail")));
+
+        var completed = new[] { false, false, false };
+        var results = new Result.PipelineOperationResult<int>[3];
+
+        var operations = new ValueTask<Result.PipelineOperationResult<int>>[3];
+        operations[0] = new(Task.FromException<Result.PipelineOperationResult<int>>(new InvalidOperationException("op0")));
+        operations[1] = new(Task.FromCanceled<Result.PipelineOperationResult<int>>(new CancellationToken(true)));
+        operations[2] = new(new Result.PipelineOperationResult<int>(Result.Fail<int>(Error.From("late-failure")), new CompensationScope()));
+
+        using var fallbackCts = new CancellationTokenSource();
+        using var canceledCts = new CancellationTokenSource();
+        canceledCts.Cancel();
+
+        var method = typeof(Result)
+            .GetMethod("BuildWhenAllCancellationErrorAsync", BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(typeof(int));
+
+        var cancellationError = await (ValueTask<Error>)method.Invoke(
+            null,
+            new object[]
+            {
+                operations,
+                results,
+                completed,
+                pipelineScope,
+                policy,
+                new OperationCanceledException(canceledCts.Token),
+                fallbackCts.Token
+            })!;
+
+        cancellationError.Code.ShouldBe(ErrorCodes.Canceled);
+        cancellationError.Metadata.TryGetValue("whenall.partialFailures", out var captured).ShouldBeTrue();
+
+        var failures = captured.ShouldBeOfType<Error[]>();
+        failures.ShouldContain(error => error.Code == ErrorCodes.Canceled);
+        failures.ShouldContain(error => error.Code == ErrorCodes.Exception);
+        failures.ShouldContain(error => error.Message.Contains("late-failure", StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 30_000)]
     public void ResultStruct_ShouldExposeCompensationAndConversions()
     {
         Should.Throw<ArgumentNullException>(() => Result.Ok(1).WithCompensation((Func<CancellationToken, ValueTask>)null!));

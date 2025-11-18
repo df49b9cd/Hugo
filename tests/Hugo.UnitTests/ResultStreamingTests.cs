@@ -534,6 +534,34 @@ public class ResultStreamingTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask ToChannelAsync_ShouldFallbackToWriteAsyncWhenBufferIsFull()
+    {
+        var channel = Channel.CreateBounded<Result<int>>(1);
+        await channel.Writer.WriteAsync(Result.Ok(7), TestContext.Current.CancellationToken);
+
+        async IAsyncEnumerable<Result<int>> Canceling([EnumeratorCancellation] CancellationToken ct)
+        {
+            await Task.Yield();
+            throw new OperationCanceledException(ct);
+#pragma warning disable CS0162
+            yield return Result.Ok(0);
+#pragma warning restore CS0162
+        }
+
+        var forwarding = Result.ToChannelAsync(Canceling(TestContext.Current.CancellationToken), channel.Writer, TestContext.Current.CancellationToken);
+
+        var buffered = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+        buffered.Value.ShouldBe(7);
+
+        await forwarding;
+
+        var sentinel = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+        sentinel.IsFailure.ShouldBeTrue();
+        sentinel.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+        channel.Reader.Completion.IsCompleted.ShouldBeTrue();
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask FlatMapStreamAsync_ShouldReturnFailureWhenSelectorReturnsNull()
     {
         var source = GetValues([1]);
