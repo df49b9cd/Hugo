@@ -30,6 +30,32 @@ public class ResultStreamingTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask MapStreamAsync_ShouldSurfaceCancellationFromSource()
+    {
+        async IAsyncEnumerable<int> Canceling([EnumeratorCancellation] CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            await Task.Yield();
+            ct.ThrowIfCancellationRequested();
+            yield return 1;
+        }
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var projected = Result.MapStreamAsync(
+            Canceling(cts.Token),
+            (value, _) => ValueTask.FromResult(Result.Ok(value)),
+            cts.Token);
+
+        var results = await CollectAsync(projected);
+
+        results.Count.ShouldBe(1);
+        results[0].IsFailure.ShouldBeTrue();
+        results[0].Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask CollectErrorsAsync_ShouldAggregateFailures()
     {
         var stream = GetResults([Result.Ok(1), Result.Fail<int>(Error.From("a")), Result.Fail<int>(Error.From("b"))]);
@@ -58,6 +84,23 @@ public class ResultStreamingTests
         results[0].IsSuccess.ShouldBeTrue();
         results[0].Value.ShouldBe(10);
         results[1].IsFailure.ShouldBeTrue();
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask FlatMapStreamAsync_ShouldFailWhenSelectorReturnsNullStream()
+    {
+        var source = GetValues([1]);
+
+        var flattened = Result.FlatMapStreamAsync<int, int>(
+            source,
+            (_, _) => (IAsyncEnumerable<Result<int>>?)null!,
+            TestContext.Current.CancellationToken);
+
+        var results = await CollectAsync(flattened);
+
+        results.Count.ShouldBe(1);
+        results[0].IsFailure.ShouldBeTrue();
+        results[0].Error?.Message.ShouldContain("null stream");
     }
 
     [Fact(Timeout = 15_000)]
