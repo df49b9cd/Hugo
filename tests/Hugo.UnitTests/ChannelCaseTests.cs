@@ -6,64 +6,62 @@ namespace Hugo.Tests;
 
 public sealed class ChannelCaseTests
 {
-    [Fact(Timeout = 10_000)]
-    public async Task TryDequeueImmediately_ShouldReturnReadyDeferredRead()
+    [Fact(Timeout = 15_000)]
+    public async Task WaitAsync_ShouldReturnFalse_WhenChannelCompletedBeforeRead()
     {
         var channel = Channel.CreateUnbounded<int>();
-        await channel.Writer.WriteAsync(42, TestContext.Current.CancellationToken);
+        channel.Writer.TryComplete();
 
-        var channelCase = ChannelCase.Create(channel.Reader, (int value, CancellationToken _) =>
-            ValueTask.FromResult(Result.Ok(value)));
+        ChannelCase<int> @case = ChannelCase.Create(channel.Reader, static (value, _) => ValueTask.FromResult(Result.Ok(value)));
 
-        channelCase.TryDequeueImmediately(out var state).ShouldBeTrue();
-        state.ShouldBeOfType<DeferredRead<int>>();
+        var (hasValue, state) = await @case.WaitAsync(TestContext.Current.CancellationToken);
 
-        var result = await channelCase.ContinueWithAsync(state, TestContext.Current.CancellationToken);
-        result.IsSuccess.ShouldBeTrue();
-        result.Value.ShouldBe(42);
+        hasValue.ShouldBeFalse();
+        state.ShouldBeNull();
     }
 
-    [Fact(Timeout = 10_000)]
-    public async Task CreateDefault_ShouldSurfaceExceptionsAsFailures()
+    [Fact(Timeout = 15_000)]
+    public async Task ContinueWithAsync_ShouldReturnSelectDrained_WhenChannelClosesBeforeRead()
     {
-        var defaultCase = ChannelCase.CreateDefault<int>((Func<Result<int>>)(() => Result.Fail<int>(Error.FromException(new InvalidOperationException("failure")))));
+        var channel = Channel.CreateUnbounded<int>();
+        channel.Writer.TryComplete();
 
-        var (hasValue, state) = await defaultCase.WaitAsync(TestContext.Current.CancellationToken);
-        hasValue.ShouldBeTrue();
+        ChannelCase<int> @case = ChannelCase.Create(channel.Reader, static (value, _) => ValueTask.FromResult(Result.Ok(value)));
 
-        var result = await defaultCase.ContinueWithAsync(state, TestContext.Current.CancellationToken);
+        var result = await @case.ContinueWithAsync(new DeferredRead<int>(channel.Reader), TestContext.Current.CancellationToken);
+
         result.IsFailure.ShouldBeTrue();
-        result.Error?.Message.ShouldContain("failure");
+        result.Error?.Code.ShouldBe(ErrorCodes.SelectDrained);
     }
 
-    [Fact(Timeout = 10_000)]
-    public async Task WithPriority_ShouldUpdatePriorityPreservingDelegates()
+    [Fact(Timeout = 15_000)]
+    public async Task ContinueWithAsync_ShouldReturnError_WhenStateIsUnexpected()
     {
         var channel = Channel.CreateUnbounded<int>();
-        await channel.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
+        ChannelCase<int> @case = ChannelCase.Create(channel.Reader, static (value, _) => ValueTask.FromResult(Result.Ok(value)));
 
-        var original = ChannelCase.Create(channel.Reader, (int value, CancellationToken _) =>
-            ValueTask.FromResult(Result.Ok(value)));
-        var elevated = original.WithPriority(5);
+        var result = await @case.ContinueWithAsync(new object(), TestContext.Current.CancellationToken);
 
-        elevated.Equals(original).ShouldBeFalse();
-        elevated.TryDequeueImmediately(out var state).ShouldBeTrue();
-
-        var result = await elevated.ContinueWithAsync(state, TestContext.Current.CancellationToken);
-        result.IsSuccess.ShouldBeTrue();
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
     }
 
-    [Fact(Timeout = 10_000)]
-    public void TryDequeueImmediately_ShouldReturnFalseWhenNoProbe()
+    [Fact]
+    public void WithContinuation_ShouldThrow_WhenContinuationIsNull()
     {
-        var channelCase = new ChannelCase<int>(
-            _ => Task.FromResult((false, (object?)null)),
-            (_, _) => ValueTask.FromResult(Result.Ok(0)),
-            readyProbe: null,
-            priority: 0,
-            isDefault: false);
+        ChannelCase<int> @case = new(static _ => Task.FromResult((true, (object?)null)), static (_, _) => ValueTask.FromResult(Result.Ok(0)), null, priority: 0, isDefault: false);
 
-        channelCase.TryDequeueImmediately(out var state).ShouldBeFalse();
+        Should.Throw<ArgumentNullException>(() => @case.WithContinuation(null!));
+    }
+
+    [Fact]
+    public void TryDequeueImmediately_ShouldReturnFalse_WhenProbeUnavailable()
+    {
+        ChannelCase<int> @case = new(static _ => Task.FromResult((true, (object?)null)), static (_, _) => ValueTask.FromResult(Result.Ok(0)), readyProbe: null, priority: 0, isDefault: false);
+
+        var ready = @case.TryDequeueImmediately(out var state);
+
+        ready.ShouldBeFalse();
         state.ShouldBeNull();
     }
 }

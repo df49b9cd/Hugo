@@ -1,138 +1,195 @@
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
 using Shouldly;
 
+using Unit = Hugo.Go.Unit;
+
 namespace Hugo.Tests;
 
-public class ResultStreamingIntegrationTests
+public sealed class ResultStreamingIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsync_ShouldMergeMultipleStreams()
+    public async Task MapStreamAsync_ShouldProduceMappedValuesUntilFailure()
     {
-        var sourceA = Sequence([1, 2]);
-        var sourceB = Sequence([3]);
-        var writer = Channel.CreateUnbounded<Result<int>>();
-
-        await Result.FanInAsync([sourceA, sourceB], writer.Writer, TestContext.Current.CancellationToken);
-
-        var collected = await ReadAll(writer.Reader);
-
-        collected.Count.ShouldBe(3);
-        collected.Select(r => r.Value).OrderBy(v => v).ShouldBe([1, 2, 3]);
-    }
-
-    [Fact(Timeout = 15_000)]
-    public async Task FanInAsync_ShouldPropagateCancellationAndFaultWriter()
-    {
-        using var cts = new CancellationTokenSource();
-        var writer = Channel.CreateUnbounded<Result<int>>();
-
-        var sources = new IAsyncEnumerable<Result<int>>[]
+        async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
         {
-            SlowSequence(cts.Token),
-            Sequence([9])
-        };
+            yield return 1;
+            yield return 2;
+            yield return 3;
+            await Task.Yield();
+        }
 
-        var fanInTask = Result.FanInAsync(sources, writer.Writer, cts.Token).AsTask();
+        var projected = Result.MapStreamAsync<int, int>(
+            Source(TestContext.Current.CancellationToken),
+            (value, _) => value < 3
+                ? ValueTask.FromResult(Result.Ok(value * 2))
+                : ValueTask.FromResult(Result.Fail<int>(Error.From("stop"))),
+            TestContext.Current.CancellationToken);
 
-        cts.Cancel();
+        var results = await CollectAsync(projected, TestContext.Current.CancellationToken);
 
-        var result = await fanInTask;
-        result.IsFailure.ShouldBeTrue();
-        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
-        await Should.ThrowAsync<OperationCanceledException>(async () => await writer.Reader.Completion);
+        results.Count.ShouldBe(3);
+        results[0].Value.ShouldBe(2);
+        results[1].Value.ShouldBe(4);
+        results[2].IsFailure.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ToChannelAsync_ShouldEmitCancellationSentinel()
+    public async Task MapStreamAsync_ShouldTranslateSelectorExceptions()
     {
+        var source = ToValues([1], TestContext.Current.CancellationToken);
+
+        var projected = Result.MapStreamAsync<int, int>(
+            source,
+            (_, _) => throw new InvalidOperationException("boom"),
+            TestContext.Current.CancellationToken);
+
+        var results = await CollectAsync(projected, TestContext.Current.CancellationToken);
+
+        results.ShouldHaveSingleItem().Error?.Code.ShouldBe(ErrorCodes.Exception);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task MapStreamAsync_ShouldReturnCanceledWhenEnumeratorThrows()
+    {
+        async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Yield();
+            throw new OperationCanceledException(ct);
+#pragma warning disable CS0162
+            yield return 0;
+#pragma warning restore CS0162
+        }
+
+        var results = await CollectAsync(
+            Result.MapStreamAsync(Source(TestContext.Current.CancellationToken), (value, _) => ValueTask.FromResult(Result.Ok(value)), TestContext.Current.CancellationToken),
+            TestContext.Current.CancellationToken);
+
+        results.ShouldHaveSingleItem().Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task FlatMapStreamAsync_ShouldSurfaceInnerCancellation()
+    {
+        async IAsyncEnumerable<int> Outer([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return 1;
+            await Task.Yield();
+        }
+
+        async IAsyncEnumerable<Result<int>> Canceling([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Delay(50, ct);
+            yield return Result.Ok(10);
+        }
+
         using var cts = new CancellationTokenSource();
+        cts.CancelAfter(5);
+
+        var flattened = Result.FlatMapStreamAsync(
+            Outer(cts.Token),
+            (_, token) => Canceling(token),
+            cts.Token);
+
+        var results = await CollectAsync(flattened, TestContext.Current.CancellationToken);
+
+        results.ShouldHaveSingleItem().Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task FlatMapStreamAsync_ShouldFailWhenSelectorReturnsNull()
+    {
+        var stream = Result.FlatMapStreamAsync<int, int>(
+            ToValues([1], TestContext.Current.CancellationToken),
+            (_, _) => null!,
+            TestContext.Current.CancellationToken);
+
+        var results = await CollectAsync(stream, TestContext.Current.CancellationToken);
+
+        results.ShouldHaveSingleItem().Error?.Message.ShouldContain("Selector returned null stream.");
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task FilterStreamAsync_ShouldDropNonMatchingValuesButKeepFailures()
+    {
+        async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct)
+        {
+            yield return Result.Ok(1);
+            yield return Result.Fail<int>(Error.From("fail"));
+            yield return Result.Ok(2);
+        }
+
+        var filtered = Result.FilterStreamAsync(Source(TestContext.Current.CancellationToken), v => v % 2 == 0, TestContext.Current.CancellationToken);
+        var results = await CollectAsync(filtered, TestContext.Current.CancellationToken);
+
+        results.Count.ShouldBe(2);
+        results[0].IsFailure.ShouldBeTrue();
+        results[1].Value.ShouldBe(2);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task CollectErrorsAsync_ShouldAggregateFailures()
+    {
+        async IAsyncEnumerable<Result<int>> Stream([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return Result.Ok(1);
+            yield return Result.Fail<int>(Error.From("first"));
+            await Task.Delay(10, ct);
+            yield return Result.Fail<int>(Error.From("second"));
+        }
+
+        var outcome = await Stream(TestContext.Current.CancellationToken).CollectErrorsAsync(TestContext.Current.CancellationToken);
+
+        outcome.IsFailure.ShouldBeTrue();
+        outcome.Error?.Code.ShouldBe(ErrorCodes.Aggregate);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task ReadAllAsync_ShouldDrainChannelAfterFanIn()
+    {
+        var first = ToResults([Result.Ok(1), Result.Ok(2)]);
+        var second = ToResults([Result.Ok(3)]);
         var channel = Channel.CreateUnbounded<Result<int>>();
 
-        var forwardTask = SlowSequence(cts.Token).ToChannelAsync(channel.Writer, cts.Token).AsTask();
+        var fanInResult = await Result.FanInAsync(new[] { first, second }, channel.Writer, TestContext.Current.CancellationToken);
+        fanInResult.IsSuccess.ShouldBeTrue();
 
-        var collected = new List<Result<int>>();
-        var readTask = Task.Run(async () =>
-        {
-            while (await channel.Reader.WaitToReadAsync(TestContext.Current.CancellationToken))
-            {
-                while (channel.Reader.TryRead(out var item))
-                {
-                    collected.Add(item);
-                    if (collected.Count == 1)
-                    {
-                        cts.Cancel();
-                    }
-                }
-            }
-        }, TestContext.Current.CancellationToken);
+        var drained = await channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ToArrayAsync(TestContext.Current.CancellationToken);
 
-        await Task.WhenAll(forwardTask, readTask);
-
-        collected.Count.ShouldBeGreaterThanOrEqualTo(1);
-        collected.Last().IsFailure.ShouldBeTrue();
-        collected.Last().Error?.Code.ShouldBe(ErrorCodes.Canceled);
-        channel.Reader.Completion.IsCompleted.ShouldBeTrue();
+        drained.Length.ShouldBe(3);
+        drained.Select(r => r.Value).OrderBy(v => v).ToArray().ShouldBe(new[] { 1, 2, 3 });
     }
 
-    [Fact(Timeout = 15_000)]
-    public async Task PartitionAsync_ShouldRouteResultsAndCompleteWriters()
+    private static async IAsyncEnumerable<Result<int>> ToResults(IEnumerable<Result<int>> results, [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var source = PartitionSource(TestContext.Current.CancellationToken);
-        var high = Channel.CreateUnbounded<Result<int>>();
-        var low = Channel.CreateUnbounded<Result<int>>();
-
-        await source.PartitionAsync(value => value > 1, high.Writer, low.Writer, TestContext.Current.CancellationToken);
-
-        var highs = await ReadAll(high.Reader);
-        var lows = await ReadAll(low.Reader);
-
-        highs.ShouldBe([Result.Ok(2)]);
-        lows.Count.ShouldBe(2);
-        lows[0].IsSuccess.ShouldBeTrue();
-        lows[0].Value.ShouldBe(1);
-        lows[1].IsFailure.ShouldBeTrue();
-        await Task.WhenAll(high.Reader.Completion, low.Reader.Completion);
+        foreach (var result in results)
+        {
+            ct.ThrowIfCancellationRequested();
+            yield return result;
+            await Task.Yield();
+        }
     }
 
-    private static async IAsyncEnumerable<Result<int>> Sequence(IEnumerable<int> values)
+    private static async IAsyncEnumerable<int> ToValues(IEnumerable<int> values, [EnumeratorCancellation] CancellationToken ct = default)
     {
         foreach (var value in values)
         {
+            ct.ThrowIfCancellationRequested();
+            yield return value;
             await Task.Yield();
-            yield return Result.Ok(value);
         }
     }
 
-    private static async IAsyncEnumerable<Result<int>> PartitionSource([EnumeratorCancellation] CancellationToken token)
+    private static async Task<List<Result<T>>> CollectAsync<T>(IAsyncEnumerable<Result<T>> stream, CancellationToken ct)
     {
-        await Task.Yield();
-        yield return Result.Ok(1);
-        yield return Result.Ok(2);
-        yield return Result.Fail<int>(Error.From("fail"));
-        token.ThrowIfCancellationRequested();
-    }
-
-    private static async IAsyncEnumerable<Result<int>> SlowSequence([EnumeratorCancellation] CancellationToken token)
-    {
-        while (true)
+        var list = new List<Result<T>>();
+        await foreach (var result in stream.WithCancellation(ct))
         {
-            await Task.Delay(TimeSpan.FromSeconds(5), token);
-            yield return Result.Ok(0);
+            list.Add(result);
         }
-    }
 
-    private static async Task<List<Result<int>>> ReadAll(ChannelReader<Result<int>> reader)
-    {
-        var list = new List<Result<int>>();
-        while (await reader.WaitToReadAsync(TestContext.Current.CancellationToken))
-        {
-            while (reader.TryRead(out var item))
-            {
-                list.Add(item);
-            }
-        }
         return list;
     }
 }

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
@@ -51,6 +52,34 @@ public sealed class ResultStreamingFeatureTests
         oddValues[1].IsFailure.ShouldBeTrue();
         evens.Reader.Completion.IsCompleted.ShouldBeTrue();
         odds.Reader.Completion.IsCompleted.ShouldBeTrue();
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task FanOutAsync_ShouldBroadcastResultsToAllDestinations()
+    {
+        async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct)
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                yield return Result.Ok(i);
+                await Task.Yield();
+            }
+        }
+
+        var left = Channel.CreateUnbounded<Result<int>>();
+        var right = Channel.CreateUnbounded<Result<int>>();
+
+        await Source(TestContext.Current.CancellationToken)
+            .FanOutAsync([left.Writer, right.Writer], TestContext.Current.CancellationToken);
+
+        var leftValues = await left.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ToArrayAsync(TestContext.Current.CancellationToken);
+        var rightValues = await right.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ToArrayAsync(TestContext.Current.CancellationToken);
+
+        leftValues.Select(r => r.Value).ShouldBe([0, 1, 2]);
+        rightValues.Select(r => r.Value).ShouldBe([0, 1, 2]);
+        left.Reader.Completion.IsCompleted.ShouldBeTrue();
+        right.Reader.Completion.IsCompleted.ShouldBeTrue();
     }
 
     private static async IAsyncEnumerable<int> Values([EnumeratorCancellation] CancellationToken token)
