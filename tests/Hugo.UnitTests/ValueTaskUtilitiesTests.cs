@@ -78,4 +78,51 @@ public sealed class ValueTaskUtilitiesTests
         var invertedIndex = await ValueTaskUtilities.WhenAny(slowGeneric, new ValueTask(Task.CompletedTask));
         invertedIndex.ShouldBe(1);
     }
+
+    [Fact(Timeout = 5_000)]
+    public async Task WhenAll_ShouldReturnCompletedTaskForEmptyList()
+    {
+        var combined = ValueTaskUtilities.WhenAll(Array.Empty<ValueTask>());
+        combined.IsCompleted.ShouldBeTrue();
+        await combined;
+    }
+
+    [Fact(Timeout = 5_000)]
+    public async Task ContinueWith_ShouldFlowSuccessfulResult()
+    {
+        var source = new ValueTask<int>(42);
+        int observed = 0;
+
+        await source.ContinueWith(task =>
+        {
+            task.AsTask().IsCompletedSuccessfully.ShouldBeTrue();
+            observed = task.AsTask().Result;
+        });
+
+        observed.ShouldBe(42);
+    }
+
+    [Fact(Timeout = 5_000)]
+    public async Task YieldAsync_ShouldYieldExecution()
+    {
+        var flag = false;
+        var task = Task.Run(async () =>
+        {
+            flag = true;
+            await ValueTaskUtilities.YieldAsync();
+            flag.ShouldBeTrue();
+        }, TestContext.Current.CancellationToken);
+
+        await task;
+    }
+
+    [Fact(Timeout = 5_000)]
+    public async Task WhenAny_ShouldReturnSecondIndexWhenSecondWins()
+    {
+        var slow = new ValueTask(Task.Delay(25, TestContext.Current.CancellationToken));
+        var fast = new ValueTask(Task.CompletedTask);
+
+        var index = await ValueTaskUtilities.WhenAny(slow, fast);
+        index.ShouldBe(1);
+    }
 }

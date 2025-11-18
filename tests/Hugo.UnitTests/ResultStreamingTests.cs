@@ -454,6 +454,69 @@ public class ResultStreamingTests
         seen.ShouldBe(new[] { 1, 2 });
     }
 
+    [Fact(Timeout = 15_000)]
+    public async ValueTask ToChannelAsync_ShouldEmitCanceledSentinelWhenCanceled()
+    {
+        using var cts = new CancellationTokenSource();
+        var channel = Channel.CreateUnbounded<Result<int>>();
+
+        async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct)
+        {
+            var i = 0;
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                yield return Result.Ok(++i);
+                await Task.Delay(5, ct);
+            }
+        }
+
+        var forwardTask = Result.ToChannelAsync(Source(cts.Token), channel.Writer, cts.Token);
+        cts.CancelAfter(15);
+
+        await forwardTask;
+
+        var results = await channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ToArrayAsync(TestContext.Current.CancellationToken);
+        results.Last().Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TapFailureEachAggregateErrorsAsync_ShouldAggregateAllFailures()
+    {
+        var failures = new[]
+        {
+            Result.Fail<int>(Error.From("first", ErrorCodes.Validation)),
+            Result.Fail<int>(Error.From("second", ErrorCodes.Validation))
+        };
+
+        var tapped = new List<string>();
+        var outcome = await failures.ToAsyncEnumerable()
+            .TapFailureEachAggregateErrorsAsync((error, _) =>
+            {
+                tapped.Add(error.Message);
+                return ValueTask.CompletedTask;
+            }, TestContext.Current.CancellationToken);
+
+        tapped.ShouldBe(new[] { "first", "second" });
+        outcome.IsFailure.ShouldBeTrue();
+        outcome.Error!.Message.ShouldContain("One or more failures occurred while processing the stream.");
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask CollectErrorsAsync_ShouldReturnAggregateWhenFailuresPresent()
+    {
+        var stream = GetResults([
+            Result.Ok(1),
+            Result.Fail<int>(Error.From("first", ErrorCodes.Validation)),
+            Result.Fail<int>(Error.From("second", ErrorCodes.Validation))
+        ]);
+
+        var outcome = await stream.CollectErrorsAsync(TestContext.Current.CancellationToken);
+
+        outcome.IsFailure.ShouldBeTrue();
+        outcome.Error!.Message.ShouldContain("One or more failures occurred while processing the stream.");
+    }
+
     private static async IAsyncEnumerable<Result<int>> GetSequence(IEnumerable<int> values)
     {
         foreach (var value in values)

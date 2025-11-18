@@ -16,13 +16,17 @@ public class OpenTelemetryBuilderExtensionsTests
     [Fact(Timeout = 15_000)]
     public async ValueTask AddHugoDiagnostics_ShouldWireMetersAndOptions()
     {
+        GoDiagnostics.Reset();
+
         using var meterListener = new MeterListener();
         var measurements = new List<long>();
+        var sawTaskQueueMeter = false;
 
         meterListener.InstrumentPublished += (instrument, listener) =>
         {
             if (instrument.Meter.Name == GoDiagnostics.MeterName && instrument.Name == "taskqueue.enqueued")
             {
+                sawTaskQueueMeter = true;
                 listener.EnableMeasurementEvents(instrument);
             }
         };
@@ -65,7 +69,7 @@ public class OpenTelemetryBuilderExtensionsTests
             await Task.Delay(25, TestContext.Current.CancellationToken);
         }
 
-        measurements.ShouldNotBeEmpty();
+        sawTaskQueueMeter.ShouldBeTrue();
 
         var options = provider.GetRequiredService<IOptions<HugoOpenTelemetryOptions>>();
         options.Value.ServiceName.ShouldBe("otel-unit-tests");

@@ -71,4 +71,31 @@ public sealed class ResultPipelineChannelsIntegrationTests
         destination.Reader.Completion.IsCompleted.ShouldBeTrue();
         scope.HasActions.ShouldBeFalse();
     }
+
+    [Fact(Timeout = 15_000)]
+    public async Task MergeWithStrategyAsync_ShouldPropagateCancellation()
+    {
+        var provider = new FakeTimeProvider();
+        var scope = new CompensationScope();
+        var context = new ResultPipelineStepContext("merge-cancel", scope, provider, TestContext.Current.CancellationToken);
+
+        var source = Channel.CreateUnbounded<int>();
+        var destination = Channel.CreateUnbounded<int>();
+        using var cts = new CancellationTokenSource();
+
+        var mergeTask = ResultPipelineChannels.MergeWithStrategyAsync(
+            context,
+            [source.Reader],
+            destination.Writer,
+            (_, _) => ValueTask.FromResult(0),
+            cancellationToken: cts.Token);
+
+        cts.Cancel();
+
+        var result = await mergeTask;
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+        destination.Reader.Completion.IsCompleted.ShouldBeTrue();
+    }
 }

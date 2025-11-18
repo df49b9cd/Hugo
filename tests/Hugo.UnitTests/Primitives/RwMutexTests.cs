@@ -25,4 +25,15 @@ public sealed class RwMutexTests
 
         await Should.ThrowAsync<ObjectDisposedException>(async () => await mutex.LockAsync(TestContext.Current.CancellationToken));
     }
+
+    [Fact(Timeout = 15_000)]
+    public void Dispose_ShouldTolerateOutstandingWriteLock()
+    {
+        var mutex = new RwMutex();
+        var scope = mutex.EnterWriteScope();
+
+        Should.NotThrow(() => mutex.Dispose());
+        // disposing while a scope is still held should swallow synchronization errors
+        scope.Dispose();
+    }
 }

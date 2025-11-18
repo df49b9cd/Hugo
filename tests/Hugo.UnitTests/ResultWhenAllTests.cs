@@ -53,4 +53,47 @@ public sealed class ResultWhenAllTests
         delayResult.Result.IsSuccess.ShouldBeTrue();
         attempts.ShouldBe(2);
     }
+
+    [Fact(Timeout = 30_000)]
+    public async ValueTask WhenAll_ShouldSurfacePartialFailuresOnCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+
+        var operations = new List<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>>
+        {
+            (_, _) => ValueTask.FromResult(Result.Ok(1)),
+            (_, _) => ValueTask.FromResult(Result.Fail<int>(Error.From("boom", ErrorCodes.Validation))),
+            async (_, token) =>
+            {
+                await Task.Delay(100, token);
+                return Result.Ok(3);
+            }
+        };
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+        cts.Cancel();
+    }, TestContext.Current.CancellationToken);
+
+    var result = await Result.WhenAll(operations, cancellationToken: cts.Token);
+
+    result.IsFailure.ShouldBeTrue();
+    result.Error.ShouldNotBeNull();
+    result.Error!.Code.ShouldBeOneOf(ErrorCodes.Canceled, ErrorCodes.Aggregate);
+    result.Error.Metadata.ShouldContainKey("whenall.partialFailures");
+    }
+
+    [Fact(Timeout = 5_000)]
+    public async ValueTask WhenAll_ShouldThrowWhenOperationIsNull()
+    {
+        var operations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>?[]
+        {
+            (_, _) => ValueTask.FromResult(Result.Ok(1)),
+            null
+        };
+
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await Result.WhenAll(operations!, cancellationToken: TestContext.Current.CancellationToken));
+    }
 }

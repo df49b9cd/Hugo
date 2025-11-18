@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 
 using Shouldly;
 
@@ -22,6 +23,34 @@ public sealed class ResultStreamingFeatureTests
         }
 
         collected.ShouldBe([10, 20]);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task PartitionAsync_ShouldRouteResultsAndCompleteWriters()
+    {
+        async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct)
+        {
+            yield return Result.Ok(2);
+            yield return Result.Ok(3);
+            yield return Result.Fail<int>(Error.From("feature-partition"));
+            await Task.Delay(5, ct);
+        }
+
+        var evens = Channel.CreateUnbounded<Result<int>>();
+        var odds = Channel.CreateUnbounded<Result<int>>();
+
+        await Source(TestContext.Current.CancellationToken)
+            .PartitionAsync(value => value % 2 == 0, evens.Writer, odds.Writer, TestContext.Current.CancellationToken);
+
+        var evenValues = await evens.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ToArrayAsync(TestContext.Current.CancellationToken);
+        var oddValues = await odds.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ToArrayAsync(TestContext.Current.CancellationToken);
+
+        evenValues.ShouldHaveSingleItem().Value.ShouldBe(2);
+        oddValues.Length.ShouldBe(2);
+        oddValues[0].Value.ShouldBe(3);
+        oddValues[1].IsFailure.ShouldBeTrue();
+        evens.Reader.Completion.IsCompleted.ShouldBeTrue();
+        odds.Reader.Completion.IsCompleted.ShouldBeTrue();
     }
 
     private static async IAsyncEnumerable<int> Values([EnumeratorCancellation] CancellationToken token)
