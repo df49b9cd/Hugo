@@ -924,6 +924,37 @@ public class ResultTests
     }
 
     [Fact(Timeout = 15_000)]
+    public void ResultException_Constructors_ShouldPreserveErrorAndHResult()
+    {
+        var inner = new InvalidOperationException("inner failure") { HResult = -42 };
+        var error = Error.From("wrapped", ErrorCodes.Exception, inner);
+
+        var exception = new ResultException(error);
+
+        exception.Error.ShouldBe(error);
+        exception.HResult.ShouldBe(inner.HResult);
+        exception.Message.ShouldContain("wrapped");
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void ResultException_DefaultCtor_ShouldProvideUnspecifiedError()
+    {
+        var exception = new ResultException();
+
+        exception.Error.Code.ShouldBe(Error.Unspecified().Code);
+        exception.InnerException.ShouldBeNull();
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void ResultException_MessageCtor_ShouldWrapMessageAndExceptionCode()
+    {
+        var exception = new ResultException("custom message");
+
+        exception.Error.Code.ShouldBe(ErrorCodes.Exception);
+        exception.Error.Message.ShouldContain("custom message");
+    }
+
+    [Fact(Timeout = 15_000)]
     public void Deconstruct_ShouldExposeValueAndError()
     {
         var success = Result.Ok(5);

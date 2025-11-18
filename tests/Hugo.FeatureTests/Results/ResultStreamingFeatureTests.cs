@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
 using Shouldly;
+using Unit = Hugo.Go.Unit;
 
 namespace Hugo.Tests;
 
@@ -106,6 +107,32 @@ public sealed class ResultStreamingFeatureTests
         windows[1].IsFailure.ShouldBeTrue();
         windows[2].IsSuccess.ShouldBeTrue();
         windows[2].Value.ShouldBe([3]);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task ForEachLinkedCancellationAsync_ShouldIterateWithLinkedTokens()
+    {
+        async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct)
+        {
+            yield return Result.Ok(42);
+            await Task.Yield();
+            yield return Result.Ok(84);
+        }
+
+        var observed = new List<CancellationToken>();
+
+        var outcome = await Source(TestContext.Current.CancellationToken).ForEachLinkedCancellationAsync(
+            (result, linkedToken) =>
+            {
+                observed.Add(linkedToken);
+                return ValueTask.FromResult(Result.Ok(Unit.Value));
+            },
+            TestContext.Current.CancellationToken);
+
+        outcome.IsSuccess.ShouldBeTrue();
+        observed.Count.ShouldBe(2);
+        observed[0].ShouldNotBe(observed[1]);
+        observed.TrueForAll(token => token.CanBeCanceled).ShouldBeTrue();
     }
 
     private static async IAsyncEnumerable<int> Values([EnumeratorCancellation] CancellationToken token)

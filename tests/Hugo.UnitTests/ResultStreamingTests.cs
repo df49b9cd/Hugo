@@ -444,10 +444,13 @@ public class ResultStreamingTests
             yield return await Task.FromCanceled<int>(ct);
         }
 
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
         var flattened = Result.FlatMapStreamAsync(
-            CancelingOuter(TestContext.Current.CancellationToken),
+            CancelingOuter(cts.Token),
             (_, _) => SuccessfulStream(1),
-            TestContext.Current.CancellationToken);
+            cts.Token);
 
         var results = await CollectAsync(flattened);
 
@@ -552,6 +555,41 @@ public class ResultStreamingTests
 
         result.IsFailure.ShouldBeTrue();
         seen.ShouldBe(new[] { 1, 2 });
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask ForEachLinkedCancellationAsync_ShouldCreateFreshLinkedTokenPerItem()
+    {
+        var stream = GetSequence([10, 11]);
+        var observedTokens = new List<CancellationToken>();
+
+        var result = await stream.ForEachLinkedCancellationAsync((value, linkedToken) =>
+        {
+            observedTokens.Add(linkedToken);
+            linkedToken.CanBeCanceled.ShouldBeTrue();
+            return ValueTask.FromResult(Result.Ok(Unit.Value));
+        }, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        observedTokens.Count.ShouldBe(2);
+        observedTokens[0].ShouldNotBe(observedTokens[1]);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask ReadAllAsync_ShouldYieldUntilWriterCompletes()
+    {
+        var channel = Channel.CreateUnbounded<Result<int>>();
+
+        await channel.Writer.WriteAsync(Result.Ok(5), TestContext.Current.CancellationToken);
+        await channel.Writer.WriteAsync(Result.Fail<int>(Error.From("channel-failure")), TestContext.Current.CancellationToken);
+        channel.Writer.TryComplete();
+
+        var observed = await channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ToArrayAsync(TestContext.Current.CancellationToken);
+
+        observed.Length.ShouldBe(2);
+        observed[0].Value.ShouldBe(5);
+        observed[1].IsFailure.ShouldBeTrue();
+        channel.Reader.Completion.IsCompleted.ShouldBeTrue();
     }
 
     [Fact(Timeout = 15_000)]
