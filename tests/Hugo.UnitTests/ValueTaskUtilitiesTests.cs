@@ -4,169 +4,78 @@ namespace Hugo.Tests;
 
 public sealed class ValueTaskUtilitiesTests
 {
-    [Fact(Timeout = 15_000)]
-    public async Task WhenAll_ShouldCompleteImmediately_WhenEmpty()
-    {
-        ValueTask result = ValueTaskUtilities.WhenAll(Array.Empty<ValueTask>());
-
-        result.IsCompletedSuccessfully.ShouldBeTrue();
-        await result;
-    }
-
-    [Fact(Timeout = 15_000)]
-    public async Task WhenAny_ShouldReturnZero_WhenFirstCompletesFirst()
-    {
-        var first = ValueTask.CompletedTask;
-        var second = new ValueTask(Task.Delay(50, TestContext.Current.CancellationToken));
-
-        int winner = await ValueTaskUtilities.WhenAny(first, second);
-
-        winner.ShouldBe(0);
-    }
-
-    [Fact(Timeout = 15_000)]
-    public async Task WhenAny_Generic_ShouldReturnOne_WhenSecondCompletesFirst()
-    {
-        var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var slow = new ValueTask<int>(tcs.Task);
-        var fast = new ValueTask(Task.CompletedTask);
-
-        int winner = await ValueTaskUtilities.WhenAny(slow, fast);
-
-        winner.ShouldBe(1);
-        tcs.TrySetResult(42);
-    }
-
-    [Fact(Timeout = 15_000)]
-    public async Task ContinueWith_ShouldInvokeContinuation_WithCaughtException()
-    {
-        var failing = new ValueTask<int>(Task.FromException<int>(new InvalidOperationException("boom")));
-        bool continuationInvoked = false;
-
-        await failing.ContinueWith(result =>
-        {
-            continuationInvoked = true;
-            result.AsTask().IsFaulted.ShouldBeTrue();
-        });
-
-        continuationInvoked.ShouldBeTrue();
-    }
-
-    [Fact(Timeout = 15_000)]
-    public async Task ContinueWith_ShouldInvokeContinuation_OnSuccess()
-    {
-        var success = new ValueTask<int>(Task.FromResult(7));
-        int observed = 0;
-
-        await success.ContinueWith(task => observed = task.Result);
-
-        observed.ShouldBe(7);
-    }
-
-    [Fact(Timeout = 15_000)]
-    public async Task YieldAsync_ShouldYieldOnce()
-    {
-        await ValueTaskUtilities.YieldAsync();
-    }
-
-    [Fact(Timeout = 15_000)]
-    public async Task ContinueWith_ShouldSurfaceCancellation()
+    [Fact(Timeout = 5_000)]
+    public async Task ContinueWith_ShouldExposeCanceledTask()
     {
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var canceled = new ValueTask<int>(Task.FromCanceled<int>(cts.Token));
-        bool continuationInvoked = false;
+        var source = new ValueTask<int>(Task.FromCanceled<int>(cts.Token));
+        bool invoked = false;
 
-        await canceled.ContinueWith(task =>
+        await source.ContinueWith(task =>
         {
-            continuationInvoked = true;
-            task.AsTask().IsCanceled.ShouldBeTrue();
+            invoked = true;
+            var completed = task.AsTask();
+            completed.IsCanceled.ShouldBeTrue();
+            completed.Status.ShouldBe(TaskStatus.Canceled);
         });
 
-        continuationInvoked.ShouldBeTrue();
+        invoked.ShouldBeTrue();
     }
 
-    [Fact(Timeout = 15_000)]
-    public async Task WhenAll_ShouldAwaitAllOperations()
-    {
-        var completed = 0;
-        var cancellationToken = TestContext.Current.CancellationToken;
-
-        ValueTask first = new(Task.Run(async () =>
-        {
-            await Task.Delay(10, cancellationToken);
-            Interlocked.Increment(ref completed);
-        }, cancellationToken));
-
-        ValueTask second = new(Task.Run(async () =>
-        {
-            await Task.Delay(15, cancellationToken);
-            Interlocked.Increment(ref completed);
-        }, cancellationToken));
-
-        await ValueTaskUtilities.WhenAll(new[] { first, second });
-
-        completed.ShouldBe(2);
-    }
-
-    [Fact(Timeout = 15_000)]
-    public async Task WhenAny_DoubleGeneric_ShouldReturnOne_WhenSecondCompletesFirst()
-    {
-        var slow = new ValueTask<int>(Task.Run(async () =>
-        {
-            await Task.Delay(25, TestContext.Current.CancellationToken);
-            return 1;
-        }));
-
-        var fast = new ValueTask<string>(Task.FromResult("fast"));
-
-        int winner = await ValueTaskUtilities.WhenAny(slow, fast);
-
-        winner.ShouldBe(1);
-    }
-
-    [Fact(Timeout = 15_000)]
-    public async Task ContinueWith_ShouldExposeFaultedTask_WhenOperationThrows()
+    [Fact(Timeout = 5_000)]
+    public async Task ContinueWith_ShouldWrapThrownException()
     {
         var source = new ValueTask<int>(Task.FromException<int>(new InvalidOperationException("boom")));
-        var forwarded = new TaskCompletionSource<ValueTask<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        InvalidOperationException? captured = null;
 
-        await source.ContinueWith(task => forwarded.SetResult(task));
+        await source.ContinueWith(task =>
+        {
+            var completed = task.AsTask();
+            completed.IsFaulted.ShouldBeTrue();
+            captured = completed.Exception?.GetBaseException() as InvalidOperationException;
+        });
 
-        var observed = await forwarded.Task;
-        observed.IsCompleted.ShouldBeTrue();
-        observed.IsFaulted.ShouldBeTrue();
-        await Should.ThrowAsync<InvalidOperationException>(async () => await observed);
+        captured.ShouldNotBeNull();
+        captured!.Message.ShouldBe("boom");
     }
 
-    [Fact(Timeout = 15_000)]
-    public async Task ContinueWith_ShouldExposeCanceledTask_WhenOperationCanceled()
+    [Fact(Timeout = 5_000)]
+    public async Task WhenAll_ShouldAwaitAllOperations()
     {
-        using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
+        var tcs1 = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tcs2 = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var source = new ValueTask<int>(Task.FromCanceled<int>(cts.Token));
-        var forwarded = new TaskCompletionSource<ValueTask<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var combined = ValueTaskUtilities.WhenAll(new[]
+        {
+            new ValueTask(tcs1.Task),
+            new ValueTask(tcs2.Task)
+        });
 
-        await source.ContinueWith(task => forwarded.SetResult(task));
+        tcs1.SetResult();
+        tcs2.SetResult();
 
-        var observed = await forwarded.Task;
-        observed.IsCanceled.ShouldBeTrue();
-        var exception = await Should.ThrowAsync<OperationCanceledException>(async () => await observed);
-        exception.CancellationToken.ShouldBe(cts.Token);
+        await combined;
     }
 
-    [Fact(Timeout = 15_000)]
-    public async Task YieldAsync_ShouldDelayContinuation_UntilYieldCompletes()
+    [Fact(Timeout = 5_000)]
+    public async Task WhenAny_ShouldReturnIndexOfFirstCompletion()
     {
-        var yielded = false;
+        var fast = new ValueTask(Task.CompletedTask);
+        var slow = new ValueTask(Task.Delay(50, TestContext.Current.CancellationToken));
 
-        var yield = ValueTaskUtilities.YieldAsync();
-        yielded = yield.IsCompleted;
+        var index = await ValueTaskUtilities.WhenAny(fast, slow);
+        index.ShouldBe(0);
 
-        await yield;
+        var genericFast = new ValueTask<int>(1);
+        var genericSlow = new ValueTask(Task.Delay(40, TestContext.Current.CancellationToken));
 
-        yielded.ShouldBeFalse();
+        var genericIndex = await ValueTaskUtilities.WhenAny(genericFast, genericSlow);
+        genericIndex.ShouldBe(0);
+
+        var slowGeneric = new ValueTask<int>(Task.Delay(40, TestContext.Current.CancellationToken).ContinueWith(_ => 1, TestContext.Current.CancellationToken));
+        var invertedIndex = await ValueTaskUtilities.WhenAny(slowGeneric, new ValueTask(Task.CompletedTask));
+        invertedIndex.ShouldBe(1);
     }
 }

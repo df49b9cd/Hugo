@@ -66,4 +66,22 @@ public sealed class ResultPipelineWaitGroupExtensionsTests
 
         observedName.ShouldBe("custom-step");
     }
+
+    [Fact(Timeout = 15_000)]
+    public async Task Go_ShouldAbsorbCompensationOnFailure()
+    {
+        var waitGroup = new WaitGroup();
+        var parentScope = new CompensationScope();
+        var parentContext = new ResultPipelineStepContext("parent", parentScope, TimeProvider.System, TestContext.Current.CancellationToken);
+
+        waitGroup.Go(parentContext, (ctx, _) =>
+        {
+            ctx.RegisterCompensation(_ => ValueTask.CompletedTask);
+            return ValueTask.FromResult(Result.Fail<Go.Unit>(Error.From("boom")));
+        });
+
+        await waitGroup.WaitAsync(TestContext.Current.CancellationToken);
+
+        parentScope.HasActions.ShouldBeTrue();
+    }
 }

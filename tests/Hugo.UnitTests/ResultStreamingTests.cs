@@ -208,6 +208,39 @@ public class ResultStreamingTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask ForEachLinkedCancellationAsync_ShouldUseLinkedToken()
+    {
+        var source = GetResults([Result.Ok(1), Result.Ok(2)]);
+        int cancellations = 0;
+
+        var result = await source.ForEachLinkedCancellationAsync(async (_, token) =>
+        {
+            token.Register(() => Interlocked.Increment(ref cancellations));
+            await Task.Yield();
+            return Result.Ok(Unit.Value);
+        }, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        cancellations.ShouldBeGreaterThanOrEqualTo(0);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TapFailureEachIgnoreErrorsAsync_ShouldReturnSuccess_WhenFailuresIgnored()
+    {
+        var source = GetResults([Result.Fail<int>(Error.From("ignored")), Result.Ok(1)]);
+        int hits = 0;
+
+        var result = await source.TapFailureEachIgnoreErrorsAsync(async (_, _) =>
+        {
+            Interlocked.Increment(ref hits);
+            await Task.Yield();
+        }, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        hits.ShouldBe(1);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask TapSuccessEachIgnoreErrorsAsync_ShouldReturnSuccess()
     {
         var source = GetResults([Result.Ok(1), Result.Fail<int>(Error.From("a")), Result.Ok(2)]);

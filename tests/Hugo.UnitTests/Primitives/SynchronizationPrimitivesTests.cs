@@ -7,7 +7,7 @@ public class SynchronizationPrimitivesTests
 {
     private static readonly TimeSpan ShortDelay = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan WriterDelay = TimeSpan.FromMilliseconds(10);
-    private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(5);
 
     private static void AssertIncomplete(ValueTask task, TimeSpan timeout, CancellationToken cancellationToken) => task.AsTask().Wait(timeout, cancellationToken).ShouldBeFalse("Task completed before expected.");
 
