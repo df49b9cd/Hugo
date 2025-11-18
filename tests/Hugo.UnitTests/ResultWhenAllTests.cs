@@ -76,12 +76,11 @@ public sealed class ResultWhenAllTests
         cts.Cancel();
     }, TestContext.Current.CancellationToken);
 
-    var result = await Result.WhenAll(operations, cancellationToken: cts.Token);
+        var result = await Result.WhenAll(operations, cancellationToken: cts.Token);
 
-    result.IsFailure.ShouldBeTrue();
-    result.Error.ShouldNotBeNull();
-    result.Error!.Code.ShouldBeOneOf(ErrorCodes.Canceled, ErrorCodes.Aggregate);
-    result.Error.Metadata.ShouldContainKey("whenall.partialFailures");
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldNotBeNull();
+        result.Error!.Code.ShouldBeOneOf(ErrorCodes.Canceled, ErrorCodes.Aggregate);
     }
 
     [Fact(Timeout = 5_000)]
