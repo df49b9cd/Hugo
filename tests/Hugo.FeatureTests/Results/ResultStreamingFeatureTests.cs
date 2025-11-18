@@ -135,6 +135,35 @@ public sealed class ResultStreamingFeatureTests
         observed.TrueForAll(token => token.CanBeCanceled).ShouldBeTrue();
     }
 
+    [Fact(Timeout = 15_000)]
+    public async Task FanInAsync_ShouldSurfaceSourceExceptions()
+    {
+        async IAsyncEnumerable<Result<int>> Faulty([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("fan-in feature failure");
+#pragma warning disable CS0162
+            yield break;
+#pragma warning restore CS0162
+        }
+
+        async IAsyncEnumerable<Result<int>> Healthy([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            yield return Result.Ok(1);
+            await Task.Yield();
+            yield return Result.Ok(2);
+        }
+
+        var writer = Channel.CreateUnbounded<Result<int>>();
+
+        var fanInResult = await Result.FanInAsync(
+            new[] { Faulty(TestContext.Current.CancellationToken), Healthy(TestContext.Current.CancellationToken) },
+            writer.Writer,
+            TestContext.Current.CancellationToken);
+
+        fanInResult.IsFailure.ShouldBeTrue();
+    }
+
     private static async IAsyncEnumerable<int> Values([EnumeratorCancellation] CancellationToken token)
     {
         yield return 1;

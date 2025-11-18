@@ -183,4 +183,47 @@ public class ResultFallbackTests
         result.IsFailure.ShouldBeTrue();
         result.Error?.Code.ShouldBe(ErrorCodes.Validation);
     }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TieredFallbackAsync_ShouldReturnCanceledWhenTierCancels()
+    {
+        var tier = ResultFallbackTier<int>.From("canceled", static ct => ValueTask.FromResult(Result.Fail<int>(Error.Canceled(token: ct))));
+
+        var result = await Result.TieredFallbackAsync([tier], cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TieredFallbackAsync_ShouldDecorateUnspecifiedStrategyErrors()
+    {
+        var tier = new ResultFallbackTier<int>(
+            "unspecified",
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>[]
+            {
+                (_, _) => ValueTask.FromResult(Result.Fail<int>(null)),
+                (_, _) => ValueTask.FromResult(Result.Fail<int>(Error.Unspecified()))
+            });
+
+        var result = await Result.TieredFallbackAsync([tier], cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldNotBeNull();
+        result.Error?.Code.ShouldBe(ErrorCodes.Aggregate);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TieredFallbackAsync_ShouldStopWhenCancellationAlreadyRequested()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var tier = ResultFallbackTier<int>.From("fast", static _ => ValueTask.FromResult(Result.Ok(1)));
+
+        var result = await Result.TieredFallbackAsync([tier], cancellationToken: cts.Token);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
 }

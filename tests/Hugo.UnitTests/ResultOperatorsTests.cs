@@ -70,6 +70,6 @@ public sealed class ResultOperatorsTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldNotBeNull();
-        result.Error?.Message.ShouldContain("operation failed");
+        result.Error?.Message.ShouldContain("compensation issues");
     }
 }

@@ -130,6 +130,7 @@ public static partial class Result
             return result.Result;
         }
 
+        scope.Absorb(result.Compensation);
         result.Compensation.Clear();
         var compensationError = await RunCompensationAsync(policy, scope, cancellationToken).ConfigureAwait(false);
         if (compensationError is not null)

@@ -56,6 +56,37 @@ public class ResultStreamingTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask MapStreamAsync_ShouldSurfaceEnumerationException()
+    {
+        var source = new ThrowingAsyncEnumerable<int>(new InvalidOperationException("stream blow-up"));
+
+        var projected = Result.MapStreamAsync<int, int>(
+            source,
+            (value, _) => ValueTask.FromResult(Result.Ok(value)),
+            TestContext.Current.CancellationToken);
+
+        var results = await CollectAsync(projected);
+
+        results.ShouldHaveSingleItem().Error?.Code.ShouldBe(ErrorCodes.Exception);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask MapStreamAsync_ShouldReturnCanceledWhenSelectorThrows()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var projected = Result.MapStreamAsync<int, int>(
+            GetValues([1]),
+            (_, token) => throw new OperationCanceledException(token),
+            cts.Token);
+
+        var results = await CollectAsync(projected);
+
+        results.ShouldHaveSingleItem().Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask CollectErrorsAsync_ShouldAggregateFailures()
     {
         var stream = GetResults([Result.Ok(1), Result.Fail<int>(Error.From("a")), Result.Fail<int>(Error.From("b"))]);
@@ -722,5 +753,20 @@ public class ResultStreamingTests
             }
         }
         return [.. list];
+    }
+
+    private sealed class ThrowingAsyncEnumerable<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
+    {
+        private readonly Exception _exception;
+
+        public ThrowingAsyncEnumerable(Exception exception) => _exception = exception;
+
+        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default) => this;
+
+        public T Current => throw new NotSupportedException();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public ValueTask<bool> MoveNextAsync() => ValueTask.FromException<bool>(_exception);
     }
 }

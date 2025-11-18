@@ -136,4 +136,43 @@ public sealed class ResultCollectionsTests
         result.IsFailure.ShouldBeTrue();
         result.Error?.Code.ShouldBe(ErrorCodes.Exception);
     }
+
+    [Fact(Timeout = 5_000)]
+    public async ValueTask SequenceAsync_ShouldTranslateEnumerationException()
+    {
+        async IAsyncEnumerable<Result<int>> Throwing([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("sequence explode");
+#pragma warning disable CS0162
+            yield return Result.Ok(1);
+#pragma warning restore CS0162
+        }
+
+        var result = await Result.SequenceAsync(Throwing(TestContext.Current.CancellationToken), TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
+    }
+
+    [Fact(Timeout = 5_000)]
+    public async ValueTask TraverseAsync_ShouldTranslateEnumerationException()
+    {
+        async IAsyncEnumerable<int> Throwing([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("traverse explode");
+#pragma warning disable CS0162
+            yield return 1;
+#pragma warning restore CS0162
+        }
+
+        var result = await Result.TraverseAsync<int, int>(
+            Throwing(TestContext.Current.CancellationToken),
+            (value, _) => ValueTask.FromResult(Result.Ok(value)),
+            TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Exception);
+    }
 }
