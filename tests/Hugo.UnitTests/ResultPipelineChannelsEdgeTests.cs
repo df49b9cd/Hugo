@@ -35,7 +35,7 @@ public sealed class ResultPipelineChannelsEdgeTests
         var context = new ResultPipelineStepContext("window", new CompensationScope(), TimeProvider.System, TestContext.Current.CancellationToken);
         var source = Channel.CreateUnbounded<int>();
 
-        Should.Throw<ArgumentOutOfRangeException>(() =>
-            ResultPipelineChannels.WindowAsync(context, source.Reader, batchSize: 1, flushInterval: TimeSpan.FromMilliseconds(-2)));
+        Should.Throw<ArgumentOutOfRangeException>(async () =>
+            await ResultPipelineChannels.WindowAsync(context, source.Reader, batchSize: 1, flushInterval: TimeSpan.FromMilliseconds(-2)));
     }
 }

@@ -263,9 +263,9 @@ public class ResultPipelineAdaptersTests
         var provider = new FakeTimeProvider();
         var (context, scope) = CreateContext("window", provider);
         var source = Channel.CreateUnbounded<int>();
-        var window = ResultPipelineChannels.WindowAsync(context, source.Reader, batchSize: 2, flushInterval: TimeSpan.FromSeconds(5), cancellationToken: TestContext.Current.CancellationToken);
+        var reader = await ResultPipelineChannels.WindowAsync(context, source.Reader, batchSize: 2, flushInterval: TimeSpan.FromSeconds(5), cancellationToken: TestContext.Current.CancellationToken);
         var token = TestContext.Current.CancellationToken;
-        var reader = await window;
+
         var batchesTask = Task.Run(async () =>
         {
             var batches = new List<IReadOnlyList<int>>();
@@ -361,7 +361,7 @@ public class ResultPipelineAdaptersTests
         var provider = new FakeTimeProvider();
         var (context, scope) = CreateContext("window-timer-first", provider);
         var source = Channel.CreateUnbounded<int>();
-        var window = ResultPipelineChannels.WindowAsync(context, source.Reader, batchSize: 2, flushInterval: TimeSpan.FromSeconds(1), cancellationToken: TestContext.Current.CancellationToken);
+        var reader = await ResultPipelineChannels.WindowAsync(context, source.Reader, batchSize: 2, flushInterval: TimeSpan.FromSeconds(1), cancellationToken: TestContext.Current.CancellationToken);
 
         // Fire the timer before any data arrives.
         provider.Advance(TimeSpan.FromSeconds(1));
@@ -370,7 +370,7 @@ public class ResultPipelineAdaptersTests
         await source.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
         await source.Writer.WriteAsync(2, TestContext.Current.CancellationToken);
         source.Writer.TryComplete();
-        var reader = await window;
+
         var batches = new List<IReadOnlyList<int>>();
         while (await reader.WaitToReadAsync(TestContext.Current.CancellationToken))
         {

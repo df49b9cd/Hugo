@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection.Metadata;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
@@ -236,7 +237,7 @@ public static class ResultPipelineChannels
         var token = linkedCts.Token;
         var provider = context.TimeProvider;
 
-        await Go.Run(async _ =>
+        _ = Go.Run(async _ =>
         {
             var buffer = new List<T>(batchSize);
 
@@ -247,16 +248,25 @@ public static class ResultPipelineChannels
                     using var raceCts = CancellationTokenSource.CreateLinkedTokenSource(token);
                     var raceToken = raceCts.Token;
 
-                    var readerReady = source.WaitToReadAsync(raceToken).AsTask();
-                    var delay = CreateDelayTask(provider, flushInterval, raceToken).AsTask();
+                    var operations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<bool>>>[]
+                    {
+                        async ValueTask<Result<bool>> (ResultPipelineStepContext context, CancellationToken token) =>
+                        {
+                            await CreateDelayTask(provider, flushInterval, token);
+                            return Result.Ok(true);
+                        },
+                        async ValueTask<Result<bool>> (ResultPipelineStepContext context, CancellationToken token) =>
+                        {
+                            await source.WaitToReadAsync(token);
+                            return Result.Ok(false);
+                        }
+                    };
 
-                    var winner = await Task.WhenAny(readerReady, delay).ConfigureAwait(false);
+                    var winnerIsDelay = await Result.WhenAny(operations, cancellationToken: raceToken).ConfigureAwait(false);
                     await raceCts.CancelAsync();
 
-                    if (ReferenceEquals(winner, delay))
+                    if (winnerIsDelay.Value)
                     {
-                        await delay.ConfigureAwait(false);
-
                         if (buffer.Count > 0)
                         {
                             await output.Writer.WriteAsync([.. buffer], token).ConfigureAwait(false);
@@ -281,7 +291,7 @@ public static class ResultPipelineChannels
                         continue;
                     }
 
-                    var hasData = await readerReady.ConfigureAwait(false);
+                    var hasData = await source.WaitToReadAsync(token).ConfigureAwait(false);
                     if (!hasData)
                     {
                         break;
@@ -313,7 +323,7 @@ public static class ResultPipelineChannels
             {
                 linkedCts.Dispose();
             }
-        }, cancellationToken: CancellationToken.None);
+        }, cancellationToken: CancellationToken.None).AsTask();
 
         return output.Reader;
     }
