@@ -175,7 +175,7 @@ public partial class GoTests
         var scope = new CompensationScope();
         var context = new ResultPipelineStepContext("window-race", scope, provider, TestContext.Current.CancellationToken);
 
-        var windowReader = ResultPipelineChannels.WindowAsync(
+        var window = ResultPipelineChannels.WindowAsync(
             context,
             source.Reader,
             batchSize: 2,
@@ -188,7 +188,7 @@ public partial class GoTests
         await source.Writer.WriteAsync(5, TestContext.Current.CancellationToken);
         await source.Writer.WriteAsync(6, TestContext.Current.CancellationToken);
         source.Writer.TryComplete();
-
+        var windowReader = await window;
         var operations = new Func<CancellationToken, ValueTask<Result<IReadOnlyList<int>>>>[]
         {
             async ct =>

@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 
 using Hugo.Policies;
 
@@ -215,7 +216,7 @@ public static class ResultPipelineChannels
         }
     }
 
-    public static ChannelReader<IReadOnlyList<T>> WindowAsync<T>(
+    public static async ValueTask<ChannelReader<IReadOnlyList<T>>> WindowAsync<T>(
         ResultPipelineStepContext context,
         ChannelReader<T> source,
         int batchSize,
@@ -234,9 +235,8 @@ public static class ResultPipelineChannels
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
         var token = linkedCts.Token;
         var provider = context.TimeProvider;
-#pragma warning disable CA2012
 
-        _ = Go.Run(async _ =>
+        await Go.Run(async _ =>
         {
             var buffer = new List<T>(batchSize);
 
@@ -316,7 +316,6 @@ public static class ResultPipelineChannels
         }, cancellationToken: CancellationToken.None);
 
         return output.Reader;
-#pragma warning restore CA2012
     }
 
     public static IReadOnlyList<ChannelReader<T>> FanOut<T>(
