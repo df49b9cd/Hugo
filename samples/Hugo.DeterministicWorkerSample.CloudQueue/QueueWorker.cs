@@ -1,13 +1,9 @@
-using System;
 using System.Diagnostics.CodeAnalysis;
-using System.Threading;
-using System.Threading.Tasks;
 
 using Azure;
 using Azure.Storage.Queues;
 using Azure.Storage.Queues.Models;
 
-using Hugo;
 using Hugo.DeterministicWorkerSample.Core;
 
 using Microsoft.Extensions.Hosting;

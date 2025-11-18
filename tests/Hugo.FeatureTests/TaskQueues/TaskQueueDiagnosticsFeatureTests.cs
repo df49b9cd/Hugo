@@ -2,11 +2,11 @@ using System.Diagnostics.Metrics;
 using System.Text.Json;
 using Shouldly;
 
-using Hugo;
 using Hugo.TaskQueues;
 using Hugo.TaskQueues.Backpressure;
 using Hugo.TaskQueues.Diagnostics;
 using Hugo.TaskQueues.Replication;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Hugo.Tests.TaskQueues;
 
@@ -62,6 +62,74 @@ public class TaskQueueDiagnosticsFeatureTests
         serialized.ShouldContain("\"queueName\":\"dispatch\"");
         serialized.ShouldContain("\"sequenceNumber\":");
         serialized.ShouldContain("\"flags\":");
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task DiagnosticsHost_ShouldComputeSequenceDelta()
+    {
+        await using var meterFactory = new TestMeterFactory();
+        await using var diagnostics = new TaskQueueDiagnosticsHost(meterFactory);
+
+        var provider = new FakeTimeProvider();
+        await using var queue = new TaskQueue<int>(new TaskQueueOptions { Name = "diagnostics.replication", Capacity = 8 }, provider);
+        await using var replicationSource = new TaskQueueReplicationSource<int>(queue, new TaskQueueReplicationSourceOptions<int>
+        {
+            TimeProvider = provider,
+            SourcePeerId = "origin"
+        });
+
+        using var subscription = diagnostics.Attach(replicationSource);
+        var listener = (ITaskQueueLifecycleListener<int>)replicationSource;
+
+        DateTimeOffset occurred = provider.GetUtcNow();
+        listener.OnEvent(new TaskQueueLifecycleEvent<int>(
+            EventId: 1,
+            Kind: TaskQueueLifecycleEventKind.Enqueued,
+            queue: queue.QueueName,
+            SequenceId: 1,
+            Attempt: 1,
+            OccurredAt: occurred,
+            EnqueuedAt: occurred,
+            Value: 99,
+            Error: null,
+            OwnershipToken: null,
+            LeaseExpiration: null,
+            Flags: TaskQueueLifecycleEventMetadata.None));
+
+        provider.Advance(TimeSpan.FromMilliseconds(5));
+        occurred = provider.GetUtcNow();
+
+        listener.OnEvent(new TaskQueueLifecycleEvent<int>(
+            EventId: 2,
+            Kind: TaskQueueLifecycleEventKind.Completed,
+            queue: queue.QueueName,
+            SequenceId: 2,
+            Attempt: 1,
+            OccurredAt: occurred,
+            EnqueuedAt: occurred,
+            Value: 99,
+            Error: null,
+            OwnershipToken: null,
+            LeaseExpiration: null,
+            Flags: TaskQueueLifecycleEventMetadata.None));
+
+        List<TaskQueueReplicationDiagnosticsEvent> diagnosticsEvents = [];
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        while (diagnosticsEvents.Count < 2)
+        {
+            TaskQueueDiagnosticsEvent evt = await diagnostics.Events.ReadAsync(cts.Token);
+            if (evt is TaskQueueReplicationDiagnosticsEvent replication)
+            {
+                diagnosticsEvents.Add(replication);
+            }
+        }
+
+        diagnosticsEvents[0].SequenceDelta.ShouldBe(1);
+        diagnosticsEvents[1].SequenceDelta.ShouldBe(1);
+        diagnosticsEvents[0].ObservedAt.ShouldBe(diagnosticsEvents[0].RecordedAt);
+        diagnosticsEvents[0].WallClockLag.ShouldBe(TimeSpan.Zero);
+
+        await diagnostics.DisposeAsync();
     }
     private sealed class TestMeterFactory : IMeterFactory, IDisposable, IAsyncDisposable
     {

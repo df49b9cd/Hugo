@@ -57,7 +57,8 @@ jobs:
             -f docker/ci/Dockerfile.ci \
             -t hugo-ci \
             --build-arg PACKAGE_VERSION="${VERSION}" \
-            .
+            . \
+            --no-cache
 
       - name: Run Test in image
         id: test-image

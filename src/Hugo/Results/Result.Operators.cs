@@ -93,14 +93,14 @@ public static partial class Result
             buffer.Add(result.Value);
             if (buffer.Count == size)
             {
-                windows.Add(buffer.ToArray());
+                windows.Add([.. buffer]);
                 buffer.Clear();
             }
         }
 
         if (buffer.Count > 0)
         {
-            windows.Add(buffer.ToArray());
+            windows.Add([.. buffer]);
         }
 
         return Ok<IReadOnlyList<IReadOnlyList<T>>>(windows);

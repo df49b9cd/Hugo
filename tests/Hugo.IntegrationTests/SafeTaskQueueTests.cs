@@ -114,7 +114,7 @@ public sealed class SafeTaskQueueTests
         await using var safeQueue = new SafeTaskQueueWrapper<string>(queue);
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var result = await safeQueue.LeaseAsync(cts.Token);
         result.IsFailure.ShouldBeTrue();

@@ -39,8 +39,8 @@ internal sealed class TimerChannel : IAsyncDisposable, IDisposable
 
     public ChannelReader<DateTimeOffset> Reader => _channel.Reader;
 
-    [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Ordering preserved to avoid breaking changes in public API.")]
-    public static TimerChannel Start(TimeProvider provider, TimeSpan dueTime, TimeSpan period, CancellationToken cancellationToken, bool singleShot)
+    public static TimerChannel Start(TimeProvider provider, TimeSpan dueTime, TimeSpan period, bool singleShot,
+        CancellationToken cancellationToken)
     {
         var channel = new TimerChannel(provider, dueTime, period, singleShot, cancellationToken);
         channel.Initialize();

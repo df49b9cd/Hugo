@@ -303,7 +303,7 @@ public partial class GoTests
         }
         finally
         {
-            advanceCts.Cancel();
+            await advanceCts.CancelAsync();
             await advanceLoop;
         }
 

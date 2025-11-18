@@ -19,10 +19,9 @@ internal static class CounterHeuristics
         AddCpuFindings(report, findings);
         AddAllocationFinding(report, findings);
 
-        return findings
+        return [.. findings
             .OrderByDescending(static finding => finding.Severity)
-            .ThenBy(static finding => finding.Counter, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            .ThenBy(static finding => finding.Counter, StringComparer.OrdinalIgnoreCase)];
     }
 
     private static void AddWaitGroupFindings(CounterReport report, ICollection<AnalyzerFinding> findings)

@@ -15,99 +15,101 @@ namespace Hugo.Diagnostics.OpenTelemetry;
 /// </summary>
 public static class HugoOpenTelemetryBuilderExtensions
 {
-    /// <summary>
-    /// Adds Hugo diagnostics exporters and instrumentation to the supplied OpenTelemetry builder.
-    /// </summary>
     /// <param name="builder">The OpenTelemetry builder.</param>
-    /// <param name="configure">Optional configuration delegate.</param>
-    /// <returns>The provided builder.</returns>
-    public static OpenTelemetryBuilder AddHugoDiagnostics(this OpenTelemetryBuilder builder, Action<HugoOpenTelemetryOptions>? configure = null)
+    extension(OpenTelemetryBuilder builder)
     {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        var options = new HugoOpenTelemetryOptions();
-        configure?.Invoke(options);
-
-        return builder.AddHugoDiagnostics(options);
-    }
-
-    /// <summary>
-    /// Adds Hugo diagnostics exporters and instrumentation to the supplied OpenTelemetry builder.
-    /// </summary>
-    /// <param name="builder">The OpenTelemetry builder.</param>
-    /// <param name="options">Pre-configured options instance.</param>
-    /// <returns>The provided builder.</returns>
-    public static OpenTelemetryBuilder AddHugoDiagnostics(this OpenTelemetryBuilder builder, HugoOpenTelemetryOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(options);
-
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, HugoDiagnosticsRegistrationService>());
-        builder.Services.TryAddSingleton(_ => Options.Create(options));
-
-        builder.ConfigureResource(resourceBuilder =>
+        /// <summary>
+        /// Adds Hugo diagnostics exporters and instrumentation to the supplied OpenTelemetry builder.
+        /// </summary>
+        /// <param name="configure">Optional configuration delegate.</param>
+        /// <returns>The provided builder.</returns>
+        public OpenTelemetryBuilder AddHugoDiagnostics(Action<HugoOpenTelemetryOptions>? configure = null)
         {
-            if (!string.IsNullOrWhiteSpace(options.ServiceName))
-            {
-                resourceBuilder.AddService(options.ServiceName);
-            }
+            ArgumentNullException.ThrowIfNull(builder);
 
-            if (options.AttachSchemaAttribute && !string.IsNullOrWhiteSpace(options.SchemaUrl))
-            {
-                resourceBuilder.AddAttributes(
-                [
-                    new KeyValuePair<string, object>("telemetry.schema.url", options.SchemaUrl!)
-                ]);
-            }
-        });
+            var options = new HugoOpenTelemetryOptions();
+            configure?.Invoke(options);
 
-        builder.WithMetrics(metrics =>
+            return builder.AddHugoDiagnostics(options);
+        }
+
+        /// <summary>
+        /// Adds Hugo diagnostics exporters and instrumentation to the supplied OpenTelemetry builder.
+        /// </summary>
+        /// <param name="options">Pre-configured options instance.</param>
+        /// <returns>The provided builder.</returns>
+        public OpenTelemetryBuilder AddHugoDiagnostics(HugoOpenTelemetryOptions options)
         {
-            metrics.AddMeter(options.MeterName);
+            ArgumentNullException.ThrowIfNull(builder);
+            ArgumentNullException.ThrowIfNull(options);
 
-            if (options.AddRuntimeInstrumentation)
-            {
-                metrics.AddRuntimeInstrumentation();
-            }
+            builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, HugoDiagnosticsRegistrationService>());
+            builder.Services.TryAddSingleton(_ => Options.Create(options));
 
-            if (options.AddPrometheusExporter)
+            builder.ConfigureResource(resourceBuilder =>
             {
-                metrics.AddPrometheusExporter();
-            }
-
-            if (options.AddOtlpExporter)
-            {
-                metrics.AddOtlpExporter(exporterOptions =>
+                if (!string.IsNullOrWhiteSpace(options.ServiceName))
                 {
-                    if (options.OtlpEndpoint is { } endpoint)
-                    {
-                        exporterOptions.Endpoint = endpoint;
-                    }
+                    resourceBuilder.AddService(options.ServiceName);
+                }
 
-                    exporterOptions.Protocol = options.OtlpProtocol;
-                });
-            }
-        });
-
-        builder.WithTracing(tracing =>
-        {
-            tracing.AddSource(options.ActivitySourceName);
-
-            if (options.AddOtlpExporter)
-            {
-                tracing.AddOtlpExporter(exporterOptions =>
+                if (options.AttachSchemaAttribute && !string.IsNullOrWhiteSpace(options.SchemaUrl))
                 {
-                    if (options.OtlpEndpoint is { } endpoint)
+                    resourceBuilder.AddAttributes(
+                    [
+                        new KeyValuePair<string, object>("telemetry.schema.url", options.SchemaUrl!)
+                    ]);
+                }
+            });
+
+            builder.WithMetrics(metrics =>
+            {
+                metrics.AddMeter(options.MeterName);
+
+                if (options.AddRuntimeInstrumentation)
+                {
+                    metrics.AddRuntimeInstrumentation();
+                }
+
+                if (options.AddPrometheusExporter)
+                {
+                    metrics.AddPrometheusExporter();
+                }
+
+                if (options.AddOtlpExporter)
+                {
+                    metrics.AddOtlpExporter(exporterOptions =>
                     {
-                        exporterOptions.Endpoint = endpoint;
-                    }
+                        if (options.OtlpEndpoint is { } endpoint)
+                        {
+                            exporterOptions.Endpoint = endpoint;
+                        }
 
-                    exporterOptions.Protocol = options.OtlpProtocol;
-                });
-            }
-        });
+                        exporterOptions.Protocol = options.OtlpProtocol;
+                    });
+                }
+            });
 
-        return builder;
+            builder.WithTracing(tracing =>
+            {
+                tracing.AddSource(options.ActivitySourceName);
+
+                if (options.AddOtlpExporter)
+                {
+                    tracing.AddOtlpExporter(exporterOptions =>
+                    {
+                        if (options.OtlpEndpoint is { } endpoint)
+                        {
+                            exporterOptions.Endpoint = endpoint;
+                        }
+
+                        exporterOptions.Protocol = options.OtlpProtocol;
+                    });
+                }
+            });
+
+            return builder;
+        }
     }
 
     /// <summary>

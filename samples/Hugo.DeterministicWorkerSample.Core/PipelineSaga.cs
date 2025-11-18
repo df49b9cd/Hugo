@@ -1,4 +1,3 @@
-using Hugo;
 using Hugo.Sagas;
 
 using Microsoft.Extensions.Logging;

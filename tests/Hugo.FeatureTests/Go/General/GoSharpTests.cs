@@ -19,7 +19,7 @@ public class GoSharpTests
             {
                 await Task.Delay(10, token);
                 Interlocked.Increment(ref counter);
-            }, TestContext.Current.CancellationToken);
+            }, cancellationToken: TestContext.Current.CancellationToken);
         }
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
@@ -36,7 +36,7 @@ public class GoSharpTests
         {
             await Task.Delay(5, TestContext.Current.CancellationToken);
             throw new InvalidOperationException("boom");
-        }, TestContext.Current.CancellationToken);
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 

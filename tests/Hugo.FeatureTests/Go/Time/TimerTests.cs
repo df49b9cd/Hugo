@@ -83,6 +83,17 @@ public class TimerTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async Task After_ShouldThrow_WhenCancellationAlreadyRequested()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        ChannelReader<DateTimeOffset> reader = After(TimeSpan.FromSeconds(1), provider: TimeProvider.System, cancellationToken: cts.Token);
+
+        await Should.ThrowAsync<OperationCanceledException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+    }
+
+    [Fact(Timeout = 15_000)]
     public async Task NewTicker_ShouldProduceTicksUntilStopped()
     {
         var provider = new FakeTimeProvider();

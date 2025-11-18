@@ -1,13 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
-using Shouldly;
 
-using Hugo;
+using Shouldly;
 
 using Unit = Hugo.Go.Unit;
 
@@ -214,6 +208,39 @@ public class ResultStreamingTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask ForEachLinkedCancellationAsync_ShouldUseLinkedToken()
+    {
+        var source = GetResults([Result.Ok(1), Result.Ok(2)]);
+        int cancellations = 0;
+
+        var result = await source.ForEachLinkedCancellationAsync(async (_, token) =>
+        {
+            token.Register(() => Interlocked.Increment(ref cancellations));
+            await Task.Yield();
+            return Result.Ok(Unit.Value);
+        }, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        cancellations.ShouldBeGreaterThanOrEqualTo(0);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TapFailureEachIgnoreErrorsAsync_ShouldReturnSuccess_WhenFailuresIgnored()
+    {
+        var source = GetResults([Result.Fail<int>(Error.From("ignored")), Result.Ok(1)]);
+        int hits = 0;
+
+        var result = await source.TapFailureEachIgnoreErrorsAsync(async (_, _) =>
+        {
+            Interlocked.Increment(ref hits);
+            await Task.Yield();
+        }, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        hits.ShouldBe(1);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask TapSuccessEachIgnoreErrorsAsync_ShouldReturnSuccess()
     {
         var source = GetResults([Result.Ok(1), Result.Fail<int>(Error.From("a")), Result.Ok(2)]);
@@ -246,6 +273,168 @@ public class ResultStreamingTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask MapStreamAsync_ShouldTranslateSelectorException()
+    {
+        var source = GetValues([1]);
+
+        var projected = Result.MapStreamAsync<int, int>(
+            source,
+            (_, _) => throw new InvalidOperationException("boom"),
+            TestContext.Current.CancellationToken);
+
+        var results = await CollectAsync(projected);
+
+        results.Count.ShouldBe(1);
+        results[0].IsFailure.ShouldBeTrue();
+        results[0].Error?.Code.ShouldBe(ErrorCodes.Exception);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask MapStreamAsync_ShouldPropagateCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var source = GetValues([1]);
+        var projected = Result.MapStreamAsync<int, int>(source, (v, ct) =>
+        {
+            ct.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(Result.Ok(v));
+        }, cts.Token);
+
+        var results = await CollectAsync(projected);
+
+        results.ShouldHaveSingleItem().Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask MapStreamAsync_ShouldTranslateMoveNextFailure()
+    {
+        async IAsyncEnumerable<int> Failing([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Yield();
+            yield return await Task.FromException<int>(new InvalidOperationException("enumerator boom"));
+        }
+
+        var projected = Result.MapStreamAsync(
+            Failing(TestContext.Current.CancellationToken),
+            (value, _) => ValueTask.FromResult(Result.Ok(value)),
+            TestContext.Current.CancellationToken);
+
+        var results = await CollectAsync(projected);
+
+        results.ShouldHaveSingleItem().Error?.Code.ShouldBe(ErrorCodes.Exception);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask ToChannelAsync_ShouldCompleteWriter()
+    {
+        var source = GetResults([Result.Ok(1), Result.Ok(2)]);
+        var channel = Channel.CreateUnbounded<Result<int>>();
+
+        await source.ToChannelAsync(channel.Writer, TestContext.Current.CancellationToken);
+
+        var collected = await channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken).Select(r => r.Value).ToArrayAsync(TestContext.Current.CancellationToken);
+        collected.ShouldBe(new[] { 1, 2 });
+        (await channel.Reader.WaitToReadAsync(TestContext.Current.CancellationToken)).ShouldBeFalse();
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask FanInAsync_ShouldCancelSources()
+    {
+        using var cts = new CancellationTokenSource();
+        var slow = SlowResults(cts.Token);
+        var channel = Channel.CreateUnbounded<Result<int>>();
+
+        var fanInTask = Result.FanInAsync(new[] { slow }, channel.Writer, cts.Token);
+        cts.Cancel();
+
+        var result = await fanInTask;
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask FanInAsync_ShouldCompleteWriterWithFailure()
+    {
+#pragma warning disable CS0162
+        async IAsyncEnumerable<Result<int>> Throwing([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.Yield();
+            throw new InvalidOperationException("fan-in failure");
+#pragma warning disable CS0162
+            yield break;
+#pragma warning restore CS0162
+        }
+#pragma warning restore CS0162
+
+        var channel = Channel.CreateUnbounded<Result<int>>();
+
+        var result = await Result.FanInAsync(new[] { Throwing(TestContext.Current.CancellationToken) }, channel.Writer, TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Cause.ShouldBeOfType<InvalidOperationException>();
+
+        await Should.ThrowAsync<ChannelClosedException>(async () => await channel.Writer.WriteAsync(Result.Ok(99), TestContext.Current.CancellationToken));
+        channel.Reader.Completion.IsFaulted.ShouldBeTrue();
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask ToChannelAsync_ShouldWriteCancellationSentinelWhenWriterClosed()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        async IAsyncEnumerable<Result<int>> Canceling([EnumeratorCancellation] CancellationToken token)
+        {
+            await Task.Delay(Timeout.Infinite, token);
+            yield break;
+        }
+
+        var channel = Channel.CreateUnbounded<Result<int>>();
+        channel.Writer.TryComplete(); // force TryWrite to fail
+
+        await Canceling(cts.Token).ToChannelAsync(channel.Writer, cts.Token);
+
+        channel.Reader.Completion.IsCompleted.ShouldBeTrue();
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask FlatMapStreamAsync_ShouldReturnFailureWhenSelectorReturnsNull()
+    {
+        var source = GetValues([1]);
+
+        var stream = Result.FlatMapStreamAsync<int, int>(source, (_, _) => null!, TestContext.Current.CancellationToken);
+
+        var collected = await CollectAsync(stream);
+
+        collected.ShouldHaveSingleItem();
+        collected[0].IsFailure.ShouldBeTrue();
+        collected[0].Error?.Message.ShouldBe("Selector returned null stream.");
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask WindowAsync_ShouldFlushAndResetAfterFailure()
+    {
+        var source = GetResults([
+            Result.Ok(1),
+            Result.Ok(2),
+            Result.Fail<int>(Error.From("boom")),
+            Result.Ok(3),
+            Result.Ok(4)
+        ]);
+
+        var windows = await source.WindowAsync(2, TestContext.Current.CancellationToken).ToArrayAsync(TestContext.Current.CancellationToken);
+
+        windows.Length.ShouldBe(3);
+        windows[0].IsSuccess.ShouldBeTrue();
+        windows[0].Value.ShouldBe([1, 2]);
+        windows[1].IsFailure.ShouldBeTrue(); // failure propagated, buffer cleared
+        windows[2].IsSuccess.ShouldBeTrue();
+        windows[2].Value.ShouldBe([3, 4]);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask ForEachAsync_ShouldReturnFailureFromCallback()
     {
         var stream = GetSequence([1, 2, 3]);
@@ -263,6 +452,69 @@ public class ResultStreamingTests
 
         result.IsFailure.ShouldBeTrue();
         seen.ShouldBe(new[] { 1, 2 });
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask ToChannelAsync_ShouldEmitCanceledSentinelWhenCanceled()
+    {
+        using var cts = new CancellationTokenSource();
+        var channel = Channel.CreateUnbounded<Result<int>>();
+
+        async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct)
+        {
+            var i = 0;
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                yield return Result.Ok(++i);
+                await Task.Delay(5, ct);
+            }
+        }
+
+        var forwardTask = Result.ToChannelAsync(Source(cts.Token), channel.Writer, cts.Token);
+        cts.CancelAfter(15);
+
+        await forwardTask;
+
+        var results = await channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken).ToArrayAsync(TestContext.Current.CancellationToken);
+        results.Last().Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TapFailureEachAggregateErrorsAsync_ShouldAggregateAllFailures()
+    {
+        var failures = new[]
+        {
+            Result.Fail<int>(Error.From("first", ErrorCodes.Validation)),
+            Result.Fail<int>(Error.From("second", ErrorCodes.Validation))
+        };
+
+        var tapped = new List<string>();
+        var outcome = await failures.ToAsyncEnumerable()
+            .TapFailureEachAggregateErrorsAsync((error, _) =>
+            {
+                tapped.Add(error.Message);
+                return ValueTask.CompletedTask;
+            }, TestContext.Current.CancellationToken);
+
+        tapped.ShouldBe(new[] { "first", "second" });
+        outcome.IsFailure.ShouldBeTrue();
+        outcome.Error!.Message.ShouldContain("One or more failures occurred while processing the stream.");
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask CollectErrorsAsync_ShouldReturnAggregateWhenFailuresPresent()
+    {
+        var stream = GetResults([
+            Result.Ok(1),
+            Result.Fail<int>(Error.From("first", ErrorCodes.Validation)),
+            Result.Fail<int>(Error.From("second", ErrorCodes.Validation))
+        ]);
+
+        var outcome = await stream.CollectErrorsAsync(TestContext.Current.CancellationToken);
+
+        outcome.IsFailure.ShouldBeTrue();
+        outcome.Error!.Message.ShouldContain("One or more failures occurred while processing the stream.");
     }
 
     private static async IAsyncEnumerable<Result<int>> GetSequence(IEnumerable<int> values)
@@ -311,6 +563,16 @@ public class ResultStreamingTests
         yield return Result.Fail<int>(Error.From("inner-fail", ErrorCodes.Validation));
     }
 
+    private static async IAsyncEnumerable<Result<int>> SlowResults([EnumeratorCancellation] CancellationToken ct)
+    {
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            await Task.Delay(5, ct);
+            yield return Result.Ok(1);
+        }
+    }
+
     private static async ValueTask<int[]> ReadAllValues(ChannelReader<Result<int>> reader)
     {
         var list = new List<int>();
@@ -321,6 +583,6 @@ public class ResultStreamingTests
                 list.Add(item.Value);
             }
         }
-        return list.ToArray();
+        return [.. list];
     }
 }

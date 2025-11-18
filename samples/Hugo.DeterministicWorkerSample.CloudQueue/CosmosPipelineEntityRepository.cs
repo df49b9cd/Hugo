@@ -1,9 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-
-using Hugo;
 using Hugo.DeterministicWorkerSample.Core;
 
 using Microsoft.Azure.Cosmos;
@@ -109,7 +103,7 @@ internal sealed class CosmosPipelineEntityRepository : IPipelineEntityRepository
                 entities.AddRange(response.Select(static doc => doc.ToEntity()));
             }
 
-            return entities.OrderBy(static e => e.EntityId, StringComparer.OrdinalIgnoreCase).ToList();
+            return [.. entities.OrderBy(static e => e.EntityId, StringComparer.OrdinalIgnoreCase)];
         }
         catch (CosmosException ex)
         {

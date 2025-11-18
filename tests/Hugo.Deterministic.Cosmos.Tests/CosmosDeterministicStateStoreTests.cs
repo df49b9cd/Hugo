@@ -1,10 +1,6 @@
-using System;
-using System.Net.Http;
-using System.Threading;
 using Shouldly;
 
 using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Configurations;
 
 using Hugo;
 using Hugo.Deterministic.Cosmos;
@@ -12,8 +8,6 @@ using Hugo.Deterministic.Cosmos;
 using Microsoft.Azure.Cosmos;
 
 using Testcontainers.CosmosDb;
-
-using Xunit;
 
 public sealed class CosmosDeterministicStateStoreTests : IAsyncLifetime
 {
@@ -84,7 +78,7 @@ public sealed class CosmosDeterministicStateStoreTests : IAsyncLifetime
         await _container.DisposeAsync().ConfigureAwait(false);
     }
 
-    [Fact(Timeout = 15_000)]
+    [Fact(Timeout = 120_000)]
     public void SetAndGetRoundTripsRecord()
     {
         if (SkipIfNecessary())
@@ -103,7 +97,7 @@ public sealed class CosmosDeterministicStateStoreTests : IAsyncLifetime
         stored.Payload.ToArray().ShouldBe(record.Payload.ToArray());
     }
 
-    [Fact(Timeout = 15_000)]
+    [Fact(Timeout = 120_000)]
     public void SetOverwritesExistingRecord()
     {
         if (SkipIfNecessary())

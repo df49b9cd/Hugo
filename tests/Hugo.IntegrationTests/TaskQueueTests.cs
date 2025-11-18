@@ -218,7 +218,7 @@ public class TaskQueueTests
 
         var error = Error.From("canceled-fail", ErrorCodes.TaskQueueAbandoned);
         using var canceledCts = new CancellationTokenSource();
-        canceledCts.Cancel();
+        await canceledCts.CancelAsync();
 
         await lease.FailAsync(error, requeue: true, canceledCts.Token);
 

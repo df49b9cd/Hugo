@@ -1,5 +1,3 @@
-using System;
-
 internal static class DeterministicTestSkipper
 {
     private const string SkipEnvVar = "HUGO_SKIP_DETERMINISTIC_TESTS";

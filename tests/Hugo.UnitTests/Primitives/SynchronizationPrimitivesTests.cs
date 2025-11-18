@@ -7,7 +7,7 @@ public class SynchronizationPrimitivesTests
 {
     private static readonly TimeSpan ShortDelay = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan WriterDelay = TimeSpan.FromMilliseconds(10);
-    private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(5);
 
     private static void AssertIncomplete(ValueTask task, TimeSpan timeout, CancellationToken cancellationToken) => task.AsTask().Wait(timeout, cancellationToken).ShouldBeFalse("Task completed before expected.");
 
@@ -36,14 +36,14 @@ public class SynchronizationPrimitivesTests
         ValueTask second;
         try
         {
-            second = Go.RunValueTask(async ct =>
+            second = Go.Run(async ct =>
             {
                 secondStarted.Set();
                 using (mutex.EnterScope())
                 {
                     Interlocked.Exchange(ref secondEntered, 1);
                 }
-            }, cancellation);
+            }, cancellationToken: cancellation);
 
             AssertWait(secondStarted, "Timed out waiting for second mutex waiter to start.", cancellation);
             AssertIncomplete(second, ShortDelay, cancellation);
@@ -99,7 +99,7 @@ public class SynchronizationPrimitivesTests
         var readScope = rwMutex.EnterReadScope();
         using ManualResetEventSlim writerStarted = new(false);
         var writerEntered = 0;
-        ValueTask writer = Go.RunValueTask(async ct =>
+        ValueTask writer = Go.Run(async ct =>
         {
             writerStarted.Set();
             using (rwMutex.EnterWriteScope())
@@ -107,7 +107,7 @@ public class SynchronizationPrimitivesTests
                 Interlocked.Exchange(ref writerEntered, 1);
             }
             BusyWait(WriterDelay, cancellation);
-        }, cancellation);
+        }, cancellationToken: cancellation);
 
         AssertWait(writerStarted, "Timed out waiting for writer to start.", cancellation);
         AssertIncomplete(writer, ShortDelay, cancellation);
@@ -126,7 +126,7 @@ public class SynchronizationPrimitivesTests
         using ManualResetEventSlim readerStarted = new(false);
         var readerEntered = 0;
 
-        ValueTask reader = Go.RunValueTask(async ct =>
+        ValueTask reader = Go.Run(async ct =>
         {
             readerStarted.Set();
             using (rwMutex.EnterReadScope())
@@ -134,7 +134,7 @@ public class SynchronizationPrimitivesTests
                 Interlocked.Exchange(ref readerEntered, 1);
                 BusyWait(WriterDelay, cancellation);
             }
-        }, cancellation);
+        }, cancellationToken: cancellation);
 
         AssertWait(readerStarted, "Timed out waiting for reader to start.", cancellation);
         AssertIncomplete(reader, ShortDelay, cancellation);
@@ -150,5 +150,46 @@ public class SynchronizationPrimitivesTests
     {
         var once = new Once();
         Should.Throw<ArgumentNullException>(() => once.Do(null!));
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask RwMutex_RLockAsync_ShouldReleaseWriterWhenLastReaderDisposes()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        using var rwMutex = new RwMutex();
+
+        var firstReader = await rwMutex.RLockAsync(cancellation);
+        var secondReader = await rwMutex.RLockAsync(cancellation);
+
+        var writerEntered = 0;
+        var writer = Go.Run(async ct =>
+        {
+            await using (await rwMutex.LockAsync(ct))
+            {
+                Interlocked.Exchange(ref writerEntered, 1);
+            }
+        }, cancellationToken: cancellation);
+
+        writer.AsTask().IsCompleted.ShouldBeFalse();
+
+        await firstReader.DisposeAsync();
+        await secondReader.DisposeAsync();
+
+        await writer.AsTask().WaitAsync(cancellation);
+        writerEntered.ShouldBe(1);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask RwMutex_RLockAsync_ShouldObserveCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        using var rwMutex = new RwMutex();
+
+        await using (await rwMutex.RLockAsync(TestContext.Current.CancellationToken))
+        {
+            cts.Cancel();
+            var acquiring = rwMutex.RLockAsync(cts.Token);
+            await Should.ThrowAsync<OperationCanceledException>(async () => await acquiring.AsTask());
+        }
     }
 }

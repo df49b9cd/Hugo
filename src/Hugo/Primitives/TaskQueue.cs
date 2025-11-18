@@ -357,7 +357,8 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         _channel = Go.BoundedChannel<QueueEnvelope>(_options.Capacity)
             .WithFullMode(BoundedChannelFullMode.Wait)
             .Build();
-        _monitorTask = Go.Run(() => MonitorLeasesAsync(_monitorCts.Token));
+
+        _monitorTask = MonitorLeasesAsync(_monitorCts.Token).AsTask();
     }
 
     /// <summary>
@@ -583,7 +584,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         GoDiagnostics.CompleteTaskQueueActivity(activity, error);
     }
 
-    private async Task MonitorLeasesAsync(CancellationToken cancellationToken)
+    private async ValueTask MonitorLeasesAsync(CancellationToken cancellationToken)
     {
         try
         {
@@ -650,7 +651,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         }
 
         TaskQueueOwnershipToken? recordedToken = ownershipToken ?? envelope.LastOwnershipToken;
-        QueueEnvelope requeued = new(envelope.Value, envelope.SequenceId, nextAttempt, envelope.EnqueuedAt, error, recordedToken);
+        QueueEnvelope requeued = envelope with { Attempt = nextAttempt, LastError = error, LastOwnershipToken = recordedToken };
 
         if (_options.RequeueDelay > TimeSpan.Zero)
         {

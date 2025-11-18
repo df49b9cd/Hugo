@@ -1,5 +1,3 @@
-using System.Threading;
-
 using Hugo.Policies;
 
 namespace Hugo;
@@ -39,7 +37,7 @@ public static class ResultPipelineWaitGroupExtensions
             }
             finally
             {
-                linkedCts.Cancel();
+                await linkedCts.CancelAsync();
             }
 
             parentContext.AbsorbResult(result);
@@ -47,6 +45,6 @@ public static class ResultPipelineWaitGroupExtensions
             {
                 parentContext.AbsorbCompensation(scope);
             }
-        }, parentContext.CancellationToken);
+        }, cancellationToken: parentContext.CancellationToken);
     }
 }

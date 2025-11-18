@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 using Unit = Hugo.Go.Unit;
 
 namespace Hugo;
@@ -41,13 +39,19 @@ public sealed class SafeTaskQueueWrapper<T>(TaskQueue<T> queue, bool ownsQueue =
     /// <summary>Leases the next available work item.</summary>
     /// <param name="cancellationToken">The token used to cancel the lease operation.</param>
     /// <returns>A result containing the leased work item when successful.</returns>
-    public async ValueTask<Result<SafeTaskQueueLease<T>>> LeaseAsync(CancellationToken cancellationToken = default) => await Result
+    public async ValueTask<Result<SafeTaskQueueLease<T>>> LeaseAsync(CancellationToken cancellationToken = default)
+    {
+        Result<TaskQueueLease<T>> leaseResult = await Result
             .TryAsync<TaskQueueLease<T>>(
                 async ct => await _queue.LeaseAsync(ct).ConfigureAwait(false),
                 errorFactory: MapQueueExceptions,
                 cancellationToken: cancellationToken)
-            .MapAsync(static lease => new SafeTaskQueueLease<T>(lease), cancellationToken)
             .ConfigureAwait(false);
+
+        return leaseResult.IsFailure
+            ? Result.Fail<SafeTaskQueueLease<T>>(leaseResult.Error!)
+            : Result.Ok(new SafeTaskQueueLease<T>(leaseResult.Value));
+    }
 
     /// <summary>Creates a safe wrapper around an existing lease instance.</summary>
     /// <param name="lease">The lease to wrap.</param>

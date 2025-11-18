@@ -1,6 +1,5 @@
 using Shouldly;
 // Import the Hugo helpers to use them without the 'Hugo.' prefix.
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Channels;
 
@@ -61,7 +60,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Mutex_ShouldThrow_WhenLockIsCancelled()
+    public async ValueTask Mutex_ShouldThrow_WhenLockIsCancelled()
     {
         using var mutex = new Mutex();
         using var cts = new CancellationTokenSource();
@@ -75,7 +74,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Mutex_LockAsync_WithPreCanceledToken_ShouldThrow()
+    public async ValueTask Mutex_LockAsync_WithPreCanceledToken_ShouldThrow()
     {
         using var mutex = new Mutex();
         using var cts = new CancellationTokenSource();
@@ -85,7 +84,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Mutex_ShouldThrowAfterDispose()
+    public async ValueTask Mutex_ShouldThrowAfterDispose()
     {
         using var mutex = new Mutex();
         mutex.Dispose();
@@ -95,7 +94,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Mutex_ShouldNotBeReentrant()
+    public async ValueTask Mutex_ShouldNotBeReentrant()
     {
         using var mutex = new Mutex();
         using (await mutex.LockAsync(TestContext.Current.CancellationToken))
@@ -110,7 +109,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Mutex_AsyncReleaser_ShouldBeIdempotent()
+    public async ValueTask Mutex_AsyncReleaser_ShouldBeIdempotent()
     {
         using var mutex = new Mutex();
         var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
@@ -124,7 +123,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Mutex_AsyncReleaser_DisposeAsync_ShouldReleaseLock()
+    public async ValueTask Mutex_AsyncReleaser_DisposeAsync_ShouldReleaseLock()
     {
         using var mutex = new Mutex();
         var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
@@ -137,7 +136,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Mutex_AsyncReleaser_DisposeAsyncTwice_ShouldNotThrow()
+    public async ValueTask Mutex_AsyncReleaser_DisposeAsyncTwice_ShouldNotThrow()
     {
         using var mutex = new Mutex();
         var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
@@ -147,20 +146,14 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Once_ShouldExecuteAction_ExactlyOnce_Concurrently()
+    public async ValueTask Once_ShouldExecuteAction_ExactlyOnce_Concurrently()
     {
         var once = new Once();
         var counter = 0;
         var wg = new WaitGroup();
         for (var i = 0; i < 10; i++)
         {
-            var task = Task.Run(
-                () =>
-                {
-                    once.Do(() => Interlocked.Increment(ref counter));
-                },
-                TestContext.Current.CancellationToken
-            );
+            var task = Run(async () => once.Do(() => Interlocked.Increment(ref counter)), cancellationToken: TestContext.Current.CancellationToken);
             wg.Add(task);
         }
         await wg.WaitAsync(TestContext.Current.CancellationToken);
@@ -185,7 +178,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RWMutex_ShouldAllow_MultipleConcurrentReaders()
+    public async ValueTask RWMutex_ShouldAllow_MultipleConcurrentReaders()
     {
         using var rwMutex = new RwMutex();
         var activeReaders = 0;
@@ -195,7 +188,7 @@ public partial class GoTests
 
         for (var i = 0; i < 5; i++)
         {
-            var task = Task.Run(
+            var task = Run(
                 async () =>
                 {
                     startSignal.Wait(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken).ShouldBeTrue("Timed out waiting to start RWMutex readers.");
@@ -210,7 +203,7 @@ public partial class GoTests
                         Interlocked.Decrement(ref activeReaders);
                     }
                 },
-                TestContext.Current.CancellationToken
+                cancellationToken: TestContext.Current.CancellationToken
             );
             wg.Add(task);
         }
@@ -222,49 +215,49 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RWMutex_ShouldProvide_ExclusiveWriteLock()
+    public async ValueTask RWMutex_ShouldProvide_ExclusiveWriteLock()
     {
         using var rwMutex = new RwMutex();
         var writeLockHeld = false;
         var wg = new WaitGroup();
 
-        var writerTask = Task.Run(
+        var writerTask = Run(
             async () =>
             {
-                using (await rwMutex.LockAsync())
+                await using (await rwMutex.LockAsync())
                 {
                     writeLockHeld = true;
                     await Task.Delay(100, TestContext.Current.CancellationToken);
                     writeLockHeld = false;
                 }
             },
-            TestContext.Current.CancellationToken
+            cancellationToken: TestContext.Current.CancellationToken
         );
         wg.Add(writerTask);
 
         await Task.Delay(10, TestContext.Current.CancellationToken);
 
-        var readerAttemptTask = Task.Run(
+        var readerAttemptTask = Run(
             async () =>
             {
-                using (await rwMutex.RLockAsync())
+                await using (await rwMutex.RLockAsync())
                 {
                     writeLockHeld.ShouldBeFalse();
                 }
             },
-            TestContext.Current.CancellationToken
+            cancellationToken: TestContext.Current.CancellationToken
         );
         wg.Add(readerAttemptTask);
 
-        var writerAttemptTask = Task.Run(
+        var writerAttemptTask = Run(
             async () =>
             {
-                using (await rwMutex.LockAsync())
+                await using (await rwMutex.LockAsync())
                 {
                     writeLockHeld.ShouldBeFalse();
                 }
             },
-            TestContext.Current.CancellationToken
+            cancellationToken: TestContext.Current.CancellationToken
         );
         wg.Add(writerAttemptTask);
 
@@ -294,20 +287,20 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Concurrency_ShouldCommunicate_ViaChannel()
+    public async ValueTask Concurrency_ShouldCommunicate_ViaChannel()
     {
         var channel = MakeChannel<string>();
-        _ = Run(async () =>
+        _ = Run(async ct =>
         {
-            await Task.Delay(100, TestContext.Current.CancellationToken);
-            await channel.Writer.WriteAsync("Work complete!", TestContext.Current.CancellationToken);
-        });
+            await Task.Delay(100, ct);
+            await channel.Writer.WriteAsync("Work complete!", ct);
+        }, cancellationToken: TestContext.Current.CancellationToken);
         var message = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
         message.ShouldBe("Work complete!");
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Concurrency_ShouldBlock_WhenBoundedChannelIsFull()
+    public async ValueTask Concurrency_ShouldBlock_WhenBoundedChannelIsFull()
     {
         var channel = MakeChannel<int>(1);
         var writerTaskCompleted = false;
@@ -331,19 +324,19 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitGroup_ShouldWait_ForAllTasksToComplete()
+    public async ValueTask WaitGroup_ShouldWait_ForAllTasksToComplete()
     {
         var wg = new WaitGroup();
         var counter = 0;
         for (var i = 0; i < 5; i++)
         {
-            var task = Task.Run(
+            var task = Run(
                 async () =>
                 {
                     await Task.Delay(20, TestContext.Current.CancellationToken);
                     Interlocked.Increment(ref counter);
                 },
-                TestContext.Current.CancellationToken
+                cancellationToken: TestContext.Current.CancellationToken
             );
             wg.Add(task);
         }
@@ -352,7 +345,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitGroup_ShouldCompleteImmediately_WhenNoTasksAreAdded()
+    public async ValueTask WaitGroup_ShouldCompleteImmediately_WhenNoTasksAreAdded()
     {
         var wg = new WaitGroup();
         await wg.WaitAsync(TestContext.Current.CancellationToken);
@@ -360,7 +353,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Mutex_ShouldPreventRaceConditions()
+    public async ValueTask Mutex_ShouldPreventRaceConditions()
     {
         var wg = new WaitGroup();
         using var mutex = new Mutex();
@@ -382,7 +375,7 @@ public partial class GoTests
                         }
                     }
                 },
-                TestContext.Current.CancellationToken
+                cancellationToken: TestContext.Current.CancellationToken
             );
             wg.Add(task);
         }
@@ -400,30 +393,6 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public void WaitGroup_AddTask_ShouldThrow_WhenTaskIsNull()
-    {
-        var wg = new WaitGroup();
-
-        Should.Throw<ArgumentNullException>(() => wg.Add((Task)null!));
-    }
-
-    [Fact(Timeout = 15_000)]
-    public void WaitGroup_Go_ShouldThrow_WhenWorkIsNull()
-    {
-        var wg = new WaitGroup();
-
-        Should.Throw<ArgumentNullException>(() => wg.Go((Func<Task>)null!, TestContext.Current.CancellationToken));
-    }
-
-    [Fact(Timeout = 15_000)]
-    public void WaitGroup_Go_WithCancellationToken_ShouldThrow_WhenWorkIsNull()
-    {
-        var wg = new WaitGroup();
-
-        Should.Throw<ArgumentNullException>(() => wg.Go((Func<CancellationToken, Task>)null!, TestContext.Current.CancellationToken));
-    }
-
-    [Fact(Timeout = 15_000)]
     public void WaitGroup_Done_ShouldThrow_WhenCalledTooManyTimes()
     {
         var wg = new WaitGroup();
@@ -434,7 +403,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitGroup_WaitAsync_ShouldRespectCancellation()
+    public async ValueTask WaitGroup_WaitAsync_ShouldRespectCancellation()
     {
         var wg = new WaitGroup();
         wg.Add(1);
@@ -447,11 +416,11 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitGroup_AddTask_ShouldCompleteWhenTrackedTaskFinishes()
+    public async ValueTask WaitGroup_AddTask_ShouldCompleteWhenTrackedTaskFinishes()
     {
         var wg = new WaitGroup();
         var tcs = new TaskCompletionSource();
-        wg.Add(tcs.Task);
+        wg.Add(new ValueTask(tcs.Task));
 
         tcs.SetResult();
         await wg.WaitAsync(TestContext.Current.CancellationToken);
@@ -460,7 +429,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Mutex_DisposeAsync_ShouldReleaseLock()
+    public async ValueTask Mutex_DisposeAsync_ShouldReleaseLock()
     {
         using var mutex = new Mutex();
         var releaser = await mutex.LockAsync(TestContext.Current.CancellationToken);
@@ -470,14 +439,14 @@ public partial class GoTests
         pending.IsCompleted.ShouldBeFalse();
 
         await releaser.DisposeAsync();
-        using (await pending)
+        await using (await pending)
         {
             true.ShouldBeTrue();
         }
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RwMutex_RLockAsync_ShouldCancelWhenWriterHeld()
+    public async ValueTask RwMutex_RLockAsync_ShouldCancelWhenWriterHeld()
     {
         using var rwMutex = new RwMutex();
         using (await rwMutex.LockAsync(TestContext.Current.CancellationToken))
@@ -488,7 +457,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RwMutex_LockAsync_DisposeAsync_ShouldRelease()
+    public async ValueTask RwMutex_LockAsync_DisposeAsync_ShouldRelease()
     {
         using var rwMutex = new RwMutex();
         var writer = await rwMutex.LockAsync(TestContext.Current.CancellationToken);
@@ -513,36 +482,29 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Run_ShouldExecuteDelegate()
+    public async ValueTask Run_ShouldExecuteDelegate()
     {
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await Run(async () =>
         {
             tcs.SetResult();
             await Task.CompletedTask;
-        });
+        }, cancellationToken: TestContext.Current.CancellationToken);
 
         await tcs.Task.WaitAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Run_ShouldThrowWhenFuncIsNull()
-    {
-        await Should.ThrowAsync<ArgumentNullException>(static () => Run((Func<Task>)null!));
-        await Should.ThrowAsync<ArgumentNullException>(static () => Run((Func<CancellationToken, Task>)null!, TestContext.Current.CancellationToken));
-    }
-
-    [Fact(Timeout = 15_000)]
-    public async Task Run_WithCancellationToken_ShouldPropagateCancellation()
+    public async ValueTask Run_WithCancellationToken_ShouldPropagateCancellation()
     {
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        await Should.ThrowAsync<OperationCanceledException>(() => Run(_ => Task.Delay(1000, _), cts.Token));
+        await Should.ThrowAsync<OperationCanceledException>(() => Run(_ => new ValueTask(Task.Delay(1000, _)), cancellationToken: cts.Token).AsTask());
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Run_ShouldAcceptExistingTask()
+    public async ValueTask Run_ShouldAcceptExistingTask()
     {
         var existing = Task.Delay(10, TestContext.Current.CancellationToken);
         var tracked = Run(existing);
@@ -552,7 +514,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Run_ShouldAcceptExistingValueTask()
+    public async ValueTask Run_ShouldAcceptExistingValueTask()
     {
         var invoked = 0;
         async ValueTask WorkAsync()
@@ -568,7 +530,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Run_ShouldRespectCustomScheduler()
+    public async ValueTask Run_ShouldRespectCustomScheduler()
     {
         var scheduler = new InlineTaskScheduler();
         var executedOnScheduler = 0;
@@ -580,15 +542,15 @@ public partial class GoTests
                 Interlocked.Increment(ref executedOnScheduler);
             }
 
-            return Task.CompletedTask;
-        }, scheduler: scheduler);
+            return ValueTask.CompletedTask;
+        }, scheduler: scheduler, cancellationToken: TestContext.Current.CancellationToken);
 
         executedOnScheduler.ShouldBe(1);
         scheduler.ExecutionCount.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitGroup_Go_ShouldRespectCustomScheduler()
+    public async ValueTask WaitGroup_Go_ShouldRespectCustomScheduler()
     {
         var wg = new WaitGroup();
         var scheduler = new InlineTaskScheduler();
@@ -600,8 +562,8 @@ public partial class GoTests
             {
                 Interlocked.Increment(ref executedOnScheduler);
             }
-            return Task.CompletedTask;
-        }, cancellationToken: TestContext.Current.CancellationToken, scheduler: scheduler);
+            return ValueTask.CompletedTask;
+        }, scheduler: scheduler, cancellationToken: TestContext.Current.CancellationToken);
 
         await wg.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -610,12 +572,12 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitGroup_Go_ShouldAcceptExistingTask()
+    public async ValueTask WaitGroup_Go_ShouldAcceptExistingTask()
     {
         var wg = new WaitGroup();
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        wg.Go(tcs.Task);
+        wg.Go(new(tcs.Task));
         wg.Count.ShouldBe(1);
 
         tcs.TrySetResult();
@@ -625,7 +587,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task DelayAsync_WithFakeTimeProvider_ShouldCompleteWhenAdvanced()
+    public async ValueTask DelayAsync_WithFakeTimeProvider_ShouldCompleteWhenAdvanced()
     {
         var provider = new FakeTimeProvider();
 
@@ -639,11 +601,11 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task DelayAsync_ShouldThrow_WhenDelayIsNegative() => await Should.ThrowAsync<ArgumentOutOfRangeException>(static async () =>
+    public async ValueTask DelayAsync_ShouldThrow_WhenDelayIsNegative() => await Should.ThrowAsync<ArgumentOutOfRangeException>(static async () =>
                                                                                await DelayAsync(TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
-    public async Task DelayAsync_ShouldRespectCancellation()
+    public async ValueTask DelayAsync_ShouldRespectCancellation()
     {
         using var cts = new CancellationTokenSource();
         var provider = new FakeTimeProvider();
@@ -674,13 +636,13 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldThrow_WhenCasesNull() => await Should.ThrowAsync<ArgumentNullException>(static async () => await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: null!));
+    public async ValueTask SelectAsync_ShouldThrow_WhenCasesNull() => await Should.ThrowAsync<ArgumentNullException>(static async () => await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: null!));
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldThrow_WhenCasesEmpty() => await Should.ThrowAsync<ArgumentException>(static async () => await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: []));
+    public async ValueTask SelectAsync_ShouldThrow_WhenCasesEmpty() => await Should.ThrowAsync<ArgumentException>(static async () => await SelectAsync<Go.Unit>(cancellationToken: TestContext.Current.CancellationToken, cases: []));
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldThrow_WhenTimeoutIsNegative()
+    public async ValueTask SelectAsync_ShouldThrow_WhenTimeoutIsNegative()
     {
         var channel = MakeChannel<int>();
         var @case = ChannelCase.Create(channel.Reader, (_, _) => ValueTask.FromResult(Result.Ok(Go.Unit.Value)));
@@ -689,7 +651,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldReturnFailure_WhenCasesCompleteWithoutValue()
+    public async ValueTask SelectAsync_ShouldReturnFailure_WhenCasesCompleteWithoutValue()
     {
         var channel = MakeChannel<int>();
         channel.Writer.TryComplete();
@@ -701,7 +663,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldInvokeDefaultCase()
+    public async ValueTask SelectAsync_ShouldInvokeDefaultCase()
     {
         var invoked = false;
 
@@ -722,7 +684,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldPropagateDefaultFailure()
+    public async ValueTask SelectAsync_ShouldPropagateDefaultFailure()
     {
         var result = await SelectAsync<Go.Unit>(
             cancellationToken: TestContext.Current.CancellationToken,
@@ -737,7 +699,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldPreferReadyCaseOverDefault()
+    public async ValueTask SelectAsync_ShouldPreferReadyCaseOverDefault()
     {
         var channel = MakeChannel<int>();
         channel.Writer.TryWrite(42);
@@ -765,7 +727,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldThrow_WhenMultipleDefaultCasesSupplied() => await Should.ThrowAsync<ArgumentException>(static async () =>
+    public async ValueTask SelectAsync_ShouldThrow_WhenMultipleDefaultCasesSupplied() => await Should.ThrowAsync<ArgumentException>(static async () =>
                                                                                              await SelectAsync<Go.Unit>(
                                                                                                  cancellationToken: TestContext.Current.CancellationToken,
                                                                                                  cases:
@@ -775,7 +737,7 @@ public partial class GoTests
                                                                                                  ]));
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldWrapContinuationExceptions()
+    public async ValueTask SelectAsync_ShouldWrapContinuationExceptions()
     {
         var channel = MakeChannel<int>();
         channel.Writer.TryWrite(42);
@@ -789,7 +751,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldReturnFirstCompletedCase()
+    public async ValueTask SelectAsync_ShouldReturnFirstCompletedCase()
     {
         var channel1 = MakeChannel<int>();
         var channel2 = MakeChannel<int>();
@@ -827,7 +789,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldReturnTimeoutError_WhenDeadlineExpires()
+    public async ValueTask SelectAsync_ShouldReturnTimeoutError_WhenDeadlineExpires()
     {
         var channel = MakeChannel<int>();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -856,7 +818,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldRespectCancellation()
+    public async ValueTask SelectAsync_ShouldRespectCancellation()
     {
         var channel = MakeChannel<int>();
         using var cts = new CancellationTokenSource();
@@ -877,7 +839,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldEmitActivityTelemetry_OnSuccess()
+    public async ValueTask SelectAsync_ShouldEmitActivityTelemetry_OnSuccess()
     {
         GoDiagnostics.Reset();
         var stoppedActivities = new List<Activity>();
@@ -921,7 +883,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldEmitActivityTelemetry_OnFailure()
+    public async ValueTask SelectAsync_ShouldEmitActivityTelemetry_OnFailure()
     {
         GoDiagnostics.Reset();
         var stoppedActivities = new List<Activity>();
@@ -964,7 +926,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FakeTimeProviderDelay_ShouldCompleteAfterAdvance()
+    public async ValueTask FakeTimeProviderDelay_ShouldCompleteAfterAdvance()
     {
         var provider = new FakeTimeProvider();
 
@@ -977,7 +939,7 @@ public partial class GoTests
 
     [Theory]
     [InlineData(new[] { 1, 2 })]
-    public async Task SelectAsync_ShouldSupportRepeatedInvocations(int[] expected)
+    public async ValueTask SelectAsync_ShouldSupportRepeatedInvocations(int[] expected)
     {
         var channel = MakeChannel<int>();
         var observed = new List<int>();
@@ -1006,7 +968,7 @@ public partial class GoTests
 
     [Theory]
     [InlineData(new[] { 99 })]
-    public async Task ChannelCaseTemplates_With_ShouldMaterializeCases(int[] expected)
+    public async ValueTask ChannelCaseTemplates_With_ShouldMaterializeCases(int[] expected)
     {
         var channel1 = MakeChannel<int>();
         var channel2 = MakeChannel<int>();
@@ -1037,7 +999,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectBuilder_ShouldReturnProjectedResult_WhenTemplateUsed()
+    public async ValueTask SelectBuilder_ShouldReturnProjectedResult_WhenTemplateUsed()
     {
         var channel = MakeChannel<int>();
         var template = ChannelCaseTemplates.From(channel.Reader);
@@ -1056,7 +1018,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectBuilder_ShouldPropagateCaseFailure()
+    public async ValueTask SelectBuilder_ShouldPropagateCaseFailure()
     {
         var channel = MakeChannel<int>();
 
@@ -1075,7 +1037,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectBuilder_ShouldPropagateTimeout()
+    public async ValueTask SelectBuilder_ShouldPropagateTimeout()
     {
         var provider = new FakeTimeProvider();
         var channel = MakeChannel<int>();
@@ -1093,7 +1055,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectBuilder_ShouldThrow_WhenNoCasesConfigured()
+    public async ValueTask SelectBuilder_ShouldThrow_WhenNoCasesConfigured()
     {
         var builder = Select<int>(cancellationToken: TestContext.Current.CancellationToken);
 
@@ -1101,7 +1063,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectBuilder_ShouldReturnDefaultResult_WhenNoCasesConfigured()
+    public async ValueTask SelectBuilder_ShouldReturnDefaultResult_WhenNoCasesConfigured()
     {
         var result = await Select<string>(cancellationToken: TestContext.Current.CancellationToken)
             .Default(static () => "fallback")
@@ -1112,7 +1074,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectBuilder_ShouldPreferReadyCasesOverDefault()
+    public async ValueTask SelectBuilder_ShouldPreferReadyCasesOverDefault()
     {
         var channel = MakeChannel<int>();
         channel.Writer.TryWrite(9);
@@ -1128,7 +1090,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectBuilder_ShouldHonorPriorityOrdering_WhenMultipleCasesReady()
+    public async ValueTask SelectBuilder_ShouldHonorPriorityOrdering_WhenMultipleCasesReady()
     {
         var highPriority = MakeChannel<int>();
         var lowPriority = MakeChannel<int>();
@@ -1148,7 +1110,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectBuilder_ShouldHonorRegistrationOrder_WhenPrioritiesMatch()
+    public async ValueTask SelectBuilder_ShouldHonorRegistrationOrder_WhenPrioritiesMatch()
     {
         var first = MakeChannel<int>();
         var second = MakeChannel<int>();
@@ -1168,7 +1130,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectBuilder_ShouldInvokeDefault_WhenCasesDrainWithoutValues()
+    public async ValueTask SelectBuilder_ShouldInvokeDefault_WhenCasesDrainWithoutValues()
     {
         var channel = MakeChannel<int>();
         channel.Writer.TryComplete();
@@ -1192,7 +1154,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectBuilder_Deadline_ShouldYieldConfiguredResult()
+    public async ValueTask SelectBuilder_Deadline_ShouldYieldConfiguredResult()
     {
         var provider = new FakeTimeProvider();
 
@@ -1209,12 +1171,12 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitGroup_WaitAsync_WithFakeTimeProvider_ShouldReturnFalseWhenIncomplete()
+    public async ValueTask WaitGroup_WaitAsync_WithFakeTimeProvider_ShouldReturnFalseWhenIncomplete()
     {
         var provider = new FakeTimeProvider();
         var wg = new WaitGroup();
         var tcs = new TaskCompletionSource();
-        wg.Add(tcs.Task);
+        wg.Add(new ValueTask(tcs.Task));
 
         var waitTask = wg.WaitAsync(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken);
 
@@ -1231,12 +1193,12 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitGroup_WaitAsync_WithFakeTimeProvider_ShouldReturnTrueWhenAllComplete()
+    public async ValueTask WaitGroup_WaitAsync_WithFakeTimeProvider_ShouldReturnTrueWhenAllComplete()
     {
         var provider = new FakeTimeProvider();
         var wg = new WaitGroup();
         var tcs = new TaskCompletionSource();
-        wg.Add(tcs.Task);
+        wg.Add(new ValueTask(tcs.Task));
 
         var waitTask = wg.WaitAsync(TimeSpan.FromSeconds(5), provider, TestContext.Current.CancellationToken);
 
@@ -1277,7 +1239,7 @@ public partial class GoTests
     private static readonly int[] expected = [2, 3, 1];
 
     [Fact(Timeout = 15_000)]
-    public async Task MakeChannel_WithPrioritizedOptions_ShouldYieldHigherPriorityFirst()
+    public async ValueTask MakeChannel_WithPrioritizedOptions_ShouldYieldHigherPriorityFirst()
     {
         var channel = MakeChannel<int>(new PrioritizedChannelOptions { PriorityLevels = 3 });
         var writer = channel.PrioritizedWriter;
@@ -1299,7 +1261,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MakePrioritizedChannel_ShouldApplyDefaultPriority()
+    public async ValueTask MakePrioritizedChannel_ShouldApplyDefaultPriority()
     {
         var channel = MakePrioritizedChannel<int>(priorityLevels: 2, defaultPriority: 0);
         var writer = channel.PrioritizedWriter;
@@ -1317,7 +1279,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task PrioritizedChannelWriter_ShouldRejectInvalidPriority()
+    public async ValueTask PrioritizedChannelWriter_ShouldRejectInvalidPriority()
     {
         var channel = MakeChannel<int>(new PrioritizedChannelOptions { PriorityLevels = 2 });
         var writer = channel.PrioritizedWriter;

@@ -1,5 +1,3 @@
-using System;
-
 namespace Hugo;
 
 public readonly partial record struct Result<T>

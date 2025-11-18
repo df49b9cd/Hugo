@@ -7,6 +7,7 @@
         <AssemblyName>Hugo.Deterministic.Cosmos</AssemblyName>
         <PackageId>Hugo.Deterministic.Cosmos</PackageId>
         <Description>Azure Cosmos DB deterministic state store for Hugo workflows.</Description>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
@@ -16,6 +17,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Hugo/Hugo.csproj" />
+        <None Include="README.md" Pack="true" PackagePath="" />
     </ItemGroup>
 
 </Project>

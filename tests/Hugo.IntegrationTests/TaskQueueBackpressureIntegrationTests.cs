@@ -149,6 +149,38 @@ public class TaskQueueBackpressureIntegrationTests
         (cleared.PendingCount <= 1).ShouldBeTrue();
     }
 
+    [Fact(Timeout = 15_000)]
+    public async Task Backpressure_ShouldClearAtDerivedLowWatermark()
+    {
+        var provider = new FakeTimeProvider();
+        await using var queue = new TaskQueue<int>(new TaskQueueOptions { Capacity = 32 }, provider);
+        await using var monitor = new TaskQueueBackpressureMonitor<int>(queue, new TaskQueueBackpressureMonitorOptions
+        {
+            HighWatermark = 6,
+            LowWatermark = -1,
+            Cooldown = TimeSpan.FromMilliseconds(1)
+        });
+
+        for (var i = 0; i < 6; i++)
+        {
+            await queue.EnqueueAsync(i, TestContext.Current.CancellationToken);
+        }
+
+        await EventuallyAsync(() => monitor.IsActive);
+        monitor.CurrentSignal.LowWatermark.ShouldBe(3);
+
+        for (var i = 0; i < 4; i++)
+        {
+            var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+            await lease.CompleteAsync(TestContext.Current.CancellationToken);
+            provider.Advance(TimeSpan.FromMilliseconds(2));
+        }
+
+        await EventuallyAsync(() => !monitor.IsActive);
+        monitor.CurrentSignal.IsActive.ShouldBeFalse();
+        monitor.CurrentSignal.PendingCount.ShouldBeLessThanOrEqualTo(3);
+    }
+
     private static async Task EventuallyAsync(Func<bool> condition, int attempts = 25, int delayMs = 10)
     {
         for (var i = 0; i < attempts; i++)

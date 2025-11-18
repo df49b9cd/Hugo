@@ -82,7 +82,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         var metadata = new Dictionary<string, string> { ["region"] = "us-east" };
         var context = CreateContext(metadata: metadata);
 
-        using var scope = WorkflowExecution.Enter(context, TestContext.Current.CancellationToken);
+        using var scope = WorkflowExecution.Enter(context, cancellationToken: TestContext.Current.CancellationToken);
         var snapshot = context.SnapshotVisibility();
 
         snapshot.Status.ShouldBe(WorkflowStatus.Active);
@@ -107,7 +107,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         var metadata = new Dictionary<string, string> { ["tenant"] = "contoso" };
         var context = CreateContext(provider: provider, metadata: metadata);
 
-        using var scope = WorkflowExecution.Enter(context, TestContext.Current.CancellationToken);
+        using var scope = WorkflowExecution.Enter(context, cancellationToken: TestContext.Current.CancellationToken);
         provider.Advance(TimeSpan.FromSeconds(5));
 
         var error = Error.From("boom", "error.workflow");
@@ -132,7 +132,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         var metadata = new Dictionary<string, string> { ["tenant"] = "contoso" };
         var context = CreateContext(provider: provider, metadata: metadata, scheduleId: "sched-1", scheduleGroup: "group-1");
 
-        using var scope = WorkflowExecution.Enter(context, TestContext.Current.CancellationToken);
+        using var scope = WorkflowExecution.Enter(context, cancellationToken: TestContext.Current.CancellationToken);
         provider.Advance(TimeSpan.FromSeconds(1));
 
         var attributes = new Dictionary<string, string>
@@ -155,7 +155,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
     {
         var context = CreateContext();
 
-        using var scope = WorkflowExecution.Enter(context, TestContext.Current.CancellationToken);
+        using var scope = WorkflowExecution.Enter(context, cancellationToken: TestContext.Current.CancellationToken);
 
         var record = context.Complete(WorkflowCompletionStatus.Completed);
 
@@ -169,7 +169,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         var provider = new FakeTimeProvider();
         var context = CreateContext(provider: provider);
 
-        using var scope = WorkflowExecution.Enter(context, TestContext.Current.CancellationToken);
+        using var scope = WorkflowExecution.Enter(context, cancellationToken: TestContext.Current.CancellationToken);
         provider.Advance(TimeSpan.FromSeconds(2));
         context.Complete(WorkflowCompletionStatus.Completed);
 
@@ -217,7 +217,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         WorkflowExecution.Current.ShouldBeNull();
 
         WorkflowExecutionContext? inner;
-        using (var scope = WorkflowExecution.Enter(context, TestContext.Current.CancellationToken))
+        using (var scope = WorkflowExecution.Enter(context, cancellationToken: TestContext.Current.CancellationToken))
         {
             inner = WorkflowExecution.Current;
             WorkflowExecution.HasCurrent.ShouldBeTrue();
@@ -233,7 +233,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
     public void RequireCurrent_WhenMissing_ShouldThrow() => Should.Throw<InvalidOperationException>(static () => WorkflowExecution.RequireCurrent());
 
     [Fact(Timeout = 15_000)]
-    public void Enter_WithNullContext_ShouldThrow() => Should.Throw<ArgumentNullException>(static () => WorkflowExecution.Enter(null!, TestContext.Current.CancellationToken));
+    public void Enter_WithNullContext_ShouldThrow() => Should.Throw<ArgumentNullException>(static () => WorkflowExecution.Enter(null!, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
     public void CurrentCancellationToken_ShouldFlowThroughAmbientScope()
@@ -241,7 +241,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         var context = CreateContext();
         using var cts = new CancellationTokenSource();
 
-        using var scope = WorkflowExecution.Enter(context, cts.Token);
+        using var scope = WorkflowExecution.Enter(context, cancellationToken: cts.Token);
 
         WorkflowExecution.HasCurrent.ShouldBeTrue();
         WorkflowExecution.CurrentCancellationToken.ShouldBe(cts.Token);
@@ -252,7 +252,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
     {
         var context = CreateContext();
 
-        using var scope = WorkflowExecution.Enter(context, TestContext.Current.CancellationToken);
+        using var scope = WorkflowExecution.Enter(context, cancellationToken: TestContext.Current.CancellationToken);
         var record = scope.Complete(WorkflowCompletionStatus.Completed);
 
         record.Status.ShouldBe(WorkflowStatus.Completed);
@@ -264,7 +264,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
     {
         var context = CreateContext();
 
-        using var scope = WorkflowExecution.Enter(context, TestContext.Current.CancellationToken);
+        using var scope = WorkflowExecution.Enter(context, cancellationToken: TestContext.Current.CancellationToken);
 
         scope.TryComplete(WorkflowCompletionStatus.Completed, null, null, out _).ShouldBeTrue();
         scope.TryComplete(WorkflowCompletionStatus.Failed, Error.From("boom", "error"), null, out _).ShouldBeFalse();
@@ -276,8 +276,8 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         var outerContext = CreateContext(workflowId: "outer");
         var innerContext = CreateContext(workflowId: "inner");
 
-        var outer = WorkflowExecution.Enter(outerContext, TestContext.Current.CancellationToken);
-        var inner = WorkflowExecution.Enter(innerContext, TestContext.Current.CancellationToken);
+        var outer = WorkflowExecution.Enter(outerContext, cancellationToken: TestContext.Current.CancellationToken);
+        var inner = WorkflowExecution.Enter(innerContext, cancellationToken: TestContext.Current.CancellationToken);
 
         Should.Throw<InvalidOperationException>(() => outer.Dispose());
         WorkflowExecution.RequireCurrent().ShouldBeSameAs(innerContext);
@@ -285,7 +285,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         inner.Dispose();
         WorkflowExecution.RequireCurrent().ShouldBeSameAs(outerContext);
 
-        var cleanup = WorkflowExecution.Enter(CreateContext(workflowId: "cleanup"), TestContext.Current.CancellationToken, replace: true);
+        var cleanup = WorkflowExecution.Enter(CreateContext(workflowId: "cleanup"), replace: true, cancellationToken: TestContext.Current.CancellationToken);
         cleanup.Dispose();
 
         WorkflowExecution.HasCurrent.ShouldBeFalse();
@@ -297,9 +297,9 @@ public sealed class WorkflowExecutionContextTests : IDisposable
         var original = CreateContext(workflowId: "original");
         var replacement = CreateContext(workflowId: "replacement");
 
-        var originalScope = WorkflowExecution.Enter(original, TestContext.Current.CancellationToken);
+        var originalScope = WorkflowExecution.Enter(original, cancellationToken: TestContext.Current.CancellationToken);
 
-        using (WorkflowExecution.Enter(replacement, TestContext.Current.CancellationToken, replace: true))
+        using (WorkflowExecution.Enter(replacement, replace: true, cancellationToken: TestContext.Current.CancellationToken))
         {
             WorkflowExecution.RequireCurrent().ShouldBeSameAs(replacement);
         }
@@ -313,7 +313,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
     {
         var context = CreateContext();
 
-        var scope = WorkflowExecution.Enter(context, TestContext.Current.CancellationToken);
+        var scope = WorkflowExecution.Enter(context, cancellationToken: TestContext.Current.CancellationToken);
         await scope.DisposeAsync();
 
         WorkflowExecution.HasCurrent.ShouldBeFalse();

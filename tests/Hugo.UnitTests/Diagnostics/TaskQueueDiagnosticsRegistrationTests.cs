@@ -1,31 +1,35 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using System.Linq;
+
 using Shouldly;
 
-using Hugo.TaskQueues;
 using Hugo.TaskQueues.Diagnostics;
 
 namespace Hugo.Tests.Diagnostics;
 
+[Collection("TaskQueueConcurrency")]
 public class TaskQueueDiagnosticsRegistrationTests
 {
     [Fact(Timeout = 15_000)]
     public async ValueTask AddTaskQueueDiagnostics_ShouldApplyTagEnrichers()
     {
+        GoDiagnostics.Reset();
+
         using var meterListener = new MeterListener();
-        var captured = new List<TagList>();
+        var captured = new List<(string Name, TagList Tags)>();
+        const string queueName = "dispatch";
 
         meterListener.InstrumentPublished += (instrument, listener) =>
         {
-            if (instrument.Meter.Name == GoDiagnostics.MeterName && instrument.Name == "taskqueue.enqueued")
+            if (instrument.Meter.Name == GoDiagnostics.MeterName &&
+                instrument.Name is "taskqueue.enqueued" or "taskqueue.pending")
             {
                 listener.EnableMeasurementEvents(instrument);
             }
         };
         meterListener.SetMeasurementEventCallback<long>((instrument, measurement, tags, state) =>
         {
-            captured.Add(new TagList(tags));
+            captured.Add((instrument.Name, new TagList(tags)));
         });
         meterListener.Start();
 
@@ -38,25 +42,48 @@ public class TaskQueueDiagnosticsRegistrationTests
                    {
                        tags.Add("custom.tag", "diagnostics-test");
                    });
-               }))
+              }))
         {
-            await using var queue = new TaskQueue<string>(new TaskQueueOptions { Name = "dispatch", Capacity = 4 });
-            await queue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
-            SpinWait.SpinUntil(() => captured.Count > 0, TimeSpan.FromSeconds(1));
+            GoDiagnostics.RecordTaskQueueQueued(queueName, pendingDepth: 1);
+
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (DateTime.UtcNow < deadline &&
+                   (!HasMetric(captured, "taskqueue.enqueued", queueName) ||
+                    !HasMetric(captured, "taskqueue.pending", queueName)))
+            {
+                meterListener.RecordObservableInstruments();
+                await Task.Delay(25, TestContext.Current.CancellationToken);
+            }
+
+            meterListener.RecordObservableInstruments();
         }
 
         GoDiagnostics.Reset();
 
         captured.ShouldNotBeEmpty();
-        var tags = captured.Last(entry => entry.Any(tag => tag.Key == "taskqueue.name" && (string?)tag.Value == "dispatch"));
-        tags.ShouldContain(entry => entry.Key == "service.name" && (string?)entry.Value == "omnirelay.control");
-        tags.ShouldContain(entry => entry.Key == "taskqueue.shard" && (string?)entry.Value == "shard-a");
-        tags.ShouldContain(entry => entry.Key == "custom.tag" && (string?)entry.Value == "diagnostics-test");
+
+        Dictionary<string, object?>? enqueuedTags = captured
+            .Where(entry => entry.Name == "taskqueue.enqueued")
+            .Select(entry => ToDictionary(entry.Tags))
+            .FirstOrDefault(entry => entry.TryGetValue("taskqueue.name", out var name) && (string?)name == queueName);
+
+        Dictionary<string, object?>? pendingTags = captured
+            .Where(entry => entry.Name == "taskqueue.pending")
+            .Select(entry => ToDictionary(entry.Tags))
+            .FirstOrDefault(entry => entry.TryGetValue("taskqueue.name", out var name) && (string?)name == queueName);
+
+        enqueuedTags.ShouldNotBeNull($"Expected taskqueue.enqueued measurement for queue '{queueName}'.");
+        pendingTags.ShouldNotBeNull($"Expected taskqueue.pending measurement for queue '{queueName}'.");
+
+        AssertTagSet(enqueuedTags!, queueName);
+        AssertTagSet(pendingTags!, queueName);
     }
 
     [Fact(Timeout = 15_000)]
     public async ValueTask ConfigureTaskQueueMetrics_ShouldGateThroughputInstruments()
     {
+        GoDiagnostics.Reset();
+
         using var meterListener = new MeterListener();
         var throughputMeasurements = 0;
         var depthMeasurements = 0;
@@ -100,6 +127,47 @@ public class TaskQueueDiagnosticsRegistrationTests
 
         GoDiagnostics.Reset();
     }
+
+    private static Dictionary<string, object?> ToDictionary(TagList tags)
+    {
+        Dictionary<string, object?> dict = new(StringComparer.Ordinal);
+        foreach (KeyValuePair<string, object?> tag in tags)
+        {
+            dict[tag.Key] = tag.Value;
+        }
+
+        return dict;
+    }
+
+    private static void AssertTagSet(Dictionary<string, object?> tags, string queueName)
+    {
+        tags.ShouldContainKeyAndValue("service.name", "omnirelay.control");
+        tags.ShouldContainKeyAndValue("taskqueue.shard", "shard-a");
+        tags.ShouldContainKeyAndValue("custom.tag", "diagnostics-test");
+        tags.ShouldContainKey("taskqueue.name");
+        tags["taskqueue.name"]!.ToString().ShouldBe(queueName);
+    }
+
+    private static bool TryGetQueueName(TagList tags, out string? queueName)
+    {
+        foreach ((string key, object? value) in tags)
+        {
+            if (key == "taskqueue.name")
+            {
+                queueName = value?.ToString();
+                return true;
+            }
+        }
+
+        queueName = null;
+        return false;
+    }
+
+    private static bool HasMetric(IEnumerable<(string Name, TagList Tags)> source, string name, string queueName) =>
+        source.Any(entry =>
+            entry.Name == name &&
+            TryGetQueueName(entry.Tags, out string? capturedName) &&
+            capturedName == queueName);
     private sealed class TestMeterFactory : IMeterFactory, IDisposable, IAsyncDisposable
     {
         private readonly List<Meter> _meters = [];

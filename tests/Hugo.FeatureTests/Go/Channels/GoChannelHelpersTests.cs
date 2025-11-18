@@ -118,7 +118,7 @@ public class GoChannelHelpersTests
             provider: null,
             cancellationToken: cts.Token);
 
-        cts.Cancel();
+        await cts.CancelAsync();
 
         Result<Go.Unit> result = await task;
 
@@ -306,7 +306,7 @@ public class GoChannelHelpersTests
             provider: TimeProvider.System,
             cancellationToken: cts.Token);
 
-        cts.Cancel();
+        await cts.CancelAsync();
 
         Result<Go.Unit> result = await task;
 

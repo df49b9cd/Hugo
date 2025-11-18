@@ -1,8 +1,5 @@
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 
 namespace Hugo.TaskQueues.Backpressure;
 
@@ -19,13 +16,13 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
     private readonly Channel<TaskQueueBackpressureSignal> _signals;
     private readonly CancellationTokenSource _cts = new();
     private readonly ConcurrentDictionary<long, ITaskQueueBackpressureListener> _listeners = new();
-    private readonly object _waiterLock = new();
+    private readonly Lock _waiterLock = new();
+    private readonly Task _pumpTask;
     private List<TaskCompletionSource<TaskQueueBackpressureSignal>>? _waiters;
-    private TaskQueueBackpressureSignal _currentSignal = null!;
+    private TaskQueueBackpressureSignal _currentSignal;
     private DateTimeOffset _stateStartedAt;
     private int _isBackpressureActive;
     private int _disposed;
-    private Task _pumpTask = Task.CompletedTask;
     private long _listenerId;
 
     /// <summary>
@@ -52,7 +49,7 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
         _stateStartedAt = DateTimeOffset.UtcNow;
         _currentSignal = new TaskQueueBackpressureSignal(false, _queue.PendingCount, _highWatermark, _lowWatermark, _stateStartedAt);
         ApplyQueueConfiguration();
-        _pumpTask = Go.Run(() => PumpSignalsAsync(_cts.Token));
+        _pumpTask = PumpSignalsAsync(_cts.Token).AsTask();
     }
 
     /// <summary>
@@ -138,7 +135,7 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
         }
         finally
         {
-            registration.Dispose();
+            await registration.DisposeAsync();
         }
     }
 
@@ -176,7 +173,7 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
         }
     }
 
-    private async Task PumpSignalsAsync(CancellationToken cancellationToken)
+    private async ValueTask PumpSignalsAsync(CancellationToken cancellationToken)
     {
         ChannelReader<TaskQueueBackpressureSignal> reader = _signals.Reader;
 
@@ -186,11 +183,6 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
             {
                 while (reader.TryRead(out TaskQueueBackpressureSignal? signal))
                 {
-                    if (signal is null)
-                    {
-                        continue;
-                    }
-
                     await DispatchSignalAsync(signal, cancellationToken).ConfigureAwait(false);
                 }
             }
@@ -311,7 +303,7 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
 
         _queue.ConfigureBackpressure(null);
         _signals.Writer.TryComplete();
-        _cts.Cancel();
+        await _cts.CancelAsync();
 
         try
         {

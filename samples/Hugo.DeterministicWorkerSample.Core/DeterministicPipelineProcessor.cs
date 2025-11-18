@@ -1,7 +1,5 @@
 using System.Diagnostics;
 
-using Hugo;
-
 using Microsoft.Extensions.Logging;
 
 namespace Hugo.DeterministicWorkerSample.Core;

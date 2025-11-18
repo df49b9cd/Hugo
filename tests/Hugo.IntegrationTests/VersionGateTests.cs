@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
@@ -49,6 +48,24 @@ public class VersionGateTests
 
         replay.IsFailure.ShouldBeTrue();
         replay.Error?.Code.ShouldBe(ErrorCodes.VersionConflict);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void Require_ShouldExposeConflictMetadata_WhenPersistedVersionExceedsMaximum()
+    {
+        var store = new InMemoryDeterministicStateStore();
+        var gate = new VersionGate(store, timeProvider: new FakeTimeProvider());
+
+        var recorded = gate.Require("feature.step3.meta", VersionGate.DefaultVersion, 5);
+        recorded.IsSuccess.ShouldBeTrue();
+
+        var conflict = gate.Require("feature.step3.meta", 1, 4);
+
+        conflict.IsFailure.ShouldBeTrue();
+        conflict.Error?.Code.ShouldBe(ErrorCodes.VersionConflict);
+        conflict.Error?.Metadata["persistedVersion"].ShouldBe(recorded.Value.Version);
+        conflict.Error?.Metadata["minVersion"].ShouldBe(1);
+        conflict.Error?.Metadata["maxVersion"].ShouldBe(4);
     }
 
     [Fact(Timeout = 15_000)]

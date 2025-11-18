@@ -13,10 +13,10 @@ public class GoEdgeCaseTests
         var wg = new WaitGroup();
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 
-        var task = Task.Run(async () =>
+        var task = Run(async () =>
         {
             await Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
-        }, cts.Token);
+        }, cancellationToken: cts.Token);
 
         wg.Add(task);
 
@@ -57,5 +57,22 @@ public class GoEdgeCaseTests
         channel.Writer.TryComplete();
 
         await Should.ThrowAsync<ChannelClosedException>(async () => await channel.Writer.WriteAsync(42, TestContext.Current.CancellationToken));
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task WaitAsync_ShouldThrow_WhenCanceledBeforeOperationsFinish()
+    {
+        var wg = new WaitGroup();
+        var blocker = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        wg.Go(new ValueTask(blocker.Task));
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Should.ThrowAsync<OperationCanceledException>(async () => await wg.WaitAsync(cts.Token));
+
+        blocker.TrySetResult();
+        await wg.WaitAsync(TestContext.Current.CancellationToken);
     }
 }

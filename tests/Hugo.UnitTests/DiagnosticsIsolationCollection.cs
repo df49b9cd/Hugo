@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace Hugo.Tests;
 
 internal static class TestCollections

@@ -53,6 +53,24 @@ public class ResultPipelineEnhancementsTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask WhenAll_ShouldReturnCanceled_WhenCallerTokenAlreadyCanceled()
+    {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var operations = new[]
+        {
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>(
+                (_, _) => ValueTask.FromResult(Result.Ok(1)))
+        };
+
+        var result = await Result.WhenAll(operations, cancellationToken: cts.Token);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask WhenAll_ShouldThrow_WhenOperationNull()
     {
         var operations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>?[] { null };
@@ -166,7 +184,7 @@ public class ResultPipelineEnhancementsTests
     public async ValueTask WhenAny_ShouldNotHang_WhenCallerTokenAlreadyCanceled()
     {
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var ops = new[]
         {
@@ -244,7 +262,7 @@ public class ResultPipelineEnhancementsTests
             .AddStep("charge", (_, _) => ValueTask.FromResult(Result.Fail<string>(Error.From("payment failed", ErrorCodes.Exception))));
 
         var policy = new ResultExecutionPolicy(Compensation: ResultCompensationPolicy.SequentialReverse);
-        var result = await saga.ExecuteAsync(policy, TestContext.Current.CancellationToken);
+        var result = await saga.ExecuteAsync(policy, cancellationToken: TestContext.Current.CancellationToken);
 
         result.IsFailure.ShouldBeTrue();
         compensation.ShouldBe(1);
@@ -284,7 +302,7 @@ public class ResultPipelineEnhancementsTests
         var aggregateTask = Result.WhenAll(operations, policy: policy, cancellationToken: cts.Token);
 
         await retryDelayStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var result = await aggregateTask;
 
@@ -292,6 +310,46 @@ public class ResultPipelineEnhancementsTests
         result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
         await compensationFinished.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         compensationInvocations.ShouldBe(1);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask WhenAll_ShouldIncludePartialFailuresMetadata_OnCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var operations = new[]
+        {
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>(async (_, token) =>
+            {
+                started.TrySetResult();
+                await Task.Delay(Timeout.Infinite, token);
+                return Result.Ok(1);
+            }),
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>((_, _) =>
+                ValueTask.FromResult(Result.Fail<int>(Error.From("peer failed", ErrorCodes.Exception))))
+        };
+
+        var aggregateTask = Result.WhenAll(operations, cancellationToken: cts.Token);
+
+        await started.Task.WaitAsync(TestContext.Current.CancellationToken);
+        await cts.CancelAsync();
+
+        var result = await aggregateTask;
+
+        result.IsFailure.ShouldBeTrue();
+        var error = result.Error.ShouldNotBeNull();
+        error.Code.ShouldBeOneOf(ErrorCodes.Canceled, ErrorCodes.Aggregate);
+
+        if (error.Metadata.TryGetValue("whenall.partialFailures", out var metadata))
+        {
+            var partials = metadata.ShouldBeOfType<Error[]>();
+            partials.ShouldContain(partial => partial.Code == ErrorCodes.Exception);
+        }
+        else
+        {
+            error.Code.ShouldBe(ErrorCodes.Aggregate);
+        }
     }
 
     [Fact(Timeout = 15_000)]
@@ -320,7 +378,7 @@ public class ResultPipelineEnhancementsTests
             {
                 await firstCompleted.Task.WaitAsync(TestContext.Current.CancellationToken);
                 using var localCts = new CancellationTokenSource();
-                localCts.Cancel();
+                await localCts.CancelAsync();
                 throw new OperationCanceledException(localCts.Token);
             })
         };
@@ -337,7 +395,7 @@ public class ResultPipelineEnhancementsTests
     public async ValueTask WhenAll_ShouldSkipCompensation_WhenNoTasksCompleted()
     {
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
         var compensationInvocations = 0;
 
         var policy = ResultExecutionPolicy.None.WithCompensation(ResultCompensationPolicy.SequentialReverse);
@@ -381,7 +439,7 @@ public class ResultPipelineEnhancementsTests
                 return ValueTask.FromResult(Result.Ok(reserveId + "-charged"));
             }, resultKey: "chargeResult");
 
-        var result = await saga.ExecuteAsync(ResultExecutionPolicy.None, TestContext.Current.CancellationToken);
+        var result = await saga.ExecuteAsync(ResultExecutionPolicy.None, cancellationToken: TestContext.Current.CancellationToken);
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.TryGet("chargeResult", out string? charge).ShouldBeTrue();
@@ -460,8 +518,9 @@ public class ResultPipelineEnhancementsTests
             yield return Result.Ok(11);
         }
 
-        var exception = await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await Result.FanInAsync([Faulty(TestContext.Current.CancellationToken), Healthy(TestContext.Current.CancellationToken)], channel.Writer, TestContext.Current.CancellationToken));
+        var result = await Result.FanInAsync([Faulty(TestContext.Current.CancellationToken), Healthy(TestContext.Current.CancellationToken)], channel.Writer, TestContext.Current.CancellationToken);
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Cause.ShouldBeOfType<InvalidOperationException>();
 
         var buffered = new List<Result<int>>();
         while (channel.Reader.TryRead(out var item))
@@ -471,8 +530,7 @@ public class ResultPipelineEnhancementsTests
 
         buffered.ShouldContain(static result => result.IsSuccess && result.Value == 1);
         channel.Reader.Completion.IsFaulted.ShouldBeTrue();
-        var completionException = await Should.ThrowAsync<InvalidOperationException>(async () => await channel.Reader.Completion);
-        completionException.ShouldBeSameAs(exception);
+        await Should.ThrowAsync<InvalidOperationException>(async () => await channel.Reader.Completion);
     }
 
     [Fact(Timeout = 15_000)]
@@ -537,7 +595,7 @@ public class ResultPipelineEnhancementsTests
         var first = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
         first.IsSuccess.ShouldBeTrue();
 
-        cts.Cancel();
+        await cts.CancelAsync();
 
         await toChannelTask;
 
@@ -626,6 +684,27 @@ public class ResultPipelineEnhancementsTests
         windowed.Error.ShouldBeSameAs(error);
 
         Should.Throw<ArgumentOutOfRangeException>(() => Result.Window(data, 0));
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void Partition_ShouldReturnFailureWithoutEvaluatingRemainingItems()
+    {
+        var evaluations = 0;
+        var data = new[]
+        {
+            Result.Ok(1),
+            Result.Fail<int>(Error.From("boom")),
+            Result.Ok(3)
+        };
+
+        var partitioned = Result.Partition(data, value =>
+        {
+            evaluations++;
+            return value % 2 == 0;
+        });
+
+        partitioned.IsFailure.ShouldBeTrue();
+        evaluations.ShouldBe(1);
     }
 
     [Fact(Timeout = 15_000)]

@@ -322,38 +322,40 @@ public sealed class PrioritizedChannelBuilder<T>
 /// <summary>Registers channel abstractions with the dependency injection container.</summary>
 public static class ChannelServiceCollectionExtensions
 {
-    /// <summary>Adds a bounded <see cref="Channel{T}"/> and its reader and writer to the service collection.</summary>
-    /// <typeparam name="T">The payload type flowing through the channel.</typeparam>
     /// <param name="services">The service collection to modify.</param>
-    /// <param name="capacity">The maximum number of buffered items.</param>
-    /// <param name="configure">An optional callback to further configure the channel builder.</param>
-    /// <param name="lifetime">The lifetime used for the registered services.</param>
-    /// <returns>The service collection to support fluent chaining.</returns>
-    public static IServiceCollection AddBoundedChannel<T>(this IServiceCollection services, int capacity, Action<BoundedChannelBuilder<T>>? configure = null, ServiceLifetime lifetime = ServiceLifetime.Singleton)
+    extension(IServiceCollection services)
     {
-        ArgumentNullException.ThrowIfNull(services);
+        /// <summary>Adds a bounded <see cref="Channel{T}"/> and its reader and writer to the service collection.</summary>
+        /// <typeparam name="T">The payload type flowing through the channel.</typeparam>
+        /// <param name="capacity">The maximum number of buffered items.</param>
+        /// <param name="configure">An optional callback to further configure the channel builder.</param>
+        /// <param name="lifetime">The lifetime used for the registered services.</param>
+        /// <returns>The service collection to support fluent chaining.</returns>
+        public IServiceCollection AddBoundedChannel<T>(int capacity, Action<BoundedChannelBuilder<T>>? configure = null, ServiceLifetime lifetime = ServiceLifetime.Singleton)
+        {
+            ArgumentNullException.ThrowIfNull(services);
 
-        var builder = new BoundedChannelBuilder<T>(capacity);
-        configure?.Invoke(builder);
+            var builder = new BoundedChannelBuilder<T>(capacity);
+            configure?.Invoke(builder);
 
-        return RegisterBoundedChannel(services, builder, lifetime);
-    }
+            return RegisterBoundedChannel(services, builder, lifetime);
+        }
 
-    /// <summary>Adds a prioritized channel and its associated readers and writers to the service collection.</summary>
-    /// <typeparam name="T">The payload type flowing through the channel.</typeparam>
-    /// <param name="services">The service collection to modify.</param>
-    /// <param name="priorityLevels">The number of priority queues in the channel.</param>
-    /// <param name="configure">An optional callback to further configure the channel builder.</param>
-    /// <param name="lifetime">The lifetime used for the registered services.</param>
-    /// <returns>The service collection to support fluent chaining.</returns>
-    public static IServiceCollection AddPrioritizedChannel<T>(this IServiceCollection services, int priorityLevels = 3, Action<PrioritizedChannelBuilder<T>>? configure = null, ServiceLifetime lifetime = ServiceLifetime.Singleton)
-    {
-        ArgumentNullException.ThrowIfNull(services);
+        /// <summary>Adds a prioritized channel and its associated readers and writers to the service collection.</summary>
+        /// <typeparam name="T">The payload type flowing through the channel.</typeparam>
+        /// <param name="priorityLevels">The number of priority queues in the channel.</param>
+        /// <param name="configure">An optional callback to further configure the channel builder.</param>
+        /// <param name="lifetime">The lifetime used for the registered services.</param>
+        /// <returns>The service collection to support fluent chaining.</returns>
+        public IServiceCollection AddPrioritizedChannel<T>(int priorityLevels = 3, Action<PrioritizedChannelBuilder<T>>? configure = null, ServiceLifetime lifetime = ServiceLifetime.Singleton)
+        {
+            ArgumentNullException.ThrowIfNull(services);
 
-        var builder = new PrioritizedChannelBuilder<T>(priorityLevels);
-        configure?.Invoke(builder);
+            var builder = new PrioritizedChannelBuilder<T>(priorityLevels);
+            configure?.Invoke(builder);
 
-        return RegisterPrioritizedChannel(services, builder, lifetime);
+            return RegisterPrioritizedChannel(services, builder, lifetime);
+        }
     }
 
     private static IServiceCollection RegisterBoundedChannel<T>(IServiceCollection services, BoundedChannelBuilder<T> builder, ServiceLifetime lifetime)

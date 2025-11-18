@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-
+#pragma warning disable CA1708
 namespace Hugo;
 
 public static partial class Result
@@ -220,3 +217,4 @@ public static partial class Result
         }
     }
 }
+#pragma warning restore CA1708

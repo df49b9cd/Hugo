@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
@@ -143,7 +142,7 @@ public class DeterministicEffectStoreTests
         var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
         using var cts = new CancellationTokenSource();
 
-        cts.Cancel();
+        await cts.CancelAsync();
 
         await Should.ThrowAsync<OperationCanceledException>(async () =>
         {
@@ -196,7 +195,7 @@ public class DeterministicEffectStoreTests
         var store = new InMemoryDeterministicStateStore();
         var effectStore = new DeterministicEffectStore(store, new FakeTimeProvider());
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var initial = await effectStore.CaptureAsync(
             "effect.cancellation",

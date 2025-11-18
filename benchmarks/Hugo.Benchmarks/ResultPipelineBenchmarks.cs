@@ -1,5 +1,3 @@
-using System.Threading.Tasks;
-
 using BenchmarkDotNet.Attributes;
 
 namespace Hugo.Benchmarks;

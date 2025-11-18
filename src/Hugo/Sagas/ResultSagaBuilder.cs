@@ -54,20 +54,16 @@ public sealed class ResultSagaBuilder
 
     /// <summary>Executes the configured saga, applying the optional execution policy and returning the aggregated saga state.</summary>
     /// <param name="policy">The policy that controls retries and resilience for each step.</param>
-    /// <param name="cancellationToken">The token used to cancel the saga execution.</param>
     /// <param name="timeProvider">An optional time provider used for policy timing; defaults to <see cref="TimeProvider.System"/>.</param>
+    /// <param name="cancellationToken">The token used to cancel the saga execution.</param>
     /// <returns>A result containing the final saga state or an error if execution fails.</returns>
-    [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Preserves existing fluent API signature for consumers.")]
-    public Task<Result<ResultSagaState>> ExecuteAsync(
-        ResultExecutionPolicy? policy = null,
-        CancellationToken cancellationToken = default,
-        TimeProvider? timeProvider = null) => ExecuteInternalAsync(policy, cancellationToken, timeProvider ?? TimeProvider.System);
+    public Task<Result<ResultSagaState>> ExecuteAsync(ResultExecutionPolicy? policy = null,
+        TimeProvider? timeProvider = null,
+        CancellationToken cancellationToken = default) => ExecuteInternalAsync(policy, timeProvider ?? TimeProvider.System, cancellationToken);
 
-    [SuppressMessage("Design", "CA1068:CancellationToken parameters must come last", Justification = "Internal helper mirrors public API ordering for consistency.")]
-    private async Task<Result<ResultSagaState>> ExecuteInternalAsync(
-        ResultExecutionPolicy? policy,
-        CancellationToken cancellationToken,
-        TimeProvider timeProvider)
+    private async Task<Result<ResultSagaState>> ExecuteInternalAsync(ResultExecutionPolicy? policy,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
 

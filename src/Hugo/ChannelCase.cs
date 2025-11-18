@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 
 namespace Hugo;
 
@@ -363,53 +359,56 @@ public static class ChannelCaseTemplates
 {
     public static ChannelCaseTemplate<T> From<T>(ChannelReader<T> reader) => new(reader);
 
-    public static ChannelCase<TResult>[] With<T, TResult>(this IEnumerable<ChannelCaseTemplate<T>> templates, Func<T, CancellationToken, ValueTask<Result<TResult>>> onValue)
+    extension<T>(IEnumerable<ChannelCaseTemplate<T>> templates)
     {
-        ArgumentNullException.ThrowIfNull(templates);
-        ArgumentNullException.ThrowIfNull(onValue);
-        return Materialize(templates, template => template.With(onValue));
-    }
+        public ChannelCase<TResult>[] With<TResult>(Func<T, CancellationToken, ValueTask<Result<TResult>>> onValue)
+        {
+            ArgumentNullException.ThrowIfNull(templates);
+            ArgumentNullException.ThrowIfNull(onValue);
+            return Materialize(templates, template => template.With(onValue));
+        }
 
-    public static ChannelCase<TResult>[] With<T, TResult>(this IEnumerable<ChannelCaseTemplate<T>> templates, Func<T, ValueTask<Result<TResult>>> onValue)
-    {
-        ArgumentNullException.ThrowIfNull(templates);
-        ArgumentNullException.ThrowIfNull(onValue);
-        return Materialize(templates, template => template.With(onValue));
-    }
+        public ChannelCase<TResult>[] With<TResult>(Func<T, ValueTask<Result<TResult>>> onValue)
+        {
+            ArgumentNullException.ThrowIfNull(templates);
+            ArgumentNullException.ThrowIfNull(onValue);
+            return Materialize(templates, template => template.With(onValue));
+        }
 
-    public static ChannelCase<TResult>[] With<T, TResult>(this IEnumerable<ChannelCaseTemplate<T>> templates, Func<T, CancellationToken, ValueTask<TResult>> onValue)
-    {
-        ArgumentNullException.ThrowIfNull(templates);
-        ArgumentNullException.ThrowIfNull(onValue);
-        return Materialize(templates, template => template.With(onValue));
-    }
+        public ChannelCase<TResult>[] With<TResult>(Func<T, CancellationToken, ValueTask<TResult>> onValue)
+        {
+            ArgumentNullException.ThrowIfNull(templates);
+            ArgumentNullException.ThrowIfNull(onValue);
+            return Materialize(templates, template => template.With(onValue));
+        }
 
-    public static ChannelCase<TResult>[] With<T, TResult>(this IEnumerable<ChannelCaseTemplate<T>> templates, Func<T, ValueTask<TResult>> onValue)
-    {
-        ArgumentNullException.ThrowIfNull(templates);
-        ArgumentNullException.ThrowIfNull(onValue);
-        return Materialize(templates, template => template.With(onValue));
-    }
+        public ChannelCase<TResult>[] With<TResult>(Func<T, ValueTask<TResult>> onValue)
+        {
+            ArgumentNullException.ThrowIfNull(templates);
+            ArgumentNullException.ThrowIfNull(onValue);
+            return Materialize(templates, template => template.With(onValue));
+        }
 
-    public static ChannelCase<TResult>[] With<T, TResult>(this IEnumerable<ChannelCaseTemplate<T>> templates, Func<T, CancellationToken, ValueTask> onValue)
-    {
-        ArgumentNullException.ThrowIfNull(templates);
-        ArgumentNullException.ThrowIfNull(onValue);
-        return Materialize(templates, template => template.With<TResult>(onValue));
-    }
+        public ChannelCase<TResult>[] With<TResult>(Func<T, CancellationToken, ValueTask> onValue)
+        {
+            ArgumentNullException.ThrowIfNull(templates);
+            ArgumentNullException.ThrowIfNull(onValue);
+            return Materialize(templates, template => template.With<TResult>(onValue));
+        }
 
-    public static ChannelCase<TResult>[] With<T, TResult>(this IEnumerable<ChannelCaseTemplate<T>> templates, Func<T, ValueTask> onValue)
-    {
-        ArgumentNullException.ThrowIfNull(templates);
-        ArgumentNullException.ThrowIfNull(onValue);
-        return Materialize(templates, template => template.With<TResult>(onValue));
-    }
+        public ChannelCase<TResult>[] With<TResult>(Func<T, ValueTask> onValue)
+        {
+            ArgumentNullException.ThrowIfNull(templates);
+            ArgumentNullException.ThrowIfNull(onValue);
+            return Materialize(templates, template => template.With<TResult>(onValue));
+        }
 
-    public static ChannelCase<TResult>[] With<T, TResult>(this IEnumerable<ChannelCaseTemplate<T>> templates, Action<T> onValue)
-    {
-        ArgumentNullException.ThrowIfNull(templates);
-        ArgumentNullException.ThrowIfNull(onValue);
-        return Materialize(templates, template => template.With<TResult>(onValue));
+        public ChannelCase<TResult>[] With<TResult>(Action<T> onValue)
+        {
+            ArgumentNullException.ThrowIfNull(templates);
+            ArgumentNullException.ThrowIfNull(onValue);
+            return Materialize(templates, template => template.With<TResult>(onValue));
+        }
     }
 
     private static ChannelCase<TResult>[] Materialize<T, TResult>(IEnumerable<ChannelCaseTemplate<T>> templates, Func<ChannelCaseTemplate<T>, ChannelCase<TResult>> projector)

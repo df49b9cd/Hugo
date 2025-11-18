@@ -1,7 +1,6 @@
 using System.Diagnostics.Metrics;
 using Shouldly;
 
-using Hugo.TaskQueues;
 using Hugo.TaskQueues.Backpressure;
 using Hugo.TaskQueues.Diagnostics;
 using Hugo.TaskQueues.Replication;
@@ -59,6 +58,22 @@ public class TaskQueueDiagnosticsIntegrationTests
 
         observedBackpressure.ShouldBeTrue("Expected to observe at least one backpressure diagnostics event.");
         observedReplication.ShouldBeTrue("Expected to observe at least one replication diagnostics event for queue 'dispatch'.");
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task DiagnosticsHost_ShouldCompleteStreamOnDispose()
+    {
+        await using var meterFactory = new TestMeterFactory();
+        await using var diagnostics = new TaskQueueDiagnosticsHost(meterFactory);
+
+        var signal = new TaskQueueBackpressureSignal(true, 2, 4, 1, DateTimeOffset.UtcNow);
+        await diagnostics.BackpressureListener.OnSignalAsync(signal, TestContext.Current.CancellationToken);
+
+        TaskQueueDiagnosticsEvent evt = await diagnostics.Events.ReadAsync(TestContext.Current.CancellationToken);
+        evt.ShouldBeOfType<TaskQueueBackpressureDiagnosticsEvent>().Signal.ShouldBe(signal);
+
+        await diagnostics.DisposeAsync();
+        await diagnostics.Events.Completion.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
     }
     private sealed class TestMeterFactory : IMeterFactory, IDisposable, IAsyncDisposable
     {

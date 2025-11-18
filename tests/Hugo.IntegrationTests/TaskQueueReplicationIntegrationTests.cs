@@ -1,8 +1,8 @@
-using Hugo.TaskQueues;
 using Hugo.TaskQueues.Replication;
 using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
+using Hugo.TaskQueues;
 
 namespace Hugo.IntegrationTests;
 
@@ -100,6 +100,154 @@ public sealed class TaskQueueReplicationIntegrationTests
         resumedSink.Processed.ShouldBe(new long[] { 4, 5, 6 });
     }
 
+    [Fact(Timeout = 15_000)]
+    public async Task CheckpointingSink_ShouldSkipAlreadyProcessedSequences_PerPeer()
+    {
+        var provider = new FakeTimeProvider();
+
+        var initialCheckpoint = new TaskQueueReplicationCheckpoint(
+            "replication.dedup",
+            GlobalPosition: 5,
+            UpdatedAt: provider.GetUtcNow(),
+            PeerPositions: new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["peer-a"] = 5,
+                ["peer-b"] = 3
+            });
+
+        var store = new InMemoryReplicationCheckpointStore(initialCheckpoint);
+        var sink = new RecordingReplicationSink("replication.dedup", store, provider);
+
+        List<TaskQueueReplicationEvent<int>> events =
+        [
+            new TaskQueueReplicationEvent<int>(
+                4,
+                1,
+                "queue",
+                TaskQueueReplicationEventKind.Enqueued,
+                "origin",
+                "peer-a",
+                provider.GetUtcNow(),
+                provider.GetUtcNow(),
+                1,
+                1,
+                42,
+                null,
+                null,
+                null,
+                TaskQueueLifecycleEventMetadata.None),
+            new TaskQueueReplicationEvent<int>(
+                6,
+                2,
+                "queue",
+                TaskQueueReplicationEventKind.Completed,
+                "origin",
+                "peer-a",
+                provider.GetUtcNow(),
+                provider.GetUtcNow(),
+                2,
+                1,
+                43,
+                null,
+                null,
+                null,
+                TaskQueueLifecycleEventMetadata.None),
+            new TaskQueueReplicationEvent<int>(
+                7,
+                3,
+                "queue",
+                TaskQueueReplicationEventKind.Enqueued,
+                "origin",
+                "peer-c",
+                provider.GetUtcNow(),
+                provider.GetUtcNow(),
+                3,
+                1,
+                44,
+                null,
+                null,
+                null,
+                TaskQueueLifecycleEventMetadata.None)
+        ];
+
+        await sink.ProcessAsync(ToAsyncEnumerable(events), TestContext.Current.CancellationToken);
+
+        sink.Processed.ShouldBe(new long[] { 6, 7 });
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async Task CheckpointingSink_ShouldPersistDefaultPeerKey_WhenOwnerMissing()
+    {
+        var provider = new FakeTimeProvider();
+
+        var store = new InMemoryReplicationCheckpointStore();
+        var sink = new RecordingReplicationSink("replication.defaults", store, provider);
+
+        DateTimeOffset occurred = provider.GetUtcNow();
+
+        TaskQueueReplicationEvent<int>[] events =
+        [
+            new TaskQueueReplicationEvent<int>(
+                1,
+                101,
+                "queue-defaults",
+                TaskQueueReplicationEventKind.Enqueued,
+                "source",
+                null,
+                occurred,
+                occurred,
+                10,
+                1,
+                11,
+                null,
+                null,
+                null,
+                TaskQueueLifecycleEventMetadata.None),
+            new TaskQueueReplicationEvent<int>(
+                2,
+                102,
+                "queue-defaults",
+                TaskQueueReplicationEventKind.Heartbeat,
+                "source",
+                string.Empty,
+                provider.GetUtcNow(),
+                provider.GetUtcNow(),
+                11,
+                1,
+                12,
+                null,
+                null,
+                null,
+                TaskQueueLifecycleEventMetadata.None),
+            new TaskQueueReplicationEvent<int>(
+                3,
+                103,
+                "queue-defaults",
+                TaskQueueReplicationEventKind.Completed,
+                "source",
+                "peer-x",
+                provider.GetUtcNow(),
+                provider.GetUtcNow(),
+                12,
+                1,
+                13,
+                null,
+                null,
+                null,
+                TaskQueueLifecycleEventMetadata.None)
+        ];
+
+        await sink.ProcessAsync(ToAsyncEnumerable(events), TestContext.Current.CancellationToken);
+        await sink.DisposeAsync();
+
+        sink.Processed.ShouldBe(new long[] { 1, 2, 3 });
+
+        store.LastPersisted.ShouldNotBeNull();
+        store.LastPersisted!.PeerPositions["default"].ShouldBe(2);
+        store.LastPersisted!.PeerPositions["peer-x"].ShouldBe(3);
+        store.LastPersisted!.GlobalPosition.ShouldBe(3);
+    }
+
     private static async IAsyncEnumerable<TaskQueueReplicationEvent<int>> ToAsyncEnumerable(IEnumerable<TaskQueueReplicationEvent<int>> events)
     {
         foreach (TaskQueueReplicationEvent<int> evt in events)
@@ -128,6 +276,17 @@ public sealed class TaskQueueReplicationIntegrationTests
     private sealed class InMemoryReplicationCheckpointStore : ITaskQueueReplicationCheckpointStore
     {
         private readonly Dictionary<string, TaskQueueReplicationCheckpoint> _checkpoints = new(StringComparer.OrdinalIgnoreCase);
+        private TaskQueueReplicationCheckpoint? _lastPersisted;
+
+        internal TaskQueueReplicationCheckpoint? LastPersisted => _lastPersisted;
+
+        internal InMemoryReplicationCheckpointStore(TaskQueueReplicationCheckpoint? initial = null)
+        {
+            if (initial is not null)
+            {
+                _checkpoints[initial.StreamId] = initial;
+            }
+        }
 
         public ValueTask<TaskQueueReplicationCheckpoint> ReadAsync(string streamId, CancellationToken cancellationToken = default)
         {
@@ -142,6 +301,7 @@ public sealed class TaskQueueReplicationIntegrationTests
         public ValueTask PersistAsync(TaskQueueReplicationCheckpoint checkpoint, CancellationToken cancellationToken = default)
         {
             _checkpoints[checkpoint.StreamId] = checkpoint;
+            _lastPersisted = checkpoint;
             return ValueTask.CompletedTask;
         }
     }

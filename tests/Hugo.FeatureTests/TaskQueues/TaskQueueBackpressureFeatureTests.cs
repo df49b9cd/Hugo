@@ -1,6 +1,5 @@
-using System.Collections.Generic;
 using System.Diagnostics.Metrics;
-using System.Threading.RateLimiting;
+
 using Shouldly;
 
 using Hugo.TaskQueues.Backpressure;
@@ -12,6 +11,46 @@ namespace Hugo.Tests.TaskQueues;
 [Collection("TaskQueueConcurrency")]
 public class TaskQueueBackpressureFeatureTests
 {
+    [Fact(Timeout = 15_000)]
+    public async Task Monitor_ShouldRemainInactiveBelowThresholds()
+    {
+        GoDiagnostics.Reset();
+
+        try
+        {
+            var provider = new FakeTimeProvider();
+            await using var queue = new TaskQueue<int>(new TaskQueueOptions { Capacity = 8 }, provider);
+            await using var monitor = new TaskQueueBackpressureMonitor<int>(queue, new TaskQueueBackpressureMonitorOptions
+            {
+                HighWatermark = 10,
+                LowWatermark = 5,
+                Cooldown = TimeSpan.FromMilliseconds(1)
+            });
+            await using var diagnostics = new TaskQueueBackpressureDiagnosticsListener();
+            using var subscription = monitor.RegisterListener(diagnostics);
+
+            for (var i = 0; i < 4; i++)
+            {
+                await queue.EnqueueAsync(i, TestContext.Current.CancellationToken);
+                provider.Advance(TimeSpan.FromMilliseconds(1));
+
+                var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+                await lease.CompleteAsync(TestContext.Current.CancellationToken);
+                provider.Advance(TimeSpan.FromMilliseconds(1));
+            }
+
+            await monitor.WaitForDrainingAsync(TestContext.Current.CancellationToken);
+
+            diagnostics.Latest.IsActive.ShouldBeFalse();
+            diagnostics.Latest.PendingCount.ShouldBe(0);
+            monitor.CurrentSignal.IsActive.ShouldBeFalse();
+        }
+        finally
+        {
+            GoDiagnostics.Reset();
+        }
+    }
+
     [Fact(Timeout = 15_000)]
     public async Task Monitor_ShouldEmitMetricsAndDiagnostics_DuringChaos()
     {
