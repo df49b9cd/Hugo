@@ -130,14 +130,14 @@ public sealed class ValueTaskUtilitiesTests
     public async Task ContinueWith_ShouldExposeFaultedTask_WhenOperationThrows()
     {
         var source = new ValueTask<int>(Task.FromException<int>(new InvalidOperationException("boom")));
-        ValueTask<int>? forwarded = null;
+        var forwarded = new TaskCompletionSource<ValueTask<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await source.ContinueWith(task => forwarded = task);
+        await source.ContinueWith(task => forwarded.SetResult(task));
 
-        forwarded.ShouldNotBeNull();
-        forwarded!.Value.IsCompleted.ShouldBeTrue();
-        forwarded.Value.IsFaulted.ShouldBeTrue();
-        await Should.ThrowAsync<InvalidOperationException>(async () => await forwarded.Value);
+        var observed = await forwarded.Task;
+        observed.IsCompleted.ShouldBeTrue();
+        observed.IsFaulted.ShouldBeTrue();
+        await Should.ThrowAsync<InvalidOperationException>(async () => await observed);
     }
 
     [Fact(Timeout = 15_000)]
@@ -147,13 +147,13 @@ public sealed class ValueTaskUtilitiesTests
         await cts.CancelAsync();
 
         var source = new ValueTask<int>(Task.FromCanceled<int>(cts.Token));
-        ValueTask<int>? forwarded = null;
+        var forwarded = new TaskCompletionSource<ValueTask<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await source.ContinueWith(task => forwarded = task);
+        await source.ContinueWith(task => forwarded.SetResult(task));
 
-        forwarded.ShouldNotBeNull();
-        forwarded!.Value.IsCanceled.ShouldBeTrue();
-        var exception = await Should.ThrowAsync<OperationCanceledException>(async () => await forwarded.Value);
+        var observed = await forwarded.Task;
+        observed.IsCanceled.ShouldBeTrue();
+        var exception = await Should.ThrowAsync<OperationCanceledException>(async () => await observed);
         exception.CancellationToken.ShouldBe(cts.Token);
     }
 

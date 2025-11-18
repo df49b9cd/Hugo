@@ -280,8 +280,7 @@ public class ResultStreamingTests
         async IAsyncEnumerable<int> Failing([EnumeratorCancellation] CancellationToken ct = default)
         {
             await Task.Yield();
-            throw new InvalidOperationException("enumerator boom");
-            yield break;
+            yield return await Task.FromException<int>(new InvalidOperationException("enumerator boom"));
         }
 
         var projected = Result.MapStreamAsync(
