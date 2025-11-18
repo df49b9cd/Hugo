@@ -164,6 +164,32 @@ public sealed class ResultStreamingFeatureTests
         fanInResult.IsFailure.ShouldBeTrue();
     }
 
+    [Fact(Timeout = 15_000)]
+    public async Task FanInAsync_ShouldPropagateCancellationAndCloseWriter()
+    {
+        async IAsyncEnumerable<Result<int>> Slow([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                yield return Result.Ok(99);
+                await Task.Delay(50, ct);
+            }
+        }
+
+        using var cts = new CancellationTokenSource();
+        var writer = Channel.CreateUnbounded<Result<int>>();
+
+        var task = Result.FanInAsync(new[] { Slow(cts.Token) }, writer.Writer, cts.Token);
+        cts.Cancel();
+
+        var outcome = await task;
+
+        outcome.IsFailure.ShouldBeTrue();
+        outcome.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+        await Should.ThrowAsync<OperationCanceledException>(async () => await writer.Reader.Completion);
+    }
+
     private static async IAsyncEnumerable<int> Values([EnumeratorCancellation] CancellationToken token)
     {
         yield return 1;

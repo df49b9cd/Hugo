@@ -13,6 +13,12 @@ public class ResultFallbackTests
     public void ResultFallbackTier_ShouldThrow_WhenOperationsEmpty() => Should.Throw<ArgumentException>(static () => new ResultFallbackTier<int>("empty", []));
 
     [Fact(Timeout = 15_000)]
+    public void ResultFallbackTier_FromSyncOperations_ShouldGuardNullArray()
+    {
+        Should.Throw<ArgumentNullException>(() => ResultFallbackTier<int>.From("sync", (Func<Result<int>>[]?)null!));
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask TieredFallbackAsync_ShouldReturnValidationError_WhenNoTiersProvided()
     {
         var result = await Result.TieredFallbackAsync(Array.Empty<ResultFallbackTier<int>>(), cancellationToken: TestContext.Current.CancellationToken);
@@ -51,6 +57,20 @@ public class ResultFallbackTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(100);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TieredFallbackAsync_ShouldRespectMultipleStrategiesWithinTier()
+    {
+        var tier = ResultFallbackTier<int>.From(
+            "sync-tier",
+            static () => Result.Fail<int>(Error.From("first sync failure", ErrorCodes.Validation)),
+            static () => Result.Ok(7));
+
+        var result = await Result.TieredFallbackAsync([tier], cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(7);
     }
 
     [Fact(Timeout = 15_000)]

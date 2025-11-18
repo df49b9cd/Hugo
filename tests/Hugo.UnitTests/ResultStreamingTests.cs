@@ -686,6 +686,56 @@ public class ResultStreamingTests
         outcome.Error!.Message.ShouldContain("One or more failures occurred while processing the stream.");
     }
 
+    [Fact(Timeout = 15_000)]
+    public async ValueTask ToChannelAsync_ShouldPublishCanceledSentinelAndCompleteWriter()
+    {
+        async IAsyncEnumerable<Result<int>> Canceling([EnumeratorCancellation] CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            await Task.Yield();
+            yield return Result.Ok(0);
+        }
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var channel = Channel.CreateUnbounded<Result<int>>();
+
+        await Result.ToChannelAsync(Canceling(cts.Token), channel.Writer, cts.Token);
+
+        var sentinel = await channel.Reader.ReadAsync(TestContext.Current.CancellationToken);
+
+        sentinel.IsFailure.ShouldBeTrue();
+        sentinel.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+        channel.Reader.Completion.IsCompleted.ShouldBeTrue();
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask FanInAsync_ShouldReturnCanceledAndCompleteWriterWhenTokenCanceled()
+    {
+        async IAsyncEnumerable<Result<int>> Slow([EnumeratorCancellation] CancellationToken ct)
+        {
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                yield return Result.Ok(1);
+                await Task.Delay(25, ct);
+            }
+        }
+
+        using var cts = new CancellationTokenSource();
+        var writer = Channel.CreateUnbounded<Result<int>>();
+
+        var fanInTask = Result.FanInAsync(new[] { Slow(cts.Token) }, writer.Writer, cts.Token);
+        cts.Cancel();
+
+        var outcome = await fanInTask;
+
+        outcome.IsFailure.ShouldBeTrue();
+        outcome.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+        await Should.ThrowAsync<OperationCanceledException>(async () => await writer.Reader.Completion);
+    }
+
     private static async IAsyncEnumerable<Result<int>> GetSequence(IEnumerable<int> values)
     {
         foreach (var value in values)
