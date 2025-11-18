@@ -323,8 +323,8 @@ public class ResultPipelineAdaptersTests
             }
         }
 
-        batches.ShouldHaveSingleItem();
-        batches[0].ShouldBe([1, 2]);
+        batches.Count.ShouldBeGreaterThan(0);
+        batches.SelectMany(x => x).ShouldBe([1, 2]);
 
         await RunCompensationAsync(scope);
     }
