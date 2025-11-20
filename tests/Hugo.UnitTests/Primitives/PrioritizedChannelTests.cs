@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.Collections.Concurrent;
 using System.Threading.Channels;
 
 using Shouldly;
@@ -133,6 +135,34 @@ public sealed class PrioritizedChannelTests
 
         var ex = await Should.ThrowAsync<InvalidOperationException>(() => reader.WaitToReadAsync(TestContext.Current.CancellationToken).AsTask());
         ex.Message.ShouldBe("sync fault");
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void PrioritizedChannel_ShouldNotAdoptPooledBufferContents()
+    {
+        var pool = ArrayPool<ConcurrentQueue<int>>.Shared;
+        var rented = pool.Rent(1);
+        rented[0] = new ConcurrentQueue<int>();
+        rented[0]!.Enqueue(7331);
+        pool.Return(rented, clearArray: false);
+
+        try
+        {
+            var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
+            {
+                PriorityLevels = 1,
+                PrefetchPerPriority = 1
+            });
+
+            channel.PrioritizedReader.BufferedItemCount.ShouldBe(0);
+            channel.Reader.TryRead(out _).ShouldBeFalse();
+        }
+        finally
+        {
+            var cleanup = pool.Rent(1);
+            Array.Clear(cleanup, 0, cleanup.Length);
+            pool.Return(cleanup, clearArray: true);
+        }
     }
 
     private static PrioritizedChannel<int>.PrioritizedChannelReader CreatePrioritizedReader(params ChannelReader<int>[] lanes) =>

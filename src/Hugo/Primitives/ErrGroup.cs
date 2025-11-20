@@ -181,22 +181,82 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         try
         {
             ThrowIfDisposed();
-            Task.Run(async () =>
+            ThreadPool.UnsafeQueueUserWorkItem(static state =>
             {
+                var (group, work) = state;
+
                 try
                 {
-                    await runner().ConfigureAwait(false);
+                    Task task = work();
+
+                    if (!task.IsCompleted)
+                    {
+                        _ = task.ContinueWith(
+                            static (t, innerState) =>
+                            {
+                                var owner = (ErrGroup)innerState!;
+                                owner.HandleRunnerCompletion(t);
+                            },
+                            group,
+                            CancellationToken.None,
+                            TaskContinuationOptions.ExecuteSynchronously,
+                            TaskScheduler.Default);
+                        return;
+                    }
+
+                    group.HandleRunnerCompletion(task);
                 }
-                finally
+                catch (Exception ex)
                 {
-                    _waitGroup.Done();
+                    group.PropagateException(ex);
+                    group._waitGroup.Done();
                 }
-            }, CancellationToken.None);
+            }, (this, runner), preferLocal: true);
         }
         catch
         {
             _waitGroup.Done();
             throw;
+        }
+    }
+
+    private void HandleRunnerCompletion(Task task)
+    {
+        try
+        {
+            if (task.IsFaulted)
+            {
+                task.Exception?.Handle(_ => true);
+                PropagateException(task.Exception?.GetBaseException() ?? new InvalidOperationException("ErrGroup work faulted."));
+                return;
+            }
+
+            if (task.IsCanceled)
+            {
+                PropagateException(new OperationCanceledException(Token));
+                return;
+            }
+
+            if (!task.IsCompletedSuccessfully)
+            {
+                task.GetAwaiter().GetResult();
+            }
+        }
+        finally
+        {
+            _waitGroup.Done();
+        }
+    }
+
+    private void PropagateException(Exception exception)
+    {
+        var error = exception is OperationCanceledException oce
+            ? Error.Canceled(token: oce.CancellationToken.CanBeCanceled ? oce.CancellationToken : Token)
+            : Error.FromException(exception);
+
+        if (TrySetError(error))
+        {
+            SignalCancellation();
         }
     }
 
