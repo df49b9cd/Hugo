@@ -1,8 +1,10 @@
 using BenchmarkDotNet.Attributes;
 using Hugo;
+using Hugo.Benchmarks.Time;
 
 namespace Hugo.Benchmarks;
 
+[SimpleJob]
 [MemoryDiagnoser]
 [BenchmarkCategory(BenchmarkCategories.Go, BenchmarkCategories.Queues)]
 public class TaskQueueHeartbeatBenchmarks
@@ -13,6 +15,14 @@ public class TaskQueueHeartbeatBenchmarks
     [Params(50)]
     public int HeartbeatIntervalMs { get; set; }
 
+    private FakeTimeProvider _timeProvider = null!;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _timeProvider = new FakeTimeProvider();
+    }
+
     [Benchmark(Baseline = true)]
     public async Task HeartbeatThenCompleteAsync()
     {
@@ -21,7 +31,7 @@ public class TaskQueueHeartbeatBenchmarks
             Capacity = LeaseCount,
             LeaseDuration = TimeSpan.FromMilliseconds(HeartbeatIntervalMs * 2),
             HeartbeatInterval = TimeSpan.FromMilliseconds(HeartbeatIntervalMs / 4)
-        });
+        }, _timeProvider);
 
         for (var i = 0; i < LeaseCount; i++)
         {
@@ -38,7 +48,7 @@ public class TaskQueueHeartbeatBenchmarks
         foreach (var lease in leases)
         {
             await lease.HeartbeatAsync().ConfigureAwait(false);
-            BenchmarkWorkloads.SimulateLightCpuWork();
+            _timeProvider.Advance(TimeSpan.FromMilliseconds(HeartbeatIntervalMs / 2.0));
             await lease.CompleteAsync().ConfigureAwait(false);
         }
     }
@@ -51,7 +61,7 @@ public class TaskQueueHeartbeatBenchmarks
             Capacity = LeaseCount,
             LeaseDuration = TimeSpan.FromMilliseconds(HeartbeatIntervalMs),
             MaxDeliveryAttempts = 2
-        });
+        }, _timeProvider);
 
         for (var i = 0; i < LeaseCount; i++)
         {
@@ -65,7 +75,7 @@ public class TaskQueueHeartbeatBenchmarks
             firstRound.Add(await queue.LeaseAsync().ConfigureAwait(false));
         }
 
-        await Task.Delay(HeartbeatIntervalMs * 2).ConfigureAwait(false);
+        _timeProvider.Advance(TimeSpan.FromMilliseconds(HeartbeatIntervalMs * 2.0));
 
         for (var i = 0; i < LeaseCount; i++)
         {

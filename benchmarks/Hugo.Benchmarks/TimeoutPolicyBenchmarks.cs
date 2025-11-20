@@ -1,5 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using Hugo;
+using Hugo.Benchmarks.Time;
 
 namespace Hugo.Benchmarks;
 
@@ -12,6 +13,14 @@ public class TimeoutPolicyBenchmarks
 
     [Params(200, 800)] // microseconds of spin to avoid scheduler noise
     public int StepWorkMicros { get; set; }
+
+    private FakeTimeProvider _timeProvider = null!;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _timeProvider = new FakeTimeProvider();
+    }
 
     [Benchmark(Baseline = true)]
     public async Task<Result<int>> DirectExecutionAsync()
@@ -37,6 +46,7 @@ public class TimeoutPolicyBenchmarks
             var result = await ResultPipeline.WithTimeoutAsync(
                 (_, token) => DoWorkAsync(token),
                 timeout,
+                timeProvider: _timeProvider,
                 cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
             if (result.IsSuccess)
@@ -56,6 +66,8 @@ public class TimeoutPolicyBenchmarks
                 token.ThrowIfCancellationRequested();
                 Thread.SpinWait(16);
             }
+
+            _timeProvider.Advance(TimeSpan.FromMilliseconds(0.05));
             return Result.Ok(1);
         }
     }

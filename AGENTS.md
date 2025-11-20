@@ -1,5 +1,8 @@
 # Repository Guidelines
 
+## Important Notes
+- We must be as performant and efficient as possible due to our focus on Native AOT. Therefore read and understand the 'dotnet-performance-guidelines.md' located in docs/perf.
+
 ## Project Structure & Modules
 - `src/Hugo` core concurrency + result pipelines; `Hugo.Diagnostics.OpenTelemetry` exposes meters/activity sources.
 - Deterministic stores live in `src/Hugo.Deterministic.{Cosmos,Redis,SqlServer}`; task queue components in `src/Hugo.TaskQueues.*`.
