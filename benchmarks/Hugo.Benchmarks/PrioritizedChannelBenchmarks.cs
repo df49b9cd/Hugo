@@ -108,7 +108,9 @@ public class PrioritizedChannelBenchmarks
 
         var producer = Task.Run(async () =>
         {
-            await Task.Delay(10).ConfigureAwait(false);
+            // deterministic spin instead of wall-clock delay
+            BenchmarkWorkloads.SimulateLightCpuWork();
+            BenchmarkWorkloads.SimulateLightCpuWork();
             await writer.WriteAsync(1, priority: 0).ConfigureAwait(false);
             writer.TryComplete();
         });

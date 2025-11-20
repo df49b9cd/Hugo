@@ -89,7 +89,7 @@ public class SelectBenchmarks
         var tasks = readers.Select(r => r.ReadAsync().AsTask()).ToList();
         var remaining = MessageCount;
         var total = 0L;
-        var timeoutTask = EnableTimeouts ? Task.Delay(TimeSpan.FromMilliseconds(1)) : null;
+        Task? timeoutTask = EnableTimeouts ? CreateTimeoutTaskAsync() : null;
 
         while (remaining > 0 && tasks.Count > 0)
         {
@@ -105,7 +105,7 @@ public class SelectBenchmarks
                 if (completedTask == timeoutTask)
                 {
                     BenchmarkWorkloads.SimulateLightCpuWork();
-                    timeoutTask = Task.Delay(TimeSpan.FromMilliseconds(1));
+                    timeoutTask = CreateTimeoutTaskAsync();
                     continue;
                 }
             }
@@ -203,5 +203,11 @@ public class SelectBenchmarks
         }
 
         return tasks;
+    }
+
+    private static Task CreateTimeoutTaskAsync()
+    {
+        // Deterministic lightweight timeout surrogate
+        return Task.Run(() => BenchmarkWorkloads.SimulateLightCpuWork());
     }
 }
