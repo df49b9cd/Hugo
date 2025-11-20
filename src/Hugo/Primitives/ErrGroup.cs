@@ -1,5 +1,6 @@
 namespace Hugo;
 
+using System.Runtime.CompilerServices;
 using Hugo.Policies;
 
 using Unit = Hugo.Go.Unit;
@@ -189,22 +190,14 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
                 {
                     Task task = work();
 
-                    if (!task.IsCompleted)
+                    if (task.IsCompleted)
                     {
-                        _ = task.ContinueWith(
-                            static (t, innerState) =>
-                            {
-                                var owner = (ErrGroup)innerState!;
-                                owner.HandleRunnerCompletion(t);
-                            },
-                            group,
-                            CancellationToken.None,
-                            TaskContinuationOptions.ExecuteSynchronously,
-                            TaskScheduler.Default);
+                        group.HandleRunnerCompletion(task);
                         return;
                     }
 
-                    group.HandleRunnerCompletion(task);
+                    var awaiter = task.ConfigureAwait(false).GetAwaiter();
+                    awaiter.UnsafeOnCompleted(() => group.HandleRunnerCompletion(task));
                 }
                 catch (Exception ex)
                 {

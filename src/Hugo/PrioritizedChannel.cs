@@ -235,8 +235,8 @@ public sealed class PrioritizedChannel<T>
                 completions[i] = readers[i].Completion;
             }
 
-            _laneCases = BuildLaneCases(readers);
-            _completion = Task.WhenAll(completions);
+            _laneCases = _singleLane ? Array.Empty<ChannelCase<Go.Unit>>() : BuildLaneCases(readers);
+            _completion = _singleLane ? completions[0] : Task.WhenAll(completions);
         }
 
         /// <inheritdoc />
