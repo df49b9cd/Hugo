@@ -7,7 +7,8 @@ using Microsoft.Extensions.ObjectPool;
 namespace Hugo.Benchmarks;
 
 [MemoryDiagnoser]
-internal class PoolBenchmarks
+[BenchmarkCategory(BenchmarkCategories.Go, BenchmarkCategories.Pools)]
+public class PoolBenchmarks
 {
     [Params(128, 1024)]
     public int OperationCount { get; set; }

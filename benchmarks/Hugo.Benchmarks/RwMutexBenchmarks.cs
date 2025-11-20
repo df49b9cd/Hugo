@@ -5,7 +5,8 @@ using Microsoft.VisualStudio.Threading;
 namespace Hugo.Benchmarks;
 
 [MemoryDiagnoser]
-internal class RwMutexBenchmarks
+[BenchmarkCategory(BenchmarkCategories.Go, BenchmarkCategories.Locks)]
+public class RwMutexBenchmarks
 {
     [Params(32, 128)]
     public int OperationCount { get; set; }

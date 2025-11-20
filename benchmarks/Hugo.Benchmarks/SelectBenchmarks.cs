@@ -5,7 +5,8 @@ using BenchmarkDotNet.Attributes;
 namespace Hugo.Benchmarks;
 
 [MemoryDiagnoser]
-internal class SelectBenchmarks
+[BenchmarkCategory(BenchmarkCategories.Go, BenchmarkCategories.Channels)]
+public class SelectBenchmarks
 {
     [Params(3, 6)]
     public int ChannelCount { get; set; }
