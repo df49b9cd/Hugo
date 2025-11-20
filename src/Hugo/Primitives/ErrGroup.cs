@@ -25,7 +25,9 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     /// <summary>
     /// Gets a cancellation token that is signaled when the group is canceled or a task fails; remains usable even after the group is disposed.
     /// </summary>
-    public CancellationToken Token => _cts.Token;
+    public CancellationToken Token => Volatile.Read(ref _disposed) == 1
+        ? cancellationToken // fallback to original linked token so callers can still await without ObjectDisposedException
+        : _cts.Token;
 
     /// <summary>
     /// Gets the first error produced by the group, if any.

@@ -18,6 +18,10 @@ public static class GoDiagnostics
     public const string TelemetrySchemaUrl = "https://opentelemetry.io/schemas/1.27.0";
 
     private static readonly string DefaultInstrumentationVersion = typeof(GoDiagnostics).Assembly.GetName().Version?.ToString() ?? "1.0.0";
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors
+                                | DynamicallyAccessedMemberTypes.NonPublicConstructors
+                                | DynamicallyAccessedMemberTypes.PublicProperties
+                                | DynamicallyAccessedMemberTypes.NonPublicProperties)]
     private static readonly Type? ActivitySourceOptionsType = Type.GetType("System.Diagnostics.ActivitySourceOptions, System.Diagnostics.DiagnosticSource", throwOnError: false);
     private static readonly ConstructorInfo? ActivitySourceCtorWithOptions =
         ActivitySourceOptionsType is null

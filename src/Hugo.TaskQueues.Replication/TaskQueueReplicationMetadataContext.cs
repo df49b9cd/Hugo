@@ -11,7 +11,4 @@ namespace Hugo.TaskQueues.Replication;
 [JsonSerializable(typeof(TaskQueueReplicationEventKind))]
 [JsonSerializable(typeof(TaskQueueOwnershipToken))]
 [JsonSerializable(typeof(TaskQueueLifecycleEventMetadata))]
-internal sealed partial class TaskQueueReplicationMetadataContext : JsonSerializerContext
-{
-    public static TaskQueueReplicationMetadataContext Default { get; } = new(new JsonSerializerOptions(JsonSerializerDefaults.Web));
-}
+internal sealed partial class TaskQueueReplicationMetadataContext : JsonSerializerContext;

@@ -42,7 +42,7 @@ public static class TaskQueueReplicationJsonSerialization
         }
 
         var replicationMetadata = TaskQueueReplicationMetadataContext.Default;
-        var errorInfo = DeterministicJsonSerialization.DefaultContext.GetTypeInfo<Error>() as JsonTypeInfo<Error>
+        var errorInfo = DeterministicJsonSerialization.DefaultContext.GetTypeInfo(typeof(Error)) as JsonTypeInfo<Error>
                         ?? throw new InvalidOperationException("DeterministicJsonSerialization context did not expose Error metadata.");
 
         options.Converters.Add(new TaskQueueReplicationEventJsonConverter<T>(
@@ -294,7 +294,7 @@ public static class TaskQueueReplicationJsonSerialization
             writer.WriteNumber(AttemptProp, value.Attempt);
 
             writer.WritePropertyName(ValueProp);
-            JsonSerializer.Serialize(writer, value.Value, _valueInfo);
+            JsonSerializer.Serialize(writer, value.Value, _valueInfo!);
 
             writer.WritePropertyName(ErrorProp);
             if (value.Error is null)
@@ -303,7 +303,7 @@ public static class TaskQueueReplicationJsonSerialization
             }
             else
             {
-                JsonSerializer.Serialize(writer, value.Error, _errorInfo);
+                JsonSerializer.Serialize(writer, value.Error, _errorInfo!);
             }
 
             writer.WritePropertyName(OwnershipTokenProp);
@@ -313,7 +313,7 @@ public static class TaskQueueReplicationJsonSerialization
             }
             else
             {
-                JsonSerializer.Serialize(writer, value.OwnershipToken, _ownershipInfo);
+                JsonSerializer.Serialize(writer, value.OwnershipToken, _ownershipInfo!);
             }
 
             writer.WritePropertyName(LeaseExpirationProp);
@@ -327,7 +327,7 @@ public static class TaskQueueReplicationJsonSerialization
             }
 
             writer.WritePropertyName(FlagsProp);
-            JsonSerializer.Serialize(writer, value.Flags, _flagsInfo);
+            JsonSerializer.Serialize(writer, value.Flags, _flagsInfo!);
 
             writer.WriteEndObject();
         }

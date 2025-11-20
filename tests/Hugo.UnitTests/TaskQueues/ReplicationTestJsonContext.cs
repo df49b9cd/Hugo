@@ -7,7 +7,4 @@ namespace Hugo.UnitTests.TaskQueues;
 [JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(int))]
 [JsonSerializable(typeof(TaskQueueReplicationEvent<int>))]
-internal sealed partial class ReplicationTestJsonContext : JsonSerializerContext
-{
-    public static ReplicationTestJsonContext Default { get; } = new(new JsonSerializerOptions(JsonSerializerDefaults.Web));
-}
+internal sealed partial class ReplicationTestJsonContext : JsonSerializerContext;
