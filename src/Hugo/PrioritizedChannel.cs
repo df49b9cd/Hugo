@@ -262,6 +262,11 @@ public sealed class PrioritizedChannel<T>
                 return true;
             }
 
+            if (_singleLane)
+            {
+                return _readers[0].TryRead(out item!);
+            }
+
             for (var i = 0; i < _readers.Length; i++)
             {
                 if (_readers[i].TryRead(out item!))
@@ -304,14 +309,22 @@ public sealed class PrioritizedChannel<T>
                 return new ValueTask<bool>(true);
             }
 
+            if (_singleLane)
+            {
+                if (TryStageFromPriority(0))
+                {
+                    return new ValueTask<bool>(true);
+                }
+
+                return WaitToReadSingleLaneAsync(cancellationToken);
+            }
+
             if (TryStageFromAllPriorities())
             {
                 return new ValueTask<bool>(true);
             }
 
-            return _singleLane
-                ? WaitToReadSingleLaneAsync(cancellationToken)
-                : WaitToReadSlowAsync(cancellationToken);
+            return WaitToReadSlowAsync(cancellationToken);
         }
 
         private async ValueTask<bool> WaitToReadSlowAsync(CancellationToken cancellationToken)

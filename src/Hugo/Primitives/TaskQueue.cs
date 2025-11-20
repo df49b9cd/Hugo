@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
 using Hugo.TaskQueues;
@@ -622,6 +623,13 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             while (!cancellationToken.IsCancellationRequested)
             {
                 await _timeProvider.DelayAsync(_options.LeaseSweepInterval, cancellationToken).ConfigureAwait(false);
+
+                // Avoid scanning when no leases are active to reduce idle CPU/GC churn on large queues.
+                if (_leases.IsEmpty || Volatile.Read(ref _activeLeaseCount) == 0)
+                {
+                    continue;
+                }
+
                 await SweepExpiredLeasesAsync(cancellationToken).ConfigureAwait(false);
             }
         }
@@ -650,7 +658,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
             Interlocked.Decrement(ref _activeLeaseCount);
 
-            Dictionary<string, object?> metadata = new(3, StringComparer.OrdinalIgnoreCase)
+            Dictionary<string, object?> metadata = new(3, StringComparer.Ordinal)
             {
                 ["attempt"] = state.Envelope.Attempt,
                 ["enqueuedAt"] = state.Envelope.EnqueuedAt,
@@ -929,11 +937,12 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             return;
         }
 
-        DateTimeOffset now = _timeProvider.GetUtcNow();
         bool currentlyActive = Volatile.Read(ref _backpressureState) == 1;
 
         if (!currentlyActive && pendingDepth >= high)
         {
+            DateTimeOffset now = _timeProvider.GetUtcNow();
+
             if (Interlocked.CompareExchange(ref _backpressureState, 1, 0) == 0 && ShouldEmitBackpressure(now, cooldown))
             {
                 callback?.Invoke(new TaskQueueBackpressureState(true, pendingDepth, now));
@@ -944,6 +953,8 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
         if (currentlyActive && pendingDepth <= low)
         {
+            DateTimeOffset now = _timeProvider.GetUtcNow();
+
             if (Interlocked.CompareExchange(ref _backpressureState, 0, 1) == 1 && ShouldEmitBackpressure(now, cooldown))
             {
                 callback?.Invoke(new TaskQueueBackpressureState(false, pendingDepth, now));
@@ -974,6 +985,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         return callback is not null;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool ShouldEmitBackpressure(DateTimeOffset now, TimeSpan cooldown)
     {
         long current = now.UtcTicks;
