@@ -92,6 +92,11 @@ public static partial class Go
         List<int> drainedIndices = new(caseList.Count);
         List<(int Index, object? State)> ready = new(caseList.Count);
 
+        // Cache wait buffers so we don't allocate a new task array on every loop iteration (hot path).
+        bool waitBuffersDirty = true;
+        Task<(bool HasValue, object? Value)>[] waitBuffer = Array.Empty<Task<(bool HasValue, object? Value)>>();
+        Task[]? waitWithTimeout = null;
+
         // Attempt immediate reads to honor priority without awaiting.
         List<(int Index, object? State)> immediateCandidates = new(caseList.Count);
         for (int i = 0; i < caseList.Count; i++)
@@ -160,6 +165,8 @@ public static partial class Go
             waitTasks.Add(caseList[i].WaitAsync(linkedCts.Token));
         }
 
+        waitBuffersDirty = true;
+
         Task? timeoutTask = timeout == Timeout.InfiniteTimeSpan
             ? null
             : provider.DelayAsync(timeout, linkedCts.Token);
@@ -178,21 +185,36 @@ public static partial class Go
                 }
 
                 Task completedTask;
+                if (waitBuffersDirty)
+                {
+                    waitBuffer = GC.AllocateUninitializedArray<Task<(bool HasValue, object? Value)>>(waitTasks.Count);
+                    for (int i = 0; i < waitTasks.Count; i++)
+                    {
+                        waitBuffer[i] = waitTasks[i];
+                    }
+
+                    if (timeoutTask is not null)
+                    {
+                        waitWithTimeout = GC.AllocateUninitializedArray<Task>(waitBuffer.Length + 1);
+                        for (int i = 0; i < waitBuffer.Length; i++)
+                        {
+                            waitWithTimeout[i] = waitBuffer[i];
+                        }
+
+                        waitWithTimeout[^1] = timeoutTask;
+                    }
+
+                    waitBuffersDirty = false;
+                }
+
                 if (timeoutTask is null)
                 {
-                    completedTask = await Task.WhenAny(GoSelectHelpers.ToTaskArray(waitTasks)).ConfigureAwait(false);
+                    Task<(bool HasValue, object? Value)> signaled = await Task.WhenAny(waitBuffer).ConfigureAwait(false);
+                    completedTask = signaled;
                 }
                 else
                 {
-                    Task[] aggregate = new Task[waitTasks.Count + 1];
-                    for (int i = 0; i < waitTasks.Count; i++)
-                    {
-                        aggregate[i] = waitTasks[i];
-                    }
-
-                    aggregate[^1] = timeoutTask;
-                    completedTask = await Task.WhenAny(aggregate).ConfigureAwait(false);
-
+                    completedTask = await Task.WhenAny(waitWithTimeout!).ConfigureAwait(false);
                     if (completedTask == timeoutTask)
                     {
                         await linkedCts.CancelAsync().ConfigureAwait(false);
@@ -229,6 +251,7 @@ public static partial class Go
                     if (drainedIndices.Count > 0)
                     {
                         GoSelectHelpers.RemoveAtIndices(caseList, waitTasks, drainedIndices);
+                        waitBuffersDirty = true;
                     }
 
                     continue;
@@ -272,17 +295,6 @@ public static partial class Go
 
 internal static class GoSelectHelpers
 {
-    public static Task[] ToTaskArray(List<Task<(bool HasValue, object? Value)>> source)
-    {
-        Task[] array = new Task[source.Count];
-        for (int i = 0; i < source.Count; i++)
-        {
-            array[i] = source[i];
-        }
-
-        return array;
-    }
-
     public static void CollectCompletedIndices(List<Task<(bool HasValue, object? Value)>> tasks, List<int> destination)
     {
         for (int i = 0; i < tasks.Count; i++)
@@ -321,7 +333,7 @@ internal static class GoSelectHelpers
             return;
         }
 
-        indices.Sort();
+        // Collected indices are already monotonic increasing; walk from the tail to avoid shifting costs without an extra sort.
         for (int i = indices.Count - 1; i >= 0; i--)
         {
             int index = indices[i];

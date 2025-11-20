@@ -416,11 +416,24 @@ public static class ChannelCaseTemplates
         ArgumentNullException.ThrowIfNull(templates);
         ArgumentNullException.ThrowIfNull(projector);
 
-        var list = templates is ICollection<ChannelCaseTemplate<T>> collection
-            ? new List<ChannelCase<TResult>>(collection.Count)
-            : new List<ChannelCase<TResult>>();
-        list.AddRange(templates.Select(projector));
+        if (templates is ICollection<ChannelCaseTemplate<T>> collection)
+        {
+            ChannelCase<TResult>[] materialized = GC.AllocateUninitializedArray<ChannelCase<TResult>>(collection.Count);
+            int index = 0;
+            foreach (ChannelCaseTemplate<T> template in collection)
+            {
+                materialized[index++] = projector(template);
+            }
 
-        return [.. list];
+            return materialized;
+        }
+
+        var list = new List<ChannelCase<TResult>>();
+        foreach (ChannelCaseTemplate<T> template in templates)
+        {
+            list.Add(projector(template));
+        }
+
+        return list.ToArray();
     }
 }
