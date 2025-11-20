@@ -1,4 +1,5 @@
 using BenchmarkDotNet.Attributes;
+
 using Hugo;
 using Hugo.Benchmarks.Time;
 

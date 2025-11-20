@@ -365,7 +365,7 @@ public static partial class Result
             catch (OperationCanceledException oce)
             {
                 return new PipelineOperationResult<T>(Fail<T>(Error.Canceled(token: oce.CancellationToken)), attemptScope);
-        }
+            }
 #pragma warning disable CA1031 // We need to surface unexpected exceptions as failure results rather than throwing.
             catch (Exception ex)
             {

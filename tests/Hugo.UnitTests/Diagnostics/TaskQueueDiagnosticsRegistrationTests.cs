@@ -42,7 +42,7 @@ public class TaskQueueDiagnosticsRegistrationTests
                    {
                        tags.Add("custom.tag", "diagnostics-test");
                    });
-              }))
+               }))
         {
             GoDiagnostics.RecordTaskQueueQueued(queueName, pendingDepth: 1);
 

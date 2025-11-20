@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 using BenchmarkDotNet.Attributes;
+
 using Hugo;
 
 namespace Hugo.Benchmarks;

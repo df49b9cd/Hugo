@@ -1,4 +1,5 @@
 using BenchmarkDotNet.Attributes;
+
 using Hugo;
 
 namespace Hugo.Benchmarks;
@@ -10,7 +11,7 @@ public class RetryPolicyBenchmarks
     [Params(3)]
     public int MaxAttempts { get; set; }
 
-[Benchmark(Baseline = true)]
+    [Benchmark(Baseline = true)]
     public Task<Result<int>> DirectSuccessAsync() => Task.FromResult(Result.Ok(1));
 
     [Benchmark]

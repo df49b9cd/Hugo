@@ -1,4 +1,5 @@
 using Hugo.Policies;
+
 using Shouldly;
 
 namespace Hugo.Tests.Results;
