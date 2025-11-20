@@ -58,6 +58,46 @@ public sealed class Error
         return new Error(Message, Code, Cause, FreezeMetadata(builder));
     }
 
+    /// <summary>Adds or replaces metadata entries from a contiguous span without additional allocations.</summary>
+    /// <param name="metadata">The metadata entries to merge.</param>
+    /// <returns>A new error instance containing the merged metadata.</returns>
+    public Error WithMetadata(ReadOnlySpan<KeyValuePair<string, object?>> metadata)
+    {
+        if (metadata.IsEmpty)
+        {
+            return this;
+        }
+
+        var builder = CloneMetadata(_metadata, metadata.Length);
+        for (int i = 0; i < metadata.Length; i++)
+        {
+            ref readonly var kvp = ref metadata[i];
+            builder[kvp.Key] = kvp.Value;
+        }
+
+        return new Error(Message, Code, Cause, FreezeMetadata(builder));
+    }
+
+    /// <summary>Adds or replaces metadata entries from a contiguous span of tuples without additional allocations.</summary>
+    /// <param name="metadata">The metadata entries to merge.</param>
+    /// <returns>A new error instance containing the merged metadata.</returns>
+    public Error WithMetadata(ReadOnlySpan<(string Key, object? Value)> metadata)
+    {
+        if (metadata.IsEmpty)
+        {
+            return this;
+        }
+
+        var builder = CloneMetadata(_metadata, metadata.Length);
+        for (int i = 0; i < metadata.Length; i++)
+        {
+            var (key, value) = metadata[i];
+            builder[key] = value;
+        }
+
+        return new Error(Message, Code, Cause, FreezeMetadata(builder));
+    }
+
     /// <summary>Merges the supplied metadata entries into the error.</summary>
     /// <param name="metadata">The metadata entries to merge.</param>
     /// <returns>A new error instance containing the merged metadata.</returns>
@@ -112,6 +152,24 @@ public sealed class Error
     /// <param name="metadata">Optional metadata associated with the error.</param>
     /// <returns>A new error instance.</returns>
     public static Error From(string message, string? code = null, Exception? cause = null, IReadOnlyDictionary<string, object?>? metadata = null) =>
+        new(message, code, cause, FreezeMetadata(metadata));
+
+    /// <summary>Creates an error using span-based metadata to minimize intermediary allocations.</summary>
+    /// <param name="message">The error message.</param>
+    /// <param name="code">An optional error code.</param>
+    /// <param name="cause">An optional exception that caused the error.</param>
+    /// <param name="metadata">Optional metadata entries provided as a span.</param>
+    /// <returns>A new error instance.</returns>
+    public static Error From(string message, string? code, Exception? cause, ReadOnlySpan<KeyValuePair<string, object?>> metadata) =>
+        new(message, code, cause, FreezeMetadata(metadata));
+
+    /// <summary>Creates an error using tuple-based span metadata to minimize intermediary allocations.</summary>
+    /// <param name="message">The error message.</param>
+    /// <param name="code">An optional error code.</param>
+    /// <param name="cause">An optional exception that caused the error.</param>
+    /// <param name="metadata">Optional metadata entries provided as a span of tuples.</param>
+    /// <returns>A new error instance.</returns>
+    public static Error From(string message, string? code, Exception? cause, ReadOnlySpan<(string Key, object? Value)> metadata) =>
         new(message, code, cause, FreezeMetadata(metadata));
 
     /// <summary>Creates an error from an exception.</summary>
@@ -254,6 +312,40 @@ public sealed class Error
         return metadata is FrozenDictionary<string, object?> frozen && MetadataComparer.Equals(frozen.Comparer)
             ? frozen
             : FreezeMetadata(CloneMetadata(metadata));
+    }
+
+    private static FrozenDictionary<string, object?> FreezeMetadata(ReadOnlySpan<KeyValuePair<string, object?>> metadata)
+    {
+        if (metadata.IsEmpty)
+        {
+            return EmptyMetadata;
+        }
+
+        var builder = new Dictionary<string, object?>(metadata.Length, MetadataComparer);
+        for (int i = 0; i < metadata.Length; i++)
+        {
+            ref readonly var kvp = ref metadata[i];
+            builder[kvp.Key] = kvp.Value;
+        }
+
+        return builder.ToFrozenDictionary(MetadataComparer);
+    }
+
+    private static FrozenDictionary<string, object?> FreezeMetadata(ReadOnlySpan<(string Key, object? Value)> metadata)
+    {
+        if (metadata.IsEmpty)
+        {
+            return EmptyMetadata;
+        }
+
+        var builder = new Dictionary<string, object?>(metadata.Length, MetadataComparer);
+        for (int i = 0; i < metadata.Length; i++)
+        {
+            var (key, value) = metadata[i];
+            builder[key] = value;
+        }
+
+        return builder.ToFrozenDictionary(MetadataComparer);
     }
 
     private static FrozenDictionary<string, object?> FreezeMetadata(Dictionary<string, object?>? builder) => builder is null || builder.Count == 0 ? EmptyMetadata : builder.ToFrozenDictionary(MetadataComparer);

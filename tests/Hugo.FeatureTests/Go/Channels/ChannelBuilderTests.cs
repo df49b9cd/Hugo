@@ -1,7 +1,8 @@
 using System.Threading.Channels;
-using Shouldly;
 
 using Microsoft.Extensions.DependencyInjection;
+
+using Shouldly;
 
 using static Hugo.Go;
 

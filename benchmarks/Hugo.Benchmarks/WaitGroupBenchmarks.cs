@@ -3,7 +3,8 @@ using BenchmarkDotNet.Attributes;
 namespace Hugo.Benchmarks;
 
 [MemoryDiagnoser]
-internal class WaitGroupBenchmarks
+[BenchmarkCategory(BenchmarkCategories.Go, BenchmarkCategories.Synchronization)]
+public class WaitGroupBenchmarks
 {
     private const int IterationsPerTask = 16;
 

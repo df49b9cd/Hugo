@@ -1,7 +1,8 @@
 using System.Runtime.CompilerServices;
-using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
+
+using Shouldly;
 
 using Unit = Hugo.Go.Unit;
 
@@ -921,6 +922,37 @@ public class ResultTests
         var result = Result.Fail<int>(Error.From("boom"));
 
         _ = Should.Throw<ResultException>(() => result.ValueOrThrow());
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void ResultException_Constructors_ShouldPreserveErrorAndHResult()
+    {
+        var inner = new InvalidOperationException("inner failure") { HResult = -42 };
+        var error = Error.From("wrapped", ErrorCodes.Exception, inner);
+
+        var exception = new ResultException(error);
+
+        exception.Error.ShouldBe(error);
+        exception.HResult.ShouldBe(inner.HResult);
+        exception.Message.ShouldContain("wrapped");
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void ResultException_DefaultCtor_ShouldProvideUnspecifiedError()
+    {
+        var exception = new ResultException();
+
+        exception.Error.Code.ShouldBe(Error.Unspecified().Code);
+        exception.InnerException.ShouldBeNull();
+    }
+
+    [Fact(Timeout = 15_000)]
+    public void ResultException_MessageCtor_ShouldWrapMessageAndExceptionCode()
+    {
+        var exception = new ResultException("custom message");
+
+        exception.Error.Code.ShouldBe(ErrorCodes.Exception);
+        exception.Error.Message.ShouldContain("custom message");
     }
 
     [Fact(Timeout = 15_000)]

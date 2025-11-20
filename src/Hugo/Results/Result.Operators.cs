@@ -16,7 +16,8 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(keySelector);
 
-        var groups = new Dictionary<TKey, List<T>>();
+        var expectedCount = TryGetCount(source);
+        var groups = expectedCount > 0 ? new Dictionary<TKey, List<T>>(expectedCount) : new Dictionary<TKey, List<T>>();
         foreach (var result in source)
         {
             if (result.IsFailure)
@@ -47,8 +48,9 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(predicate);
 
-        var trueList = new List<T>();
-        var falseList = new List<T>();
+        var expectedCount = TryGetCount(source);
+        var trueList = expectedCount > 0 ? new List<T>(expectedCount) : new List<T>();
+        var falseList = expectedCount > 0 ? new List<T>(expectedCount) : new List<T>();
 
         foreach (var result in source)
         {
@@ -80,7 +82,9 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(source);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
 
-        var windows = new List<IReadOnlyList<T>>();
+        var sourceCount = TryGetCount(source);
+        var windowCapacity = sourceCount > 0 ? (int)Math.Ceiling(sourceCount / (double)size) : 0;
+        var windows = windowCapacity > 0 ? new List<IReadOnlyList<T>>(windowCapacity) : new List<IReadOnlyList<T>>();
         var buffer = new List<T>(size);
 
         foreach (var result in source)
@@ -130,6 +134,7 @@ public static partial class Result
             return result.Result;
         }
 
+        scope.Absorb(result.Compensation);
         result.Compensation.Clear();
         var compensationError = await RunCompensationAsync(policy, scope, cancellationToken).ConfigureAwait(false);
         if (compensationError is not null)

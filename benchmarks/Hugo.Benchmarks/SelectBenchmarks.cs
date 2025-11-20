@@ -5,7 +5,8 @@ using BenchmarkDotNet.Attributes;
 namespace Hugo.Benchmarks;
 
 [MemoryDiagnoser]
-internal class SelectBenchmarks
+[BenchmarkCategory(BenchmarkCategories.Go, BenchmarkCategories.Channels)]
+public class SelectBenchmarks
 {
     [Params(3, 6)]
     public int ChannelCount { get; set; }
@@ -88,7 +89,7 @@ internal class SelectBenchmarks
         var tasks = readers.Select(r => r.ReadAsync().AsTask()).ToList();
         var remaining = MessageCount;
         var total = 0L;
-        var timeoutTask = EnableTimeouts ? Task.Delay(TimeSpan.FromMilliseconds(1)) : null;
+        Task? timeoutTask = EnableTimeouts ? CreateTimeoutTaskAsync() : null;
 
         while (remaining > 0 && tasks.Count > 0)
         {
@@ -104,7 +105,7 @@ internal class SelectBenchmarks
                 if (completedTask == timeoutTask)
                 {
                     BenchmarkWorkloads.SimulateLightCpuWork();
-                    timeoutTask = Task.Delay(TimeSpan.FromMilliseconds(1));
+                    timeoutTask = CreateTimeoutTaskAsync();
                     continue;
                 }
             }
@@ -202,5 +203,11 @@ internal class SelectBenchmarks
         }
 
         return tasks;
+    }
+
+    private static Task CreateTimeoutTaskAsync()
+    {
+        // Deterministic lightweight timeout surrogate
+        return Task.Run(() => BenchmarkWorkloads.SimulateLightCpuWork());
     }
 }

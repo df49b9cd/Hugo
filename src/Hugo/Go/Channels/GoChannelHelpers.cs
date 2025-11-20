@@ -16,7 +16,12 @@ internal static class GoChannelHelpers
             return list.Count == 0 ? [] : [.. list];
         }
 
-        List<ChannelReader<T>> collected = [];
+        List<ChannelReader<T>> collected = TryGetCount(sources) switch
+        {
+            int count when count > 0 => new List<ChannelReader<T>>(count),
+            _ => []
+        };
+
         foreach (ChannelReader<T> reader in sources)
         {
             collected.Add(reader);
@@ -289,6 +294,14 @@ internal static class GoChannelHelpers
 
     private static bool IsSelectDrained(Error? error) => error is { Code: ErrorCodes.SelectDrained };
 
+    private static int TryGetCount<T>(IEnumerable<T> source) =>
+        source switch
+        {
+            ICollection<T> collection => collection.Count,
+            IReadOnlyCollection<T> readOnlyCollection => readOnlyCollection.Count,
+            _ => -1
+        };
+
     private static async ValueTask<Result<Go.Unit>> WriteWithDeadlineAsync<T>(ChannelWriter<T> writer, T value, TimeSpan deadline, TimeProvider provider, long startTimestamp, CancellationToken cancellationToken)
     {
         if (writer.TryWrite(value))
@@ -317,25 +330,22 @@ internal static class GoChannelHelpers
                     return Result.Fail<Go.Unit>(Error.Timeout(deadline));
                 }
 
-                using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                Task<bool> waitTask = writer.WaitToWriteAsync(linkedCts.Token).AsTask();
-                Task delayTask = provider.DelayAsync(remaining, linkedCts.Token);
+                Task<bool> waitTask = writer.WaitToWriteAsync(cancellationToken).AsTask();
+                Task delayTask = provider.DelayAsync(remaining, cancellationToken);
 
                 Task completed = await Task.WhenAny(waitTask, delayTask).ConfigureAwait(false);
                 if (completed == delayTask)
                 {
-                    await linkedCts.CancelAsync().ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     return Result.Fail<Go.Unit>(Error.Timeout(deadline));
                 }
 
                 bool canWrite = await waitTask.ConfigureAwait(false);
                 if (!canWrite)
                 {
-                    await linkedCts.CancelAsync().ConfigureAwait(false);
                     return Result.Fail<Go.Unit>(Error.From("Destination channel has completed.", ErrorCodes.ChannelCompleted));
                 }
-
-                await linkedCts.CancelAsync().ConfigureAwait(false);
             }
 
             if (writer.TryWrite(value))

@@ -1,10 +1,11 @@
 using System.Threading.Channels;
 
-using Shouldly;
+using Hugo.Policies;
 
 using Microsoft.Extensions.Time.Testing;
+using Microsoft.VisualBasic;
 
-using Hugo.Policies;
+using Shouldly;
 
 namespace Hugo.Tests;
 
@@ -18,7 +19,7 @@ public class WindowPipelineIntegrationTests
         var context = new ResultPipelineStepContext("window-integration", scope, provider, TestContext.Current.CancellationToken);
         var source = Channel.CreateUnbounded<int>();
 
-        var reader = ResultPipelineChannels.WindowAsync(
+        var reader = await ResultPipelineChannels.WindowAsync(
             context,
             source.Reader,
             batchSize: 3,

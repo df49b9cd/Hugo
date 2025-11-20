@@ -3,9 +3,10 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Linq;
-using Shouldly;
 
 using Hugo.TaskQueues.Diagnostics;
+
+using Shouldly;
 
 namespace Hugo.Tests.TaskQueues;
 

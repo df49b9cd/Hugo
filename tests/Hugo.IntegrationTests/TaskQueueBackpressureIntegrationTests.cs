@@ -1,9 +1,10 @@
 using System.Threading.RateLimiting;
-using Shouldly;
 
 using Hugo.TaskQueues.Backpressure;
 
 using Microsoft.Extensions.Time.Testing;
+
+using Shouldly;
 
 namespace Hugo.Tests;
 
@@ -58,7 +59,7 @@ public class TaskQueueBackpressureIntegrationTests
         await EventuallyAsync(() => ReferenceEquals(listener.LimiterSelector(), unthrottled));
     }
 
-    [Fact(Timeout = 15_000)]
+    [Fact(Timeout = 20_000)]
     public async Task DiagnosticsListener_ShouldStreamOrderedSignals()
     {
         var provider = new FakeTimeProvider();

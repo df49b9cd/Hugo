@@ -1,7 +1,8 @@
 using Hugo.TaskQueues.Replication;
-using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
+
+using Shouldly;
 
 namespace Hugo.Tests.TaskQueues;
 
@@ -45,7 +46,7 @@ public sealed class TaskQueueReplicationFeatureTests
         var deterministicStore = new InMemoryDeterministicStateStore();
         DeterministicEffectStore effectStore = new(
             deterministicStore,
-            serializerOptions: TaskQueueReplicationJsonSerialization.CreateOptions<int>());
+            serializerOptions: TaskQueueReplicationJsonSerialization.CreateOptions<int>(ReplicationTestJsonContext.Default));
         var coordinator = new TaskQueueDeterministicCoordinator<int>(effectStore);
 
         var sink = new DeterministicRecordingSink("feature-stream", checkpointStore, coordinator, provider);

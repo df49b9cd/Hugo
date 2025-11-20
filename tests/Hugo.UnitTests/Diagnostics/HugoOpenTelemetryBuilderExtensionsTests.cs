@@ -1,8 +1,11 @@
 using Hugo.Diagnostics.OpenTelemetry;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+
 using OpenTelemetry;
+
 using Shouldly;
 
 namespace Hugo.Tests.Diagnostics;

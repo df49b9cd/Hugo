@@ -88,9 +88,12 @@ public static partial class Go
         long startTimestamp = provider.GetTimestamp();
 
         using CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        List<int> completedIndices = new(caseList.Count);
+        List<int> drainedIndices = new(caseList.Count);
+        List<(int Index, object? State)> ready = new(caseList.Count);
 
         // Attempt immediate reads to honor priority without awaiting.
-        List<(int Index, object? State)> immediateCandidates = [];
+        List<(int Index, object? State)> immediateCandidates = new(caseList.Count);
         for (int i = 0; i < caseList.Count; i++)
         {
             if (caseList[i].TryDequeueImmediately(out object? state))
@@ -199,15 +202,15 @@ public static partial class Go
                     }
                 }
 
-                List<int> completedIndices = GoSelectHelpers.CollectCompletedIndices(waitTasks);
+                completedIndices.Clear();
+                GoSelectHelpers.CollectCompletedIndices(waitTasks, completedIndices);
                 if (completedIndices.Count == 0)
                 {
                     continue;
                 }
 
-                List<int> drainedIndices = [];
-                List<(int Index, object? State)> ready = [];
-
+                drainedIndices.Clear();
+                ready.Clear();
                 foreach (int idx in completedIndices)
                 {
                     (bool hasValue, object? value) = await waitTasks[idx].ConfigureAwait(false);
@@ -280,18 +283,15 @@ internal static class GoSelectHelpers
         return array;
     }
 
-    public static List<int> CollectCompletedIndices(List<Task<(bool HasValue, object? Value)>> tasks)
+    public static void CollectCompletedIndices(List<Task<(bool HasValue, object? Value)>> tasks, List<int> destination)
     {
-        List<int> indices = [];
         for (int i = 0; i < tasks.Count; i++)
         {
             if (tasks[i].IsCompleted)
             {
-                indices.Add(i);
+                destination.Add(i);
             }
         }
-
-        return indices;
     }
 
     public static (int Index, object? State) SelectByPriority<TResult>(List<(int Index, object? State)> candidates, List<ChannelCase<TResult>> cases)

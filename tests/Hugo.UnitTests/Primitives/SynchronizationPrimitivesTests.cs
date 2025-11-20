@@ -1,4 +1,5 @@
 using System.Diagnostics;
+
 using Shouldly;
 
 namespace Hugo.Tests.Primitives;

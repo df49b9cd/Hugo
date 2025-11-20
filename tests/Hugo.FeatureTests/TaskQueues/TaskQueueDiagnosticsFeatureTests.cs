@@ -1,12 +1,14 @@
 using System.Diagnostics.Metrics;
 using System.Text.Json;
-using Shouldly;
 
 using Hugo.TaskQueues;
 using Hugo.TaskQueues.Backpressure;
 using Hugo.TaskQueues.Diagnostics;
 using Hugo.TaskQueues.Replication;
+
 using Microsoft.Extensions.Time.Testing;
+
+using Shouldly;
 
 namespace Hugo.Tests.TaskQueues;
 

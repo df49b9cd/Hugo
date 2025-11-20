@@ -18,6 +18,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
             ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
             : new CancellationTokenSource();
     private readonly CancellationToken _linkedToken = cancellationToken;
+    private readonly CancellationToken _fallbackToken = cancellationToken;
     private readonly WaitGroup _waitGroup = new();
     private Error? _error;
     private int _disposed;
@@ -25,7 +26,9 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     /// <summary>
     /// Gets a cancellation token that is signaled when the group is canceled or a task fails; remains usable even after the group is disposed.
     /// </summary>
-    public CancellationToken Token => _cts.Token;
+    public CancellationToken Token => Volatile.Read(ref _disposed) == 1
+        ? _fallbackToken // fallback to original linked token so callers can still await without ObjectDisposedException
+        : _cts.Token;
 
     /// <summary>
     /// Gets the first error produced by the group, if any.
@@ -287,7 +290,24 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     }
 
     /// <inheritdoc />
-    public void Dispose() => Interlocked.Exchange(ref _disposed, 1);
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            _cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already torn down.
+        }
+
+        _cts.Dispose();
+    }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 

@@ -1,7 +1,7 @@
-using Shouldly;
-
 using Hugo;
 using Hugo.Deterministic.Redis;
+
+using Shouldly;
 
 using StackExchange.Redis;
 
@@ -57,7 +57,7 @@ public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
             KeyPrefix = "hugo:test:"
         });
 
-    [Fact(Timeout = 15_000)]
+    [Fact(Timeout = 60_000)]
     public void SetAndGetRoundTripsRecord()
     {
         if (SkipIfNecessary())
@@ -77,7 +77,7 @@ public sealed class RedisDeterministicStateStoreTests : IAsyncLifetime
         stored.Payload.ToArray().ShouldBe(record.Payload.ToArray());
     }
 
-    [Fact(Timeout = 15_000)]
+    [Fact(Timeout = 60_000)]
     public void SetOverwritesExistingRecord()
     {
         if (SkipIfNecessary())

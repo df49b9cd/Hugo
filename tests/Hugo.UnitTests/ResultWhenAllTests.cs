@@ -1,5 +1,7 @@
 using Hugo.Policies;
+
 using Microsoft.Extensions.Time.Testing;
+
 using Shouldly;
 
 namespace Hugo.Tests;
@@ -73,8 +75,8 @@ public sealed class ResultWhenAllTests
         _ = Task.Run(async () =>
         {
             await Task.Delay(20, TestContext.Current.CancellationToken);
-        cts.Cancel();
-    }, TestContext.Current.CancellationToken);
+            cts.Cancel();
+        }, TestContext.Current.CancellationToken);
 
         var result = await Result.WhenAll(operations, cancellationToken: cts.Token);
 

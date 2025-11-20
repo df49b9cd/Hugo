@@ -1,73 +1,46 @@
-# Hugo Agent Handbook
-- Public APIs must expose XML documentation comments, guard clauses, cancellation tokens and return `Result<T>` instead of throwing exceptions.
-- Place braces on their own lines and prefer expression clarity over terseness.
-- Use descriptive test names (e.g. `ErrGroupTests.WaitAsync_ShouldReturnSuccess`).
+# Repository Guidelines
 
-Commit messages follow the **Conventional Commits** specification (`feat:`, `fix:`, `docs:` etc.), remain focused. Before opening a pull request, ensure that builds pass on .NET 10, that all unit, integration and deterministic tests succeed, and that coverage has been collected. Fill out the PR template, link issues (`Fixes #123`), summarise behavioural changes and respond promptly. Squash merge is the default strategy.
+## Important Notes
+- We must be as performant and efficient as possible due to our focus on Native AOT. Therefore read and understand the 'dotnet-performance-guidelines.md' located in docs/perf.
 
-## Core Concepts
+## Project Structure & Modules
+- `src/Hugo` core concurrency + result pipelines; `Hugo.Diagnostics.OpenTelemetry` exposes meters/activity sources.
+- Deterministic stores live in `src/Hugo.Deterministic.{Cosmos,Redis,SqlServer}`; task queue components in `src/Hugo.TaskQueues.*`.
+- Tests: `tests/Hugo.UnitTests` (fast), `tests/Hugo.IntegrationTests`, `tests/Hugo.FeatureTests`, plus provider-specific deterministic-store suites.
+- Docs rendered by DocFX in `docs/`; runnable walkthrough in `samples/Hugo.WorkerSample`; performance harness in `benchmarks/Hugo.Benchmarks`; helper scripts in `tools/` and collector config under `docker/`.
 
-### Concurrency Primitives
+## Build, Test, and Development Commands
+- Restore/build: `dotnet build Hugo.slnx` (uses central package management).
+- Format: `dotnet format whitespace --verify-no-changes` keeps CI happy.
+- Unit/integration/feature tests:
+```bash
+dotnet test tests/Hugo.UnitTests/Hugo.UnitTests.csproj
+cd tests && dotnet test Hugo.IntegrationTests/Hugo.IntegrationTests.csproj
+cd tests && dotnet test Hugo.FeatureTests/Hugo.FeatureTests.csproj
+```
+- Coverage: `dotnet test --collect:"XPlat Code Coverage"` → `coverage-report*/`.
+- Pack for local feed: `dotnet pack src/Hugo/Hugo.csproj -o ./artifacts`.
+- Samples/benchmarks: `dotnet run --project samples/Hugo.WorkerSample/Hugo.WorkerSample.csproj` and `dotnet run --project benchmarks/Hugo.Benchmarks/Hugo.Benchmarks.csproj -c Release` (bench results under `BenchmarkDotNet.Artifacts/results/`).
 
-Hugo exposes a set of primitives under the `Hugo.Go` namespace:
+## Coding Style & Naming Conventions
+- Nullable enabled; guard public inputs early (`ArgumentNullException.ThrowIfNull`).
+- Async APIs accept `CancellationToken = default` and use `.ConfigureAwait(false)`; prefer `TimeProvider` over `Task.Delay/DateTime.Now`.
+- Favor `Result<T>` + `Error` for controllable failures instead of throwing; attach metadata intentionally.
+- Names: intention-revealing public APIs, verb-prefixed private helpers, PascalCase locals/constants/static readonly fields.
+- Run formatter; add XML docs for new public types; instrument new primitives via `GoDiagnostics`/activity sources when relevant.
 
-**WaitGroup** – Tracks asynchronous operations and delays shutdown until tasks complete. Use `WaitGroup.Go` to schedule work, `WaitGroup.Add` to increment counters, `WaitGroup.Done` to signal completion and `WaitGroup.WaitAsync` to await completion. Cancelling a wait group surfaces `Error.Canceled`, and metrics such as `waitgroup.additions` and `waitgroup.completions` are emitted when diagnostics are configured.
+## Testing Guidelines
+- Framework: xUnit. Place new tests beside matching project (unit/integration/feature/provider-specific).
+- Style: `Method_Scenario_Expectation` naming, short timeouts (≈50–500ms), use fake `TimeProvider` and `TestContext.Current.CancellationToken` to avoid flakes.
+- Cover success/failure/edge cases; use xUnit collections when tests need serialization; prefer deterministic schedules for concurrency.
 
-**Mutex** and **RwMutex** – Provide mutual exclusion for exclusive or shared access. Asynchronous locks honour cancellation tokens and must be released via `await using`.
+## Commit & Pull Request Guidelines
+- Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`). Branches like `feature/<topic>` or `fix/<issue>`.
+- Before pushing: build, format, and run the three main test suites; regenerate coverage if behavior changes.
+- PRs should link issues (`Fixes #123`), describe changes/breaking notes, and paste test results; include screenshots only when UI/observability output changes.
+- CI runs build + format + tests; resolve all warnings. Squash merge is preferred once approvals are in.
 
-**Channels** – Use `MakeChannel<T>` to create bounded or unbounded channels for message passing. Prioritised channels allow multiple priority levels, and DI‑friendly builders register channel readers and writers automatically. Bounded channels respect full modes (`DropOldest`, `Wait`, etc.), and `TryComplete` propagates faults to readers.
-
-**TaskQueue<T>** – Builds cooperative leasing semantics on top of channels: producers enqueue work items, workers lease them for a configurable duration and can heartbeat, complete or fail each lease. The queue automatically requeues expired leases and supports draining/restore operations for rolling upgrades. Task queue health checks and backpressure monitors integrate with ASP.NET Core health probes and rate limiters.
-
-**Select and Fan‑In Helpers** – Await whichever channel case becomes ready first (`SelectAsync`), or merge multiple channels into one (`FanInAsync`). These helpers capture attempts, completions, latency, timeouts and cancellations in diagnostics. See the [fan‑in how‑to guide](docs/how-to/fan-in-channels.md) for a worked example.
-
-### Result Pipelines
-
-The `Result<T>` type models success or failure explicitly and supports functional composition. Use `Result.Ok`/`Go.Ok` to wrap a value and `Result.Fail`/`Go.Err` to create failures. Inspect state with `IsSuccess`, `IsFailure`, `TryGetValue` and `TryGetError` and extract values with `Switch`/`Match` or `ValueOr`.
-
-Compose pipelines using combinators:
-
-- **Synchronous**: `Then`, `Map`, `Tap`, `Ensure`, `Recover` and `Finally` orchestrate synchronous flows
-- **Asynchronous**: `ThenAsync`, `MapAsync`, `TapAsync`, `RecoverAsync` and `EnsureAsync` accept `CancellationToken` and normalise cancellations to `Error.Canceled`. `ValueTask` variants avoid extra allocations when delegates already return `ValueTask<Result<T>>`.
-- **Collections and streaming**: Helpers such as `Result.Sequence`, `Result.Traverse`, `MapStreamAsync` and `FanInAsync` aggregate or transform streams of results.
-- **Parallel orchestration and retries**: Use `Result.WhenAll`, `Result.WhenAny` and `Result.RetryWithPolicyAsync` to execute operations concurrently, aggregate errors, or apply exponential backoff policies. Tiered fallbacks let you define multiple strategies and switch when one fails.
-
-Errors carry metadata dictionaries and well‑known codes generated at compile time. You can attach custom metadata (for example `age`, `userId`) and extract it when logging. Cancellation is represented by `Error.Canceled` and includes the originating token under the `cancellationToken` key.
-
-### Deterministic Coordination
-
-Long‑running workflows often need to avoid repeating side effects when retries or replays occur. Hugo’s deterministic coordination primitives persist decisions externally:
-
-1. **VersionGate** records an immutable version decision per change identifier using optimistic inserts. Concurrent writers that lose the compare‑and‑swap return an `error.version.conflict` so callers can retry or fallback.
-2. **DeterministicEffectStore** captures idempotent side effects keyed by change, version and step. Replays reuse the stored result instead of re‑executing the side effect.
-3. **DeterministicGate** combines the two to execute code paths safely across replays. The simplest overload allows you to define upgraded and legacy delegates and specify a version range; repeated executions reuse the persisted result.
-
-For richer coordination, the workflow builder lets you declare branches based on predicates, exact versions or ranges and supply a fallback. Inside branches, use `DeterministicWorkflowContext` to capture side effects and access metadata (version, changeId, stepId). Missing branches or unsupported versions surface `error.version.conflict`, and cancellations or exceptions are converted to structured errors. Instrumentation emits `workflow.*` metrics and activity tags so deterministic replays are observable.
-
-### Diagnostics and Observability
-
-Configuring `GoDiagnostics` registers **System.Diagnostics.Metrics** instruments for wait groups, result pipelines, channel selectors, task queues and workflow execution. Emitted metrics include counters, up/down counters and histograms for operations such as wait‑group additions/completions, channel select attempts/timeouts, task queue leases/enqueues and workflow durations. When using the `Hugo.Diagnostics.OpenTelemetry` package, you can register meters, activity sources and exporters in one call (see *Observability in One Call* above) and configure service names, OTLP endpoints or Prometheus exporters.
-
-## Contributing and Support
-
-Hugo welcomes contributions. To contribute:
-
-1. Fork the repository and create a feature branch.
-2. Review `CONTRIBUTING.md` for environment setup, coding standards and workflow expectations.
-3. Run `dotnet build` and `dotnet test` across all test projects (unit, integration, feature and deterministic suites) and ensure they pass.
-4. Collect code coverage with `dotnet test --collect:"XPlat Code Coverage"` to match CI coverage gates.
-5. Follow Conventional Commits and update the changelog. Link issues in your PR description and include context for behaviour changes.
-
-For questions or bug reports, open an issue on GitHub. For security disclosures, contact the maintainer privately before filing a public issue. Hugo is licensed under the MIT License.
-
-## Useful Tips and Best Practices
-
-- **Configure diagnostics early.** Register meters and activity sources before creating channels, wait groups or pipelines so all metrics are emitted.
-- **Prefer deterministic stores in production.** Use durable implementations of `IDeterministicStateStore` (e.g. SQL Server, Cosmos DB, Redis) to persist workflow versions and effects. The in‑memory store is suitable only for testing.
-- **Enforce backpressure.** Always specify capacities for channels and task queues and tune full modes/lease durations to match your workload. Use backpressure monitors and health checks to ensure service stability.
-- **Keep error metadata simple.** Stick to primitive types, records or known DTOs when populating `Error.Metadata` so the linker/AOT compiler can preserve them during trimming.
-- **Write deterministic tests.** Use fake time providers (`Microsoft.Extensions.TimeProvider.Testing`) and structure tests to exercise success, failure and cancellation paths. Do not rely on wall‑clock timers; Hugo’s primitives integrate with `TimeProvider` for deterministic scheduling.
-- **Use value‑task overloads for performance.** When your delegates already return `ValueTask<Result<T>>`, call `ThenValueTaskAsync`, `MapValueTaskAsync`, etc., to avoid allocations.
-- **Emit structured logs.** Attach `Result<T>.Error.Metadata` to log scopes so downstream observability pipelines can slice failures by change/version, user, region and other dimensions.
-
-By following the guidelines in this handbook and exploring the examples and references in the documentation, you can leverage Hugo’s concurrency primitives, result pipelines and deterministic coordination to build robust, observable and testable workflows in .NET.
+## Security & Configuration Tips
+- Report vulnerabilities privately (see `SECURITY.md`); avoid public GitHub issues for security.
+- Keep secrets/PII out of `Error.Metadata`; bound channel capacities and metric dimensions to avoid cardinality explosions.
+- For task queues, ensure handlers are idempotent because leases may replay; limit dead-letter payload contents.

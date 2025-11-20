@@ -1,9 +1,10 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using Shouldly;
 
 using Hugo.Policies;
 using Hugo.Sagas;
+
+using Shouldly;
 
 namespace Hugo.Tests;
 

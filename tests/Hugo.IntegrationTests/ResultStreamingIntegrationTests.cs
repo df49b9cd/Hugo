@@ -149,8 +149,8 @@ public sealed class ResultStreamingIntegrationTests
     [Fact(Timeout = 15_000)]
     public async Task ReadAllAsync_ShouldDrainChannelAfterFanIn()
     {
-        var first = ToResults([Result.Ok(1), Result.Ok(2)]);
-        var second = ToResults([Result.Ok(3)]);
+        var first = ToResults([Result.Ok(1), Result.Ok(2)], TestContext.Current.CancellationToken);
+        var second = ToResults([Result.Ok(3)], TestContext.Current.CancellationToken);
         var channel = Channel.CreateUnbounded<Result<int>>();
 
         var fanInResult = await Result.FanInAsync(new[] { first, second }, channel.Writer, TestContext.Current.CancellationToken);

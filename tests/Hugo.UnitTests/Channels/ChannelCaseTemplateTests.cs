@@ -1,7 +1,10 @@
 using System.Linq;
 using System.Threading.Channels;
+
 using Hugo;
+
 using Shouldly;
+
 using Unit = Hugo.Go.Unit;
 
 namespace Hugo.Tests.Channels;

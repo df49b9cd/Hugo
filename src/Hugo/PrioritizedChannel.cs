@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 
@@ -213,6 +214,8 @@ public sealed class PrioritizedChannel<T>
         private readonly ChannelReader<T>[] _readers;
         private readonly ConcurrentQueue<T>[] _buffers;
         private readonly int[] _bufferedPerPriority;
+        private readonly ChannelCase<Go.Unit>[] _laneCases;
+        private readonly ArrayPool<ConcurrentQueue<T>> _queuePool = ArrayPool<ConcurrentQueue<T>>.Shared;
         private readonly Task _completion;
         private readonly int _prefetchPerPriority;
         private int _bufferedTotal;
@@ -228,9 +231,15 @@ public sealed class PrioritizedChannel<T>
             var completions = new Task[readers.Length];
             for (var i = 0; i < readers.Length; i++)
             {
-                _buffers[i] = new ConcurrentQueue<T>();
+                var rented = _queuePool.Rent(1);
+                var laneQueue = rented[0];
+                _buffers[i] = laneQueue ?? new ConcurrentQueue<T>();
+                rented[0] = null!;
+                _queuePool.Return(rented, clearArray: false);
                 completions[i] = readers[i].Completion;
             }
+
+            _laneCases = BuildLaneCases(readers);
             _completion = Task.WhenAll(completions);
         }
 
@@ -311,13 +320,12 @@ public sealed class PrioritizedChannel<T>
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            ChannelCase<Go.Unit>[] laneCases = CreateLaneCases();
-            if (laneCases.Length == 0)
+            if (_laneCases.Length == 0)
             {
                 return false;
             }
 
-            Result<Go.Unit> selectResult = await Go.SelectAsync(provider: null, cancellationToken, laneCases).ConfigureAwait(false);
+            Result<Go.Unit> selectResult = await Go.SelectAsync(provider: null, cancellationToken, _laneCases).ConfigureAwait(false);
             if (selectResult.IsSuccess)
             {
                 return HasBufferedItems;
@@ -338,21 +346,19 @@ public sealed class PrioritizedChannel<T>
             throw error.Cause ?? new InvalidOperationException(error.Message);
         }
 
-        private ChannelCase<Go.Unit>[] CreateLaneCases()
+        private ChannelCase<Go.Unit>[] BuildLaneCases(ChannelReader<T>[] readers)
         {
-            ChannelCase<Go.Unit>[] cases = new ChannelCase<Go.Unit>[_readers.Length];
-            for (var priority = 0; priority < _readers.Length; priority++)
+            var cases = new ChannelCase<Go.Unit>[readers.Length];
+            for (var priority = 0; priority < readers.Length; priority++)
             {
-                cases[priority] = CreateLaneCase(priority);
+                var laneIndex = priority;
+                cases[priority] = ChannelCase<Go.Unit>
+                    .Create(readers[priority], (value, ct) => StageLaneValueAsync(laneIndex, value, ct))
+                    .WithPriority(laneIndex);
             }
 
             return cases;
         }
-
-        private ChannelCase<Go.Unit> CreateLaneCase(int priority) =>
-            ChannelCase<Go.Unit>
-                .Create(_readers[priority], (value, ct) => StageLaneValueAsync(priority, value, ct))
-                .WithPriority(priority);
 
         private ValueTask<Result<Go.Unit>> StageLaneValueAsync(int priority, T value, CancellationToken cancellationToken)
         {

@@ -1,11 +1,12 @@
 using System.Threading.Channels;
-using Shouldly;
+
+using Hugo.Policies;
 
 using Microsoft.Extensions.Time.Testing;
 
-using static Hugo.Go;
+using Shouldly;
 
-using Hugo.Policies;
+using static Hugo.Go;
 
 namespace Hugo.Tests;
 
@@ -175,7 +176,7 @@ public partial class GoTests
         var scope = new CompensationScope();
         var context = new ResultPipelineStepContext("window-race", scope, provider, TestContext.Current.CancellationToken);
 
-        var windowReader = ResultPipelineChannels.WindowAsync(
+        var window = await ResultPipelineChannels.WindowAsync(
             context,
             source.Reader,
             batchSize: 2,
@@ -188,15 +189,14 @@ public partial class GoTests
         await source.Writer.WriteAsync(5, TestContext.Current.CancellationToken);
         await source.Writer.WriteAsync(6, TestContext.Current.CancellationToken);
         source.Writer.TryComplete();
-
         var operations = new Func<CancellationToken, ValueTask<Result<IReadOnlyList<int>>>>[]
         {
             async ct =>
             {
                 var batches = new List<IReadOnlyList<int>>();
-                while (await windowReader.WaitToReadAsync(ct))
+                while (await window.WaitToReadAsync(ct))
                 {
-                    while (windowReader.TryRead(out var batch))
+                    while (window.TryRead(out var batch))
                     {
                         batches.Add(batch);
                     }

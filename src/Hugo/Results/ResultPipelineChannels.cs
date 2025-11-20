@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection.Metadata;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 
 using Hugo.Policies;
 
@@ -215,7 +217,7 @@ public static class ResultPipelineChannels
         }
     }
 
-    public static ChannelReader<IReadOnlyList<T>> WindowAsync<T>(
+    public static async ValueTask<ChannelReader<IReadOnlyList<T>>> WindowAsync<T>(
         ResultPipelineStepContext context,
         ChannelReader<T> source,
         int batchSize,
@@ -234,11 +236,23 @@ public static class ResultPipelineChannels
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, cancellationToken);
         var token = linkedCts.Token;
         var provider = context.TimeProvider;
-#pragma warning disable CA2012
 
         _ = Go.Run(async _ =>
         {
             var buffer = new List<T>(batchSize);
+            var raceOperations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<bool>>>[]
+            {
+                async (ResultPipelineStepContext _, CancellationToken raceToken) =>
+                {
+                    await CreateDelayTask(provider, flushInterval, raceToken).ConfigureAwait(false);
+                    return Result.Ok(true);
+                },
+                async (ResultPipelineStepContext _, CancellationToken raceToken) =>
+                {
+                    await source.WaitToReadAsync(raceToken).ConfigureAwait(false);
+                    return Result.Ok(false);
+                }
+            };
 
             try
             {
@@ -247,16 +261,11 @@ public static class ResultPipelineChannels
                     using var raceCts = CancellationTokenSource.CreateLinkedTokenSource(token);
                     var raceToken = raceCts.Token;
 
-                    var readerReady = source.WaitToReadAsync(raceToken).AsTask();
-                    var delay = CreateDelayTask(provider, flushInterval, raceToken).AsTask();
+                    var winnerIsDelay = await Result.WhenAny(raceOperations, cancellationToken: raceToken).ConfigureAwait(false);
+                    await raceCts.CancelAsync().ConfigureAwait(false);
 
-                    var winner = await Task.WhenAny(readerReady, delay).ConfigureAwait(false);
-                    await raceCts.CancelAsync();
-
-                    if (ReferenceEquals(winner, delay))
+                    if (winnerIsDelay.Value)
                     {
-                        await delay.ConfigureAwait(false);
-
                         if (buffer.Count > 0)
                         {
                             await output.Writer.WriteAsync([.. buffer], token).ConfigureAwait(false);
@@ -281,7 +290,7 @@ public static class ResultPipelineChannels
                         continue;
                     }
 
-                    var hasData = await readerReady.ConfigureAwait(false);
+                    var hasData = await source.WaitToReadAsync(token).ConfigureAwait(false);
                     if (!hasData)
                     {
                         break;
@@ -313,10 +322,9 @@ public static class ResultPipelineChannels
             {
                 linkedCts.Dispose();
             }
-        }, cancellationToken: CancellationToken.None);
+        }, cancellationToken: CancellationToken.None).AsTask();
 
         return output.Reader;
-#pragma warning restore CA2012
     }
 
     public static IReadOnlyList<ChannelReader<T>> FanOut<T>(

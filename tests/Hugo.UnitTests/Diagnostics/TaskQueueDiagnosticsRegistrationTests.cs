@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-using Shouldly;
-
 using Hugo.TaskQueues.Diagnostics;
+
+using Shouldly;
 
 namespace Hugo.Tests.Diagnostics;
 
@@ -42,7 +42,7 @@ public class TaskQueueDiagnosticsRegistrationTests
                    {
                        tags.Add("custom.tag", "diagnostics-test");
                    });
-              }))
+               }))
         {
             GoDiagnostics.RecordTaskQueueQueued(queueName, pendingDepth: 1);
 

@@ -1,7 +1,8 @@
 using Hugo.Policies;
-using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
+
+using Shouldly;
 
 using static Hugo.Go;
 
@@ -11,6 +12,12 @@ public class ResultFallbackTests
 {
     [Fact(Timeout = 15_000)]
     public void ResultFallbackTier_ShouldThrow_WhenOperationsEmpty() => Should.Throw<ArgumentException>(static () => new ResultFallbackTier<int>("empty", []));
+
+    [Fact(Timeout = 15_000)]
+    public void ResultFallbackTier_FromSyncOperations_ShouldGuardNullArray()
+    {
+        Should.Throw<ArgumentNullException>(() => ResultFallbackTier<int>.From("sync", (Func<Result<int>>[]?)null!));
+    }
 
     [Fact(Timeout = 15_000)]
     public async ValueTask TieredFallbackAsync_ShouldReturnValidationError_WhenNoTiersProvided()
@@ -51,6 +58,20 @@ public class ResultFallbackTests
 
         result.IsSuccess.ShouldBeTrue();
         result.Value.ShouldBe(100);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TieredFallbackAsync_ShouldRespectMultipleStrategiesWithinTier()
+    {
+        var tier = ResultFallbackTier<int>.From(
+            "sync-tier",
+            static () => Result.Fail<int>(Error.From("first sync failure", ErrorCodes.Validation)),
+            static () => Result.Ok(7));
+
+        var result = await Result.TieredFallbackAsync([tier], cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe(7);
     }
 
     [Fact(Timeout = 15_000)]
@@ -182,5 +203,48 @@ public class ResultFallbackTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error?.Code.ShouldBe(ErrorCodes.Validation);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TieredFallbackAsync_ShouldReturnCanceledWhenTierCancels()
+    {
+        var tier = ResultFallbackTier<int>.From("canceled", static ct => ValueTask.FromResult(Result.Fail<int>(Error.Canceled(token: ct))));
+
+        var result = await Result.TieredFallbackAsync([tier], cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TieredFallbackAsync_ShouldDecorateUnspecifiedStrategyErrors()
+    {
+        var tier = new ResultFallbackTier<int>(
+            "unspecified",
+            new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>[]
+            {
+                (_, _) => ValueTask.FromResult(Result.Fail<int>(null)),
+                (_, _) => ValueTask.FromResult(Result.Fail<int>(Error.Unspecified()))
+            });
+
+        var result = await Result.TieredFallbackAsync([tier], cancellationToken: TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldNotBeNull();
+        result.Error?.Code.ShouldBe(ErrorCodes.Aggregate);
+    }
+
+    [Fact(Timeout = 15_000)]
+    public async ValueTask TieredFallbackAsync_ShouldStopWhenCancellationAlreadyRequested()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var tier = ResultFallbackTier<int>.From("fast", static _ => ValueTask.FromResult(Result.Ok(1)));
+
+        var result = await Result.TieredFallbackAsync([tier], cancellationToken: cts.Token);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error?.Code.ShouldBe(ErrorCodes.Canceled);
     }
 }

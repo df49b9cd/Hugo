@@ -1,4 +1,5 @@
 using Hugo;
+
 using Shouldly;
 
 namespace Hugo.Tests.Channels;

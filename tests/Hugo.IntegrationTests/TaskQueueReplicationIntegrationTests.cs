@@ -1,8 +1,9 @@
+using Hugo.TaskQueues;
 using Hugo.TaskQueues.Replication;
-using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
-using Hugo.TaskQueues;
+
+using Shouldly;
 
 namespace Hugo.IntegrationTests;
 

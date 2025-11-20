@@ -1,6 +1,6 @@
-using Shouldly;
-
 using Microsoft.Extensions.Time.Testing;
+
+using Shouldly;
 
 namespace Hugo.Tests;
 

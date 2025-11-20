@@ -199,7 +199,7 @@ public static class Functional
         /// <param name="next">The asynchronous operation executed on success.</param>
         /// <param name="cancellationToken">The token used to cancel the chained operation.</param>
         /// <returns>A result produced by <paramref name="next"/> or the original failure.</returns>
-        public async ValueTask<Result<TOut>> ThenAsync<TOut>(Func<TIn, CancellationToken, ValueTask<Result<TOut>>> next,
+        public ValueTask<Result<TOut>> ThenAsync<TOut>(Func<TIn, CancellationToken, ValueTask<Result<TOut>>> next,
             CancellationToken cancellationToken = default
         )
         {
@@ -207,17 +207,22 @@ public static class Functional
 
             if (result.IsFailure)
             {
-                return result.CastFailure<TOut>();
+                return ValueTask.FromResult(result.CastFailure<TOut>());
             }
 
-            try
+            return InvokeNext(result.Value, next, cancellationToken);
+
+            static async ValueTask<Result<TOut>> InvokeNext(TIn value, Func<TIn, CancellationToken, ValueTask<Result<TOut>>> next, CancellationToken ct)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                return await next(result.Value, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+                try
+                {
+                    ct.ThrowIfCancellationRequested();
+                    return await next(value, ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException oce)
+                {
+                    return Result.Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+                }
             }
         }
     }
@@ -245,14 +250,13 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
                 if (result.IsFailure)
                 {
                     return result.CastFailure<TOut>();
                 }
 
-                cancellationToken.ThrowIfCancellationRequested();
                 return next(result.Value);
             }
             catch (OperationCanceledException oce)
@@ -276,14 +280,13 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
                 if (result.IsFailure)
                 {
                     return result.CastFailure<TOut>();
                 }
 
-                cancellationToken.ThrowIfCancellationRequested();
                 return await next(result.Value, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException oce)
@@ -343,14 +346,13 @@ public static class Functional
 
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
             var result = await resultTask.ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             if (result.IsFailure)
             {
                 return result.CastFailure<TOut>();
             }
 
-            cancellationToken.ThrowIfCancellationRequested();
             return await next(result.Value, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException oce)
@@ -470,14 +472,13 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
                 if (result.IsFailure)
                 {
                     return result.CastFailure<TOut>();
                 }
 
-                cancellationToken.ThrowIfCancellationRequested();
                 return Result.Ok(mapper(result.Value));
             }
             catch (OperationCanceledException oce)
@@ -501,14 +502,13 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
                 if (result.IsFailure)
                 {
                     return result.CastFailure<TOut>();
                 }
 
-                cancellationToken.ThrowIfCancellationRequested();
                 var value = await mapper(result.Value, cancellationToken).ConfigureAwait(false);
                 return Result.Ok(value);
             }
@@ -523,32 +523,9 @@ public static class Functional
         /// <param name="mapper">The ValueTask mapper executed on success.</param>
         /// <param name="cancellationToken">The token used to cancel the mapping.</param>
         /// <returns>A result containing the mapped value or the original failure.</returns>
-        public async ValueTask<Result<TOut>> MapValueTaskAsync<TOut>(Func<TIn, CancellationToken, ValueTask<TOut>> mapper,
+        public ValueTask<Result<TOut>> MapValueTaskAsync<TOut>(Func<TIn, CancellationToken, ValueTask<TOut>> mapper,
             CancellationToken cancellationToken = default
-        )
-        {
-            ArgumentNullException.ThrowIfNull(resultTask);
-
-            ArgumentNullException.ThrowIfNull(mapper);
-
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var result = await resultTask.ConfigureAwait(false);
-                if (result.IsFailure)
-                {
-                    return result.CastFailure<TOut>();
-                }
-
-                cancellationToken.ThrowIfCancellationRequested();
-                var value = await mapper(result.Value, cancellationToken).ConfigureAwait(false);
-                return Result.Ok(value);
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
-            }
-        }
+        ) => Functional.MapAsync<TIn, TOut>(resultTask, mapper, cancellationToken);
     }
 
     /// <param name="result">The source result.</param>
@@ -560,7 +537,7 @@ public static class Functional
         /// <param name="mapper">The mapper executed on success.</param>
         /// <param name="cancellationToken">The token used to cancel the mapping.</param>
         /// <returns>A result containing the mapped value or the original failure.</returns>
-        public async ValueTask<Result<TOut>> MapAsync<TOut>(Func<TIn, CancellationToken, ValueTask<TOut>> mapper,
+        public ValueTask<Result<TOut>> MapAsync<TOut>(Func<TIn, CancellationToken, ValueTask<TOut>> mapper,
             CancellationToken cancellationToken = default
         )
         {
@@ -568,18 +545,23 @@ public static class Functional
 
             if (result.IsFailure)
             {
-                return result.CastFailure<TOut>();
+                return ValueTask.FromResult(result.CastFailure<TOut>());
             }
 
-            try
+            return MapCore(result.Value, mapper, cancellationToken);
+
+            static async ValueTask<Result<TOut>> MapCore(TIn value, Func<TIn, CancellationToken, ValueTask<TOut>> mapper, CancellationToken ct)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var value = await mapper(result.Value, cancellationToken).ConfigureAwait(false);
-                return Result.Ok(value);
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+                try
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var mapped = await mapper(value, ct).ConfigureAwait(false);
+                    return Result.Ok(mapped);
+                }
+                catch (OperationCanceledException oce)
+                {
+                    return Result.Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
+                }
             }
         }
 
@@ -588,28 +570,9 @@ public static class Functional
         /// <param name="mapper">The ValueTask mapper executed on success.</param>
         /// <param name="cancellationToken">The token used to cancel the mapping.</param>
         /// <returns>A result containing the mapped value or the original failure.</returns>
-        public async ValueTask<Result<TOut>> MapValueTaskAsync<TOut>(Func<TIn, CancellationToken, ValueTask<TOut>> mapper,
+        public ValueTask<Result<TOut>> MapValueTaskAsync<TOut>(Func<TIn, CancellationToken, ValueTask<TOut>> mapper,
             CancellationToken cancellationToken = default
-        )
-        {
-            ArgumentNullException.ThrowIfNull(mapper);
-
-            if (result.IsFailure)
-            {
-                return result.CastFailure<TOut>();
-            }
-
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var value = await mapper(result.Value, cancellationToken).ConfigureAwait(false);
-                return Result.Ok(value);
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
-            }
-        }
+        ) => Functional.MapAsync<TIn, TOut>(result, mapper, cancellationToken);
     }
 
     /// <param name="resultTask">The ValueTask that produces the source result.</param>
@@ -629,14 +592,13 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
                 if (result.IsFailure)
                 {
                     return result.CastFailure<TOut>();
                 }
 
-                cancellationToken.ThrowIfCancellationRequested();
                 return Result.Ok(mapper(result.Value));
             }
             catch (OperationCanceledException oce)
@@ -658,14 +620,13 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
                 if (result.IsFailure)
                 {
                     return result.CastFailure<TOut>();
                 }
 
-                cancellationToken.ThrowIfCancellationRequested();
                 var value = await mapper(result.Value, cancellationToken).ConfigureAwait(false);
                 return Result.Ok(value);
             }
@@ -680,30 +641,9 @@ public static class Functional
         /// <param name="mapper">The ValueTask mapper executed on success.</param>
         /// <param name="cancellationToken">The token used to cancel the mapping.</param>
         /// <returns>A ValueTask containing the mapped result or the original failure.</returns>
-        public async ValueTask<Result<TOut>> MapValueTaskAsync<TOut>(Func<TIn, CancellationToken, ValueTask<TOut>> mapper,
+        public ValueTask<Result<TOut>> MapValueTaskAsync<TOut>(Func<TIn, CancellationToken, ValueTask<TOut>> mapper,
             CancellationToken cancellationToken = default
-        )
-        {
-            ArgumentNullException.ThrowIfNull(mapper);
-
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var result = await resultTask.ConfigureAwait(false);
-                if (result.IsFailure)
-                {
-                    return result.CastFailure<TOut>();
-                }
-
-                cancellationToken.ThrowIfCancellationRequested();
-                var value = await mapper(result.Value, cancellationToken).ConfigureAwait(false);
-                return Result.Ok(value);
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<TOut>(Error.Canceled(token: oce.CancellationToken));
-            }
-        }
+        ) => Functional.MapAsync<TIn, TOut>(resultTask, mapper, cancellationToken);
     }
 
     /// <summary>Executes an asynchronous side-effect when the result succeeds.</summary>
@@ -712,7 +652,7 @@ public static class Functional
     /// <param name="tapAsync">The asynchronous side-effect executed on success.</param>
     /// <param name="cancellationToken">The token used to cancel the side-effect.</param>
     /// <returns>The original result or a failure if the side-effect was canceled.</returns>
-    public static async ValueTask<Result<T>> TapAsync<T>(
+    public static ValueTask<Result<T>> TapAsync<T>(
         this Result<T> result,
         Func<T, CancellationToken, ValueTask> tapAsync,
         CancellationToken cancellationToken = default
@@ -722,18 +662,23 @@ public static class Functional
 
         if (result.IsFailure)
         {
-            return result;
+            return ValueTask.FromResult(result);
         }
 
-        try
+        return TapCore(result.Value, result, tapAsync, cancellationToken);
+
+        static async ValueTask<Result<T>> TapCore(T value, Result<T> originalResult, Func<T, CancellationToken, ValueTask> tapAsync, CancellationToken ct)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await tapAsync(result.Value, cancellationToken).ConfigureAwait(false);
-            return result;
-        }
-        catch (OperationCanceledException oce)
-        {
-            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                await tapAsync(value, ct).ConfigureAwait(false);
+                return originalResult;
+            }
+            catch (OperationCanceledException oce)
+            {
+                return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+            }
         }
     }
 
@@ -784,7 +729,6 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
@@ -807,7 +751,7 @@ public static class Functional
     /// <param name="tapAsync">The ValueTask side-effect executed on success.</param>
     /// <param name="cancellationToken">The token used to cancel the side-effect.</param>
     /// <returns>The original result or a failure if the side-effect was canceled.</returns>
-    public static async ValueTask<Result<T>> TapValueTaskAsync<T>(
+    public static ValueTask<Result<T>> TapValueTaskAsync<T>(
         this Result<T> result,
         Func<T, CancellationToken, ValueTask> tapAsync,
         CancellationToken cancellationToken = default
@@ -817,18 +761,23 @@ public static class Functional
 
         if (result.IsFailure)
         {
-            return result;
+            return ValueTask.FromResult(result);
         }
 
-        try
+        return TapCore(result.Value, result, tapAsync, cancellationToken);
+
+        static async ValueTask<Result<T>> TapCore(T value, Result<T> originalResult, Func<T, CancellationToken, ValueTask> tapAsync, CancellationToken ct)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await tapAsync(result.Value, cancellationToken).ConfigureAwait(false);
-            return result;
-        }
-        catch (OperationCanceledException oce)
-        {
-            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                await tapAsync(value, ct).ConfigureAwait(false);
+                return originalResult;
+            }
+            catch (OperationCanceledException oce)
+            {
+                return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+            }
         }
     }
 
@@ -850,7 +799,6 @@ public static class Functional
 
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
             var result = await resultTask.ConfigureAwait(false);
             if (result.IsSuccess)
             {
@@ -909,7 +857,6 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
@@ -937,7 +884,6 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
@@ -1032,7 +978,7 @@ public static class Functional
     /// <param name="tapAsync">The asynchronous side-effect executed on failure.</param>
     /// <param name="cancellationToken">The token used to cancel the side-effect.</param>
     /// <returns>The original result or a failure if the side-effect was canceled.</returns>
-    public static async ValueTask<Result<T>> TapErrorAsync<T>(
+    public static ValueTask<Result<T>> TapErrorAsync<T>(
         this Result<T> result,
         Func<Error, CancellationToken, ValueTask> tapAsync,
         CancellationToken cancellationToken = default
@@ -1042,18 +988,23 @@ public static class Functional
 
         if (result.IsSuccess)
         {
-            return result;
+            return ValueTask.FromResult(result);
         }
 
-        try
+        return TapErrorCore(result.Error!, result, tapAsync, cancellationToken);
+
+        static async ValueTask<Result<T>> TapErrorCore(Error error, Result<T> originalResult, Func<Error, CancellationToken, ValueTask> tapAsync, CancellationToken ct)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await tapAsync(result.Error!, cancellationToken).ConfigureAwait(false);
-            return result;
-        }
-        catch (OperationCanceledException oce)
-        {
-            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                await tapAsync(error, ct).ConfigureAwait(false);
+                return originalResult;
+            }
+            catch (OperationCanceledException oce)
+            {
+                return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+            }
         }
     }
 
@@ -1104,7 +1055,6 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
                 if (result.IsFailure)
                 {
@@ -1127,7 +1077,7 @@ public static class Functional
     /// <param name="tapAsync">The ValueTask side-effect executed on failure.</param>
     /// <param name="cancellationToken">The token used to cancel the side-effect.</param>
     /// <returns>The original result or a failure if the side-effect was canceled.</returns>
-    public static async ValueTask<Result<T>> TapErrorValueTaskAsync<T>(
+    public static ValueTask<Result<T>> TapErrorValueTaskAsync<T>(
         this Result<T> result,
         Func<Error, CancellationToken, ValueTask> tapAsync,
         CancellationToken cancellationToken = default
@@ -1137,18 +1087,23 @@ public static class Functional
 
         if (result.IsSuccess)
         {
-            return result;
+            return ValueTask.FromResult(result);
         }
 
-        try
+        return TapCore(result.Error!, result, tapAsync, cancellationToken);
+
+        static async ValueTask<Result<T>> TapCore(Error error, Result<T> originalResult, Func<Error, CancellationToken, ValueTask> tapAsync, CancellationToken ct)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await tapAsync(result.Error!, cancellationToken).ConfigureAwait(false);
-            return result;
-        }
-        catch (OperationCanceledException oce)
-        {
-            return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                await tapAsync(error, ct).ConfigureAwait(false);
+                return originalResult;
+            }
+            catch (OperationCanceledException oce)
+            {
+                return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+            }
         }
     }
 
@@ -1454,7 +1409,7 @@ public static class Functional
         /// <param name="recoverAsync">The recovery function executed on failure.</param>
         /// <param name="cancellationToken">The token used to cancel the recovery.</param>
         /// <returns>A result that is either the original success or the recovery outcome.</returns>
-        public async ValueTask<Result<T>> RecoverAsync(Func<Error, CancellationToken, ValueTask<Result<T>>> recoverAsync,
+        public ValueTask<Result<T>> RecoverAsync(Func<Error, CancellationToken, ValueTask<Result<T>>> recoverAsync,
             CancellationToken cancellationToken = default
         )
         {
@@ -1462,17 +1417,22 @@ public static class Functional
 
             if (result.IsSuccess)
             {
-                return result;
+                return ValueTask.FromResult(result);
             }
 
-            try
+            return RecoverCore(result.Error!, recoverAsync, cancellationToken);
+
+            static async ValueTask<Result<T>> RecoverCore(Error error, Func<Error, CancellationToken, ValueTask<Result<T>>> recoverAsync, CancellationToken ct)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                return await recoverAsync(result.Error!, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+                try
+                {
+                    ct.ThrowIfCancellationRequested();
+                    return await recoverAsync(error, ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException oce)
+                {
+                    return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+                }
             }
         }
 
@@ -1480,27 +1440,9 @@ public static class Functional
         /// <param name="recoverAsync">The recovery function executed on failure.</param>
         /// <param name="cancellationToken">The token used to cancel the recovery.</param>
         /// <returns>A result that is either the original success or the recovery outcome.</returns>
-        public async ValueTask<Result<T>> RecoverValueTaskAsync(Func<Error, CancellationToken, ValueTask<Result<T>>> recoverAsync,
+        public ValueTask<Result<T>> RecoverValueTaskAsync(Func<Error, CancellationToken, ValueTask<Result<T>>> recoverAsync,
             CancellationToken cancellationToken = default
-        )
-        {
-            ArgumentNullException.ThrowIfNull(recoverAsync);
-
-            if (result.IsSuccess)
-            {
-                return result;
-            }
-
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                return await recoverAsync(result.Error!, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
-            }
-        }
+        ) => Functional.RecoverAsync(result, recoverAsync, cancellationToken);
     }
 
     /// <param name="resultTask">The source result task.</param>
@@ -1545,7 +1487,6 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
@@ -1565,31 +1506,9 @@ public static class Functional
         /// <param name="recoverAsync">The recovery function executed on failure.</param>
         /// <param name="cancellationToken">The token used to cancel the recovery.</param>
         /// <returns>A result that is either the original success or the recovery outcome.</returns>
-        public async ValueTask<Result<T>> RecoverValueTaskAsync(Func<Error, CancellationToken, ValueTask<Result<T>>> recoverAsync,
+        public ValueTask<Result<T>> RecoverValueTaskAsync(Func<Error, CancellationToken, ValueTask<Result<T>>> recoverAsync,
             CancellationToken cancellationToken = default
-        )
-        {
-            ArgumentNullException.ThrowIfNull(resultTask);
-
-            ArgumentNullException.ThrowIfNull(recoverAsync);
-
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var result = await resultTask.ConfigureAwait(false);
-                if (result.IsSuccess)
-                {
-                    return result;
-                }
-
-                cancellationToken.ThrowIfCancellationRequested();
-                return await recoverAsync(result.Error!, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
-            }
-        }
+        ) => Functional.RecoverAsync(resultTask, recoverAsync, cancellationToken);
     }
 
     /// <param name="resultTask">The ValueTask that produces the source result.</param>
@@ -1630,7 +1549,6 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
@@ -1650,29 +1568,9 @@ public static class Functional
         /// <param name="recoverAsync">The recovery function executed on failure.</param>
         /// <param name="cancellationToken">The token used to cancel the recovery.</param>
         /// <returns>A result that is either the original success or the recovery outcome.</returns>
-        public async ValueTask<Result<T>> RecoverValueTaskAsync(Func<Error, CancellationToken, ValueTask<Result<T>>> recoverAsync,
+        public ValueTask<Result<T>> RecoverValueTaskAsync(Func<Error, CancellationToken, ValueTask<Result<T>>> recoverAsync,
             CancellationToken cancellationToken = default
-        )
-        {
-            ArgumentNullException.ThrowIfNull(recoverAsync);
-
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var result = await resultTask.ConfigureAwait(false);
-                if (result.IsSuccess)
-                {
-                    return result;
-                }
-
-                cancellationToken.ThrowIfCancellationRequested();
-                return await recoverAsync(result.Error!, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
-            }
-        }
+        ) => Functional.RecoverAsync(resultTask, recoverAsync, cancellationToken);
     }
 
     /// <param name="result">The source result.</param>
@@ -1684,7 +1582,7 @@ public static class Functional
         /// <param name="errorFactory">An optional factory that produces an error when the predicate fails.</param>
         /// <param name="cancellationToken">The token used to cancel predicate evaluation.</param>
         /// <returns>The original result when the predicate succeeds; otherwise a failure.</returns>
-        public async ValueTask<Result<T>> EnsureAsync(Func<T, CancellationToken, ValueTask<bool>> predicate,
+        public ValueTask<Result<T>> EnsureAsync(Func<T, CancellationToken, ValueTask<bool>> predicate,
             Func<T, Error>? errorFactory = null,
             CancellationToken cancellationToken = default
         )
@@ -1693,18 +1591,23 @@ public static class Functional
 
             if (result.IsFailure)
             {
-                return result;
+                return ValueTask.FromResult(result);
             }
 
-            try
+            return EnsureCore(result.Value, result, predicate, errorFactory, cancellationToken);
+
+            static async ValueTask<Result<T>> EnsureCore(T value, Result<T> originalResult, Func<T, CancellationToken, ValueTask<bool>> predicate, Func<T, Error>? errorFactory, CancellationToken ct)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var satisfied = await predicate(result.Value, cancellationToken).ConfigureAwait(false);
-                return satisfied ? result : Result.Fail<T>(errorFactory?.Invoke(result.Value) ?? Error.From("The result did not satisfy the required condition.", ErrorCodes.Validation));
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+                try
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var satisfied = await predicate(value, ct).ConfigureAwait(false);
+                    return satisfied ? originalResult : Result.Fail<T>(errorFactory?.Invoke(value) ?? Error.From("The result did not satisfy the required condition.", ErrorCodes.Validation));
+                }
+                catch (OperationCanceledException oce)
+                {
+                    return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
+                }
             }
         }
 
@@ -1713,29 +1616,10 @@ public static class Functional
         /// <param name="errorFactory">An optional factory that produces an error when the predicate fails.</param>
         /// <param name="cancellationToken">The token used to cancel predicate evaluation.</param>
         /// <returns>The original result when the predicate succeeds; otherwise a failure.</returns>
-        public async ValueTask<Result<T>> EnsureValueTaskAsync(Func<T, CancellationToken, ValueTask<bool>> predicate,
+        public ValueTask<Result<T>> EnsureValueTaskAsync(Func<T, CancellationToken, ValueTask<bool>> predicate,
             Func<T, Error>? errorFactory = null,
             CancellationToken cancellationToken = default
-        )
-        {
-            ArgumentNullException.ThrowIfNull(predicate);
-
-            if (result.IsFailure)
-            {
-                return result;
-            }
-
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var satisfied = await predicate(result.Value, cancellationToken).ConfigureAwait(false);
-                return satisfied ? result : Result.Fail<T>(errorFactory?.Invoke(result.Value) ?? Error.From("The result did not satisfy the required condition.", ErrorCodes.Validation));
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
-            }
-        }
+        ) => Functional.EnsureAsync(result, predicate, errorFactory, cancellationToken);
     }
 
     /// <param name="resultTask">The source result task.</param>
@@ -1773,26 +1657,10 @@ public static class Functional
         /// <param name="errorFactory">An optional factory that produces an error when the predicate fails.</param>
         /// <param name="cancellationToken">The token used to cancel predicate evaluation.</param>
         /// <returns>The original result when the predicate succeeds; otherwise a failure.</returns>
-        public async ValueTask<Result<T>> EnsureValueTaskAsync(Func<T, CancellationToken, ValueTask<bool>> predicate,
+        public ValueTask<Result<T>> EnsureValueTaskAsync(Func<T, CancellationToken, ValueTask<bool>> predicate,
             Func<T, Error>? errorFactory = null,
             CancellationToken cancellationToken = default
-        )
-        {
-            ArgumentNullException.ThrowIfNull(resultTask);
-
-            ArgumentNullException.ThrowIfNull(predicate);
-
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var result = await resultTask.ConfigureAwait(false);
-                return await result.EnsureValueTaskAsync(predicate, errorFactory, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
-            }
-        }
+        ) => Functional.EnsureAsync(resultTask, predicate, errorFactory, cancellationToken);
     }
 
     /// <param name="resultTask">The ValueTask that produces the source result.</param>
@@ -1835,31 +1703,10 @@ public static class Functional
         /// <param name="errorFactory">An optional factory that produces an error when the predicate fails.</param>
         /// <param name="cancellationToken">The token used to cancel predicate evaluation.</param>
         /// <returns>The original result when the predicate succeeds; otherwise a failure.</returns>
-        public async ValueTask<Result<T>> EnsureValueTaskAsync(Func<T, CancellationToken, ValueTask<bool>> predicate,
+        public ValueTask<Result<T>> EnsureValueTaskAsync(Func<T, CancellationToken, ValueTask<bool>> predicate,
             Func<T, Error>? errorFactory = null,
             CancellationToken cancellationToken = default
-        )
-        {
-            ArgumentNullException.ThrowIfNull(predicate);
-
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var result = await resultTask.ConfigureAwait(false);
-                if (result.IsFailure)
-                {
-                    return result;
-                }
-
-                cancellationToken.ThrowIfCancellationRequested();
-                var satisfied = await predicate(result.Value, cancellationToken).ConfigureAwait(false);
-                return satisfied ? result : Result.Fail<T>(errorFactory?.Invoke(result.Value) ?? Error.From("The result did not satisfy the required condition.", ErrorCodes.Validation));
-            }
-            catch (OperationCanceledException oce)
-            {
-                return Result.Fail<T>(Error.Canceled(token: oce.CancellationToken));
-            }
-        }
+        ) => Functional.EnsureAsync(resultTask, predicate, errorFactory, cancellationToken);
     }
 
     /// <param name="resultTask">The source result task.</param>
@@ -1885,7 +1732,6 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 return result.IsSuccess ? onSuccess(result.Value) : onError(result.Error!);
@@ -1915,7 +1761,6 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 return result.IsSuccess
@@ -2013,7 +1858,6 @@ public static class Functional
 
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
             var result = await resultTask.ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             return result.IsSuccess
@@ -2047,7 +1891,6 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 return result.IsSuccess ? onSuccess(result.Value) : onError(result.Error!);
@@ -2075,7 +1918,6 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 return result.IsSuccess
@@ -2105,7 +1947,6 @@ public static class Functional
 
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 var result = await resultTask.ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 return result.IsSuccess

@@ -1,5 +1,6 @@
-using static Hugo.GoExecutionHelpers;
 using Shouldly;
+
+using static Hugo.GoExecutionHelpers;
 
 namespace Hugo.Tests;
 

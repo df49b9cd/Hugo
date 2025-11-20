@@ -1,7 +1,8 @@
 using System.Text;
-using Shouldly;
 
 using Hugo.Profiling;
+
+using Shouldly;
 
 namespace Hugo.Tests.Profiling;
 

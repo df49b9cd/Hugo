@@ -1,7 +1,8 @@
 using System.Reflection;
-using Shouldly;
 
 using Hugo.Policies;
+
+using Shouldly;
 
 using Unit = Hugo.Go.Unit;
 

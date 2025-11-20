@@ -8,6 +8,9 @@
         <PackageId>Hugo.Deterministic.Redis</PackageId>
         <Description>Redis-backed deterministic state store for Hugo workflows.</Description>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <EnableAotAnalyzer>true</EnableAotAnalyzer>
+        <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
     </PropertyGroup>
 
     <ItemGroup>
