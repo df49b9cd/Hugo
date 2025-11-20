@@ -408,7 +408,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     /// <summary>Enqueues a work item for processing.</summary>
     /// <param name="value">The work item to enqueue.</param>
     /// <param name="cancellationToken">The token used to cancel the enqueue operation.</param>
-    public async ValueTask EnqueueAsync(T value, CancellationToken cancellationToken = default)
+    public ValueTask EnqueueAsync(T value, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
@@ -416,52 +416,83 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         long sequenceId = Interlocked.Increment(ref _sequenceCounter);
         QueueEnvelope envelope = new(value, sequenceId, 1, enqueuedAt, null, null);
         long depth = Interlocked.Increment(ref _pendingCount);
-        using Activity? activity = GoDiagnostics.StartTaskQueueActivity("enqueue", _queueName, sequenceId, 1);
+        Activity? activity = GoDiagnostics.StartTaskQueueActivity("enqueue", _queueName, sequenceId, 1);
 
+        if (_channel.Writer.TryWrite(envelope))
+        {
+            CompleteEnqueue(envelope, enqueuedAt, depth, activity);
+            return ValueTask.CompletedTask;
+        }
+
+        return EnqueueSlowAsync(this, envelope, enqueuedAt, depth, activity, cancellationToken);
+    }
+
+    private static async ValueTask EnqueueSlowAsync(
+        TaskQueue<T> queue,
+        QueueEnvelope envelope,
+        DateTimeOffset enqueuedAt,
+        long depth,
+        Activity? activity,
+        CancellationToken cancellationToken)
+    {
         try
         {
-            await _channel.Writer.WriteAsync(envelope, cancellationToken).ConfigureAwait(false);
-            GoDiagnostics.RecordTaskQueueQueued(_queueName, depth);
-            ObserveBackpressure(depth);
-            GoDiagnostics.CompleteTaskQueueActivity(activity);
-            PublishLifecycleEvent(TaskQueueLifecycleEventKind.Enqueued, envelope, occurrence: enqueuedAt);
+            await queue._channel.Writer.WriteAsync(envelope, cancellationToken).ConfigureAwait(false);
+            queue.CompleteEnqueue(envelope, enqueuedAt, depth, activity);
         }
         catch (Exception ex)
         {
-            Interlocked.Decrement(ref _pendingCount);
+            Interlocked.Decrement(ref queue._pendingCount);
             GoDiagnostics.CompleteTaskQueueActivity(activity, Error.FromException(ex));
             throw;
         }
     }
 
+    private void CompleteEnqueue(QueueEnvelope envelope, DateTimeOffset enqueuedAt, long depth, Activity? activity)
+    {
+        GoDiagnostics.RecordTaskQueueQueued(_queueName, depth);
+        ObserveBackpressure(depth);
+        GoDiagnostics.CompleteTaskQueueActivity(activity);
+        PublishLifecycleEvent(TaskQueueLifecycleEventKind.Enqueued, envelope, occurrence: enqueuedAt);
+    }
+
     /// <summary>Leases the next available work item, waiting if necessary.</summary>
     /// <param name="cancellationToken">The token used to cancel the lease operation.</param>
     /// <returns>An active lease that owns the work item.</returns>
-    public async ValueTask<TaskQueueLease<T>> LeaseAsync(CancellationToken cancellationToken = default)
+    public ValueTask<TaskQueueLease<T>> LeaseAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
-        QueueEnvelope envelope = default;
-        bool readSucceeded = false;
+        if (_channel.Reader.TryRead(out QueueEnvelope envelope))
+        {
+            Interlocked.Decrement(ref _pendingCount);
+            ObserveBackpressure(Math.Max(0, Volatile.Read(ref _pendingCount)));
+            return new ValueTask<TaskQueueLease<T>>(CreateLease(envelope));
+        }
+
+        return LeaseSlowAsync(this, cancellationToken);
+    }
+
+    private static async ValueTask<TaskQueueLease<T>> LeaseSlowAsync(TaskQueue<T> queue, CancellationToken cancellationToken)
+    {
+        QueueEnvelope envelope;
         try
         {
-            envelope = await _channel.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
-            readSucceeded = true;
+            envelope = await queue._channel.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (ChannelClosedException) when (IsDisposed)
+        catch (ChannelClosedException) when (queue.IsDisposed)
         {
             throw new ObjectDisposedException(nameof(TaskQueue<T>));
         }
-        finally
-        {
-            if (readSucceeded)
-            {
-                Interlocked.Decrement(ref _pendingCount);
-                ObserveBackpressure(Math.Max(0, Volatile.Read(ref _pendingCount)));
-            }
-        }
 
-        using Activity? activity = GoDiagnostics.StartTaskQueueActivity("lease", _queueName, envelope.SequenceId, envelope.Attempt);
+        Interlocked.Decrement(ref queue._pendingCount);
+        queue.ObserveBackpressure(Math.Max(0, Volatile.Read(ref queue._pendingCount)));
+        return queue.CreateLease(envelope);
+    }
+
+    private TaskQueueLease<T> CreateLease(QueueEnvelope envelope)
+    {
+        Activity? activity = GoDiagnostics.StartTaskQueueActivity("lease", _queueName, envelope.SequenceId, envelope.Attempt);
 
         Guid leaseId = Guid.NewGuid();
         DateTimeOffset now = _timeProvider.GetUtcNow();
@@ -667,6 +698,24 @@ public sealed class TaskQueue<T> : IAsyncDisposable
 
         long depth = Interlocked.Increment(ref _pendingCount);
 
+        if (_channel.Writer.TryWrite(requeued))
+        {
+            RecordRequeue(requeued, recordedToken, error, flags, depth, nextAttempt);
+            return;
+        }
+
+        await RequeueSlowAsync(requeued, recordedToken, error, flags, depth, nextAttempt, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask RequeueSlowAsync(
+        QueueEnvelope requeued,
+        TaskQueueOwnershipToken? recordedToken,
+        Error error,
+        TaskQueueLifecycleEventMetadata flags,
+        long depth,
+        int attempt,
+        CancellationToken cancellationToken)
+    {
         try
         {
             try
@@ -678,9 +727,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
                 await _channel.Writer.WriteAsync(requeued, CancellationToken.None).ConfigureAwait(false);
             }
 
-            GoDiagnostics.RecordTaskQueueRequeued(_queueName, nextAttempt, depth, ActiveLeaseCount);
-            ObserveBackpressure(depth);
-            PublishLifecycleEvent(TaskQueueLifecycleEventKind.Requeued, requeued, recordedToken, error, flags: flags);
+            RecordRequeue(requeued, recordedToken, error, flags, depth, attempt);
         }
         catch (ChannelClosedException)
         {
@@ -692,6 +739,19 @@ public sealed class TaskQueue<T> : IAsyncDisposable
             Interlocked.Decrement(ref _pendingCount);
             throw;
         }
+    }
+
+    private void RecordRequeue(
+        QueueEnvelope requeued,
+        TaskQueueOwnershipToken? recordedToken,
+        Error error,
+        TaskQueueLifecycleEventMetadata flags,
+        long depth,
+        int attempt)
+    {
+        GoDiagnostics.RecordTaskQueueRequeued(_queueName, attempt, depth, ActiveLeaseCount);
+        ObserveBackpressure(depth);
+        PublishLifecycleEvent(TaskQueueLifecycleEventKind.Requeued, requeued, recordedToken, error, flags: flags);
     }
 
     private async ValueTask DeadLetterAsync(QueueEnvelope envelope, Error error, CancellationToken cancellationToken)

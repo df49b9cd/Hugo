@@ -16,6 +16,39 @@ public class TaskQueueTests
     [Fact(Timeout = 15_000)]
     public void TaskQueueOptions_NegativeRequeueDelay_ShouldThrow() => Should.Throw<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { RequeueDelay = TimeSpan.FromMilliseconds(-1) });
 
+    [Fact(Timeout = 5_000)]
+    public async Task EnqueueAsync_WithAvailableCapacity_CompletesSynchronously()
+    {
+        var provider = new FakeTimeProvider();
+        await using var queue = new TaskQueue<string>(new TaskQueueOptions { Capacity = 8 }, provider);
+
+        ValueTask enqueue = queue.EnqueueAsync("fast", TestContext.Current.CancellationToken);
+        enqueue.IsCompletedSuccessfully.ShouldBeTrue();
+        await enqueue;
+
+        queue.PendingCount.ShouldBe(1);
+
+        var lease = await queue.LeaseAsync(TestContext.Current.CancellationToken);
+        await lease.CompleteAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact(Timeout = 5_000)]
+    public async Task LeaseAsync_WhenItemBuffered_CompletesSynchronously()
+    {
+        var provider = new FakeTimeProvider();
+        await using var queue = new TaskQueue<string>(new TaskQueueOptions { Capacity = 4 }, provider);
+
+        await queue.EnqueueAsync("hot", TestContext.Current.CancellationToken);
+
+        ValueTask<TaskQueueLease<string>> leaseTask = queue.LeaseAsync(TestContext.Current.CancellationToken);
+        leaseTask.IsCompletedSuccessfully.ShouldBeTrue();
+
+        var lease = await leaseTask;
+        lease.Value.ShouldBe("hot");
+
+        await lease.CompleteAsync(TestContext.Current.CancellationToken);
+    }
+
     [Fact(Timeout = 15_000)]
     public async Task EnqueueLeaseComplete_ShouldClearCounts()
     {

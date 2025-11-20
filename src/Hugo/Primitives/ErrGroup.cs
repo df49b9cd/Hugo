@@ -183,29 +183,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
         try
         {
             ThrowIfDisposed();
-            ThreadPool.UnsafeQueueUserWorkItem(static state =>
-            {
-                var (group, work) = state;
-
-                try
-                {
-                    Task task = work();
-
-                    if (task.IsCompleted)
-                    {
-                        group.HandleRunnerCompletion(task);
-                        return;
-                    }
-
-                    var awaiter = task.ConfigureAwait(false).GetAwaiter();
-                    awaiter.UnsafeOnCompleted(() => group.HandleRunnerCompletion(task));
-                }
-                catch (Exception ex)
-                {
-                    group.PropagateException(ex);
-                    group._waitGroup.Done();
-                }
-            }, (this, runner), preferLocal: true);
+            ThreadPool.UnsafeQueueUserWorkItem(RunnerDispatch, (this, runner), preferLocal: true);
         }
         catch
         {
@@ -213,6 +191,29 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
             throw;
         }
     }
+
+    private static readonly Action<(ErrGroup Group, Func<Task> Work)> RunnerDispatch = static state =>
+    {
+        var (group, work) = state;
+
+        try
+        {
+            Task task = work();
+
+            if (task.IsCompleted)
+            {
+                group.HandleRunnerCompletion(task);
+                return;
+            }
+
+            task.ConfigureAwait(false).GetAwaiter().UnsafeOnCompleted(() => group.HandleRunnerCompletion(task));
+        }
+        catch (Exception ex)
+        {
+            group.PropagateException(ex);
+            group._waitGroup.Done();
+        }
+    };
 
     private void HandleRunnerCompletion(Task task)
     {
