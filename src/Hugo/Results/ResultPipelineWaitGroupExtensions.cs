@@ -37,7 +37,7 @@ public static class ResultPipelineWaitGroupExtensions
             }
             finally
             {
-                await linkedCts.CancelAsync();
+                await linkedCts.CancelAsync().ConfigureAwait(false);
             }
 
             parentContext.AbsorbResult(result);

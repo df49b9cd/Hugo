@@ -95,7 +95,7 @@ public static partial class Result
         }
 
         var values = new List<T>(results.Length);
-        var errors = new List<Error>();
+        var errors = new List<Error>(results.Length);
 
         for (var i = 0; i < results.Length; i++)
         {
@@ -165,7 +165,7 @@ public static partial class Result
         var effectivePolicy = policy ?? ResultExecutionPolicy.None;
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var compensationScope = new CompensationScope();
-        var errors = new List<Error>();
+        var errors = new List<Error>(operationList.Count);
         PipelineOperationResult<T>? winner = null;
 
         async Task<(int Index, PipelineOperationResult<T> Outcome)> ExecuteOperationAsync(int operationIndex, Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>> operation)
@@ -181,7 +181,7 @@ public static partial class Result
         {
             var operationIndex = i;
             var operation = operationList[operationIndex] ?? throw new ArgumentNullException(nameof(operations), "Operation delegate cannot be null.");
-            running.Add(Task.Run(async () => await ExecuteOperationAsync(operationIndex, operation).ConfigureAwait(false), CancellationToken.None));
+            running.Add(ExecuteOperationAsync(operationIndex, operation));
         }
 
         while (running.Count > 0)
@@ -275,7 +275,7 @@ public static partial class Result
         OperationCanceledException exception,
         CancellationToken fallbackToken)
     {
-        var partialErrors = new List<Error>();
+        var partialErrors = new List<Error>(operations.Length);
 
         for (var i = 0; i < operations.Length; i++)
         {

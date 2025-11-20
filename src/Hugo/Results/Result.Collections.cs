@@ -13,7 +13,7 @@ public static partial class Result
     {
         ArgumentNullException.ThrowIfNull(results);
 
-        var values = new List<T>();
+        var values = CreateListWithExpectedCount<Result<T>, T>(results);
         foreach (var result in results)
         {
             if (result.IsFailure)
@@ -41,7 +41,7 @@ public static partial class Result
 
         ArgumentNullException.ThrowIfNull(selector);
 
-        var values = new List<TOut>();
+        var values = CreateListWithExpectedCount<TIn, TOut>(source);
         foreach (var item in source)
         {
             var result = selector(item);
@@ -104,7 +104,7 @@ public static partial class Result
 
         ArgumentNullException.ThrowIfNull(selector);
 
-        var values = new List<TOut>();
+        var values = CreateListWithExpectedCount<TIn, TOut>(source);
 
         try
         {
@@ -216,5 +216,19 @@ public static partial class Result
             return Fail<IReadOnlyList<TOut>>(Error.FromException(ex));
         }
     }
+
+    private static List<TOut> CreateListWithExpectedCount<TIn, TOut>(IEnumerable<TIn> source)
+    {
+        var count = TryGetCount(source);
+        return count > 0 ? new List<TOut>(count) : new List<TOut>();
+    }
+
+    private static int TryGetCount<TSource>(IEnumerable<TSource> source) =>
+        source switch
+        {
+            ICollection<TSource> collection => collection.Count,
+            IReadOnlyCollection<TSource> readOnlyCollection => readOnlyCollection.Count,
+            _ => -1
+        };
 }
 #pragma warning restore CA1708

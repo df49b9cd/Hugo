@@ -50,9 +50,12 @@ public sealed class ResultFallbackTier<T>
     {
         ArgumentNullException.ThrowIfNull(operations);
 
-        var pipelineOperations = operations.Select(operation =>
-            (Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>)(
-                (_, cancellationToken) => operation(cancellationToken)));
+        var pipelineOperations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>[operations.Length];
+        for (var i = 0; i < operations.Length; i++)
+        {
+            var operation = operations[i] ?? throw new ArgumentNullException(nameof(operations), "Fallback operation cannot be null.");
+            pipelineOperations[i] = (_, cancellationToken) => operation(cancellationToken);
+        }
 
         return new ResultFallbackTier<T>(name, pipelineOperations);
     }
@@ -68,9 +71,12 @@ public sealed class ResultFallbackTier<T>
     {
         ArgumentNullException.ThrowIfNull(operations);
 
-        var pipelineOperations = operations.Select(operation =>
-            (Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>)(
-                (_, _) => ValueTask.FromResult(operation())));
+        var pipelineOperations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>[operations.Length];
+        for (var i = 0; i < operations.Length; i++)
+        {
+            var operation = operations[i] ?? throw new ArgumentNullException(nameof(operations), "Fallback operation cannot be null.");
+            pipelineOperations[i] = (_, _) => ValueTask.FromResult(operation());
+        }
 
         return new ResultFallbackTier<T>(name, pipelineOperations);
     }

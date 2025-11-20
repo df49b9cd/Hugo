@@ -311,8 +311,16 @@ public static partial class Result
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(writer);
 
-        ValueTask[] forwarders = [.. sources.Select(source => Go.Run(
-            ct => ForwardToChannelInternalAsync(source, writer, completeWriter: false, ct), cancellationToken: cancellationToken))];
+        var forwarderCount = TryGetCount(sources);
+        var forwarders = forwarderCount > 0 ? new List<ValueTask>(forwarderCount) : new List<ValueTask>();
+#pragma warning disable CA2012 // ValueTask stored for aggregation; consumed exactly once by WhenAll below.
+        foreach (var source in sources)
+        {
+            forwarders.Add(Go.Run(
+                ct => ForwardToChannelInternalAsync(source, writer, completeWriter: false, ct),
+                cancellationToken: cancellationToken));
+        }
+#pragma warning restore CA2012
 
         using var cancellationRegistration = cancellationToken.Register(static state =>
         {

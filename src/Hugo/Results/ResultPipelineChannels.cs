@@ -240,6 +240,19 @@ public static class ResultPipelineChannels
         _ = Go.Run(async _ =>
         {
             var buffer = new List<T>(batchSize);
+            var raceOperations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<bool>>>[]
+            {
+                async (ResultPipelineStepContext _, CancellationToken raceToken) =>
+                {
+                    await CreateDelayTask(provider, flushInterval, raceToken).ConfigureAwait(false);
+                    return Result.Ok(true);
+                },
+                async (ResultPipelineStepContext _, CancellationToken raceToken) =>
+                {
+                    await source.WaitToReadAsync(raceToken).ConfigureAwait(false);
+                    return Result.Ok(false);
+                }
+            };
 
             try
             {
@@ -248,22 +261,8 @@ public static class ResultPipelineChannels
                     using var raceCts = CancellationTokenSource.CreateLinkedTokenSource(token);
                     var raceToken = raceCts.Token;
 
-                    var operations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<bool>>>[]
-                    {
-                        async ValueTask<Result<bool>> (ResultPipelineStepContext context, CancellationToken token) =>
-                        {
-                            await CreateDelayTask(provider, flushInterval, token);
-                            return Result.Ok(true);
-                        },
-                        async ValueTask<Result<bool>> (ResultPipelineStepContext context, CancellationToken token) =>
-                        {
-                            await source.WaitToReadAsync(token);
-                            return Result.Ok(false);
-                        }
-                    };
-
-                    var winnerIsDelay = await Result.WhenAny(operations, cancellationToken: raceToken).ConfigureAwait(false);
-                    await raceCts.CancelAsync();
+                    var winnerIsDelay = await Result.WhenAny(raceOperations, cancellationToken: raceToken).ConfigureAwait(false);
+                    await raceCts.CancelAsync().ConfigureAwait(false);
 
                     if (winnerIsDelay.Value)
                     {
