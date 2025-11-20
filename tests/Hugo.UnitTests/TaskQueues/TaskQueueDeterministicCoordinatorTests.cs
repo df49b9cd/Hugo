@@ -13,7 +13,7 @@ public sealed class TaskQueueDeterministicCoordinatorTests
         var store = new InMemoryDeterministicStateStore();
         DeterministicEffectStore effectStore = new(
             store,
-            serializerOptions: TaskQueueReplicationJsonSerialization.CreateOptions<int>());
+            serializerOptions: TaskQueueReplicationJsonSerialization.CreateOptions<int>(ReplicationTestJsonContext.Default));
         var coordinator = new TaskQueueDeterministicCoordinator<int>(effectStore);
 
         TaskQueueReplicationEvent<int> replicationEvent = new(

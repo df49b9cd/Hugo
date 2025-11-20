@@ -1,5 +1,3 @@
-using System.Buffers;
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -7,62 +5,76 @@ using System.Text.Json.Serialization.Metadata;
 namespace Hugo.TaskQueues.Replication;
 
 /// <summary>
-/// Provides helpers for configuring replication serialization metadata.
+/// Helpers for configuring Native AOT-friendly serialization of <see cref="TaskQueueReplicationEvent{T}"/>.
 /// </summary>
 public static class TaskQueueReplicationJsonSerialization
 {
     /// <summary>
     /// Creates <see cref="JsonSerializerOptions"/> that include converters for <see cref="TaskQueueReplicationEvent{T}"/>.
+    /// Caller must provide a <see cref="JsonSerializerContext"/> that exposes metadata for <typeparamref name="T"/>.
     /// </summary>
-    /// <typeparam name="T">Payload type.</typeparam>
-    /// <param name="template">Optional options to clone.</param>
-    public static JsonSerializerOptions CreateOptions<T>(JsonSerializerOptions? template = null)
+    public static JsonSerializerOptions CreateOptions<T>(JsonSerializerContext context, JsonSerializerOptions? template = null)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         var options = template is null ? new JsonSerializerOptions(JsonSerializerDefaults.Web) : new JsonSerializerOptions(template);
-        EnsureConverter<T>(options);
+        var valueInfo = context.GetTypeInfo(typeof(T)) as JsonTypeInfo<T>
+                        ?? throw new InvalidOperationException($"The supplied JsonSerializerContext '{context.GetType().Name}' does not expose metadata for '{typeof(T)}'.");
+
+        EnsureConverter(options, valueInfo);
         return options;
     }
 
     /// <summary>
-    /// Adds converters for <see cref="TaskQueueReplicationEvent{T}"/> onto existing options.
+    /// Adds the replication converter to existing options using caller-supplied metadata for the payload type.
     /// </summary>
-    public static void EnsureConverter<T>(JsonSerializerOptions options)
+    public static void EnsureConverter<T>(JsonSerializerOptions options, JsonTypeInfo<T> valueTypeInfo)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(valueTypeInfo);
 
         foreach (JsonConverter converter in options.Converters)
         {
-            if (converter is TaskQueueReplicationEventJsonConverterFactory)
+            if (converter is TaskQueueReplicationEventJsonConverter<T>)
             {
                 return;
             }
         }
 
-        options.Converters.Add(new TaskQueueReplicationEventJsonConverterFactory());
-    }
+        var replicationMetadata = TaskQueueReplicationMetadataContext.Default;
+        var errorInfo = DeterministicJsonSerialization.DefaultContext.GetTypeInfo<Error>() as JsonTypeInfo<Error>
+                        ?? throw new InvalidOperationException("DeterministicJsonSerialization context did not expose Error metadata.");
 
-    /// <summary>
-    /// Creates an <see cref="IJsonTypeInfoResolver"/> for <see cref="TaskQueueReplicationEvent{T}"/> backed by the converter (AOT-safe).
-    /// </summary>
-    public static IJsonTypeInfoResolver CreateResolver<T>(JsonSerializerOptions? template = null) =>
-        new ConverterBackedResolver<T>(template ?? new JsonSerializerOptions(JsonSerializerDefaults.Web));
-
-    private sealed class TaskQueueReplicationEventJsonConverterFactory : JsonConverterFactory
-    {
-        public override bool CanConvert(Type typeToConvert) =>
-            typeToConvert.IsGenericType && typeToConvert.GetGenericTypeDefinition() == typeof(TaskQueueReplicationEvent<>);
-
-        [RequiresDynamicCode("Calls System.Type.MakeGenericType(params Type[])")]
-        public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
-        {
-            Type payloadType = typeToConvert.GetGenericArguments()[0];
-            Type converterType = typeof(TaskQueueReplicationEventJsonConverter<>).MakeGenericType(payloadType);
-            return (JsonConverter)Activator.CreateInstance(converterType)!;
-        }
+        options.Converters.Add(new TaskQueueReplicationEventJsonConverter<T>(
+            valueTypeInfo,
+            replicationMetadata.TaskQueueReplicationEventKind,
+            errorInfo,
+            replicationMetadata.TaskQueueOwnershipToken,
+            replicationMetadata.TaskQueueLifecycleEventMetadata));
     }
 
     private sealed class TaskQueueReplicationEventJsonConverter<T> : JsonConverter<TaskQueueReplicationEvent<T>>
     {
+        private readonly JsonTypeInfo<T> _valueInfo;
+        private readonly JsonTypeInfo<TaskQueueReplicationEventKind> _kindInfo;
+        private readonly JsonTypeInfo<Error> _errorInfo;
+        private readonly JsonTypeInfo<TaskQueueOwnershipToken> _ownershipInfo;
+        private readonly JsonTypeInfo<TaskQueueLifecycleEventMetadata> _flagsInfo;
+
+        public TaskQueueReplicationEventJsonConverter(
+            JsonTypeInfo<T> valueInfo,
+            JsonTypeInfo<TaskQueueReplicationEventKind> kindInfo,
+            JsonTypeInfo<Error> errorInfo,
+            JsonTypeInfo<TaskQueueOwnershipToken> ownershipInfo,
+            JsonTypeInfo<TaskQueueLifecycleEventMetadata> flagsInfo)
+        {
+            _valueInfo = valueInfo;
+            _kindInfo = kindInfo;
+            _errorInfo = errorInfo;
+            _ownershipInfo = ownershipInfo;
+            _flagsInfo = flagsInfo;
+        }
+
         private static readonly JsonEncodedText SequenceNumberProp = JsonEncodedText.Encode("sequenceNumber");
         private static readonly JsonEncodedText SourceEventIdProp = JsonEncodedText.Encode("sourceEventId");
         private static readonly JsonEncodedText QueueNameProp = JsonEncodedText.Encode("queueName");
@@ -95,8 +107,6 @@ public static class TaskQueueReplicationJsonSerialization
         private static ReadOnlySpan<byte> LeaseExpirationName => "leaseExpiration"u8;
         private static ReadOnlySpan<byte> FlagsName => "flags"u8;
 
-        [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(ref Utf8JsonReader, JsonSerializerOptions)")]
-        [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(ref Utf8JsonReader, JsonSerializerOptions)")]
         public override TaskQueueReplicationEvent<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             if (reader.TokenType != JsonTokenType.StartObject)
@@ -153,7 +163,7 @@ public static class TaskQueueReplicationJsonSerialization
                 if (reader.ValueTextEquals(KindName))
                 {
                     reader.Read();
-                    kind = JsonSerializer.Deserialize<TaskQueueReplicationEventKind>(ref reader, options);
+                    kind = JsonSerializer.Deserialize(ref reader, _kindInfo);
                     continue;
                 }
                 if (reader.ValueTextEquals(SourcePeerIdName))
@@ -195,19 +205,19 @@ public static class TaskQueueReplicationJsonSerialization
                 if (reader.ValueTextEquals(ValueName))
                 {
                     reader.Read();
-                    value = JsonSerializer.Deserialize<T>(ref reader, options);
+                    value = JsonSerializer.Deserialize(ref reader, _valueInfo);
                     continue;
                 }
                 if (reader.ValueTextEquals(ErrorName))
                 {
                     reader.Read();
-                    error = reader.TokenType == JsonTokenType.Null ? null : JsonSerializer.Deserialize<Error>(ref reader, options);
+                    error = reader.TokenType == JsonTokenType.Null ? null : JsonSerializer.Deserialize(ref reader, _errorInfo);
                     continue;
                 }
                 if (reader.ValueTextEquals(OwnershipTokenName))
                 {
                     reader.Read();
-                    ownershipToken = reader.TokenType == JsonTokenType.Null ? null : JsonSerializer.Deserialize<TaskQueueOwnershipToken>(ref reader, options);
+                    ownershipToken = reader.TokenType == JsonTokenType.Null ? null : JsonSerializer.Deserialize(ref reader, _ownershipInfo);
                     continue;
                 }
                 if (reader.ValueTextEquals(LeaseExpirationName))
@@ -219,11 +229,10 @@ public static class TaskQueueReplicationJsonSerialization
                 if (reader.ValueTextEquals(FlagsName))
                 {
                     reader.Read();
-                    flags = JsonSerializer.Deserialize<TaskQueueLifecycleEventMetadata>(ref reader, options);
+                    flags = JsonSerializer.Deserialize(ref reader, _flagsInfo);
                     continue;
                 }
 
-                // unknown property
                 reader.Skip();
             }
 
@@ -250,8 +259,6 @@ public static class TaskQueueReplicationJsonSerialization
                 flags);
         }
 
-        [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(Utf8JsonWriter, TValue, JsonSerializerOptions)")]
-        [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(Utf8JsonWriter, TValue, JsonSerializerOptions)")]
         public override void Write(Utf8JsonWriter writer, TaskQueueReplicationEvent<T> value, JsonSerializerOptions options)
         {
             writer.WriteStartObject();
@@ -259,23 +266,26 @@ public static class TaskQueueReplicationJsonSerialization
             writer.WriteNumber(SourceEventIdProp, value.SourceEventId);
             writer.WriteString(QueueNameProp, value.QueueName);
             writer.WritePropertyName(KindProp);
-            JsonSerializer.Serialize(writer, value.Kind, options);
-            if (value.SourcePeerId is not null)
+            JsonSerializer.Serialize(writer, value.Kind, _kindInfo);
+
+            writer.WritePropertyName(SourcePeerIdProp);
+            if (value.SourcePeerId is null)
             {
-                writer.WriteString(SourcePeerIdProp, value.SourcePeerId);
+                writer.WriteNullValue();
             }
             else
             {
-                writer.WriteNull(SourcePeerIdProp);
+                writer.WriteStringValue(value.SourcePeerId);
             }
 
-            if (value.OwnerPeerId is not null)
+            writer.WritePropertyName(OwnerPeerIdProp);
+            if (value.OwnerPeerId is null)
             {
-                writer.WriteString(OwnerPeerIdProp, value.OwnerPeerId);
+                writer.WriteNullValue();
             }
             else
             {
-                writer.WriteNull(OwnerPeerIdProp);
+                writer.WriteStringValue(value.OwnerPeerId);
             }
 
             writer.WriteString(OccurredAtProp, value.OccurredAt);
@@ -284,7 +294,7 @@ public static class TaskQueueReplicationJsonSerialization
             writer.WriteNumber(AttemptProp, value.Attempt);
 
             writer.WritePropertyName(ValueProp);
-            JsonSerializer.Serialize(writer, value.Value, options);
+            JsonSerializer.Serialize(writer, value.Value, _valueInfo);
 
             writer.WritePropertyName(ErrorProp);
             if (value.Error is null)
@@ -293,7 +303,7 @@ public static class TaskQueueReplicationJsonSerialization
             }
             else
             {
-                JsonSerializer.Serialize(writer, value.Error, options);
+                JsonSerializer.Serialize(writer, value.Error, _errorInfo);
             }
 
             writer.WritePropertyName(OwnershipTokenProp);
@@ -303,7 +313,7 @@ public static class TaskQueueReplicationJsonSerialization
             }
             else
             {
-                JsonSerializer.Serialize(writer, value.OwnershipToken, options);
+                JsonSerializer.Serialize(writer, value.OwnershipToken, _ownershipInfo);
             }
 
             writer.WritePropertyName(LeaseExpirationProp);
@@ -317,24 +327,9 @@ public static class TaskQueueReplicationJsonSerialization
             }
 
             writer.WritePropertyName(FlagsProp);
-            JsonSerializer.Serialize(writer, value.Flags, options);
+            JsonSerializer.Serialize(writer, value.Flags, _flagsInfo);
 
             writer.WriteEndObject();
-        }
-    }
-
-    private sealed class ConverterBackedResolver<T> : IJsonTypeInfoResolver
-    {
-        public ConverterBackedResolver(JsonSerializerOptions options) => ArgumentNullException.ThrowIfNull(options);
-
-        public JsonTypeInfo? GetTypeInfo(Type type, JsonSerializerOptions options)
-        {
-            if (type == typeof(TaskQueueReplicationEvent<T>))
-            {
-                EnsureConverter<T>(options);
-            }
-
-            return null;
         }
     }
 }
