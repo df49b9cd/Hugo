@@ -96,31 +96,32 @@ public static partial class Result
                     pipelineScope,
                     effectivePolicy,
                     oce,
+                    length,
                     cancellationToken).ConfigureAwait(false);
                 return Fail<IReadOnlyList<T>>(cancellationError);
             }
 
-        var values = new List<T>(results.Length);
-        var errors = new List<Error>(results.Length);
+            var values = new List<T>(length);
+            var errors = new List<Error>(length);
 
-        for (var i = 0; i < results.Length; i++)
-        {
-            if (!completed[i])
+            for (var i = 0; i < length; i++)
             {
-                continue;
-            }
+                if (!completed[i])
+                {
+                    continue;
+                }
 
-            var entry = results[i];
-            if (entry.Result.IsSuccess)
-            {
-                pipelineScope.Absorb(entry.Compensation);
-                values.Add(entry.Result.Value);
-                continue;
-            }
+                var entry = results[i];
+                if (entry.Result.IsSuccess)
+                {
+                    pipelineScope.Absorb(entry.Compensation);
+                    values.Add(entry.Result.Value);
+                    continue;
+                }
 
-            entry.Compensation.Clear();
-            errors.Add(entry.Result.Error ?? Error.Unspecified());
-        }
+                entry.Compensation.Clear();
+                errors.Add(entry.Result.Error ?? Error.Unspecified());
+            }
 
             if (errors.Count == 0)
             {
@@ -286,11 +287,12 @@ public static partial class Result
         CompensationScope pipelineScope,
         ResultExecutionPolicy policy,
         OperationCanceledException exception,
+        int length,
         CancellationToken fallbackToken)
     {
-        var partialErrors = new List<Error>(operations.Length);
+        var partialErrors = new List<Error>(length);
 
-        for (var i = 0; i < operations.Length; i++)
+        for (var i = 0; i < length; i++)
         {
             if (completed[i])
             {

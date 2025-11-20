@@ -50,6 +50,7 @@ public sealed class ResultWhenAllCancellationMetadataIntegrationTests
                 pipelineScope,
                 policy,
                 new OperationCanceledException(canceledCts.Token),
+                operations.Length,
                 fallbackCts.Token
             })!;
 
@@ -94,6 +95,7 @@ public sealed class ResultWhenAllCancellationMetadataIntegrationTests
                 pipelineScope,
                 policy,
                 new OperationCanceledException(canceledCts.Token),
+                operations.Length,
                 fallbackCts.Token
             })!;
 
