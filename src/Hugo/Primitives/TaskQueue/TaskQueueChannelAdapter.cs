@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
 using Unit = Hugo.Go.Unit;
@@ -28,8 +29,18 @@ public sealed class TaskQueueChannelAdapter<T> : IAsyncDisposable
         _pumps = new Task<Exception?>[concurrency];
         for (int i = 0; i < concurrency; i++)
         {
-            _pumps[i] = Task.Run(PumpAsync);
-            _pumps[i].ContinueWith(HandlePumpCompletion, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            var pump = Task.Run(PumpAsync);
+            _pumps[i] = pump;
+
+            if (pump.IsCompleted)
+            {
+                HandlePumpCompletion(pump);
+            }
+            else
+            {
+                var awaiter = pump.ConfigureAwait(false).GetAwaiter();
+                awaiter.UnsafeOnCompleted(() => HandlePumpCompletion(pump));
+            }
         }
     }
 

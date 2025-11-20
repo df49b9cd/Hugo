@@ -94,7 +94,17 @@ public sealed class WaitGroup
     /// <param name="task">The task to observe.</param>
     public void Go(ValueTask task) => Add(task);
 
-    private void ObserveTask(Task task) => task.ContinueWith(static (_, state) => ((WaitGroup)state!).Done(), this, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+    private void ObserveTask(Task task)
+    {
+        if (task.IsCompleted)
+        {
+            Done();
+            return;
+        }
+
+        var awaiter = task.ConfigureAwait(false).GetAwaiter();
+        awaiter.UnsafeOnCompleted(Done);
+    }
 
     /// <summary>Signals that one of the registered operations has completed.</summary>
     public void Done()
