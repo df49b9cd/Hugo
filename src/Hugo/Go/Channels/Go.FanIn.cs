@@ -304,11 +304,15 @@ public static partial class Go
         ChannelReader<T>[] readers = GoChannelHelpers.CollectSources(sources);
         Channel<T> output = Channel.CreateUnbounded<T>();
 
-        _ = Task.Run(async () =>
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        ThreadPool.UnsafeQueueUserWorkItem(static async state =>
         {
+            var (readers, output, timeout, provider, token, tcs) =
+                ((ChannelReader<T>[] Readers, Channel<T> Output, TimeSpan? Timeout, TimeProvider? Provider, CancellationToken Token, TaskCompletionSource Completion))state;
             try
             {
-                Result<Unit> result = await FanInAsync(readers, output.Writer, completeDestination: false, timeout: timeout, provider: provider, cancellationToken: cancellationToken).ConfigureAwait(false);
+                Result<Unit> result = await FanInAsync(readers, output.Writer, completeDestination: false, timeout: timeout, provider: provider, cancellationToken: token).ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
                     output.Writer.TryComplete();
@@ -317,12 +321,15 @@ public static partial class Go
                 {
                     output.Writer.TryComplete(GoChannelHelpers.CreateChannelOperationException(result.Error ?? Error.Unspecified()));
                 }
+
+                tcs.TrySetResult();
             }
             catch (Exception ex)
             {
                 output.Writer.TryComplete(ex);
+                tcs.TrySetException(ex);
             }
-        }, CancellationToken.None);
+        }, (readers, output, timeout, provider, cancellationToken, completion), preferLocal: true);
 
         return output.Reader;
     }

@@ -43,7 +43,23 @@ public sealed class TaskQueueDiagnosticsHost : IAsyncDisposable
             SingleWriter = false
         });
 
-        _pumps.Add(Task.Run(() => PumpBackpressureAsync(_cts.Token)));
+        // Fire-and-forget pump with minimal scheduling overhead.
+        var pumpCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        ThreadPool.UnsafeQueueUserWorkItem(static async state =>
+        {
+            var (host, token, tcs) = ((TaskQueueDiagnosticsHost Host, CancellationToken Token, TaskCompletionSource Completion))state;
+            try
+            {
+                await host.PumpBackpressureAsync(token).ConfigureAwait(false);
+                tcs.TrySetResult();
+            }
+            catch (Exception ex)
+            {
+                tcs.TrySetException(ex);
+            }
+        }, (this, _cts.Token, pumpCompletion), preferLocal: true);
+
+        _pumps.Add(pumpCompletion.Task);
     }
 
     /// <summary>Gets the listener streaming backpressure signals.</summary>
