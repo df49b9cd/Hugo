@@ -1,6 +1,7 @@
 namespace Hugo;
 
 using System.Runtime.CompilerServices;
+
 using Hugo.Policies;
 
 using Unit = Hugo.Go.Unit;
