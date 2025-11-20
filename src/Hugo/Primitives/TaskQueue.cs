@@ -441,7 +441,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
     {
         ThrowIfDisposed();
 
-        QueueEnvelope envelope = default!;
+        QueueEnvelope envelope = default;
         bool readSucceeded = false;
         try
         {
@@ -671,7 +671,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         {
             try
             {
-                await _channel.Writer.WriteAsync(requeued, cancellationToken).ConfigureAwait(false);
+            await _channel.Writer.WriteAsync(requeued, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -827,7 +827,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         List<QueueEnvelope> drained = [];
         while (await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            while (_channel.Reader.TryRead(out QueueEnvelope? envelope))
+            while (_channel.Reader.TryRead(out QueueEnvelope envelope))
             {
                 Interlocked.Decrement(ref _pendingCount);
                 drained.Add(envelope);
@@ -965,7 +965,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         dispatcher.Publish(lifecycleEvent);
     }
 
-    private sealed record QueueEnvelope(
+    private readonly record struct QueueEnvelope(
         T Value,
         long SequenceId,
         int Attempt,

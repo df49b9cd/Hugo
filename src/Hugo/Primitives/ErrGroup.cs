@@ -287,7 +287,24 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     }
 
     /// <inheritdoc />
-    public void Dispose() => Interlocked.Exchange(ref _disposed, 1);
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            _cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already torn down.
+        }
+
+        _cts.Dispose();
+    }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
