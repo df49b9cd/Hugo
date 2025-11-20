@@ -10,4 +10,6 @@ internal static class BenchmarkCategories
     public const string Pools = "pools";
     public const string Queues = "queues";
     public const string Timers = "timers";
+    public const string Deterministic = "deterministic";
+    public const string Diagnostics = "diagnostics";
 }
