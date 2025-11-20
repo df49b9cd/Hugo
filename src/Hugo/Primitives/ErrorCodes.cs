@@ -1,5 +1,7 @@
 namespace Hugo;
 
+using System.Collections.Frozen;
+
 /// <summary>
 /// Provides well-known error codes emitted by the library together with descriptive metadata.
 /// </summary>
@@ -69,7 +71,7 @@ public static class ErrorCodes
         new(nameof(VersionConflict), VersionConflict, "Deterministic workflow attempted to execute an unsupported version.", "Deterministic"),
     ];
 
-    private static readonly Dictionary<string, ErrorDescriptor> DescriptorMap = CreateDescriptors();
+    private static readonly FrozenDictionary<string, ErrorDescriptor> DescriptorMap = CreateDescriptors();
 
     /// <summary>
     /// Gets a read-only view of all known error descriptors keyed by error code.
@@ -106,7 +108,7 @@ public static class ErrorCodes
         return descriptor;
     }
 
-    private static Dictionary<string, ErrorDescriptor> CreateDescriptors()
+    private static FrozenDictionary<string, ErrorDescriptor> CreateDescriptors()
     {
         var descriptors = new Dictionary<string, ErrorDescriptor>(AllDescriptors.Length, StringComparer.Ordinal);
         foreach (var descriptor in AllDescriptors)
@@ -114,7 +116,7 @@ public static class ErrorCodes
             descriptors[descriptor.Code] = descriptor;
         }
 
-        return descriptors;
+        return descriptors.ToFrozenDictionary(StringComparer.Ordinal);
     }
 }
 
