@@ -19,7 +19,8 @@ public class TaskQueueHeartbeatBenchmarks
         await using var queue = new TaskQueue<int>(new TaskQueueOptions
         {
             Capacity = LeaseCount,
-            LeaseDuration = TimeSpan.FromMilliseconds(HeartbeatIntervalMs * 2)
+            LeaseDuration = TimeSpan.FromMilliseconds(HeartbeatIntervalMs * 2),
+            HeartbeatInterval = TimeSpan.FromMilliseconds(HeartbeatIntervalMs / 4)
         });
 
         for (var i = 0; i < LeaseCount; i++)
@@ -37,7 +38,7 @@ public class TaskQueueHeartbeatBenchmarks
         foreach (var lease in leases)
         {
             await lease.HeartbeatAsync().ConfigureAwait(false);
-            await Task.Delay(HeartbeatIntervalMs / 2).ConfigureAwait(false);
+            BenchmarkWorkloads.SimulateLightCpuWork();
             await lease.CompleteAsync().ConfigureAwait(false);
         }
     }

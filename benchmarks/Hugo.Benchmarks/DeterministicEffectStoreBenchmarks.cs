@@ -16,6 +16,7 @@ public class DeterministicEffectStoreBenchmarks
     private InMemoryDeterministicStateStore? _store;
     private DeterministicEffectStore? _effectStore;
     private string[]? _effectIds;
+    private byte[]? _payload;
 
     [GlobalSetup]
     public void AllocateIds()
@@ -32,6 +33,7 @@ public class DeterministicEffectStoreBenchmarks
     {
         _store = new InMemoryDeterministicStateStore();
         _effectStore = DeterministicEffectStore.CreateDefault(_store);
+        _payload = CreatePayload();
     }
 
     [IterationSetup(Target = nameof(Replay_CachedEffectsAsync))]
@@ -39,6 +41,7 @@ public class DeterministicEffectStoreBenchmarks
     {
         _store = new InMemoryDeterministicStateStore();
         _effectStore = DeterministicEffectStore.CreateDefault(_store);
+        _payload = CreatePayload();
 
         if (_effectIds is null)
         {
@@ -47,8 +50,7 @@ public class DeterministicEffectStoreBenchmarks
 
         for (var i = 0; i < OperationCount; i++)
         {
-            var payload = CreatePayload();
-            await _effectStore.CaptureAsync(_effectIds[i], _ => ValueTask.FromResult(Result.Ok(payload))).ConfigureAwait(false);
+            await _effectStore.CaptureAsync(_effectIds[i], _ => ValueTask.FromResult(Result.Ok(_payload!))).ConfigureAwait(false);
         }
     }
 
@@ -62,8 +64,7 @@ public class DeterministicEffectStoreBenchmarks
 
         for (var i = 0; i < OperationCount; i++)
         {
-            var value = CreatePayload();
-            await _effectStore.CaptureAsync(_effectIds[i], _ => ValueTask.FromResult(Result.Ok(value))).ConfigureAwait(false);
+            await _effectStore.CaptureAsync(_effectIds[i], _ => ValueTask.FromResult(Result.Ok(_payload!))).ConfigureAwait(false);
         }
     }
 
@@ -78,8 +79,7 @@ public class DeterministicEffectStoreBenchmarks
         for (var i = 0; i < OperationCount; i++)
         {
             // The second invocation should replay the cached value without invoking the factory.
-            var value = CreatePayload();
-            await _effectStore.CaptureAsync(_effectIds[i], _ => ValueTask.FromResult(Result.Ok(value))).ConfigureAwait(false);
+            await _effectStore.CaptureAsync(_effectIds[i], _ => ValueTask.FromResult(Result.Ok(_payload!))).ConfigureAwait(false);
         }
     }
 
