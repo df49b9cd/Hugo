@@ -18,6 +18,11 @@ public static class GoDiagnostics
     public const string TelemetrySchemaUrl = "https://opentelemetry.io/schemas/1.27.0";
 
     private static readonly string DefaultInstrumentationVersion = typeof(GoDiagnostics).Assembly.GetName().Version?.ToString() ?? "1.0.0";
+    private static readonly Type? ActivitySourceOptionsType = Type.GetType("System.Diagnostics.ActivitySourceOptions, System.Diagnostics.DiagnosticSource", throwOnError: false);
+    private static readonly ConstructorInfo? ActivitySourceCtorWithOptions =
+        ActivitySourceOptionsType is null
+            ? null
+            : typeof(ActivitySource).GetConstructor([typeof(string), typeof(string), ActivitySourceOptionsType]);
 
     private static readonly Lock Sync = new();
 
@@ -162,19 +167,12 @@ public static class GoDiagnostics
         var resolvedVersion = string.IsNullOrWhiteSpace(version) ? DefaultInstrumentationVersion : version!;
         var resolvedSchemaUrl = string.IsNullOrWhiteSpace(schemaUrl) ? TelemetrySchemaUrl : schemaUrl!;
 
-        var activitySourceType = typeof(ActivitySource);
-        var optionsType = Type.GetType("System.Diagnostics.ActivitySourceOptions, System.Diagnostics.DiagnosticSource", throwOnError: false);
-
-        if (optionsType is not null)
+        if (ActivitySourceOptionsType is not null && ActivitySourceCtorWithOptions is not null)
         {
-            var optionsInstance = CreateActivitySourceOptions(optionsType, resolvedName, resolvedVersion, resolvedSchemaUrl);
+            var optionsInstance = CreateActivitySourceOptions(ActivitySourceOptionsType, resolvedName, resolvedVersion, resolvedSchemaUrl);
             if (optionsInstance is not null)
             {
-                var ctor = activitySourceType.GetConstructor([typeof(string), typeof(string), optionsType]);
-                if (ctor is not null)
-                {
-                    return (ActivitySource)ctor.Invoke([resolvedName, resolvedVersion, optionsInstance]);
-                }
+                return (ActivitySource)ActivitySourceCtorWithOptions.Invoke([resolvedName, resolvedVersion, optionsInstance]);
             }
         }
 

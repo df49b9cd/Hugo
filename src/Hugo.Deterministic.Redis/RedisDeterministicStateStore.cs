@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -40,10 +41,8 @@ public sealed class RedisDeterministicStateStoreOptions
 public sealed class RedisDeterministicStateStore : IDeterministicStateStore
 {
     private readonly RedisDeterministicStateStoreOptions _options;
-    private readonly JsonSerializerOptions _serializerOptions = new(JsonSerializerDefaults.Web)
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
+    private static readonly RedisDeterministicJsonContext SerializerContext = RedisDeterministicJsonContext.Default;
+    private static readonly JsonTypeInfo<DeterministicPayload> PayloadTypeInfo = SerializerContext.DeterministicPayload;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RedisDeterministicStateStore"/> class.
@@ -107,21 +106,17 @@ public sealed class RedisDeterministicStateStore : IDeterministicStateStore
         return database.StringSet(BuildKey(key), json, _options.Expiry, When.NotExists);
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Deterministic payload serialization uses System.Text.Json.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Deterministic payload serialization uses System.Text.Json.")]
-    private string SerializePayload(DeterministicPayload payload) => JsonSerializer.Serialize(payload, _serializerOptions);
+    private string SerializePayload(DeterministicPayload payload) => JsonSerializer.Serialize(payload, PayloadTypeInfo);
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Deterministic payload serialization uses System.Text.Json.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Deterministic payload serialization uses System.Text.Json.")]
     private DeterministicPayload? DeserializePayload(RedisValue value) =>
-        JsonSerializer.Deserialize<DeterministicPayload>(value!.ToString(), _serializerOptions);
+        JsonSerializer.Deserialize(value!.ToString(), PayloadTypeInfo);
 
     private IDatabase GetDatabase() =>
         _options.ConnectionMultiplexer!.GetDatabase(_options.Database);
 
     private string BuildKey(string key) => $"{_options.KeyPrefix}{key}";
 
-    private sealed record class DeterministicPayload(
+    internal sealed record class DeterministicPayload(
         [property: JsonPropertyName("kind")] string Kind,
         [property: JsonPropertyName("version")] int Version,
         [property: JsonPropertyName("recordedAt")] DateTimeOffset RecordedAt,
