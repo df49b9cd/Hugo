@@ -1,8 +1,9 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
-using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
+
+using Shouldly;
 
 using static Hugo.Go;
 

@@ -106,9 +106,9 @@ public sealed class RedisDeterministicStateStore : IDeterministicStateStore
         return database.StringSet(BuildKey(key), json, _options.Expiry, When.NotExists);
     }
 
-    private string SerializePayload(DeterministicPayload payload) => JsonSerializer.Serialize(payload, PayloadTypeInfo);
+    private static string SerializePayload(DeterministicPayload payload) => JsonSerializer.Serialize(payload, PayloadTypeInfo);
 
-    private DeterministicPayload? DeserializePayload(RedisValue value) =>
+    private static DeterministicPayload? DeserializePayload(RedisValue value) =>
         JsonSerializer.Deserialize(value!.ToString(), PayloadTypeInfo);
 
     private IDatabase GetDatabase() =>

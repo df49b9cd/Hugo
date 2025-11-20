@@ -1,10 +1,10 @@
 using System.Diagnostics.Metrics;
 
-using Shouldly;
-
 using Hugo.TaskQueues.Backpressure;
 
 using Microsoft.Extensions.Time.Testing;
+
+using Shouldly;
 
 namespace Hugo.Tests.TaskQueues;
 

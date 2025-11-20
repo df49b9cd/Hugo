@@ -1,7 +1,8 @@
 using System.Runtime.CompilerServices;
-using Shouldly;
 
 using Microsoft.Extensions.Time.Testing;
+
+using Shouldly;
 
 using Unit = Hugo.Go.Unit;
 

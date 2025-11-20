@@ -1,11 +1,11 @@
 using System.Threading.Channels;
 
-using Shouldly;
+using Hugo.Policies;
 
 using Microsoft.Extensions.Time.Testing;
-
-using Hugo.Policies;
 using Microsoft.VisualBasic;
+
+using Shouldly;
 
 namespace Hugo.Tests;
 

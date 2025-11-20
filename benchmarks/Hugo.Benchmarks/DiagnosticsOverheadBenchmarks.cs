@@ -27,7 +27,7 @@ public class DiagnosticsOverheadBenchmarks
     }
 
     [Benchmark]
-    public async Task WaitGroupAsync()
+    public static async Task WaitGroupAsync()
     {
         var wg = new WaitGroup();
         for (var i = 0; i < 32; i++)

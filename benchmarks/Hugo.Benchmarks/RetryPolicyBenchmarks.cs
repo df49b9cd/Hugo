@@ -12,7 +12,7 @@ public class RetryPolicyBenchmarks
     public int MaxAttempts { get; set; }
 
     [Benchmark(Baseline = true)]
-    public Task<Result<int>> DirectSuccessAsync() => Task.FromResult(Result.Ok(1));
+    public static Task<Result<int>> DirectSuccessAsync() => Task.FromResult(Result.Ok(1));
 
     [Benchmark]
     public Task<Result<int>> Retry_SucceedsOnLastAttemptAsync()

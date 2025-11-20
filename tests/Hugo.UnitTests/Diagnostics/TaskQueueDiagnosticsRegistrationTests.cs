@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-using Shouldly;
-
 using Hugo.TaskQueues.Diagnostics;
+
+using Shouldly;
 
 namespace Hugo.Tests.Diagnostics;
 

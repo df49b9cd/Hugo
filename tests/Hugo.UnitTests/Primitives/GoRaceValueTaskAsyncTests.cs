@@ -1,6 +1,6 @@
-using Shouldly;
-
 using Hugo.Policies;
+
+using Shouldly;
 
 namespace Hugo.Tests;
 

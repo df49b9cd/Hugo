@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -51,6 +52,7 @@ public static class TaskQueueReplicationJsonSerialization
         public override bool CanConvert(Type typeToConvert) =>
             typeToConvert.IsGenericType && typeToConvert.GetGenericTypeDefinition() == typeof(TaskQueueReplicationEvent<>);
 
+        [RequiresDynamicCode("Calls System.Type.MakeGenericType(params Type[])")]
         public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
         {
             Type payloadType = typeToConvert.GetGenericArguments()[0];
@@ -93,6 +95,8 @@ public static class TaskQueueReplicationJsonSerialization
         private static ReadOnlySpan<byte> LeaseExpirationName => "leaseExpiration"u8;
         private static ReadOnlySpan<byte> FlagsName => "flags"u8;
 
+        [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(ref Utf8JsonReader, JsonSerializerOptions)")]
+        [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize<TValue>(ref Utf8JsonReader, JsonSerializerOptions)")]
         public override TaskQueueReplicationEvent<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             if (reader.TokenType != JsonTokenType.StartObject)
@@ -246,6 +250,8 @@ public static class TaskQueueReplicationJsonSerialization
                 flags);
         }
 
+        [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(Utf8JsonWriter, TValue, JsonSerializerOptions)")]
+        [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(Utf8JsonWriter, TValue, JsonSerializerOptions)")]
         public override void Write(Utf8JsonWriter writer, TaskQueueReplicationEvent<T> value, JsonSerializerOptions options)
         {
             writer.WriteStartObject();

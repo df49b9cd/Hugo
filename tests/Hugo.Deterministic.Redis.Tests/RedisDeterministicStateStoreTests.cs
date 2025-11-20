@@ -1,7 +1,7 @@
-using Shouldly;
-
 using Hugo;
 using Hugo.Deterministic.Redis;
+
+using Shouldly;
 
 using StackExchange.Redis;
 

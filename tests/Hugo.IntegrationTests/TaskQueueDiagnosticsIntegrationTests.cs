@@ -1,11 +1,12 @@
 using System.Diagnostics.Metrics;
-using Shouldly;
 
 using Hugo.TaskQueues.Backpressure;
 using Hugo.TaskQueues.Diagnostics;
 using Hugo.TaskQueues.Replication;
 
 using Microsoft.Extensions.Time.Testing;
+
+using Shouldly;
 
 namespace Hugo.Tests;
 

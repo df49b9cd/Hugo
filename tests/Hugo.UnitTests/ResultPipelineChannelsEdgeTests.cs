@@ -1,8 +1,8 @@
 using System.Threading.Channels;
 
-using Shouldly;
-
 using Hugo.Policies;
+
+using Shouldly;
 
 using Unit = Hugo.Go.Unit;
 

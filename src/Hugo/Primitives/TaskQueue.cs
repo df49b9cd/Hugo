@@ -671,7 +671,7 @@ public sealed class TaskQueue<T> : IAsyncDisposable
         {
             try
             {
-            await _channel.Writer.WriteAsync(requeued, cancellationToken).ConfigureAwait(false);
+                await _channel.Writer.WriteAsync(requeued, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
