@@ -333,7 +333,8 @@ internal static class GoSelectHelpers
             return;
         }
 
-        // Collected indices are already monotonic increasing; walk from the tail to avoid shifting costs without an extra sort.
+        // Keep removal stable even if a caller ever hands us unsorted indices.
+        indices.Sort();
         for (int i = indices.Count - 1; i >= 0; i--)
         {
             int index = indices[i];
