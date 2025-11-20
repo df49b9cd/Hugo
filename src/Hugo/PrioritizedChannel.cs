@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 
@@ -214,6 +215,7 @@ public sealed class PrioritizedChannel<T>
         private readonly ConcurrentQueue<T>[] _buffers;
         private readonly int[] _bufferedPerPriority;
         private readonly ChannelCase<Go.Unit>[] _laneCases;
+        private readonly ArrayPool<ConcurrentQueue<T>> _queuePool = ArrayPool<ConcurrentQueue<T>>.Shared;
         private readonly Task _completion;
         private readonly int _prefetchPerPriority;
         private int _bufferedTotal;
@@ -229,7 +231,11 @@ public sealed class PrioritizedChannel<T>
             var completions = new Task[readers.Length];
             for (var i = 0; i < readers.Length; i++)
             {
-                _buffers[i] = new ConcurrentQueue<T>();
+                var rented = _queuePool.Rent(1);
+                var laneQueue = rented[0];
+                _buffers[i] = laneQueue ?? new ConcurrentQueue<T>();
+                rented[0] = null!;
+                _queuePool.Return(rented, clearArray: false);
                 completions[i] = readers[i].Completion;
             }
 

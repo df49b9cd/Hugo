@@ -18,6 +18,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
             ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
             : new CancellationTokenSource();
     private readonly CancellationToken _linkedToken = cancellationToken;
+    private readonly CancellationToken _fallbackToken = cancellationToken;
     private readonly WaitGroup _waitGroup = new();
     private Error? _error;
     private int _disposed;
@@ -26,7 +27,7 @@ public sealed class ErrGroup(CancellationToken cancellationToken = default) : ID
     /// Gets a cancellation token that is signaled when the group is canceled or a task fails; remains usable even after the group is disposed.
     /// </summary>
     public CancellationToken Token => Volatile.Read(ref _disposed) == 1
-        ? cancellationToken // fallback to original linked token so callers can still await without ObjectDisposedException
+        ? _fallbackToken // fallback to original linked token so callers can still await without ObjectDisposedException
         : _cts.Token;
 
     /// <summary>
