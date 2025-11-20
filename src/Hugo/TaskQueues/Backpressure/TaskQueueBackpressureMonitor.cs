@@ -18,6 +18,7 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
     private readonly ConcurrentDictionary<long, ITaskQueueBackpressureListener> _listeners = new();
     private readonly Lock _waiterLock = new();
     private readonly Task _pumpTask;
+    private readonly Lock _signalLock = new();
     private List<TaskCompletionSource<TaskQueueBackpressureSignal>>? _waiters;
     private TaskQueueBackpressureSignal _currentSignal;
     private DateTimeOffset _stateStartedAt;
@@ -65,7 +66,16 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
     /// <summary>
     /// Gets the latest signal that was processed.
     /// </summary>
-    public TaskQueueBackpressureSignal CurrentSignal => Volatile.Read(ref _currentSignal)!;
+    public TaskQueueBackpressureSignal CurrentSignal
+    {
+        get
+        {
+            lock (_signalLock)
+            {
+                return _currentSignal;
+            }
+        }
+    }
 
     /// <summary>
     /// Gets a value indicating whether backpressure is currently active.
@@ -181,7 +191,7 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
         {
             while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                while (reader.TryRead(out TaskQueueBackpressureSignal? signal))
+                while (reader.TryRead(out TaskQueueBackpressureSignal signal))
                 {
                     await DispatchSignalAsync(signal, cancellationToken).ConfigureAwait(false);
                 }
@@ -201,7 +211,10 @@ public sealed class TaskQueueBackpressureMonitor<T> : IAsyncDisposable
         }
 
         _stateStartedAt = signal.ObservedAt;
-        Volatile.Write(ref _currentSignal, signal);
+        lock (_signalLock)
+        {
+            _currentSignal = signal;
+        }
         Volatile.Write(ref _isBackpressureActive, signal.IsActive ? 1 : 0);
 
         if (!signal.IsActive)

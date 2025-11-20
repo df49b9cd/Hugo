@@ -8,7 +8,7 @@ namespace Hugo.TaskQueues.Backpressure;
 /// <param name="HighWatermark">Configured high watermark.</param>
 /// <param name="LowWatermark">Configured low watermark.</param>
 /// <param name="ObservedAt">Timestamp associated with the transition.</param>
-public sealed record class TaskQueueBackpressureSignal(
+public readonly record struct TaskQueueBackpressureSignal(
     bool IsActive,
     long PendingCount,
     long HighWatermark,

@@ -161,7 +161,7 @@ public class TaskQueueBackpressureMonitorTests
         }
 
         var retained = new List<long>();
-        while (diagnostics.Reader.TryRead(out TaskQueueBackpressureSignal? signal) && signal is not null)
+        while (diagnostics.Reader.TryRead(out TaskQueueBackpressureSignal signal))
         {
             retained.Add(signal.PendingCount);
         }

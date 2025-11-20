@@ -216,6 +216,7 @@ public sealed class PrioritizedChannel<T>
         private readonly ChannelCase<Go.Unit>[] _laneCases;
         private readonly Task _completion;
         private readonly int _prefetchPerPriority;
+        private readonly bool _singleLane;
         private int _bufferedTotal;
 
         internal PrioritizedChannelReader(ChannelReader<T>[] readers, int prefetchPerPriority)
@@ -224,6 +225,7 @@ public sealed class PrioritizedChannel<T>
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(prefetchPerPriority);
 
             _prefetchPerPriority = prefetchPerPriority;
+            _singleLane = readers.Length == 1;
             _buffers = new ConcurrentQueue<T>[readers.Length];
             _bufferedPerPriority = new int[readers.Length];
             var completions = new Task[readers.Length];
@@ -307,7 +309,9 @@ public sealed class PrioritizedChannel<T>
                 return new ValueTask<bool>(true);
             }
 
-            return WaitToReadSlowAsync(cancellationToken);
+            return _singleLane
+                ? WaitToReadSingleLaneAsync(cancellationToken)
+                : WaitToReadSlowAsync(cancellationToken);
         }
 
         private async ValueTask<bool> WaitToReadSlowAsync(CancellationToken cancellationToken)
@@ -338,6 +342,19 @@ public sealed class PrioritizedChannel<T>
             }
 
             throw error.Cause ?? new InvalidOperationException(error.Message);
+        }
+
+        private async ValueTask<bool> WaitToReadSingleLaneAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!await _readers[0].WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                return false;
+            }
+
+            TryStageFromPriority(0);
+            return HasBufferedItems;
         }
 
         private ChannelCase<Go.Unit>[] BuildLaneCases(ChannelReader<T>[] readers)
@@ -375,6 +392,19 @@ public sealed class PrioritizedChannel<T>
 
         private bool TryReadFromBuffers(out T item)
         {
+            if (_singleLane)
+            {
+                if (_buffers[0].TryDequeue(out item!))
+                {
+                    Interlocked.Decrement(ref _bufferedPerPriority[0]);
+                    Interlocked.Decrement(ref _bufferedTotal);
+                    return true;
+                }
+
+                item = default!;
+                return false;
+            }
+
             for (var priority = 0; priority < _buffers.Length; priority++)
             {
                 if (_buffers[priority].TryDequeue(out item!))
@@ -391,6 +421,11 @@ public sealed class PrioritizedChannel<T>
 
         private bool TryStageFromAllPriorities()
         {
+            if (_singleLane)
+            {
+                return TryStageFromPriority(0);
+            }
+
             var staged = false;
             for (var priority = 0; priority < _readers.Length; priority++)
             {

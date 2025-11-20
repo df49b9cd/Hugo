@@ -8,6 +8,7 @@ namespace Hugo.TaskQueues.Backpressure;
 public sealed class TaskQueueBackpressureDiagnosticsListener : ITaskQueueBackpressureListener, IAsyncDisposable
 {
     private readonly Channel<TaskQueueBackpressureSignal> _channel;
+    private readonly Lock _latestLock = new();
     private TaskQueueBackpressureSignal _latest = new(false, 0, 0, 0, DateTimeOffset.MinValue);
 
     /// <summary>
@@ -39,12 +40,25 @@ public sealed class TaskQueueBackpressureDiagnosticsListener : ITaskQueueBackpre
     /// <summary>
     /// Gets the latest signal observed by the listener.
     /// </summary>
-    public TaskQueueBackpressureSignal Latest => Volatile.Read(ref _latest);
+    public TaskQueueBackpressureSignal Latest
+    {
+        get
+        {
+            lock (_latestLock)
+            {
+                return _latest;
+            }
+        }
+    }
 
     /// <inheritdoc />
     public ValueTask OnSignalAsync(TaskQueueBackpressureSignal signal, CancellationToken cancellationToken = default)
     {
-        Volatile.Write(ref _latest, signal);
+        lock (_latestLock)
+        {
+            _latest = signal;
+        }
+
         return _channel.Writer.WriteAsync(signal, cancellationToken);
     }
 
