@@ -172,25 +172,24 @@ public sealed class WaitGroup
             return true;
         }
 
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var waitTask = WaitAsync(linkedCts.Token);
-        if (waitTask.IsCompleted)
+        var awaitable = _tcs.Task;
+
+        try
         {
-            await linkedCts.CancelAsync().ConfigureAwait(false);
-            await waitTask.ConfigureAwait(false);
+            if (cancellationToken.CanBeCanceled)
+            {
+                await awaitable.WaitAsync(timeout, provider, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await awaitable.WaitAsync(timeout, provider, CancellationToken.None).ConfigureAwait(false);
+            }
+
             return true;
         }
-
-        var delayTask = provider.DelayAsync(timeout, linkedCts.Token);
-        var completed = await Task.WhenAny(waitTask, delayTask).ConfigureAwait(false);
-        if (completed == waitTask)
+        catch (TimeoutException)
         {
-            await linkedCts.CancelAsync().ConfigureAwait(false);
-            await waitTask.ConfigureAwait(false);
-            return true;
+            return false;
         }
-
-        await linkedCts.CancelAsync().ConfigureAwait(false);
-        return false;
     }
 }

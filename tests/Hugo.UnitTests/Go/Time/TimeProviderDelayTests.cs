@@ -41,6 +41,6 @@ public class TimeProviderDelayTests
 
         cts.Cancel();
 
-        await Should.ThrowAsync<OperationCanceledException>(() => delay.AsTask());
+        await Should.ThrowAsync<OperationCanceledException>(async () => await delay);
     }
 }

@@ -321,7 +321,7 @@ public class ErrGroupTests
         await started.Task;
         group.Cancel();
 
-        await Should.ThrowAsync<OperationCanceledException>(() => waitingTask);
+        await Should.ThrowAsync<OperationCanceledException>(async () => await waitingTask);
     }
 
     public static IEnumerable<object[]> DisposedGoOverloads()

@@ -135,7 +135,7 @@ public sealed class PrioritizedChannelTests
         var waitTask = reader.WaitToReadAsync(ct).AsTask();
         failingLane.Fail(new InvalidOperationException("lane failed"));
 
-        var ex = await Should.ThrowAsync<InvalidOperationException>(() => waitTask);
+        var ex = await Should.ThrowAsync<InvalidOperationException>(async () => await waitTask);
         ex.Message.ShouldBe("lane failed");
     }
 
@@ -149,7 +149,7 @@ public sealed class PrioritizedChannelTests
         var waitTask = reader.WaitToReadAsync(ct).AsTask();
         cancelingLane.Cancel();
 
-        await Should.ThrowAsync<OperationCanceledException>(() => waitTask);
+        await Should.ThrowAsync<OperationCanceledException>(async () => await waitTask);
     }
 
     [Fact(Timeout = 15_000)]
@@ -158,7 +158,7 @@ public sealed class PrioritizedChannelTests
         var lane = new ImmediateFaultLaneReader(new InvalidOperationException("sync fault"));
         var reader = CreatePrioritizedReader(lane);
 
-        var ex = await Should.ThrowAsync<InvalidOperationException>(() => reader.WaitToReadAsync(TestContext.Current.CancellationToken).AsTask());
+        var ex = await Should.ThrowAsync<InvalidOperationException>(async () => await reader.WaitToReadAsync(TestContext.Current.CancellationToken));
         ex.Message.ShouldBe("sync fault");
     }
 

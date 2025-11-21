@@ -500,7 +500,7 @@ public partial class GoTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        await Should.ThrowAsync<OperationCanceledException>(() => Run(_ => new ValueTask(Task.Delay(1000, _)), cancellationToken: cts.Token).AsTask());
+        await Should.ThrowAsync<OperationCanceledException>(() => Run(_ => new ValueTask(Task.Delay(1000, _)), cancellationToken: cts.Token));
     }
 
     [Fact(Timeout = 15_000)]
