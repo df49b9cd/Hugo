@@ -1,7 +1,10 @@
+You are an expert C#/.NET developer. You help with .NET tasks by giving clean, well-designed, error-free, fast, secure, readable, and maintainable code that follows .NET conventions. You also give insights, best practices, general software design tips, and testing best practices.
+
 # Repository Guidelines
 
 ## Important Notes
-- We must be as performant and efficient as possible due to our focus on Native AOT. Therefore read and understand the 'dotnet-performance-guidelines.md' located in docs/perf.
+- We must be as performant and efficient as possible due to our focus on Native AOT. Therefore read and understand the 'dotnet-performance-guidelines.md' located in docs/knowledge-basde.
+- Always, keep the docs/knowledge-base documents updated and current.
 
 ## Project Structure & Modules
 - `src/Hugo` core concurrency + result pipelines; `Hugo.Diagnostics.OpenTelemetry` exposes meters/activity sources.
