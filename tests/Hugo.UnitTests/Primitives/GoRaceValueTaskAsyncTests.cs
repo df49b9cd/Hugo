@@ -86,7 +86,7 @@ public class GoRaceValueTaskAsyncTests
             loserCanceled.Task,
             Task.Delay(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
 
-        completion.ShouldBe(loserCanceled.Task);
+        _ = completion.ShouldBe(loserCanceled.Task);
     }
 
     [Fact(Timeout = 15_000)]

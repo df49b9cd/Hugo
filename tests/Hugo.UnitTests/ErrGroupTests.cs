@@ -387,7 +387,7 @@ public class ErrGroupTests
         await compensationStarted.Task;
         var completed = await Task.WhenAny(peerCanceled.Task, Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
 
-        completed.ShouldBeSameAs(peerCanceled.Task);
+        _ = completed.ShouldBeSameAs(peerCanceled.Task);
         allowCompensationToFinish.Task.IsCompleted.ShouldBeFalse();
 
         allowCompensationToFinish.TrySetResult();

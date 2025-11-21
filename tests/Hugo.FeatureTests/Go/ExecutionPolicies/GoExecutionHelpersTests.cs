@@ -14,7 +14,8 @@ public class GoExecutionHelpersTests
         CancellationToken? resolved = ResolveCancellationToken(preferred.Token, alternate.Token);
 
         resolved.HasValue.ShouldBeTrue();
-        resolved.Value.ShouldBe(preferred.Token);
+        CancellationToken preferredToken = resolved!.Value;
+        preferredToken.ShouldBe(preferred.Token);
     }
 
     [Fact(Timeout = 15_000)]
@@ -25,7 +26,8 @@ public class GoExecutionHelpersTests
         CancellationToken? resolved = ResolveCancellationToken(CancellationToken.None, alternate.Token);
 
         resolved.HasValue.ShouldBeTrue();
-        resolved.Value.ShouldBe(alternate.Token);
+        CancellationToken resolvedToken = resolved!.Value;
+        resolvedToken.ShouldBe(alternate.Token);
     }
 
     [Fact(Timeout = 15_000)]

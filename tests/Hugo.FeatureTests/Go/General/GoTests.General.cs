@@ -104,7 +104,7 @@ public partial class GoTests
                 reentrantLockTask,
                 Task.Delay(100, cancellationToken: TestContext.Current.CancellationToken)
             );
-            completedTask.ShouldNotBe(reentrantLockTask);
+            _ = completedTask.ShouldNotBe(reentrantLockTask);
         }
     }
 
@@ -509,7 +509,7 @@ public partial class GoTests
         var existing = Task.Delay(10, TestContext.Current.CancellationToken);
         var tracked = Run(existing);
 
-        tracked.ShouldBeSameAs(existing);
+        _ = tracked.ShouldBeSameAs(existing);
         await tracked;
     }
 

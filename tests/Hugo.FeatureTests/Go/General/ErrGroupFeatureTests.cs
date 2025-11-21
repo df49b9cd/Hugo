@@ -108,7 +108,7 @@ public class ErrGroupFeatureTests
 
         await compensationStarted.Task;
         var completed = await Task.WhenAny(cancellationObserved.Task, Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
-        completed.ShouldBeSameAs(cancellationObserved.Task);
+        _ = completed.ShouldBeSameAs(cancellationObserved.Task);
 
         releaseCompensation.TrySetResult();
 

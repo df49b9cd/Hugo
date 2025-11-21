@@ -23,7 +23,7 @@ public sealed class RwMutexTests
 
         await writerStarted.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         var premature = await Task.WhenAny(writerEntered.Task, Task.Delay(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken));
-        premature.ShouldNotBe(writerEntered.Task);
+        _ = premature.ShouldNotBe(writerEntered.Task);
 
         await reader1.DisposeAsync();
         await reader2.DisposeAsync();
