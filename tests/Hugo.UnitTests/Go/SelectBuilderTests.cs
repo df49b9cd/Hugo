@@ -8,7 +8,7 @@ namespace Hugo.Tests.Selecting;
 public sealed class SelectBuilderTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task ExecuteAsync_ShouldThrow_WhenNoCasesRegistered()
+    public async ValueTask ExecuteAsync_ShouldThrow_WhenNoCasesRegistered()
     {
         var builder = global::Hugo.Go.Select<int>(cancellationToken: TestContext.Current.CancellationToken);
 
@@ -16,7 +16,7 @@ public sealed class SelectBuilderTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ExecuteAsync_ShouldUseDefaultCase()
+    public async ValueTask ExecuteAsync_ShouldUseDefaultCase()
     {
         var builder = global::Hugo.Go.Select<int>(cancellationToken: TestContext.Current.CancellationToken)
             .Default(() => 99);
@@ -28,7 +28,7 @@ public sealed class SelectBuilderTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Deadline_ShouldCompleteWithTimeoutResult()
+    public async ValueTask Deadline_ShouldCompleteWithTimeoutResult()
     {
         var provider = new FakeTimeProvider();
         var builder = global::Hugo.Go.Select<string>(

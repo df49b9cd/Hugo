@@ -66,7 +66,7 @@ public sealed class ChannelBuilderTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task PrioritizedChannelBuilder_ShouldRespectPriorityOrdering()
+    public async ValueTask PrioritizedChannelBuilder_ShouldRespectPriorityOrdering()
     {
         var channel = PrioritizedChannel<int>()
             .WithPriorityLevels(3)

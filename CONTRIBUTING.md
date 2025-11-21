@@ -171,7 +171,7 @@ All public APIs require XML docs:
 
 ```csharp
 [Fact]
-public async Task WaitGroup_WaitAsync_ShouldReturnFalseOnTimeout()
+public async ValueTask WaitGroup_WaitAsync_ShouldReturnFalseOnTimeout()
 {
     var wg = new WaitGroup();
     wg.Add(1); // Never completes

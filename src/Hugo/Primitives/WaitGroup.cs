@@ -127,7 +127,7 @@ public sealed class WaitGroup
     /// <summary>Asynchronously waits for all registered operations to complete.</summary>
     /// <param name="cancellationToken">The token used to cancel the wait.</param>
     /// <returns>A task that completes when all operations finish.</returns>
-    public async Task WaitAsync(CancellationToken cancellationToken = default)
+    public async ValueTask WaitAsync(CancellationToken cancellationToken = default)
     {
         if (Count == 0)
         {

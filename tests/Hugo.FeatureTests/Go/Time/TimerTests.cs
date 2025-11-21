@@ -10,12 +10,12 @@ namespace Hugo.Tests;
 public class TimerTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task After_WithFakeTimeProvider_ShouldEmitOnce()
+    public async ValueTask After_WithFakeTimeProvider_ShouldEmitOnce()
     {
         var provider = new FakeTimeProvider();
         var reader = After(TimeSpan.FromSeconds(5), provider, TestContext.Current.CancellationToken);
 
-        var readTask = reader.ReadAsync(TestContext.Current.CancellationToken).AsTask();
+        var readTask = reader.ReadAsync(TestContext.Current.CancellationToken);
         readTask.IsCompleted.ShouldBeFalse();
 
         provider.Advance(TimeSpan.FromSeconds(5));
@@ -23,11 +23,11 @@ public class TimerTests
         var value = await readTask;
         value.ShouldBe(provider.GetUtcNow());
 
-        await Should.ThrowAsync<ChannelClosedException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+        await Should.ThrowAsync<ChannelClosedException>(async () => await reader.ReadAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task AfterAsync_WithZeroDelay_ShouldCompleteImmediately()
+    public async ValueTask AfterAsync_WithZeroDelay_ShouldCompleteImmediately()
     {
         var provider = new FakeTimeProvider();
         var task = AfterAsync(TimeSpan.Zero, provider, TestContext.Current.CancellationToken);
@@ -38,7 +38,7 @@ public class TimerTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task AfterValueTaskAsync_WithZeroDelay_ShouldCompleteImmediately()
+    public async ValueTask AfterValueTaskAsync_WithZeroDelay_ShouldCompleteImmediately()
     {
         var provider = new FakeTimeProvider();
         ValueTask<DateTimeOffset> task = AfterValueTaskAsync(TimeSpan.Zero, provider, TestContext.Current.CancellationToken);
@@ -57,7 +57,7 @@ public class TimerTests
         Should.Throw<ArgumentOutOfRangeException>(static () => After(TimeSpan.FromMilliseconds(-1), provider: TimeProvider.System, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
-    public async Task AfterAsync_ShouldRespectCancellation()
+    public async ValueTask AfterAsync_ShouldRespectCancellation()
     {
         var provider = new FakeTimeProvider();
         using var cts = new CancellationTokenSource();
@@ -70,7 +70,7 @@ public class TimerTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task AfterValueTaskAsync_ShouldRespectCancellation()
+    public async ValueTask AfterValueTaskAsync_ShouldRespectCancellation()
     {
         var provider = new FakeTimeProvider();
         using var cts = new CancellationTokenSource();
@@ -83,27 +83,27 @@ public class TimerTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task After_ShouldThrow_WhenCancellationAlreadyRequested()
+    public async ValueTask After_ShouldThrow_WhenCancellationAlreadyRequested()
     {
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
         ChannelReader<DateTimeOffset> reader = After(TimeSpan.FromSeconds(1), provider: TimeProvider.System, cancellationToken: cts.Token);
 
-        await Should.ThrowAsync<OperationCanceledException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+        await Should.ThrowAsync<OperationCanceledException>(async () => await reader.ReadAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task NewTicker_ShouldProduceTicksUntilStopped()
+    public async ValueTask NewTicker_ShouldProduceTicksUntilStopped()
     {
         var provider = new FakeTimeProvider();
         await using var ticker = NewTicker(TimeSpan.FromSeconds(2), provider, TestContext.Current.CancellationToken);
 
-        var firstTask = ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask();
+        var firstTask = ticker.ReadAsync(TestContext.Current.CancellationToken);
         provider.Advance(TimeSpan.FromSeconds(2));
         var first = await firstTask;
 
-        var secondTask = ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask();
+        var secondTask = ticker.ReadAsync(TestContext.Current.CancellationToken);
         provider.Advance(TimeSpan.FromSeconds(2));
         var second = await secondTask;
 
@@ -112,7 +112,7 @@ public class TimerTests
 
         await ticker.StopAsync();
 
-        await Should.ThrowAsync<ChannelClosedException>(() => ticker.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+        await Should.ThrowAsync<ChannelClosedException>(async () => await ticker.ReadAsync(TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -126,7 +126,7 @@ public class TimerTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Tick_ShouldProduceTicks_AndRespectCancellation()
+    public async ValueTask Tick_ShouldProduceTicks_AndRespectCancellation()
     {
         var provider = new FakeTimeProvider();
         using var cts = new CancellationTokenSource();
@@ -145,12 +145,12 @@ public class TimerTests
 
         await cts.CancelAsync();
 
-        await Should.ThrowAsync<OperationCanceledException>(() => reader.ReadAsync(TestContext.Current.CancellationToken).AsTask());
+        await Should.ThrowAsync<OperationCanceledException>(async () => await reader.ReadAsync(TestContext.Current.CancellationToken));
         await Should.ThrowAsync<OperationCanceledException>(async () => await reader.Completion);
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task GoTicker_TryRead_ShouldReflectAvailability()
+    public async ValueTask GoTicker_TryRead_ShouldReflectAvailability()
     {
         var provider = new FakeTimeProvider();
         await using var ticker = NewTicker(TimeSpan.FromSeconds(1), provider, TestContext.Current.CancellationToken);

@@ -55,7 +55,7 @@ public class GoChannelHelpersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectFanInAsyncCore_ShouldReturnSuccess_WhenValuesProcessed()
+    public async ValueTask SelectFanInAsyncCore_ShouldReturnSuccess_WhenValuesProcessed()
     {
         Channel<int> channel = Channel.CreateUnbounded<int>();
         await channel.Writer.WriteAsync(7, TestContext.Current.CancellationToken);
@@ -72,7 +72,7 @@ public class GoChannelHelpersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectFanInAsyncCore_ShouldReturnTimeout_WhenNoValues()
+    public async ValueTask SelectFanInAsyncCore_ShouldReturnTimeout_WhenNoValues()
     {
         Channel<int> channel = Channel.CreateUnbounded<int>();
 
@@ -88,7 +88,7 @@ public class GoChannelHelpersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectFanInAsyncCore_ShouldReturnFailure_WhenHandlerFails()
+    public async ValueTask SelectFanInAsyncCore_ShouldReturnFailure_WhenHandlerFails()
     {
         Channel<int> channel = Channel.CreateUnbounded<int>();
         await channel.Writer.WriteAsync(1, TestContext.Current.CancellationToken);
@@ -106,7 +106,7 @@ public class GoChannelHelpersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectFanInAsyncCore_ShouldReturnCanceled_WhenTokenCanceled()
+    public async ValueTask SelectFanInAsyncCore_ShouldReturnCanceled_WhenTokenCanceled()
     {
         using var cts = new CancellationTokenSource();
         Channel<int> channel = Channel.CreateUnbounded<int>();
@@ -127,7 +127,7 @@ public class GoChannelHelpersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsyncCore_ShouldPropagateWritesAndCompleteDestination()
+    public async ValueTask FanInAsyncCore_ShouldPropagateWritesAndCompleteDestination()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
         Channel<int> destination = Channel.CreateUnbounded<int>();
@@ -157,7 +157,7 @@ public class GoChannelHelpersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsyncCore_ShouldNotCompleteDestination_WhenFlagFalse()
+    public async ValueTask FanInAsyncCore_ShouldNotCompleteDestination_WhenFlagFalse()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
         Channel<int> destination = Channel.CreateUnbounded<int>();
@@ -178,7 +178,7 @@ public class GoChannelHelpersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsyncCore_ReturnsFailure_WhenDestinationClosed()
+    public async ValueTask FanInAsyncCore_ReturnsFailure_WhenDestinationClosed()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
         Channel<int> destination = Channel.CreateUnbounded<int>();
@@ -200,7 +200,7 @@ public class GoChannelHelpersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsyncCore_ShouldBroadcastToDestinations()
+    public async ValueTask FanOutAsyncCore_ShouldBroadcastToDestinations()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
         Channel<int> destination1 = Channel.CreateUnbounded<int>();
@@ -239,7 +239,7 @@ public class GoChannelHelpersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsyncCore_ReturnsFailure_WhenDestinationClosed()
+    public async ValueTask FanOutAsyncCore_ReturnsFailure_WhenDestinationClosed()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
         Channel<int> destination = Channel.CreateUnbounded<int>();
@@ -261,7 +261,7 @@ public class GoChannelHelpersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsyncCore_ReturnsTimeout_WhenDeadlineElapsed()
+    public async ValueTask FanOutAsyncCore_ReturnsTimeout_WhenDeadlineElapsed()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
         var blockingWriter = new BlockingWriter<int>();
@@ -292,7 +292,7 @@ public class GoChannelHelpersTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsyncCore_ReturnsCanceled_WhenTokenCancelled()
+    public async ValueTask FanOutAsyncCore_ReturnsCanceled_WhenTokenCancelled()
     {
         Channel<int> source = Channel.CreateUnbounded<int>();
         Channel<int> destination = Channel.CreateUnbounded<int>();

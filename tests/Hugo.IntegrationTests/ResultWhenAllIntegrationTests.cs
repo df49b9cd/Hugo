@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 public sealed class ResultWhenAllIntegrationTests
 {
     [Fact(Timeout = 30_000)]
-    public async Task WhenAll_ShouldAggregateCancellationAndRunCompensation()
+    public async ValueTask WhenAll_ShouldAggregateCancellationAndRunCompensation()
     {
         using var cts = new CancellationTokenSource();
         var compensationInvocations = new List<string>();

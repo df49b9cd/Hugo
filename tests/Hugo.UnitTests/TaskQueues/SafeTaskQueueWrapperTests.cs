@@ -6,7 +6,7 @@ namespace Hugo.UnitTests.TaskQueues;
 public sealed class SafeTaskQueueWrapperTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task DisposeAsync_WithOwnership_ShouldDisposeUnderlyingQueue()
+    public async ValueTask DisposeAsync_WithOwnership_ShouldDisposeUnderlyingQueue()
     {
         var queue = new TaskQueue<int>(new TaskQueueOptions { Name = "owned", Capacity = 4 });
         await using var wrapper = new SafeTaskQueueWrapper<int>(queue, ownsQueue: true);
@@ -20,7 +20,7 @@ public sealed class SafeTaskQueueWrapperTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task DisposeAsync_WithoutOwnership_ShouldLeaveQueueUsable()
+    public async ValueTask DisposeAsync_WithoutOwnership_ShouldLeaveQueueUsable()
     {
         var queue = new TaskQueue<int>(new TaskQueueOptions { Name = "shared", Capacity = 4 });
         await using var wrapper = new SafeTaskQueueWrapper<int>(queue, ownsQueue: false);
@@ -34,7 +34,7 @@ public sealed class SafeTaskQueueWrapperTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task EnqueueAsync_ShouldReturnFailure_WhenQueueDisposed()
+    public async ValueTask EnqueueAsync_ShouldReturnFailure_WhenQueueDisposed()
     {
         var queue = new TaskQueue<int>(new TaskQueueOptions { Name = "disposed", Capacity = 2 });
         await queue.DisposeAsync();

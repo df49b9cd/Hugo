@@ -11,7 +11,7 @@ namespace Hugo.Tests;
 public sealed class TaskQueueReplicationObserverIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task RegisterObserver_ShouldStopEmittingAfterDisposal()
+    public async ValueTask RegisterObserver_ShouldStopEmittingAfterDisposal()
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<int>(new TaskQueueOptions { Name = "dispatch", Capacity = 8 }, provider);
@@ -58,7 +58,7 @@ public sealed class TaskQueueReplicationObserverIntegrationTests
             Interlocked.Increment(ref _totalEvents);
         }
 
-        public async Task WaitForEventsAsync(int expectedCount, CancellationToken cancellationToken)
+        public async ValueTask WaitForEventsAsync(int expectedCount, CancellationToken cancellationToken)
         {
             for (var i = 0; i < expectedCount; i++)
             {
@@ -66,7 +66,7 @@ public sealed class TaskQueueReplicationObserverIntegrationTests
             }
         }
 
-        public async Task AssertNoNewEventsAsync(TimeSpan wait, CancellationToken cancellationToken)
+        public async ValueTask AssertNoNewEventsAsync(TimeSpan wait, CancellationToken cancellationToken)
         {
             var baseline = Volatile.Read(ref _totalEvents);
             await Task.Delay(wait, cancellationToken);

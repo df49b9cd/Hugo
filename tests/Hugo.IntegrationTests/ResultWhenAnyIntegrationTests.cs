@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 public sealed class ResultWhenAnyIntegrationTests
 {
     [Fact(Timeout = 30_000)]
-    public async Task WhenAny_ShouldSurfaceCompensationErrorsFromSecondarySuccesses()
+    public async ValueTask WhenAny_ShouldSurfaceCompensationErrorsFromSecondarySuccesses()
     {
         var compensationPolicy = new ResultCompensationPolicy(_ => throw new InvalidOperationException("compensation crash"));
         var policy = ResultExecutionPolicy.None.WithCompensation(compensationPolicy);
@@ -35,7 +35,7 @@ public sealed class ResultWhenAnyIntegrationTests
     }
 
     [Fact(Timeout = 30_000)]
-    public async Task WhenAny_ShouldIgnoreCanceledLosersAfterWinner()
+    public async ValueTask WhenAny_ShouldIgnoreCanceledLosersAfterWinner()
     {
         var operations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>[]
         {

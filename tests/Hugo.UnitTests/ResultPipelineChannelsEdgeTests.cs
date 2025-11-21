@@ -29,12 +29,12 @@ public sealed class ResultPipelineChannelsEdgeTests
     }
 
     [Fact(Timeout = 5_000)]
-    public void WindowAsync_ShouldValidateFlushInterval()
+    public async ValueTask WindowAsync_ShouldValidateFlushInterval()
     {
         var context = new ResultPipelineStepContext("window", new CompensationScope(), TimeProvider.System, TestContext.Current.CancellationToken);
         var source = Channel.CreateUnbounded<int>();
 
-        Should.Throw<ArgumentOutOfRangeException>(async () =>
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
             await ResultPipelineChannels.WindowAsync(context, source.Reader, batchSize: 1, flushInterval: TimeSpan.FromMilliseconds(-2)));
     }
 }

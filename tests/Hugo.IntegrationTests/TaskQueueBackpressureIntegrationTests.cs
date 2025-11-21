@@ -11,7 +11,7 @@ namespace Hugo.Tests;
 public class TaskQueueBackpressureIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task LimiterSelector_ShouldFlipDuringBackpressure()
+    public async ValueTask LimiterSelector_ShouldFlipDuringBackpressure()
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<int>(new TaskQueueOptions { Capacity = 32 }, provider);
@@ -59,7 +59,7 @@ public class TaskQueueBackpressureIntegrationTests
     }
 
     [Fact(Timeout = 20_000)]
-    public async Task DiagnosticsListener_ShouldStreamOrderedSignals()
+    public async ValueTask DiagnosticsListener_ShouldStreamOrderedSignals()
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<string>(new TaskQueueOptions { Capacity = 16 }, provider);
@@ -113,7 +113,7 @@ public class TaskQueueBackpressureIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitForDrainingAsync_ShouldWorkWithSafeTaskQueue()
+    public async ValueTask WaitForDrainingAsync_ShouldWorkWithSafeTaskQueue()
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<string>(new TaskQueueOptions { Capacity = 8 }, provider);
@@ -150,7 +150,7 @@ public class TaskQueueBackpressureIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Backpressure_ShouldClearAtDerivedLowWatermark()
+    public async ValueTask Backpressure_ShouldClearAtDerivedLowWatermark()
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<int>(new TaskQueueOptions { Capacity = 32 }, provider);

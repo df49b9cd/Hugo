@@ -15,7 +15,7 @@ public class WaitGroupBenchmarks
     public bool EnableCancellation { get; set; }
 
     [Benchmark]
-    public async Task WaitGroupAsync()
+    public async ValueTask WaitGroupAsync()
     {
         using var cts = BenchmarkWorkloads.CreateCancellationScope(EnableCancellation);
         var wg = new WaitGroup();
@@ -36,7 +36,7 @@ public class WaitGroupBenchmarks
     }
 
     [Benchmark]
-    public async Task TaskWhenAllAsync()
+    public async ValueTask TaskWhenAllAsync()
     {
         using var cts = BenchmarkWorkloads.CreateCancellationScope(EnableCancellation);
         var tasks = new Task[TaskCount];
@@ -57,7 +57,7 @@ public class WaitGroupBenchmarks
     }
 
     [Benchmark]
-    public async Task ManualContinuationAsync()
+    public async ValueTask ManualContinuationAsync()
     {
         using var cts = BenchmarkWorkloads.CreateCancellationScope(EnableCancellation);
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

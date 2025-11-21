@@ -145,7 +145,7 @@
 
   // Streaming response example
   [HttpGet("/data")]
-  public async Task Stream(CancellationToken ct)
+  public async ValueTask Stream(CancellationToken ct)
   {
       Response.ContentType = "application/json";
       await foreach (var batch in _svc.GetBatches(ct))

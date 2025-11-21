@@ -47,7 +47,7 @@ internal sealed class SqlServerPipelineSchemaMigrator
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task EnsureInitializedAsync(CancellationToken cancellationToken)
+    public async ValueTask EnsureInitializedAsync(CancellationToken cancellationToken)
     {
         if (_initialized)
         {

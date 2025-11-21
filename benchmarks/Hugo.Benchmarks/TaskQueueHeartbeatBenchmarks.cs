@@ -25,7 +25,7 @@ public class TaskQueueHeartbeatBenchmarks
     }
 
     [Benchmark(Baseline = true)]
-    public async Task HeartbeatThenCompleteAsync()
+    public async ValueTask HeartbeatThenCompleteAsync()
     {
         await using var queue = new TaskQueue<int>(new TaskQueueOptions
         {
@@ -55,7 +55,7 @@ public class TaskQueueHeartbeatBenchmarks
     }
 
     [Benchmark]
-    public async Task ExpireAndRequeueAsync()
+    public async ValueTask ExpireAndRequeueAsync()
     {
         await using var queue = new TaskQueue<int>(new TaskQueueOptions
         {

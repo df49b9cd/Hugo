@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 public sealed class ChannelCaseTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task WaitAsync_ShouldReturnFalse_WhenChannelCompletedBeforeRead()
+    public async ValueTask WaitAsync_ShouldReturnFalse_WhenChannelCompletedBeforeRead()
     {
         var channel = Channel.CreateUnbounded<int>();
         channel.Writer.TryComplete();
@@ -20,7 +20,7 @@ public sealed class ChannelCaseTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ContinueWithAsync_ShouldReturnSelectDrained_WhenChannelClosesBeforeRead()
+    public async ValueTask ContinueWithAsync_ShouldReturnSelectDrained_WhenChannelClosesBeforeRead()
     {
         var channel = Channel.CreateUnbounded<int>();
         channel.Writer.TryComplete();
@@ -34,7 +34,7 @@ public sealed class ChannelCaseTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ContinueWithAsync_ShouldReturnError_WhenStateIsUnexpected()
+    public async ValueTask ContinueWithAsync_ShouldReturnError_WhenStateIsUnexpected()
     {
         var channel = Channel.CreateUnbounded<int>();
         ChannelCase<int> @case = ChannelCase.Create(channel.Reader, static (value, _) => ValueTask.FromResult(Result.Ok(value)));

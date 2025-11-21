@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 public sealed class ChannelCaseIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task TryDequeueImmediately_ShouldReturnReadyValue()
+    public async ValueTask TryDequeueImmediately_ShouldReturnReadyValue()
     {
         var channel = Channel.CreateUnbounded<int>();
         await channel.Writer.WriteAsync(3, TestContext.Current.CancellationToken);
@@ -23,7 +23,7 @@ public sealed class ChannelCaseIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CreateDefault_ShouldSurfaceFailure()
+    public async ValueTask CreateDefault_ShouldSurfaceFailure()
     {
         ChannelCase<int> @case = ChannelCase.CreateDefault<int>(static () => Result.Fail<int>(Error.From("boom")));
 
@@ -34,7 +34,7 @@ public sealed class ChannelCaseIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitAsync_ShouldReturnFalse_WhenChannelCompletesBeforeRead()
+    public async ValueTask WaitAsync_ShouldReturnFalse_WhenChannelCompletesBeforeRead()
     {
         var channel = Channel.CreateUnbounded<int>();
         channel.Writer.TryComplete();
@@ -48,7 +48,7 @@ public sealed class ChannelCaseIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ContinueWithAsync_ShouldReturnSelectDrained_WhenChannelClosedBeforeRead()
+    public async ValueTask ContinueWithAsync_ShouldReturnSelectDrained_WhenChannelClosedBeforeRead()
     {
         var channel = Channel.CreateUnbounded<int>();
         channel.Writer.TryComplete();
@@ -62,7 +62,7 @@ public sealed class ChannelCaseIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ContinueWithAsync_ShouldReturnError_WhenStateIsInvalid()
+    public async ValueTask ContinueWithAsync_ShouldReturnError_WhenStateIsInvalid()
     {
         var channel = Channel.CreateUnbounded<int>();
         ChannelCase<int> @case = ChannelCase.Create(channel.Reader, static (value, _) => ValueTask.FromResult(Result.Ok(value)));

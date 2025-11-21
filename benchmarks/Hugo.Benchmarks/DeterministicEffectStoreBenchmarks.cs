@@ -38,7 +38,7 @@ public class DeterministicEffectStoreBenchmarks
     }
 
     [IterationSetup(Target = nameof(Replay_CachedEffectsAsync))]
-    public async Task SetupReplayAsync()
+    public async ValueTask SetupReplayAsync()
     {
         _store = new InMemoryDeterministicStateStore();
         _effectStore = DeterministicEffectStore.CreateDefault(_store);
@@ -56,7 +56,7 @@ public class DeterministicEffectStoreBenchmarks
     }
 
     [Benchmark(Baseline = true)]
-    public async Task Capture_NewEffectsAsync()
+    public async ValueTask Capture_NewEffectsAsync()
     {
         if (_effectStore is null || _effectIds is null)
         {
@@ -70,7 +70,7 @@ public class DeterministicEffectStoreBenchmarks
     }
 
     [Benchmark]
-    public async Task Replay_CachedEffectsAsync()
+    public async ValueTask Replay_CachedEffectsAsync()
     {
         if (_effectStore is null || _effectIds is null)
         {

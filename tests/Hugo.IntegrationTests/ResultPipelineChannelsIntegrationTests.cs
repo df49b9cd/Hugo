@@ -10,7 +10,7 @@ namespace Hugo.Tests;
 public sealed class ResultPipelineChannelsIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task MergeWithStrategyAsync_ShouldSwitchReadersAndCompleteDestination()
+    public async ValueTask MergeWithStrategyAsync_ShouldSwitchReadersAndCompleteDestination()
     {
         var provider = new FakeTimeProvider();
         var scope = new CompensationScope();
@@ -72,7 +72,7 @@ public sealed class ResultPipelineChannelsIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MergeWithStrategyAsync_ShouldPropagateCancellation()
+    public async ValueTask MergeWithStrategyAsync_ShouldPropagateCancellation()
     {
         var provider = new FakeTimeProvider();
         var scope = new CompensationScope();

@@ -9,7 +9,7 @@ namespace Hugo.Tests;
 public sealed class ResultCollectionsFeatureTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task SequenceAsync_ShouldAggregateSuccessfulResults()
+    public async ValueTask SequenceAsync_ShouldAggregateSuccessfulResults()
     {
         async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct)
         {
@@ -26,7 +26,7 @@ public sealed class ResultCollectionsFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TraverseAsync_ShouldSurfaceSelectorExceptionsAsErrors()
+    public async ValueTask TraverseAsync_ShouldSurfaceSelectorExceptionsAsErrors()
     {
         async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct)
         {

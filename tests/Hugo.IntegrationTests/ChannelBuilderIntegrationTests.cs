@@ -8,7 +8,7 @@ namespace Hugo.IntegrationTests;
 public sealed class ChannelBuilderIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task UnboundedChannelBuilder_ShouldApplyConfigurationAcrossBuilds()
+    public async ValueTask UnboundedChannelBuilder_ShouldApplyConfigurationAcrossBuilds()
     {
         int configureCount = 0;
 

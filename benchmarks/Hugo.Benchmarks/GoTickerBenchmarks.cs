@@ -15,7 +15,7 @@ public class GoTickerBenchmarks
     public int PeriodMs { get; set; }
 
     [Benchmark(Baseline = true)]
-    public async Task GoTickerAsync()
+    public async ValueTask GoTickerAsync()
     {
         var period = TimeSpan.FromMilliseconds(PeriodMs);
         await using var ticker = Go.NewTicker(period, TimeProvider.System);
@@ -27,7 +27,7 @@ public class GoTickerBenchmarks
     }
 
     [Benchmark]
-    public async Task PeriodicTimerAsync()
+    public async ValueTask PeriodicTimerAsync()
     {
         var period = TimeSpan.FromMilliseconds(PeriodMs);
         using var timer = new PeriodicTimer(period);

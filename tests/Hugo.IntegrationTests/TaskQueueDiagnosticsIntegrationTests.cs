@@ -12,7 +12,7 @@ namespace Hugo.Tests;
 public class TaskQueueDiagnosticsIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task DiagnosticsHost_ShouldStreamBackpressureAndReplication()
+    public async ValueTask DiagnosticsHost_ShouldStreamBackpressureAndReplication()
     {
         await using var meterFactory = new TestMeterFactory();
         await using var diagnostics = new TaskQueueDiagnosticsHost(meterFactory, options =>
@@ -61,7 +61,7 @@ public class TaskQueueDiagnosticsIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task DiagnosticsHost_ShouldCompleteStreamOnDispose()
+    public async ValueTask DiagnosticsHost_ShouldCompleteStreamOnDispose()
     {
         await using var meterFactory = new TestMeterFactory();
         await using var diagnostics = new TaskQueueDiagnosticsHost(meterFactory);

@@ -38,7 +38,7 @@ public class GoFunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Run_WithCancellationToken_ShouldPropagateCancellation()
+    public async ValueTask Run_WithCancellationToken_ShouldPropagateCancellation()
     {
         using var cts = new CancellationTokenSource(50);
 
@@ -48,7 +48,7 @@ public class GoFunctionalTests
             },
         cancellationToken: cts.Token);
 
-        await Should.ThrowAsync<OperationCanceledException>(() => task.AsTask());
+        await Should.ThrowAsync<OperationCanceledException>(() => task);
     }
 
     [Fact(Timeout = 15_000)]
@@ -70,7 +70,7 @@ public class GoFunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitGroup_Go_WithCancellationToken_ShouldStopEarly()
+    public async ValueTask WaitGroup_Go_WithCancellationToken_ShouldStopEarly()
     {
         var wg = new WaitGroup();
         using var cts = new CancellationTokenSource(50);
@@ -85,7 +85,7 @@ public class GoFunctionalTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Integration_Pipeline_ShouldComposeGoAndFunctionalHelpers()
+    public async ValueTask Integration_Pipeline_ShouldComposeGoAndFunctionalHelpers()
     {
         var channel = MakeChannel<int>(capacity: 2);
         using var mutex = new Mutex();
@@ -123,7 +123,7 @@ public class GoFunctionalTests
     private static readonly int[] expected = [42];
 
     [Fact(Timeout = 15_000)]
-    public async Task Integration_WithFakeTimeProvider_ShouldDriveChannelWorkflow()
+    public async ValueTask Integration_WithFakeTimeProvider_ShouldDriveChannelWorkflow()
     {
         var provider = new FakeTimeProvider();
         var channel = MakeChannel<int>(capacity: 1);

@@ -9,7 +9,7 @@ namespace Hugo.Tests;
 public sealed class ResultFallbackFeatureTests
 {
     [Fact(Timeout = 20_000)]
-    public async Task TieredFallbackAsync_ShouldSkipUnrequestedCancellationsAndUseNextTier()
+    public async ValueTask TieredFallbackAsync_ShouldSkipUnrequestedCancellationsAndUseNextTier()
     {
         var tierOne = new ResultFallbackTier<int>(
             "primary",

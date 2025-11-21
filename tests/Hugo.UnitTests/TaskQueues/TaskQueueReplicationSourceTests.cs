@@ -13,7 +13,7 @@ namespace Hugo.Tests.TaskQueues;
 public class TaskQueueReplicationSourceTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task OnEvent_ShouldStreamEventsAndNotifyObservers()
+    public async ValueTask OnEvent_ShouldStreamEventsAndNotifyObservers()
     {
         GoDiagnostics.Reset();
 
@@ -62,7 +62,7 @@ public class TaskQueueReplicationSourceTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task PumpToAsync_ShouldForwardEventsAndCompleteOnDispose()
+    public async ValueTask PumpToAsync_ShouldForwardEventsAndCompleteOnDispose()
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<int>(new TaskQueueOptions { Name = "rep-source-pump", Capacity = 4 }, provider);

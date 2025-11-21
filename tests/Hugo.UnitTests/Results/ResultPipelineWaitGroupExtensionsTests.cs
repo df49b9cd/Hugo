@@ -6,7 +6,7 @@ namespace Hugo.Tests.Results;
 public sealed class ResultPipelineWaitGroupExtensionsTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task Go_ShouldPropagateChildResultIntoParentContext()
+    public async ValueTask Go_ShouldPropagateChildResultIntoParentContext()
     {
         var waitGroup = new WaitGroup();
         var parentScope = new CompensationScope();
@@ -26,7 +26,7 @@ public sealed class ResultPipelineWaitGroupExtensionsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Go_ShouldCancelChildTokenAfterWorkCompletes()
+    public async ValueTask Go_ShouldCancelChildTokenAfterWorkCompletes()
     {
         var waitGroup = new WaitGroup();
         var parentScope = new CompensationScope();
@@ -47,7 +47,7 @@ public sealed class ResultPipelineWaitGroupExtensionsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Go_ShouldHonorExplicitStepName()
+    public async ValueTask Go_ShouldHonorExplicitStepName()
     {
         var waitGroup = new WaitGroup();
         var parentContext = new ResultPipelineStepContext("parent", new CompensationScope(), TimeProvider.System, TestContext.Current.CancellationToken);
@@ -68,7 +68,7 @@ public sealed class ResultPipelineWaitGroupExtensionsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Go_ShouldAbsorbCompensationOnFailure()
+    public async ValueTask Go_ShouldAbsorbCompensationOnFailure()
     {
         var waitGroup = new WaitGroup();
         var parentScope = new CompensationScope();

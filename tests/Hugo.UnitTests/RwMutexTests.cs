@@ -4,7 +4,7 @@ namespace Hugo.Tests;
 public sealed class RwMutexTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task LockAsync_ShouldWaitUntilReadersExit()
+    public async ValueTask LockAsync_ShouldWaitUntilReadersExit()
     {
         using var mutex = new RwMutex();
 
@@ -33,14 +33,14 @@ public sealed class RwMutexTests
     }
 
     [Fact(Timeout = 5_000)]
-    public async Task RLockAsync_ShouldSupportCancellation()
+    public async ValueTask RLockAsync_ShouldSupportCancellation()
     {
         using var mutex = new RwMutex();
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         cts.Cancel();
 
-        await Should.ThrowAsync<OperationCanceledException>(() => mutex.RLockAsync(cts.Token).AsTask());
+        await Should.ThrowAsync<OperationCanceledException>(async () => await mutex.RLockAsync(cts.Token));
 
         // After cancellation, lock acquisition should still succeed.
         var releaser = await mutex.RLockAsync(TestContext.Current.CancellationToken);

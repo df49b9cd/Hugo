@@ -4,7 +4,7 @@ namespace Hugo.Tests;
 public sealed class ValueTaskUtilitiesTests
 {
     [Fact(Timeout = 5_000)]
-    public async Task ContinueWith_ShouldExposeCanceledTask()
+    public async ValueTask ContinueWith_ShouldExposeCanceledTask()
     {
         using var cts = new CancellationTokenSource();
         cts.Cancel();
@@ -24,7 +24,7 @@ public sealed class ValueTaskUtilitiesTests
     }
 
     [Fact(Timeout = 5_000)]
-    public async Task ContinueWith_ShouldWrapThrownException()
+    public async ValueTask ContinueWith_ShouldWrapThrownException()
     {
         var source = new ValueTask<int>(Task.FromException<int>(new InvalidOperationException("boom")));
         InvalidOperationException? captured = null;
@@ -41,7 +41,7 @@ public sealed class ValueTaskUtilitiesTests
     }
 
     [Fact(Timeout = 5_000)]
-    public async Task WhenAll_ShouldAwaitAllOperations()
+    public async ValueTask WhenAll_ShouldAwaitAllOperations()
     {
         var tcs1 = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var tcs2 = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -59,7 +59,7 @@ public sealed class ValueTaskUtilitiesTests
     }
 
     [Fact(Timeout = 5_000)]
-    public async Task WhenAny_ShouldReturnIndexOfFirstCompletion()
+    public async ValueTask WhenAny_ShouldReturnIndexOfFirstCompletion()
     {
         var fast = new ValueTask(Task.CompletedTask);
         var slow = new ValueTask(Task.Delay(50, TestContext.Current.CancellationToken));
@@ -79,7 +79,7 @@ public sealed class ValueTaskUtilitiesTests
     }
 
     [Fact(Timeout = 5_000)]
-    public async Task WhenAll_ShouldReturnCompletedTaskForEmptyList()
+    public async ValueTask WhenAll_ShouldReturnCompletedTaskForEmptyList()
     {
         var combined = ValueTaskUtilities.WhenAll(Array.Empty<ValueTask>());
         combined.IsCompleted.ShouldBeTrue();
@@ -87,7 +87,7 @@ public sealed class ValueTaskUtilitiesTests
     }
 
     [Fact(Timeout = 5_000)]
-    public async Task ContinueWith_ShouldFlowSuccessfulResult()
+    public async ValueTask ContinueWith_ShouldFlowSuccessfulResult()
     {
         var source = new ValueTask<int>(42);
         int observed = 0;
@@ -102,7 +102,7 @@ public sealed class ValueTaskUtilitiesTests
     }
 
     [Fact(Timeout = 5_000)]
-    public async Task YieldAsync_ShouldYieldExecution()
+    public async ValueTask YieldAsync_ShouldYieldExecution()
     {
         var flag = false;
         var task = Task.Run(async () =>
@@ -116,7 +116,7 @@ public sealed class ValueTaskUtilitiesTests
     }
 
     [Fact(Timeout = 5_000)]
-    public async Task WhenAny_ShouldReturnSecondIndexWhenSecondWins()
+    public async ValueTask WhenAny_ShouldReturnSecondIndexWhenSecondWins()
     {
         var slow = new ValueTask(Task.Delay(25, TestContext.Current.CancellationToken));
         var fast = new ValueTask(Task.CompletedTask);

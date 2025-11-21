@@ -10,7 +10,7 @@ namespace Hugo.Tests;
 public sealed class ChannelCaseTemplatesFeatureTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task WithMultipleTemplates_ShouldMaterializeCasesAndSelect()
+    public async ValueTask WithMultipleTemplates_ShouldMaterializeCasesAndSelect()
     {
         var empty = Channel.CreateUnbounded<int>();
         var ready = Channel.CreateUnbounded<int>();
@@ -33,7 +33,7 @@ public sealed class ChannelCaseTemplatesFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldPrioritizeImmediateReadyCase()
+    public async ValueTask SelectAsync_ShouldPrioritizeImmediateReadyCase()
     {
         var idle = Channel.CreateUnbounded<string>();
         var ready = Channel.CreateUnbounded<string>();
@@ -54,7 +54,7 @@ public sealed class ChannelCaseTemplatesFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldFallBackToDefaultCaseWhenNoReadersReady()
+    public async ValueTask SelectAsync_ShouldFallBackToDefaultCaseWhenNoReadersReady()
     {
         var empty = Channel.CreateUnbounded<int>();
 
@@ -71,7 +71,7 @@ public sealed class ChannelCaseTemplatesFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ChannelCaseTemplates_WithAction_ShouldMaterializeAndSelect()
+    public async ValueTask ChannelCaseTemplates_WithAction_ShouldMaterializeAndSelect()
     {
         var ready = Channel.CreateUnbounded<int>();
         await ready.Writer.WriteAsync(5, TestContext.Current.CancellationToken);

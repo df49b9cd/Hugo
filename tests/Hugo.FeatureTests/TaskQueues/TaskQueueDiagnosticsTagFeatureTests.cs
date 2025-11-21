@@ -13,7 +13,7 @@ namespace Hugo.Tests.TaskQueues;
 public sealed class TaskQueueDiagnosticsTagFeatureTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task TaskQueueDiagnostics_ShouldApplyCustomTagEnrichers()
+    public async ValueTask TaskQueueDiagnostics_ShouldApplyCustomTagEnrichers()
     {
         GoDiagnostics.Reset();
         await using var meterFactory = new TestMeterFactory();

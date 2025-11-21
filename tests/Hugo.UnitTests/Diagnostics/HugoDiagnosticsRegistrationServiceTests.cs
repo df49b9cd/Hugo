@@ -13,7 +13,7 @@ namespace Hugo.Tests.Diagnostics;
 public class HugoDiagnosticsRegistrationServiceTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task StartAsync_ShouldConfigureMeterAndActivitySource_WhenEnabled()
+    public async ValueTask StartAsync_ShouldConfigureMeterAndActivitySource_WhenEnabled()
     {
         GoDiagnostics.Reset();
 
@@ -45,7 +45,7 @@ public class HugoDiagnosticsRegistrationServiceTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task StartAsync_ShouldSkipMeterAndSamplingWhenDisabled()
+    public async ValueTask StartAsync_ShouldSkipMeterAndSamplingWhenDisabled()
     {
         GoDiagnostics.Reset();
 

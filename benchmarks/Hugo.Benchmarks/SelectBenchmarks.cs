@@ -34,7 +34,7 @@ public class SelectBenchmarks
     }
 
     [Benchmark]
-    public async Task GoSelectAsync()
+    public async ValueTask GoSelectAsync()
     {
         var channels = CreateChannels();
         var producers = StartProducers(channels);
@@ -81,7 +81,7 @@ public class SelectBenchmarks
     }
 
     [Benchmark]
-    public async Task TaskWhenAnyAsync()
+    public async ValueTask TaskWhenAnyAsync()
     {
         var channels = CreateChannels();
         var producers = StartProducers(channels);
@@ -136,7 +136,7 @@ public class SelectBenchmarks
     }
 
     [Benchmark]
-    public async Task PollingAsync()
+    public async ValueTask PollingAsync()
     {
         var channels = CreateChannels();
         var producers = StartProducers(channels);

@@ -9,7 +9,7 @@ namespace Hugo.Tests;
 public sealed class ResultPipelineRetryLoggingTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task RetryAsync_ShouldLogRecoveryAfterTransientFailure()
+    public async ValueTask RetryAsync_ShouldLogRecoveryAfterTransientFailure()
     {
         var logger = new ListLogger();
         var timeProvider = new FakeTimeProvider();
@@ -35,7 +35,7 @@ public sealed class ResultPipelineRetryLoggingTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RetryAsync_ShouldLogExhaustionWhenAllAttemptsFail()
+    public async ValueTask RetryAsync_ShouldLogExhaustionWhenAllAttemptsFail()
     {
         var logger = new ListLogger();
         var timeProvider = new FakeTimeProvider();

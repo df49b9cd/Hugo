@@ -10,7 +10,7 @@ namespace Hugo.Tests;
 public sealed class TaskQueueHealthCheckIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task AddTaskQueueHealthCheck_ShouldSurfaceQueueBacklogThroughHealthChecks()
+    public async ValueTask AddTaskQueueHealthCheck_ShouldSurfaceQueueBacklogThroughHealthChecks()
     {
         ServiceCollection services = new();
         services.AddSingleton(new TaskQueue<int>(new TaskQueueOptions

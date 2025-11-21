@@ -8,7 +8,7 @@ namespace Hugo.Tests;
 public class GoSharpTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task WaitGroup_Go_WithCancellationAwareWork_ShouldComplete()
+    public async ValueTask WaitGroup_Go_WithCancellationAwareWork_ShouldComplete()
     {
         var wg = new WaitGroup();
         var counter = 0;
@@ -28,7 +28,7 @@ public class GoSharpTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitGroup_Go_WithFaultedTask_ShouldStillComplete()
+    public async ValueTask WaitGroup_Go_WithFaultedTask_ShouldStillComplete()
     {
         var wg = new WaitGroup();
 
@@ -75,7 +75,7 @@ public class GoSharpTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MakeChannel_BoundedOptions_ShouldDropOldestWhenFull()
+    public async ValueTask MakeChannel_BoundedOptions_ShouldDropOldestWhenFull()
     {
         var options = new BoundedChannelOptions(1)
         {
@@ -95,7 +95,7 @@ public class GoSharpTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MakeChannel_UnboundedOptions_ShouldAllowMultipleWrites()
+    public async ValueTask MakeChannel_UnboundedOptions_ShouldAllowMultipleWrites()
     {
         var options = new UnboundedChannelOptions { SingleReader = true, SingleWriter = true };
         var channel = MakeChannel<int>(options);

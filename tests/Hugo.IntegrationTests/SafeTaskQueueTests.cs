@@ -7,7 +7,7 @@ namespace Hugo.Tests;
 public sealed class SafeTaskQueueTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task EnqueueLeaseComplete_ShouldReturnSuccess()
+    public async ValueTask EnqueueLeaseComplete_ShouldReturnSuccess()
     {
         await using var queue = new TaskQueue<string>();
         await using var safeQueue = new SafeTaskQueueWrapper<string>(queue);
@@ -25,7 +25,7 @@ public sealed class SafeTaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Lease_WhenQueueDisposed_ShouldFail()
+    public async ValueTask Lease_WhenQueueDisposed_ShouldFail()
     {
         await using var queue = new TaskQueue<string>();
         await using var safeQueue = new SafeTaskQueueWrapper<string>(queue);
@@ -42,7 +42,7 @@ public sealed class SafeTaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task LeaseOperations_ShouldReturnFailuresInsteadOfThrowing()
+    public async ValueTask LeaseOperations_ShouldReturnFailuresInsteadOfThrowing()
     {
         await using var queue = new TaskQueue<string>();
         await using var safeQueue = new SafeTaskQueueWrapper<string>(queue);
@@ -69,7 +69,7 @@ public sealed class SafeTaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FailAsync_WithNullError_ShouldReturnValidationError()
+    public async ValueTask FailAsync_WithNullError_ShouldReturnValidationError()
     {
         await using var queue = new TaskQueue<string>();
         await using var safeQueue = new SafeTaskQueueWrapper<string>(queue);
@@ -85,7 +85,7 @@ public sealed class SafeTaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FailAsync_WithRequeue_ShouldReturnSuccess()
+    public async ValueTask FailAsync_WithRequeue_ShouldReturnSuccess()
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<string>(timeProvider: provider);
@@ -108,7 +108,7 @@ public sealed class SafeTaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task LeaseAsync_WhenCanceled_ShouldReturnCanceledError()
+    public async ValueTask LeaseAsync_WhenCanceled_ShouldReturnCanceledError()
     {
         await using var queue = new TaskQueue<string>();
         await using var safeQueue = new SafeTaskQueueWrapper<string>(queue);

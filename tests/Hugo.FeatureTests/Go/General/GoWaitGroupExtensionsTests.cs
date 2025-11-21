@@ -12,7 +12,7 @@ public class GoWaitGroupExtensionsTests
         Should.Throw<ArgumentNullException>(static () => GoWaitGroupExtensions.Go(new WaitGroup(), (Func<ValueTask>)null!));
 
     [Fact(Timeout = 15_000)]
-    public async Task Go_ShouldRunFunctionAndTrackWaitGroup()
+    public async ValueTask Go_ShouldRunFunctionAndTrackWaitGroup()
     {
         var wg = new WaitGroup();
         var counter = 0;
@@ -38,7 +38,7 @@ public class GoWaitGroupExtensionsTests
         Should.Throw<ArgumentNullException>(static () => new WaitGroup().Go((Func<CancellationToken, ValueTask>)null!, cancellationToken: CancellationToken.None));
 
     [Fact(Timeout = 15_000)]
-    public async Task Go_WithCancellationToken_ShouldPassTokenAndComplete()
+    public async ValueTask Go_WithCancellationToken_ShouldPassTokenAndComplete()
     {
         var wg = new WaitGroup();
         using var cts = new CancellationTokenSource();
@@ -58,7 +58,7 @@ public class GoWaitGroupExtensionsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Go_WithCancellationToken_ShouldHandlePreCanceledToken()
+    public async ValueTask Go_WithCancellationToken_ShouldHandlePreCanceledToken()
     {
         var wg = new WaitGroup();
         using var cts = new CancellationTokenSource();
@@ -78,7 +78,7 @@ public class GoWaitGroupExtensionsTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Go_WithScheduler_ShouldRunOnCustomScheduler()
+    public async ValueTask Go_WithScheduler_ShouldRunOnCustomScheduler()
     {
         var wg = new WaitGroup();
         var scheduler = new InlineTaskScheduler();

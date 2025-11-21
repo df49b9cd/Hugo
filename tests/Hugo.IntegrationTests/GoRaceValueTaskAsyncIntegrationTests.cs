@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 public class GoRaceValueTaskAsyncIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task RaceValueTaskAsync_ShouldRespectRetryPoliciesPerOperation()
+    public async ValueTask RaceValueTaskAsync_ShouldRespectRetryPoliciesPerOperation()
     {
         var attempts = 0;
 

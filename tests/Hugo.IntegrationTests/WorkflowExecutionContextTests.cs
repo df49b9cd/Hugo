@@ -309,7 +309,7 @@ public sealed class WorkflowExecutionContextTests : IDisposable
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Scope_DisposeAsync_ShouldClearAmbientContext()
+    public async ValueTask Scope_DisposeAsync_ShouldClearAmbientContext()
     {
         var context = CreateContext();
 

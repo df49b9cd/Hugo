@@ -11,7 +11,7 @@ namespace Hugo.Tests.TaskQueues;
 public class TaskQueueBackpressureFeatureTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task Monitor_ShouldRemainInactiveBelowThresholds()
+    public async ValueTask Monitor_ShouldRemainInactiveBelowThresholds()
     {
         GoDiagnostics.Reset();
 
@@ -51,7 +51,7 @@ public class TaskQueueBackpressureFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Monitor_ShouldEmitMetricsAndDiagnostics_DuringChaos()
+    public async ValueTask Monitor_ShouldEmitMetricsAndDiagnostics_DuringChaos()
     {
         using var meterListener = new MeterListener();
         using var meter = new Meter(GoDiagnostics.MeterName);

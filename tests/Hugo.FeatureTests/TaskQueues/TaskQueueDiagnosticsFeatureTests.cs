@@ -14,7 +14,7 @@ namespace Hugo.Tests.TaskQueues;
 public class TaskQueueDiagnosticsFeatureTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task DiagnosticsHost_ShouldProduceControlPlanePayloads()
+    public async ValueTask DiagnosticsHost_ShouldProduceControlPlanePayloads()
     {
         await using var meterFactory = new TestMeterFactory();
         await using var diagnostics = new TaskQueueDiagnosticsHost(meterFactory, options =>
@@ -66,7 +66,7 @@ public class TaskQueueDiagnosticsFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task DiagnosticsHost_ShouldComputeSequenceDelta()
+    public async ValueTask DiagnosticsHost_ShouldComputeSequenceDelta()
     {
         await using var meterFactory = new TestMeterFactory();
         await using var diagnostics = new TaskQueueDiagnosticsHost(meterFactory);

@@ -12,7 +12,7 @@ namespace Hugo.UnitTests.TaskQueues;
 public sealed class CheckpointingTaskQueueReplicationSinkTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task ProcessAsync_ShouldAdvanceAndPersistCheckpointPerPeer()
+    public async ValueTask ProcessAsync_ShouldAdvanceAndPersistCheckpointPerPeer()
     {
         var timeProvider = new FakeTimeProvider();
         var checkpointStore = new RecordingCheckpointStore(TaskQueueReplicationCheckpoint.Empty("stream-1"));
@@ -68,7 +68,7 @@ public sealed class CheckpointingTaskQueueReplicationSinkTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ProcessAsync_ShouldSkipEventsAtOrBelowCheckpoint()
+    public async ValueTask ProcessAsync_ShouldSkipEventsAtOrBelowCheckpoint()
     {
         var timeProvider = new FakeTimeProvider();
         var existing = new TaskQueueReplicationCheckpoint(

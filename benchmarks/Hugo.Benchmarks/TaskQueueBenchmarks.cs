@@ -17,7 +17,7 @@ public class TaskQueueBenchmarks
     public int Capacity { get; set; }
 
     [Benchmark(Baseline = true)]
-    public async Task TaskQueue_LeaseAndCompleteAsync()
+    public async ValueTask TaskQueue_LeaseAndCompleteAsync()
     {
         await using var queue = new TaskQueue<int>(new TaskQueueOptions
         {
@@ -50,7 +50,7 @@ public class TaskQueueBenchmarks
     }
 
     [Benchmark]
-    public async Task BoundedChannel_ReadWriteAsync()
+    public async ValueTask BoundedChannel_ReadWriteAsync()
     {
         var channel = Channel.CreateBounded<int>(new BoundedChannelOptions(Capacity)
         {

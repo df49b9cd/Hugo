@@ -10,7 +10,7 @@ namespace Hugo.Tests;
 public sealed class ResultPipelineChannelsBroadcastIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task BroadcastAsync_ShouldReplicateValuesAndCompleteDestinations()
+    public async ValueTask BroadcastAsync_ShouldReplicateValuesAndCompleteDestinations()
     {
         var provider = new FakeTimeProvider();
         var scope = new CompensationScope();
@@ -42,7 +42,7 @@ public sealed class ResultPipelineChannelsBroadcastIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task BroadcastAsync_ShouldReturnCanceledResult_WhenCallerCancels()
+    public async ValueTask BroadcastAsync_ShouldReturnCanceledResult_WhenCallerCancels()
     {
         var provider = new FakeTimeProvider();
         var scope = new CompensationScope();

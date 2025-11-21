@@ -6,7 +6,7 @@ namespace Hugo.Tests;
 public sealed class WaitGroupTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task WaitAsync_ShouldReturnFalse_WhenTimeoutExpiresBeforeCompletion()
+    public async ValueTask WaitAsync_ShouldReturnFalse_WhenTimeoutExpiresBeforeCompletion()
     {
         var provider = new FakeTimeProvider();
         var waitGroup = new WaitGroup();
@@ -21,7 +21,7 @@ public sealed class WaitGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitAsync_ShouldReturnTrue_WhenWorkCompletesBeforeTimeout()
+    public async ValueTask WaitAsync_ShouldReturnTrue_WhenWorkCompletesBeforeTimeout()
     {
         var provider = new FakeTimeProvider();
         var waitGroup = new WaitGroup();
@@ -48,7 +48,7 @@ public sealed class WaitGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitAsync_ShouldThrow_WhenCancellationAlreadyRequested()
+    public async ValueTask WaitAsync_ShouldThrow_WhenCancellationAlreadyRequested()
     {
         using var cts = new CancellationTokenSource();
         cts.Cancel();
@@ -68,7 +68,7 @@ public sealed class WaitGroupTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Go_ShouldReleaseCount_WhenWorkFaults()
+    public async ValueTask Go_ShouldReleaseCount_WhenWorkFaults()
     {
         var waitGroup = new WaitGroup();
 

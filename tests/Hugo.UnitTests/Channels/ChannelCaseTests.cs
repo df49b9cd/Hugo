@@ -6,7 +6,7 @@ namespace Hugo.Tests.Channels;
 public sealed class ChannelCaseTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task TryDequeueImmediately_ShouldContinueWithReadyValue()
+    public async ValueTask TryDequeueImmediately_ShouldContinueWithReadyValue()
     {
         var channel = Channel.CreateBounded<int>(1);
         channel.Writer.TryWrite(7);
@@ -24,7 +24,7 @@ public sealed class ChannelCaseTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CreateDefault_ShouldSurfaceFailure_WhenCallbackThrows()
+    public async ValueTask CreateDefault_ShouldSurfaceFailure_WhenCallbackThrows()
     {
         ChannelCase<int> channelCase = ChannelCase<int>.CreateDefault(_ => throw new InvalidOperationException("default-failure"));
 
@@ -35,7 +35,7 @@ public sealed class ChannelCaseTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CreateOverloads_ShouldExecuteContinuations()
+    public async ValueTask CreateOverloads_ShouldExecuteContinuations()
     {
         async Task<int> ExecuteAsync(ChannelCase<int> @case)
         {
@@ -67,7 +67,7 @@ public sealed class ChannelCaseTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CreateDefaultOverloads_ShouldHonorPriorityAndReturnResults()
+    public async ValueTask CreateDefaultOverloads_ShouldHonorPriorityAndReturnResults()
     {
         var fromValueTask = ChannelCase.CreateDefault<int>(() => ValueTask.FromResult(Result.Ok(10)), priority: 2);
         var fromToken = ChannelCase.CreateDefault<int>(_ => ValueTask.FromResult(Result.Ok(11)), priority: 1);

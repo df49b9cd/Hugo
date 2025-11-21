@@ -6,6 +6,8 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 
+using Xunit.Internal;
+
 namespace Hugo.Assertions;
 
 // Compatibility layer that preserves the existing Shouldly-style helpers while routing
@@ -23,7 +25,15 @@ public static class AwesomeAssertionExtensions
 
     public static T ShouldBe<T>(this T actual, T expected, string? because = null, params object[] becauseArgs)
     {
-        actual.Should().Be(expected, Because(because), becauseArgs);
+        if (actual is not string && actual is IEnumerable actualEnumerable && expected is IEnumerable expectedEnumerable)
+        {
+            // Prefer structural comparison for sequences (arrays, lists, etc.) to avoid reference equality pitfalls.
+            actualEnumerable.Should().BeEquivalentTo(expectedEnumerable, Because(because), becauseArgs);
+        }
+        else
+        {
+            actual.Should().Be(expected, Because(because), becauseArgs);
+        }
         return actual;
     }
 
@@ -135,7 +145,10 @@ public static class AwesomeAssertionExtensions
 
     public static T ShouldBeOneOf<T>(this T actual, params T[] expected)
     {
-        actual.Should().BeOneOf(expected);
+        if (!expected.Contains(actual))
+        {
+            actual.Should().BeOneOf(expected);
+        }
         return actual;
     }
 
@@ -229,10 +242,14 @@ public static class Should
         return action.Should().Throw<TException>(Because(because), becauseArgs).Which;
     }
 
-    public static async Task<TException> ThrowAsync<TException>(Func<Task> action, string? because = null, params object[] becauseArgs)
+    public static async ValueTask<TException> ThrowAsync<TException>(Func<ValueTask> action, string? because = null, params object[] becauseArgs)
         where TException : Exception
     {
-        var assertion = await action.Should().ThrowAsync<TException>(Because(because), becauseArgs).ConfigureAwait(false);
+        var act = async Task () =>
+            {
+                await action.Invoke();
+            };
+        var assertion = await act.Should().ThrowAsync<TException>(Because(because), becauseArgs).ConfigureAwait(false);
         return assertion.Which;
     }
 
@@ -241,8 +258,12 @@ public static class Should
         action.Should().NotThrow(Because(because), becauseArgs);
     }
 
-    public static Task NotThrowAsync(Func<Task> action, string? because = null, params object[] becauseArgs)
+    public static async ValueTask NotThrowAsync(Func<ValueTask> action, string? because = null, params object[] becauseArgs)
     {
-        return action.Should().NotThrowAsync(Because(because), becauseArgs);
+        var act = async Task () =>
+            {
+                await action.Invoke();
+            };
+        await act.Should().NotThrowAsync(Because(because), becauseArgs);
     }
 }

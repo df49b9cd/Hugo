@@ -8,7 +8,7 @@ namespace Hugo.Tests;
 public sealed class ResultRetryPolicyCronIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task EvaluateAsync_ShouldScheduleNextCronOccurrence()
+    public async ValueTask EvaluateAsync_ShouldScheduleNextCronOccurrence()
     {
         var provider = new FakeTimeProvider();
         provider.SetUtcNow(new DateTimeOffset(2025, 3, 1, 1, 0, 0, TimeSpan.Zero));

@@ -10,7 +10,7 @@ namespace Hugo.Tests;
 public sealed class ResultStreamingIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task MapStreamAsync_ShouldProduceMappedValuesUntilFailure()
+    public async ValueTask MapStreamAsync_ShouldProduceMappedValuesUntilFailure()
     {
         async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -36,7 +36,7 @@ public sealed class ResultStreamingIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MapStreamAsync_ShouldTranslateSelectorExceptions()
+    public async ValueTask MapStreamAsync_ShouldTranslateSelectorExceptions()
     {
         var source = ToValues([1], TestContext.Current.CancellationToken);
 
@@ -51,7 +51,7 @@ public sealed class ResultStreamingIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task MapStreamAsync_ShouldReturnCanceledWhenEnumeratorThrows()
+    public async ValueTask MapStreamAsync_ShouldReturnCanceledWhenEnumeratorThrows()
     {
         async IAsyncEnumerable<int> Source([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -70,7 +70,7 @@ public sealed class ResultStreamingIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FlatMapStreamAsync_ShouldSurfaceInnerCancellation()
+    public async ValueTask FlatMapStreamAsync_ShouldSurfaceInnerCancellation()
     {
         async IAsyncEnumerable<int> Outer([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -98,7 +98,7 @@ public sealed class ResultStreamingIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FlatMapStreamAsync_ShouldFailWhenSelectorReturnsNull()
+    public async ValueTask FlatMapStreamAsync_ShouldFailWhenSelectorReturnsNull()
     {
         var stream = Result.FlatMapStreamAsync<int, int>(
             ToValues([1], TestContext.Current.CancellationToken),
@@ -111,7 +111,7 @@ public sealed class ResultStreamingIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FilterStreamAsync_ShouldDropNonMatchingValuesButKeepFailures()
+    public async ValueTask FilterStreamAsync_ShouldDropNonMatchingValuesButKeepFailures()
     {
         async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct)
         {
@@ -129,7 +129,7 @@ public sealed class ResultStreamingIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CollectErrorsAsync_ShouldAggregateFailures()
+    public async ValueTask CollectErrorsAsync_ShouldAggregateFailures()
     {
         async IAsyncEnumerable<Result<int>> Stream([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -146,7 +146,7 @@ public sealed class ResultStreamingIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ReadAllAsync_ShouldDrainChannelAfterFanIn()
+    public async ValueTask ReadAllAsync_ShouldDrainChannelAfterFanIn()
     {
         var first = ToResults([Result.Ok(1), Result.Ok(2)], TestContext.Current.CancellationToken);
         var second = ToResults([Result.Ok(3)], TestContext.Current.CancellationToken);

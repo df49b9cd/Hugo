@@ -6,7 +6,7 @@ namespace Hugo.Tests.TaskQueues;
 public sealed class TaskQueueHealthCheckTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task CheckHealthAsync_ShouldReportHealthy_WhenBelowThresholds()
+    public async ValueTask CheckHealthAsync_ShouldReportHealthy_WhenBelowThresholds()
     {
         await using var queue = new TaskQueue<int>(new TaskQueueOptions
         {
@@ -32,7 +32,7 @@ public sealed class TaskQueueHealthCheckTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CheckHealthAsync_ShouldReportDegraded_WhenPendingExceedsThreshold()
+    public async ValueTask CheckHealthAsync_ShouldReportDegraded_WhenPendingExceedsThreshold()
     {
         await using var queue = new TaskQueue<int>(new TaskQueueOptions
         {
@@ -60,7 +60,7 @@ public sealed class TaskQueueHealthCheckTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CheckHealthAsync_ShouldReportUnhealthy_WhenActiveLeasesExceedThreshold()
+    public async ValueTask CheckHealthAsync_ShouldReportUnhealthy_WhenActiveLeasesExceedThreshold()
     {
         await using var queue = new TaskQueue<int>(new TaskQueueOptions
         {

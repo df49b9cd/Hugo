@@ -11,7 +11,7 @@ namespace Hugo.Tests;
 public sealed class ResultWhenAllCancellationMetadataIntegrationTests
 {
     [Fact(Timeout = 30_000)]
-    public async Task BuildWhenAllCancellationErrorAsync_ShouldCapturePartialFailuresAndCompensationErrors()
+    public async ValueTask BuildWhenAllCancellationErrorAsync_ShouldCapturePartialFailuresAndCompensationErrors()
     {
         var pipelineScope = new CompensationScope();
         pipelineScope.Register(_ => ValueTask.CompletedTask);
@@ -63,7 +63,7 @@ public sealed class ResultWhenAllCancellationMetadataIntegrationTests
     }
 
     [Fact(Timeout = 30_000)]
-    public async Task BuildWhenAllCancellationErrorAsync_ShouldCapturePendingOperationExceptions()
+    public async ValueTask BuildWhenAllCancellationErrorAsync_ShouldCapturePendingOperationExceptions()
     {
         var pipelineScope = new CompensationScope();
         var policy = ResultExecutionPolicy.None.WithCompensation(new ResultCompensationPolicy(_ => throw new InvalidOperationException("comp-fail")));

@@ -10,7 +10,7 @@ namespace Hugo.IntegrationTests;
 public sealed class TaskQueueReplicationIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task ReplicationSource_ShouldEmitOrderedEvents()
+    public async ValueTask ReplicationSource_ShouldEmitOrderedEvents()
     {
         var provider = new FakeTimeProvider();
         TaskQueueOptions options = new() { Name = "replication.integration", Capacity = 8 };
@@ -55,7 +55,7 @@ public sealed class TaskQueueReplicationIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CheckpointingSink_ShouldResumeFromPersistedCheckpoint()
+    public async ValueTask CheckpointingSink_ShouldResumeFromPersistedCheckpoint()
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<int>(new TaskQueueOptions { Name = "replication.checkpoints", Capacity = 8 }, provider);
@@ -101,7 +101,7 @@ public sealed class TaskQueueReplicationIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CheckpointingSink_ShouldSkipAlreadyProcessedSequences_PerPeer()
+    public async ValueTask CheckpointingSink_ShouldSkipAlreadyProcessedSequences_PerPeer()
     {
         var provider = new FakeTimeProvider();
 
@@ -176,7 +176,7 @@ public sealed class TaskQueueReplicationIntegrationTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CheckpointingSink_ShouldPersistDefaultPeerKey_WhenOwnerMissing()
+    public async ValueTask CheckpointingSink_ShouldPersistDefaultPeerKey_WhenOwnerMissing()
     {
         var provider = new FakeTimeProvider();
 

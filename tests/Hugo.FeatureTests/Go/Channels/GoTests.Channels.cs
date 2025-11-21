@@ -126,7 +126,7 @@ public partial class GoTests
         Should.Throw<ArgumentNullException>(static () => MakeChannel<int>((UnboundedChannelOptions)null!));
 
     [Fact(Timeout = 15_000)]
-    public async Task MakeChannel_WithPrioritizedOptions_UsesDefaultPriority()
+    public async ValueTask MakeChannel_WithPrioritizedOptions_UsesDefaultPriority()
     {
         var options = new PrioritizedChannelOptions
         {
@@ -152,7 +152,7 @@ public partial class GoTests
         Should.Throw<ArgumentNullException>(static () => MakeChannel<int>((PrioritizedChannelOptions)null!));
 
     [Fact(Timeout = 15_000)]
-    public async Task MakePrioritizedChannel_ConfiguresOptions()
+    public async ValueTask MakePrioritizedChannel_ConfiguresOptions()
     {
         var channel = MakePrioritizedChannel<int>(
             priorityLevels: 3,
@@ -174,7 +174,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectFanInAsync_ShouldDrainAllCases()
+    public async ValueTask SelectFanInAsync_ShouldDrainAllCases()
     {
         var channel1 = MakeChannel<int>();
         var channel2 = MakeChannel<int>();
@@ -212,7 +212,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectFanInAsync_WithValueTaskContinuation_ShouldDrainAllCases()
+    public async ValueTask SelectFanInAsync_WithValueTaskContinuation_ShouldDrainAllCases()
     {
         var channel = MakeChannel<int>();
         var observed = new ConcurrentBag<int>();
@@ -238,7 +238,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectFanInAsync_ShouldPropagateCaseFailure()
+    public async ValueTask SelectFanInAsync_ShouldPropagateCaseFailure()
     {
         var channel = MakeChannel<int>();
         var fanInTask = SelectFanInAsync(
@@ -257,7 +257,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectFanInAsync_ShouldRespectCancellation()
+    public async ValueTask SelectFanInAsync_ShouldRespectCancellation()
     {
         var channel = MakeChannel<int>();
         using var cts = new CancellationTokenSource(25);
@@ -273,7 +273,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectFanInAsync_ShouldTimeoutAfterOverallDeadline()
+    public async ValueTask SelectFanInAsync_ShouldTimeoutAfterOverallDeadline()
     {
         var provider = new FakeTimeProvider();
         var channel1 = MakeChannel<int>();
@@ -312,10 +312,10 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectFanInAsync_WithNullReaders_Throws() => await Should.ThrowAsync<ArgumentNullException>(static async () => await SelectFanInAsync<object>(null!, static (_, _) => Task.FromResult(Result.Ok(Unit.Value)), cancellationToken: TestContext.Current.CancellationToken));
+    public async ValueTask SelectFanInAsync_WithNullReaders_Throws() => await Should.ThrowAsync<ArgumentNullException>(static async () => await SelectFanInAsync<object>(null!, static (_, _) => Task.FromResult(Result.Ok(Unit.Value)), cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectFanInAsync_WithNullDelegate_Throws()
+    public async ValueTask SelectFanInAsync_WithNullDelegate_Throws()
     {
         var channel = MakeChannel<int>();
 
@@ -332,7 +332,7 @@ public partial class GoTests
 
     [Theory]
     [InlineData(new[] { 1, 2 })]
-    public async Task FanInAsync_ShouldMergeIntoDestination(int[] expected)
+    public async ValueTask FanInAsync_ShouldMergeIntoDestination(int[] expected)
     {
         var source1 = MakeChannel<int>();
         var source2 = MakeChannel<int>();
@@ -365,7 +365,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsync_ShouldReturnFailure_WhenDestinationClosed()
+    public async ValueTask FanInAsync_ShouldReturnFailure_WhenDestinationClosed()
     {
         var source = MakeChannel<int>();
         var destination = MakeChannel<int>();
@@ -384,7 +384,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsync_WithEmptySources_CompletesDestinationWhenRequested()
+    public async ValueTask FanInAsync_WithEmptySources_CompletesDestinationWhenRequested()
     {
         var destination = MakeChannel<int>();
 
@@ -395,7 +395,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsync_WithEmptySources_DoesNotCompleteWhenRequested()
+    public async ValueTask FanInAsync_WithEmptySources_DoesNotCompleteWhenRequested()
     {
         var destination = MakeChannel<int>();
 
@@ -406,14 +406,14 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsync_WithNullSources_Throws()
+    public async ValueTask FanInAsync_WithNullSources_Throws()
     {
         var destination = MakeChannel<int>();
         await Should.ThrowAsync<ArgumentNullException>(async () => await FanInAsync(null!, destination.Writer, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsync_WithNullDestination_Throws()
+    public async ValueTask FanInAsync_WithNullDestination_Throws()
     {
         var source = MakeChannel<int>();
         await Should.ThrowAsync<ArgumentNullException>(async () => await FanInAsync([source.Reader], null!, cancellationToken: TestContext.Current.CancellationToken));
@@ -421,7 +421,7 @@ public partial class GoTests
 
     [Theory]
     [InlineData(new[] { 7, 9 })]
-    public async Task FanIn_ShouldMergeSources(int[] expected)
+    public async ValueTask FanIn_ShouldMergeSources(int[] expected)
     {
         var source1 = MakeChannel<int>();
         var source2 = MakeChannel<int>();
@@ -454,21 +454,21 @@ public partial class GoTests
         Should.Throw<ArgumentNullException>(static () => FanIn<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_WithNullSource_Throws()
+    public async ValueTask FanOutAsync_WithNullSource_Throws()
     {
         var destination = MakeChannel<int>();
         await Should.ThrowAsync<ArgumentNullException>(async () => await FanOutAsync(null!, [destination.Writer], cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_WithNullDestinations_Throws()
+    public async ValueTask FanOutAsync_WithNullDestinations_Throws()
     {
         var source = MakeChannel<int>();
         await Should.ThrowAsync<ArgumentNullException>(async () => await FanOutAsync(source.Reader, null!, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_WithNullDestinationEntry_Throws()
+    public async ValueTask FanOutAsync_WithNullDestinationEntry_Throws()
     {
         var source = MakeChannel<int>();
         IReadOnlyList<ChannelWriter<int>> destinations = [null!];
@@ -477,7 +477,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_WithNegativeDeadline_Throws()
+    public async ValueTask FanOutAsync_WithNegativeDeadline_Throws()
     {
         var source = MakeChannel<int>();
         var destination = MakeChannel<int>();
@@ -486,7 +486,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_WithNoDestinations_ReturnsSuccess()
+    public async ValueTask FanOutAsync_WithNoDestinations_ReturnsSuccess()
     {
         var source = MakeChannel<int>();
         var result = await FanOutAsync(source.Reader, [], cancellationToken: TestContext.Current.CancellationToken);
@@ -525,7 +525,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOut_WithCompleteBranchesFalse_DoesNotCompleteBranches()
+    public async ValueTask FanOut_WithCompleteBranchesFalse_DoesNotCompleteBranches()
     {
         var source = MakeChannel<int>();
         var branches = FanOut(source.Reader, branchCount: 1, completeBranches: false, cancellationToken: TestContext.Current.CancellationToken);
@@ -539,7 +539,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOut_WithCompleteBranchesTrue_CompletesReaders()
+    public async ValueTask FanOut_WithCompleteBranchesTrue_CompletesReaders()
     {
         var source = MakeChannel<int>();
         var branches = FanOut(source.Reader, branchCount: 1, completeBranches: true, cancellationToken: TestContext.Current.CancellationToken);
@@ -553,7 +553,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanIn_ShouldPropagateCancellation()
+    public async ValueTask FanIn_ShouldPropagateCancellation()
     {
         var source = MakeChannel<int>();
         using var cts = new CancellationTokenSource();
@@ -566,7 +566,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_ShouldBroadcastToAllDestinations()
+    public async ValueTask FanOutAsync_ShouldBroadcastToAllDestinations()
     {
         var source = MakeChannel<int>();
         var destination1 = MakeChannel<int>();
@@ -588,7 +588,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_ShouldTimeoutWhenDeadlineExpires()
+    public async ValueTask FanOutAsync_ShouldTimeoutWhenDeadlineExpires()
     {
         var provider = new FakeTimeProvider();
         var source = MakeChannel<int>();
@@ -639,7 +639,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_ShouldRespectCancellation()
+    public async ValueTask FanOutAsync_ShouldRespectCancellation()
     {
         var source = MakeChannel<int>();
         var destination = MakeChannel<int>();
@@ -659,7 +659,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOut_ShouldReturnBranchReaders()
+    public async ValueTask FanOut_ShouldReturnBranchReaders()
     {
         var source = MakeChannel<int>();
 

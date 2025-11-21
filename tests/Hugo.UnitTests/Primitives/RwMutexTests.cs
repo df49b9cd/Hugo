@@ -4,7 +4,7 @@ namespace Hugo.Tests.Primitives;
 public sealed class RwMutexTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task Dispose_ShouldBeIdempotentAndBlockFurtherUsage()
+    public async ValueTask Dispose_ShouldBeIdempotentAndBlockFurtherUsage()
     {
         var mutex = new RwMutex();
 
@@ -17,7 +17,7 @@ public sealed class RwMutexTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task LockAsync_ShouldThrowObjectDisposedException_WhenDisposed()
+    public async ValueTask LockAsync_ShouldThrowObjectDisposedException_WhenDisposed()
     {
         var mutex = new RwMutex();
         mutex.Dispose();

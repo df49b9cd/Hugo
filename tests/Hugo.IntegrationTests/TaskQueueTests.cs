@@ -16,7 +16,7 @@ public class TaskQueueTests
     public void TaskQueueOptions_NegativeRequeueDelay_ShouldThrow() => Should.Throw<ArgumentOutOfRangeException>(static () => new TaskQueueOptions { RequeueDelay = TimeSpan.FromMilliseconds(-1) });
 
     [Fact(Timeout = 5_000)]
-    public async Task EnqueueAsync_WithAvailableCapacity_CompletesSynchronously()
+    public async ValueTask EnqueueAsync_WithAvailableCapacity_CompletesSynchronously()
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<string>(new TaskQueueOptions { Capacity = 8 }, provider);
@@ -32,7 +32,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 5_000)]
-    public async Task LeaseAsync_WhenItemBuffered_CompletesSynchronously()
+    public async ValueTask LeaseAsync_WhenItemBuffered_CompletesSynchronously()
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<string>(new TaskQueueOptions { Capacity = 4 }, provider);
@@ -49,7 +49,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task EnqueueLeaseComplete_ShouldClearCounts()
+    public async ValueTask EnqueueLeaseComplete_ShouldClearCounts()
     {
         var provider = new FakeTimeProvider();
         await using var queue = new TaskQueue<string>(timeProvider: provider);
@@ -70,7 +70,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FailAsync_WithRequeue_ShouldIncrementAttempt()
+    public async ValueTask FailAsync_WithRequeue_ShouldIncrementAttempt()
     {
         var provider = new FakeTimeProvider();
         var options = new TaskQueueOptions { MaxDeliveryAttempts = 3 };
@@ -94,7 +94,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FailAsync_WithoutRequeue_ShouldDeadLetter()
+    public async ValueTask FailAsync_WithoutRequeue_ShouldDeadLetter()
     {
         var provider = new FakeTimeProvider();
         var contexts = new List<TaskQueueDeadLetterContext<string>>();
@@ -124,7 +124,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FailAsync_ShouldThrowWhenErrorNull()
+    public async ValueTask FailAsync_ShouldThrowWhenErrorNull()
     {
         await using var queue = new TaskQueue<string>();
 
@@ -135,7 +135,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task LeaseExpiration_ShouldRequeueWithExpiredError()
+    public async ValueTask LeaseExpiration_ShouldRequeueWithExpiredError()
     {
         var provider = new FakeTimeProvider();
         var options = new TaskQueueOptions
@@ -171,7 +171,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task LeaseExpiration_PastMaxAttempts_ShouldDeadLetter()
+    public async ValueTask LeaseExpiration_PastMaxAttempts_ShouldDeadLetter()
     {
         var provider = new FakeTimeProvider();
         var contexts = new List<TaskQueueDeadLetterContext<string>>();
@@ -218,7 +218,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task LeaseOperations_ShouldRejectAfterCompletion()
+    public async ValueTask LeaseOperations_ShouldRejectAfterCompletion()
     {
         await using var queue = new TaskQueue<string>();
 
@@ -233,7 +233,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FailAsync_WithCanceledToken_ShouldStillRequeue()
+    public async ValueTask FailAsync_WithCanceledToken_ShouldStillRequeue()
     {
         var provider = new FakeTimeProvider();
         var options = new TaskQueueOptions
@@ -264,7 +264,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task LeaseExpiration_DuringDispose_ShouldSurfaceDeadLetter()
+    public async ValueTask LeaseExpiration_DuringDispose_ShouldSurfaceDeadLetter()
     {
         var provider = new FakeTimeProvider();
         var contexts = new List<TaskQueueDeadLetterContext<string>>();
@@ -303,7 +303,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TaskQueue_Disposed_ShouldThrowOnEnqueueAndLease()
+    public async ValueTask TaskQueue_Disposed_ShouldThrowOnEnqueueAndLease()
     {
         await using var queue = new TaskQueue<string>();
 
@@ -314,7 +314,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task OwnershipToken_ShouldAdvancePerLease()
+    public async ValueTask OwnershipToken_ShouldAdvancePerLease()
     {
         await using var queue = new TaskQueue<string>();
         await queue.EnqueueAsync("value", TestContext.Current.CancellationToken);
@@ -332,7 +332,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task DrainAndRestore_ShouldRoundTripPendingItems()
+    public async ValueTask DrainAndRestore_ShouldRoundTripPendingItems()
     {
         await using var queue = new TaskQueue<string>();
         await queue.EnqueueAsync("alpha", TestContext.Current.CancellationToken);
@@ -351,7 +351,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task BackpressureCallbacks_ShouldFireOnThresholdTransitions()
+    public async ValueTask BackpressureCallbacks_ShouldFireOnThresholdTransitions()
     {
         var provider = new FakeTimeProvider();
         var notifications = new List<TaskQueueBackpressureState>();
@@ -385,7 +385,7 @@ public class TaskQueueTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Heartbeat_ShouldExtendLease()
+    public async ValueTask Heartbeat_ShouldExtendLease()
     {
         var provider = new FakeTimeProvider();
         var options = new TaskQueueOptions

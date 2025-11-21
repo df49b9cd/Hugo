@@ -11,7 +11,7 @@ namespace Hugo.Tests;
 public class WindowPipelineIntegrationTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task WindowAsync_ShouldFlushAfterTimerThenAcceptLaterData()
+    public async ValueTask WindowAsync_ShouldFlushAfterTimerThenAcceptLaterData()
     {
         var provider = new FakeTimeProvider();
         var scope = new CompensationScope();

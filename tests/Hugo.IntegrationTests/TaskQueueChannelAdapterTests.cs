@@ -30,7 +30,7 @@ public class TaskQueueChannelAdapterTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Create_ShouldSurfaceLeasesAndAllowCompletion()
+    public async ValueTask Create_ShouldSurfaceLeasesAndAllowCompletion()
     {
         var options = new TaskQueueOptions
         {
@@ -53,7 +53,7 @@ public class TaskQueueChannelAdapterTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Dispose_ShouldCompleteChannel()
+    public async ValueTask Dispose_ShouldCompleteChannel()
     {
         await using var queue = new TaskQueue<string>();
         await queue.EnqueueAsync("beta", TestContext.Current.CancellationToken);
@@ -66,7 +66,7 @@ public class TaskQueueChannelAdapterTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Create_WithConcurrency_ShouldPumpMultipleLeases()
+    public async ValueTask Create_WithConcurrency_ShouldPumpMultipleLeases()
     {
         await using var queue = new TaskQueue<string>();
         await queue.EnqueueAsync("one", TestContext.Current.CancellationToken);
@@ -86,7 +86,7 @@ public class TaskQueueChannelAdapterTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Adapter_ShouldRequeueExpiredLeases()
+    public async ValueTask Adapter_ShouldRequeueExpiredLeases()
     {
         var provider = new FakeTimeProvider();
         var options = new TaskQueueOptions
@@ -115,7 +115,7 @@ public class TaskQueueChannelAdapterTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task QueueDisposal_ShouldCompleteChannel()
+    public async ValueTask QueueDisposal_ShouldCompleteChannel()
     {
         await using var queue = new TaskQueue<string>();
         var adapter = TaskQueueChannelAdapter<string>.Create(queue);
@@ -127,7 +127,7 @@ public class TaskQueueChannelAdapterTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Dispose_WithOwnership_ShouldDisposeQueue()
+    public async ValueTask Dispose_WithOwnership_ShouldDisposeQueue()
     {
         await using var queue = new TaskQueue<string>();
         var adapter = TaskQueueChannelAdapter<string>.Create(queue, ownsQueue: true);
@@ -138,7 +138,7 @@ public class TaskQueueChannelAdapterTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Dispose_WhileLeaseBuffered_ShouldRequeueWork()
+    public async ValueTask Dispose_WhileLeaseBuffered_ShouldRequeueWork()
     {
         var options = new TaskQueueOptions
         {
@@ -172,7 +172,7 @@ public class TaskQueueChannelAdapterTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Create_ShouldBoundActiveLeases_WhenReaderSlow()
+    public async ValueTask Create_ShouldBoundActiveLeases_WhenReaderSlow()
     {
         var options = new TaskQueueOptions
         {

@@ -12,7 +12,7 @@ namespace Hugo.Tests;
 public partial class GoTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_Delegates_ShouldReturnAllResults()
+    public async ValueTask FanOutAsync_Delegates_ShouldReturnAllResults()
     {
         var operations = new List<Func<CancellationToken, Task<Result<int>>>>
         {
@@ -35,7 +35,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_ValueTaskDelegates_ShouldReturnAllResults()
+    public async ValueTask FanOutAsync_ValueTaskDelegates_ShouldReturnAllResults()
     {
         var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
         {
@@ -58,7 +58,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RaceAsync_ShouldReturnFirstSuccessfulResult()
+    public async ValueTask RaceAsync_ShouldReturnFirstSuccessfulResult()
     {
         var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
         {
@@ -86,7 +86,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RaceAsync_ValueTaskDelegates_ShouldReturnFirstSuccessfulResult()
+    public async ValueTask RaceAsync_ValueTaskDelegates_ShouldReturnFirstSuccessfulResult()
     {
         var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
         {
@@ -109,7 +109,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RaceValueTaskAsync_ShouldReturnCanceled_WhenCallerCancels()
+    public async ValueTask RaceValueTaskAsync_ShouldReturnCanceled_WhenCallerCancels()
     {
         using var callerCts = new CancellationTokenSource();
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(callerCts.Token, TestContext.Current.CancellationToken);
@@ -144,7 +144,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RaceValueTaskAsync_ShouldReturnFirstChannelMessage()
+    public async ValueTask RaceValueTaskAsync_ShouldReturnFirstChannelMessage()
     {
         var first = Channel.CreateUnbounded<int>();
         var second = Channel.CreateUnbounded<int>();
@@ -168,7 +168,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RaceValueTaskAsync_WithWindowTimerFirst_ShouldStillDeliverBatches()
+    public async ValueTask RaceValueTaskAsync_WithWindowTimerFirst_ShouldStillDeliverBatches()
     {
         var provider = new FakeTimeProvider();
         var source = Channel.CreateUnbounded<int>();
@@ -223,7 +223,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task CollectErrorsAsync_ShouldAggregateFailuresAcrossStreams()
+    public async ValueTask CollectErrorsAsync_ShouldAggregateFailuresAcrossStreams()
     {
         var stream = CollectingStream();
 
@@ -255,7 +255,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WithTimeoutAsync_ShouldReturnTimeoutError()
+    public async ValueTask WithTimeoutAsync_ShouldReturnTimeoutError()
     {
         var provider = new FakeTimeProvider();
 
@@ -278,7 +278,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WithTimeoutAsync_ShouldReturnCanceled_WhenTokenCancelled()
+    public async ValueTask WithTimeoutAsync_ShouldReturnCanceled_WhenTokenCancelled()
     {
         using var cts = new CancellationTokenSource();
         var provider = new FakeTimeProvider();
@@ -305,7 +305,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WithTimeoutAsync_ShouldReturnFailure_WhenOperationThrows()
+    public async ValueTask WithTimeoutAsync_ShouldReturnFailure_WhenOperationThrows()
     {
         var provider = new FakeTimeProvider();
 
@@ -321,7 +321,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WithTimeoutAsync_ShouldReturnFailure_WhenOperationThrows_WithInfiniteTimeout()
+    public async ValueTask WithTimeoutAsync_ShouldReturnFailure_WhenOperationThrows_WithInfiniteTimeout()
     {
         var result = await WithTimeoutAsync<int>(
             static _ => throw new InvalidOperationException("boom infinite"),
@@ -335,7 +335,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WithTimeoutAsync_ValueTaskDelegate_ShouldReturnSuccess()
+    public async ValueTask WithTimeoutAsync_ValueTaskDelegate_ShouldReturnSuccess()
     {
         var provider = new FakeTimeProvider();
 
@@ -354,7 +354,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RetryAsync_ShouldRetryUntilSuccess()
+    public async ValueTask RetryAsync_ShouldRetryUntilSuccess()
     {
         var attempts = new List<int>();
 
@@ -380,7 +380,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RetryAsync_ValueTaskDelegate_ShouldRetryUntilSuccess()
+    public async ValueTask RetryAsync_ValueTaskDelegate_ShouldRetryUntilSuccess()
     {
         int attempt = 0;
 
@@ -406,7 +406,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RetryAsync_ShouldSurfaceFinalFailure()
+    public async ValueTask RetryAsync_ShouldSurfaceFinalFailure()
     {
         var attempts = 0;
 
@@ -428,7 +428,7 @@ public partial class GoTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task RetryAsync_ShouldPropagateCancellationWithoutRetrying(bool useLinkedToken)
+    public async ValueTask RetryAsync_ShouldPropagateCancellationWithoutRetrying(bool useLinkedToken)
     {
         var attempts = new List<int>();
 
@@ -462,11 +462,11 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_ShouldThrowWhenOperationsNull() => await Should.ThrowAsync<ArgumentNullException>(static async () =>
+    public async ValueTask FanOutAsync_ShouldThrowWhenOperationsNull() => await Should.ThrowAsync<ArgumentNullException>(static async () =>
                                                                               await FanOutAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_ShouldThrowWhenOperationEntryNull()
+    public async ValueTask FanOutAsync_ShouldThrowWhenOperationEntryNull()
     {
         var operations = new Func<CancellationToken, Task<Result<int>>>?[]
         {
@@ -481,7 +481,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_ShouldReturnEmptyWhenNoOperations()
+    public async ValueTask FanOutAsync_ShouldReturnEmptyWhenNoOperations()
     {
         var result = await FanOutAsync(Array.Empty<Func<CancellationToken, Task<Result<int>>>>(), cancellationToken: TestContext.Current.CancellationToken);
 
@@ -490,7 +490,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_ShouldPropagateFailure()
+    public async ValueTask FanOutAsync_ShouldPropagateFailure()
     {
         var operations = new List<Func<CancellationToken, Task<Result<int>>>>
         {
@@ -505,7 +505,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_WithExecutionPolicy_ShouldRespectCancellation()
+    public async ValueTask FanOutAsync_WithExecutionPolicy_ShouldRespectCancellation()
     {
         using var cts = new CancellationTokenSource();
         TaskCompletionSource[] started =
@@ -541,11 +541,11 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RaceAsync_ShouldThrowWhenOperationsNull() => await Should.ThrowAsync<ArgumentNullException>(static async () =>
+    public async ValueTask RaceAsync_ShouldThrowWhenOperationsNull() => await Should.ThrowAsync<ArgumentNullException>(static async () =>
                                                                             await RaceAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
-    public async Task RaceAsync_ShouldThrowWhenOperationEntryNull()
+    public async ValueTask RaceAsync_ShouldThrowWhenOperationEntryNull()
     {
         var operations = new Func<CancellationToken, ValueTask<Result<int>>>?[]
         {
@@ -560,7 +560,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RaceAsync_ShouldReturnFailureWhenAllFail()
+    public async ValueTask RaceAsync_ShouldReturnFailureWhenAllFail()
     {
         var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
         {
@@ -575,7 +575,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RaceAsync_ShouldReturnCanceledWhenOperationsCanceled()
+    public async ValueTask RaceAsync_ShouldReturnCanceledWhenOperationsCanceled()
     {
         using var cts = new CancellationTokenSource();
         TaskCompletionSource[] started =
@@ -611,7 +611,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WithTimeoutAsync_ShouldReturnSuccessWhenOperationCompletes()
+    public async ValueTask WithTimeoutAsync_ShouldReturnSuccessWhenOperationCompletes()
     {
         var result = await WithTimeoutAsync(
             static _ => Task.FromResult(Ok(5)),
@@ -624,7 +624,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WithTimeoutAsync_ShouldReturnSuccessWithInfiniteTimeout()
+    public async ValueTask WithTimeoutAsync_ShouldReturnSuccessWithInfiniteTimeout()
     {
         var result = await WithTimeoutAsync(
             static _ => Task.FromResult(Ok(7)),
@@ -636,11 +636,11 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WithTimeoutAsync_ShouldThrowWhenTimeoutNegative() => await Should.ThrowAsync<ArgumentOutOfRangeException>(static async () =>
+    public async ValueTask WithTimeoutAsync_ShouldThrowWhenTimeoutNegative() => await Should.ThrowAsync<ArgumentOutOfRangeException>(static async () =>
                                                                                     await WithTimeoutAsync(static _ => Task.FromResult(Ok(1)), TimeSpan.FromMilliseconds(-2), cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
-    public async Task WithTimeoutAsync_ShouldPropagateOperationFailure()
+    public async ValueTask WithTimeoutAsync_ShouldPropagateOperationFailure()
     {
         var result = await WithTimeoutAsync(
             static _ => Task.FromResult(Err<int>("failure", ErrorCodes.Validation)),
@@ -653,7 +653,7 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WithTimeoutAsync_ShouldReturnCanceledWhenOperationThrowsWithoutToken()
+    public async ValueTask WithTimeoutAsync_ShouldReturnCanceledWhenOperationThrowsWithoutToken()
     {
         var result = await WithTimeoutAsync<int>(
             static _ => throw new OperationCanceledException(),
@@ -667,17 +667,17 @@ public partial class GoTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task RetryAsync_ShouldThrowWhenOperationNull() => await Should.ThrowAsync<ArgumentNullException>(static async () =>
+    public async ValueTask RetryAsync_ShouldThrowWhenOperationNull() => await Should.ThrowAsync<ArgumentNullException>(static async () =>
                                                                             await RetryAsync<int>(null!, cancellationToken: TestContext.Current.CancellationToken));
 
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public async Task RetryAsync_ShouldThrowWhenMaxAttemptsInvalid(int maxAttempts) => await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
+    public async ValueTask RetryAsync_ShouldThrowWhenMaxAttemptsInvalid(int maxAttempts) => await Should.ThrowAsync<ArgumentOutOfRangeException>(async () =>
                                                                                                 await RetryAsync((_, _) => Task.FromResult(Ok(1)), maxAttempts, initialDelay: TimeSpan.Zero, cancellationToken: TestContext.Current.CancellationToken));
 
     [Fact(Timeout = 15_000)]
-    public async Task RetryAsync_ShouldReturnFailureWhenOperationThrows()
+    public async ValueTask RetryAsync_ShouldReturnFailureWhenOperationThrows()
     {
         var result = await RetryAsync<int>(
             static (_, _) => throw new InvalidOperationException("boom"),

@@ -15,7 +15,7 @@ public class OnceBenchmarks
     public void Reset() => Volatile.Write(ref _initializationCount, 0);
 
     [Benchmark]
-    public async Task HugoOnceAsync()
+    public async ValueTask HugoOnceAsync()
     {
         var once = new Once();
         var tasks = new Task[TaskCount];
@@ -30,7 +30,7 @@ public class OnceBenchmarks
     }
 
     [Benchmark]
-    public async Task LazyValueAsync()
+    public async ValueTask LazyValueAsync()
     {
         var lazy = new Lazy<int>(() => Initialize(), LazyThreadSafetyMode.ExecutionAndPublication);
         var tasks = new Task[TaskCount];
@@ -48,7 +48,7 @@ public class OnceBenchmarks
     }
 
     [Benchmark]
-    public async Task LazyInitializerAsync()
+    public async ValueTask LazyInitializerAsync()
     {
         int target = 0;
         bool initialized = false;
@@ -68,7 +68,7 @@ public class OnceBenchmarks
     }
 
     [Benchmark]
-    public async Task DoubleCheckedLockAsync()
+    public async ValueTask DoubleCheckedLockAsync()
     {
         var value = 0;
         var gate = new object();

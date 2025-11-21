@@ -40,7 +40,7 @@ public class ResultStreamingBenchmarks
     }
 
     [Benchmark]
-    public async Task MapStream_AllSuccessAsync()
+    public async ValueTask MapStream_AllSuccessAsync()
     {
         var sum = 0;
 
@@ -56,7 +56,7 @@ public class ResultStreamingBenchmarks
     }
 
     [Benchmark]
-    public async Task MapStream_FailureShortCircuitAsync()
+    public async ValueTask MapStream_FailureShortCircuitAsync()
     {
         var count = 0;
 
@@ -74,7 +74,7 @@ public class ResultStreamingBenchmarks
     }
 
     [Benchmark]
-    public async Task FlatMapStream_AllSuccessAsync()
+    public async ValueTask FlatMapStream_AllSuccessAsync()
     {
         var total = 0;
 
@@ -93,7 +93,7 @@ public class ResultStreamingBenchmarks
     }
 
     [Benchmark]
-    public async Task FlatMap_InnerFailureAsync()
+    public async ValueTask FlatMap_InnerFailureAsync()
     {
         var observed = 0;
 
@@ -114,7 +114,7 @@ public class ResultStreamingBenchmarks
     }
 
     [Benchmark]
-    public async Task FilterStream_PredicateAsync()
+    public async ValueTask FilterStream_PredicateAsync()
     {
         var sum = 0;
 
@@ -130,7 +130,7 @@ public class ResultStreamingBenchmarks
     }
 
     [Benchmark]
-    public async Task ToChannel_UnboundedAsync()
+    public async ValueTask ToChannel_UnboundedAsync()
     {
         var channel = Channel.CreateUnbounded<Result<int>>();
 
@@ -149,7 +149,7 @@ public class ResultStreamingBenchmarks
     }
 
     [Benchmark]
-    public async Task ReadAll_ChannelDrainAsync()
+    public async ValueTask ReadAll_ChannelDrainAsync()
     {
         var channel = Channel.CreateUnbounded<Result<int>>();
 
@@ -173,7 +173,7 @@ public class ResultStreamingBenchmarks
     }
 
     [Benchmark]
-    public async Task FanIn_MergeSourcesAsync()
+    public async ValueTask FanIn_MergeSourcesAsync()
     {
         var channel = Channel.CreateUnbounded<Result<int>>();
         var sources = CreateFanInSources(CancellationToken.None);
@@ -194,7 +194,7 @@ public class ResultStreamingBenchmarks
     }
 
     [Benchmark]
-    public async Task FanOut_BroadcastAsync()
+    public async ValueTask FanOut_BroadcastAsync()
     {
         var channels = new Channel<Result<int>>[FanWriterCount];
         for (var i = 0; i < channels.Length; i++)
@@ -220,7 +220,7 @@ public class ResultStreamingBenchmarks
     }
 
     [Benchmark]
-    public async Task Window_FixedSizeAsync()
+    public async ValueTask Window_FixedSizeAsync()
     {
         var observed = 0;
 
@@ -236,7 +236,7 @@ public class ResultStreamingBenchmarks
     }
 
     [Benchmark]
-    public async Task Window_WithFailuresAsync()
+    public async ValueTask Window_WithFailuresAsync()
     {
         var observed = 0;
 
@@ -252,7 +252,7 @@ public class ResultStreamingBenchmarks
     }
 
     [Benchmark]
-    public async Task Partition_PredicateAsync()
+    public async ValueTask Partition_PredicateAsync()
     {
         var even = Channel.CreateBounded<Result<int>>(PartitionChannelCapacity);
         var odd = Channel.CreateBounded<Result<int>>(PartitionChannelCapacity);
@@ -280,63 +280,63 @@ public class ResultStreamingBenchmarks
     }
 
     [Benchmark]
-    public async Task ForEach_FailureStopsAsync()
+    public async ValueTask ForEach_FailureStopsAsync()
     {
         var result = await MixedResultStreamAsync(CancellationToken.None).ForEachAsync(ForEachCallbackAsync, CancellationToken.None).ConfigureAwait(false);
         GC.KeepAlive(result);
     }
 
     [Benchmark]
-    public async Task ForEachLinkedCancellation_CallbackAsync()
+    public async ValueTask ForEachLinkedCancellation_CallbackAsync()
     {
         var result = await SuccessResultStreamAsync(CancellationToken.None).ForEachLinkedCancellationAsync(ForEachLinkedCallbackAsync, CancellationToken.None).ConfigureAwait(false);
         GC.KeepAlive(result);
     }
 
     [Benchmark]
-    public async Task TapSuccessEach_WithFailureAsync()
+    public async ValueTask TapSuccessEach_WithFailureAsync()
     {
         var result = await MixedResultStreamAsync(CancellationToken.None).TapSuccessEachAsync(TapSuccessAsync, CancellationToken.None).ConfigureAwait(false);
         GC.KeepAlive(result);
     }
 
     [Benchmark]
-    public async Task TapSuccessEachAggregateErrors_AggregatesAsync()
+    public async ValueTask TapSuccessEachAggregateErrors_AggregatesAsync()
     {
         var result = await MixedResultStreamAsync(CancellationToken.None).TapSuccessEachAggregateErrorsAsync(TapSuccessAsync, CancellationToken.None).ConfigureAwait(false);
         GC.KeepAlive(result);
     }
 
     [Benchmark]
-    public async Task TapSuccessEachIgnoreErrors_IgnoresAsync()
+    public async ValueTask TapSuccessEachIgnoreErrors_IgnoresAsync()
     {
         var result = await MixedResultStreamAsync(CancellationToken.None).TapSuccessEachIgnoreErrorsAsync(TapSuccessAsync, CancellationToken.None).ConfigureAwait(false);
         GC.KeepAlive(result);
     }
 
     [Benchmark]
-    public async Task TapFailureEach_WithFailuresAsync()
+    public async ValueTask TapFailureEach_WithFailuresAsync()
     {
         var result = await FailureResultStreamAsync(CancellationToken.None).TapFailureEachAsync(TapFailureAsync, CancellationToken.None).ConfigureAwait(false);
         GC.KeepAlive(result);
     }
 
     [Benchmark]
-    public async Task TapFailureEachAggregateErrors_AggregatesAsync()
+    public async ValueTask TapFailureEachAggregateErrors_AggregatesAsync()
     {
         var result = await FailureResultStreamAsync(CancellationToken.None).TapFailureEachAggregateErrorsAsync(TapFailureAsync, CancellationToken.None).ConfigureAwait(false);
         GC.KeepAlive(result);
     }
 
     [Benchmark]
-    public async Task TapFailureEachIgnoreErrors_IgnoresAsync()
+    public async ValueTask TapFailureEachIgnoreErrors_IgnoresAsync()
     {
         var result = await FailureResultStreamAsync(CancellationToken.None).TapFailureEachIgnoreErrorsAsync(TapFailureAsync, CancellationToken.None).ConfigureAwait(false);
         GC.KeepAlive(result);
     }
 
     [Benchmark]
-    public async Task CollectErrors_AggregateAsync()
+    public async ValueTask CollectErrors_AggregateAsync()
     {
         var result = await MixedResultStreamAsync(CancellationToken.None).CollectErrorsAsync(CancellationToken.None).ConfigureAwait(false);
         GC.KeepAlive(result);

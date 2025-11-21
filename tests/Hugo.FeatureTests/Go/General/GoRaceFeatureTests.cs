@@ -4,7 +4,7 @@ namespace Hugo.Tests;
 public sealed class GoRaceFeatureTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task RaceAsync_ShouldReturnFirstSuccessfulResult()
+    public async ValueTask RaceAsync_ShouldReturnFirstSuccessfulResult()
     {
         var operations = new List<Func<CancellationToken, ValueTask<Result<int>>>>
         {

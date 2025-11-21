@@ -9,7 +9,7 @@ namespace Hugo.Tests;
 public class BackpressureAwareRateLimiterTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task OnSignalAsync_ShouldSwitchLimiterAndDisposeTrackedInstances()
+    public async ValueTask OnSignalAsync_ShouldSwitchLimiterAndDisposeTrackedInstances()
     {
         var unthrottled = new TrackingLimiter();
         var throttled = new TrackingLimiter();

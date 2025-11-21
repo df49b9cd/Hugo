@@ -8,7 +8,7 @@ namespace Hugo.Tests;
 public class GoEdgeCaseTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task WaitGroup_AddTask_ShouldComplete_WhenTaskCancels()
+    public async ValueTask WaitGroup_AddTask_ShouldComplete_WhenTaskCancels()
     {
         var wg = new WaitGroup();
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
@@ -27,7 +27,7 @@ public class GoEdgeCaseTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Mutex_Contention_ShouldSerializeCriticalSection()
+    public async ValueTask Mutex_Contention_ShouldSerializeCriticalSection()
     {
         using var mutex = new Mutex();
         var concurrent = 0;
@@ -51,7 +51,7 @@ public class GoEdgeCaseTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Channel_WriteAsync_ShouldFail_WhenCompleted()
+    public async ValueTask Channel_WriteAsync_ShouldFail_WhenCompleted()
     {
         var channel = MakeChannel<int>(capacity: 1);
         channel.Writer.TryComplete();
@@ -60,7 +60,7 @@ public class GoEdgeCaseTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WaitAsync_ShouldThrow_WhenCanceledBeforeOperationsFinish()
+    public async ValueTask WaitAsync_ShouldThrow_WhenCanceledBeforeOperationsFinish()
     {
         var wg = new WaitGroup();
         var blocker = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

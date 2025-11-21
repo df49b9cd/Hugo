@@ -8,7 +8,7 @@ namespace Hugo.Tests;
 public class ErrGroupFeatureTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task ErrGroupDocSample_ShouldCompleteSuccessfully()
+    public async ValueTask ErrGroupDocSample_ShouldCompleteSuccessfully()
     {
         using var group = new ErrGroup();
         var retryPolicy = ResultExecutionPolicy.None.WithRetry(ResultRetryPolicy.FixedDelay(maxAttempts: 3, delay: TimeSpan.Zero));
@@ -44,7 +44,7 @@ public class ErrGroupFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ErrGroupDocSample_ShouldHandleCancellationResult()
+    public async ValueTask ErrGroupDocSample_ShouldHandleCancellationResult()
     {
         using var group = new ErrGroup();
         var retryPolicy = ResultExecutionPolicy.None.WithRetry(ResultRetryPolicy.FixedDelay(maxAttempts: 1, delay: TimeSpan.Zero));
@@ -76,7 +76,7 @@ public class ErrGroupFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ErrGroupPipeline_ShouldCancelPeersBeforeCompensationCompletes()
+    public async ValueTask ErrGroupPipeline_ShouldCancelPeersBeforeCompensationCompletes()
     {
         using var group = new ErrGroup();
         var compensationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

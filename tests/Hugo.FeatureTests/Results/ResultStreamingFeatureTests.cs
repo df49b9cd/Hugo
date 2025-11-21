@@ -10,7 +10,7 @@ namespace Hugo.Tests;
 public sealed class ResultStreamingFeatureTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task MapStreamAsync_ShouldShortCircuitFeatureStreamOnFailure()
+    public async ValueTask MapStreamAsync_ShouldShortCircuitFeatureStreamOnFailure()
     {
         var collected = new List<int>();
 
@@ -28,7 +28,7 @@ public sealed class ResultStreamingFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task PartitionAsync_ShouldRouteResultsAndCompleteWriters()
+    public async ValueTask PartitionAsync_ShouldRouteResultsAndCompleteWriters()
     {
         async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct)
         {
@@ -56,7 +56,7 @@ public sealed class ResultStreamingFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanOutAsync_ShouldBroadcastResultsToAllDestinations()
+    public async ValueTask FanOutAsync_ShouldBroadcastResultsToAllDestinations()
     {
         async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct)
         {
@@ -84,7 +84,7 @@ public sealed class ResultStreamingFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task WindowAsync_ShouldYieldTrailingWindowAndSurfaceFailure()
+    public async ValueTask WindowAsync_ShouldYieldTrailingWindowAndSurfaceFailure()
     {
         async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct)
         {
@@ -110,7 +110,7 @@ public sealed class ResultStreamingFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ForEachLinkedCancellationAsync_ShouldIterateWithLinkedTokens()
+    public async ValueTask ForEachLinkedCancellationAsync_ShouldIterateWithLinkedTokens()
     {
         async IAsyncEnumerable<Result<int>> Source([EnumeratorCancellation] CancellationToken ct)
         {
@@ -136,7 +136,7 @@ public sealed class ResultStreamingFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsync_ShouldSurfaceSourceExceptions()
+    public async ValueTask FanInAsync_ShouldSurfaceSourceExceptions()
     {
         async IAsyncEnumerable<Result<int>> Faulty([EnumeratorCancellation] CancellationToken ct = default)
         {
@@ -165,7 +165,7 @@ public sealed class ResultStreamingFeatureTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task FanInAsync_ShouldPropagateCancellationAndCloseWriter()
+    public async ValueTask FanInAsync_ShouldPropagateCancellationAndCloseWriter()
     {
         async IAsyncEnumerable<Result<int>> Slow([EnumeratorCancellation] CancellationToken ct = default)
         {

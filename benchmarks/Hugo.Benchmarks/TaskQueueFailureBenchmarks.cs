@@ -15,7 +15,7 @@ public class TaskQueueFailureBenchmarks
     public int Capacity { get; set; }
 
     [Benchmark]
-    public async Task FailAndRequeueAsync()
+    public async ValueTask FailAndRequeueAsync()
     {
         int deadLettered = 0;
         await using var queue = new TaskQueue<int>(new TaskQueueOptions

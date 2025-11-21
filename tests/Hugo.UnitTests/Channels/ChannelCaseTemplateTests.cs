@@ -11,7 +11,7 @@ namespace Hugo.Tests.Channels;
 public sealed class ChannelCaseTemplateTests
 {
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldConsumeImmediateReadyValue_WithTemplate()
+    public async ValueTask SelectAsync_ShouldConsumeImmediateReadyValue_WithTemplate()
     {
         var channel = Channel.CreateBounded<int>(1);
         channel.Writer.TryWrite(42);
@@ -26,7 +26,7 @@ public sealed class ChannelCaseTemplateTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task SelectAsync_ShouldHonorCasePriority()
+    public async ValueTask SelectAsync_ShouldHonorCasePriority()
     {
         var high = Channel.CreateBounded<string>(1);
         var low = Channel.CreateBounded<string>(1);
@@ -45,7 +45,7 @@ public sealed class ChannelCaseTemplateTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task Template_WithAction_ShouldExecuteAndReturnDefaultResult()
+    public async ValueTask Template_WithAction_ShouldExecuteAndReturnDefaultResult()
     {
         var channel = Channel.CreateBounded<int>(1);
         channel.Writer.TryWrite(7);
@@ -61,7 +61,7 @@ public sealed class ChannelCaseTemplateTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TemplatesExtension_WithValueTaskSelector_ShouldMaterializeAllCases()
+    public async ValueTask TemplatesExtension_WithValueTaskSelector_ShouldMaterializeAllCases()
     {
         var first = Channel.CreateUnbounded<int>();
         var second = Channel.CreateUnbounded<int>();
@@ -80,7 +80,7 @@ public sealed class ChannelCaseTemplateTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task TryDequeueImmediately_ShouldReturnReadyProbeState()
+    public async ValueTask TryDequeueImmediately_ShouldReturnReadyProbeState()
     {
         var channel = Channel.CreateUnbounded<int>();
         await channel.Writer.WriteAsync(5, TestContext.Current.CancellationToken);
@@ -96,7 +96,7 @@ public sealed class ChannelCaseTemplateTests
     }
 
     [Fact(Timeout = 15_000)]
-    public async Task ContinueWithAsync_ShouldReturnFailure_ForInvalidState()
+    public async ValueTask ContinueWithAsync_ShouldReturnFailure_ForInvalidState()
     {
         var channel = Channel.CreateUnbounded<int>();
         ChannelCase<int> @case = ChannelCase.Create(channel.Reader, (value, _) => ValueTask.FromResult(Result.Ok(value)));

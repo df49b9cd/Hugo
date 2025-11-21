@@ -32,29 +32,29 @@ public class RwMutexBenchmarks
     }
 
     [Benchmark]
-    public Task HugoRwMutexAsync() => ExecuteAsync(new HugoRwMutexStrategy());
+    public ValueTask HugoRwMutexAsync() => ExecuteAsync(new HugoRwMutexStrategy());
 
     [Benchmark]
-    public Task ReaderWriterLockSlimAsync() => ExecuteAsync(new ReaderWriterLockSlimStrategy());
+    public ValueTask ReaderWriterLockSlimAsync() => ExecuteAsync(new ReaderWriterLockSlimStrategy());
 
     [Benchmark]
-    public Task SemaphoreSlimHybridAsync() => ExecuteAsync(new SemaphoreSlimHybridStrategy());
+    public ValueTask SemaphoreSlimHybridAsync() => ExecuteAsync(new SemaphoreSlimHybridStrategy());
 
     [Benchmark]
-    public Task AsyncReaderWriterLockAsync() => ExecuteAsync(new AsyncReaderWriterLockStrategy());
+    public ValueTask AsyncReaderWriterLockAsync() => ExecuteAsync(new AsyncReaderWriterLockStrategy());
 
-    private Task ExecuteAsync(ILockStrategy strategy) => _operationPlan is null
+    private ValueTask ExecuteAsync(ILockStrategy strategy) => _operationPlan is null
             ? throw new InvalidOperationException("Operation plan was not initialized.")
             : strategy.ExecuteAsync(_operationPlan, CancellationToken.None);
 
     private interface ILockStrategy
     {
-        Task ExecuteAsync(int[] operations, CancellationToken cancellationToken);
+        ValueTask ExecuteAsync(int[] operations, CancellationToken cancellationToken);
     }
 
     private sealed class HugoRwMutexStrategy : ILockStrategy
     {
-        public async Task ExecuteAsync(int[] operations, CancellationToken cancellationToken)
+        public async ValueTask ExecuteAsync(int[] operations, CancellationToken cancellationToken)
         {
             var mutex = new RwMutex();
             var tasks = new Task[operations.Length];
@@ -88,7 +88,7 @@ public class RwMutexBenchmarks
 
     private sealed class ReaderWriterLockSlimStrategy : ILockStrategy
     {
-        public Task ExecuteAsync(int[] operations, CancellationToken cancellationToken)
+        public ValueTask ExecuteAsync(int[] operations, CancellationToken cancellationToken)
         {
             var rwLock = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
             var tasks = new Task[operations.Length];
@@ -125,13 +125,13 @@ public class RwMutexBenchmarks
                 }, cancellationToken);
             }
 
-            return Task.WhenAll(tasks);
+            return new ValueTask(Task.WhenAll(tasks));
         }
     }
 
     private sealed class SemaphoreSlimHybridStrategy : ILockStrategy
     {
-        public Task ExecuteAsync(int[] operations, CancellationToken cancellationToken)
+        public ValueTask ExecuteAsync(int[] operations, CancellationToken cancellationToken)
         {
             var writerGate = new SemaphoreSlim(1, 1);
             var readerGate = new object();
@@ -198,13 +198,13 @@ public class RwMutexBenchmarks
                 }, cancellationToken);
             }
 
-            return Task.WhenAll(tasks);
+            return new ValueTask(Task.WhenAll(tasks));
         }
     }
 
     private sealed class AsyncReaderWriterLockStrategy : ILockStrategy
     {
-        public async Task ExecuteAsync(int[] operations, CancellationToken cancellationToken)
+        public async ValueTask ExecuteAsync(int[] operations, CancellationToken cancellationToken)
         {
             using var context = new JoinableTaskContext();
             var asyncLock = new AsyncReaderWriterLock(context);
