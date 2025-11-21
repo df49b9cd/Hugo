@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Threading.Channels;
 
 using Hugo.Policies;
@@ -39,7 +40,7 @@ public static partial class Result
         TimeProvider? timeProvider = null,
         CancellationToken cancellationToken = default) => WhenAnyInternal(operations, policy, timeProvider ?? TimeProvider.System, cancellationToken);
 
-    private static async ValueTask<Result<IReadOnlyList<T>>> WhenAllInternal<T>(
+    private static ValueTask<Result<IReadOnlyList<T>>> WhenAllInternal<T>(
         IEnumerable<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> operations,
         ResultExecutionPolicy? policy,
         TimeProvider timeProvider,
@@ -51,7 +52,7 @@ public static partial class Result
         var operationList = operations as IList<Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<T>>>> ?? [.. operations];
         if (operationList.Count == 0)
         {
-            return Ok<IReadOnlyList<T>>([]);
+            return ValueTask.FromResult(Ok<IReadOnlyList<T>>([]));
         }
 
         var effectivePolicy = policy ?? ResultExecutionPolicy.None;
@@ -63,6 +64,7 @@ public static partial class Result
         var results = ArrayPool<PipelineOperationResult<T>>.Shared.Rent(length);
         var completed = ArrayPool<bool>.Shared.Rent(length);
         Array.Clear(completed, 0, length); // rented buffers may contain prior data
+        var allCompletedSynchronously = true;
 
         for (var i = 0; i < operationList.Count; i++)
         {
@@ -73,11 +75,66 @@ public static partial class Result
             }
 
 #pragma warning disable CA2012 // ValueTasks are stored to enable concurrent awaiting.
-            fanOut[i] = ExecuteWithPolicyAsync(operation, $"whenall[{i}]", effectivePolicy, timeProvider, cancellationToken);
+            var task = ExecuteWithPolicyAsync(operation, $"whenall[{i}]", effectivePolicy, timeProvider, cancellationToken);
+            fanOut[i] = task;
+            allCompletedSynchronously &= task.IsCompleted;
 #pragma warning restore CA2012
         }
 
-        try
+        if (allCompletedSynchronously)
+        {
+            Result<IReadOnlyList<T>> outcome;
+            try
+            {
+                for (var i = 0; i < length; i++)
+                {
+                    if (!fanOut[i].IsCompleted)
+                    {
+                        throw new InvalidOperationException("Synchronous aggregation invoked before all operations completed.");
+                    }
+
+                    results[i] = fanOut[i].GetAwaiter().GetResult();
+                    completed[i] = true;
+                }
+
+                var combinedTask = ProcessCompletedOperationsAsync(
+                        results,
+                        completed,
+                        length,
+                        pipelineScope,
+                        effectivePolicy,
+                        cancellationToken);
+                outcome = combinedTask.IsCompletedSuccessfully
+                    ? combinedTask.Result
+                    : combinedTask.GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException oce)
+            {
+                var cancellationTask = BuildWhenAllCancellationErrorAsync(
+                        fanOut,
+                        results,
+                        completed,
+                        pipelineScope,
+                        effectivePolicy,
+                        oce,
+                        length,
+                        cancellationToken);
+                var cancellationError = cancellationTask.IsCompletedSuccessfully
+                    ? cancellationTask.Result
+                    : cancellationTask.GetAwaiter().GetResult();
+                outcome = Fail<IReadOnlyList<T>>(cancellationError);
+            }
+            finally
+            {
+                ReturnPooledBuffers(fanOut, results, completed);
+            }
+
+            return ValueTask.FromResult(outcome);
+        }
+
+        return AwaitResultsAsync();
+
+        async ValueTask<Result<IReadOnlyList<T>>> AwaitResultsAsync()
         {
             try
             {
@@ -86,6 +143,14 @@ public static partial class Result
                     results[i] = await fanOut[i].ConfigureAwait(false);
                     completed[i] = true;
                 }
+
+                return await ProcessCompletedOperationsAsync(
+                    results,
+                    completed,
+                    length,
+                    pipelineScope,
+                    effectivePolicy,
+                    cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException oce)
             {
@@ -100,60 +165,77 @@ public static partial class Result
                     cancellationToken).ConfigureAwait(false);
                 return Fail<IReadOnlyList<T>>(cancellationError);
             }
-
-            var values = new List<T>(length);
-            var errors = new List<Error>(length);
-
-            for (var i = 0; i < length; i++)
+            finally
             {
-                if (!completed[i])
-                {
-                    continue;
-                }
-
-                var entry = results[i];
-                if (entry.Result.IsSuccess)
-                {
-                    pipelineScope.Absorb(entry.Compensation);
-                    values.Add(entry.Result.Value);
-                    continue;
-                }
-
-                entry.Compensation.Clear();
-                errors.Add(entry.Result.Error ?? Error.Unspecified());
+                ReturnPooledBuffers(fanOut, results, completed);
             }
-
-            if (errors.Count == 0)
-            {
-                pipelineScope.Clear();
-                return Ok<IReadOnlyList<T>>(values);
-            }
-
-            var compensationCancellation = cancellationToken.IsCancellationRequested ? CancellationToken.None : cancellationToken;
-            var compensationError = await RunCompensationAsync(effectivePolicy, pipelineScope, compensationCancellation).ConfigureAwait(false);
-            if (compensationError is not null)
-            {
-                errors.Add(compensationError);
-            }
-
-            if (cancellationToken.IsCancellationRequested && errors.TrueForAll(error => error?.Code == ErrorCodes.Canceled))
-            {
-                CancellationToken? cancellationSource = cancellationToken.CanBeCanceled ? cancellationToken : null;
-                return Fail<IReadOnlyList<T>>(Error.Canceled(token: cancellationSource));
-            }
-
-            var aggregate = errors.Count == 1
-                ? errors[0]
-                : Error.Aggregate("One or more operations failed.", [.. errors]);
-
-            return Fail<IReadOnlyList<T>>(aggregate);
         }
-        finally
+    }
+
+    private static async ValueTask<Result<IReadOnlyList<T>>> ProcessCompletedOperationsAsync<T>(
+        PipelineOperationResult<T>[] results,
+        bool[] completed,
+        int length,
+        CompensationScope pipelineScope,
+        ResultExecutionPolicy effectivePolicy,
+        CancellationToken cancellationToken)
+    {
+        var values = new List<T>(length);
+        var errors = new List<Error>(length);
+
+        for (var i = 0; i < length; i++)
         {
-            ArrayPool<ValueTask<PipelineOperationResult<T>>>.Shared.Return(fanOut, clearArray: true);
-            ArrayPool<PipelineOperationResult<T>>.Shared.Return(results, clearArray: true);
-            ArrayPool<bool>.Shared.Return(completed, clearArray: true);
+            if (!completed[i])
+            {
+                continue;
+            }
+
+            var entry = results[i];
+            if (entry.Result.IsSuccess)
+            {
+                pipelineScope.Absorb(entry.Compensation);
+                values.Add(entry.Result.Value);
+                continue;
+            }
+
+            entry.Compensation.Clear();
+            errors.Add(entry.Result.Error ?? Error.Unspecified());
         }
+
+        if (errors.Count == 0)
+        {
+            pipelineScope.Clear();
+            return Ok<IReadOnlyList<T>>(values);
+        }
+
+        var compensationCancellation = cancellationToken.IsCancellationRequested ? CancellationToken.None : cancellationToken;
+        var compensationError = await RunCompensationAsync(effectivePolicy, pipelineScope, compensationCancellation).ConfigureAwait(false);
+        if (compensationError is not null)
+        {
+            errors.Add(compensationError);
+        }
+
+        if (cancellationToken.IsCancellationRequested && errors.TrueForAll(error => error?.Code == ErrorCodes.Canceled))
+        {
+            CancellationToken? cancellationSource = cancellationToken.CanBeCanceled ? cancellationToken : null;
+            return Fail<IReadOnlyList<T>>(Error.Canceled(token: cancellationSource));
+        }
+
+        var aggregate = errors.Count == 1
+            ? errors[0]
+            : Error.Aggregate("One or more operations failed.", [.. errors]);
+
+        return Fail<IReadOnlyList<T>>(aggregate);
+    }
+
+    private static void ReturnPooledBuffers<T>(
+        ValueTask<PipelineOperationResult<T>>[] fanOut,
+        PipelineOperationResult<T>[] results,
+        bool[] completed)
+    {
+        ArrayPool<ValueTask<PipelineOperationResult<T>>>.Shared.Return(fanOut, clearArray: true);
+        ArrayPool<PipelineOperationResult<T>>.Shared.Return(results, clearArray: true);
+        ArrayPool<bool>.Shared.Return(completed, clearArray: true);
     }
 
     private static async ValueTask<Result<T>> WhenAnyInternal<T>(

@@ -97,4 +97,22 @@ public sealed class ResultWhenAllTests
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await Result.WhenAll(operations!, cancellationToken: TestContext.Current.CancellationToken));
     }
+
+    [Fact(Timeout = 5_000)]
+    public async ValueTask WhenAll_ShouldCompleteSynchronously_ForCompletedOperations()
+    {
+        var operations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<int>>>[]
+        {
+            (_, _) => ValueTask.FromResult(Result.Ok(1)),
+            (_, _) => ValueTask.FromResult(Result.Ok(2))
+        };
+
+        var aggregate = Result.WhenAll(operations, cancellationToken: CancellationToken.None);
+
+        aggregate.IsCompleted.ShouldBeTrue();
+
+        var result = await aggregate;
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBe([1, 2]);
+    }
 }
