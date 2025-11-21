@@ -240,35 +240,19 @@ public static class ResultPipelineChannels
         _ = Go.Run(async _ =>
         {
             var buffer = new List<T>(batchSize);
-            var raceOperations = new Func<ResultPipelineStepContext, CancellationToken, ValueTask<Result<bool>>>[]
-            {
-                async (ResultPipelineStepContext _, CancellationToken raceToken) =>
-                {
-                    await CreateDelayTask(provider, flushInterval, raceToken).ConfigureAwait(false);
-                    return Result.Ok(true);
-                },
-                async (ResultPipelineStepContext _, CancellationToken raceToken) =>
-                {
-                    await source.WaitToReadAsync(raceToken).ConfigureAwait(false);
-                    return Result.Ok(false);
-                }
-            };
+            var effectiveInterval = NormalizeFlushInterval(flushInterval);
 
             try
             {
                 while (true)
                 {
-                    using var raceCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-                    var raceToken = raceCts.Token;
+                    var outcome = await WaitForNextWindowSignalAsync(source, provider, effectiveInterval, token).ConfigureAwait(false);
 
-                    var winnerIsDelay = await Result.WhenAny(raceOperations, cancellationToken: raceToken).ConfigureAwait(false);
-                    await raceCts.CancelAsync().ConfigureAwait(false);
-
-                    if (winnerIsDelay.Value)
+                    if (outcome.Winner == WindowRaceWinner.TimerElapsed)
                     {
                         if (buffer.Count > 0)
                         {
-                            await output.Writer.WriteAsync([.. buffer], token).ConfigureAwait(false);
+                            await output.Writer.WriteAsync(MaterializeBatch(buffer), token).ConfigureAwait(false);
                             buffer.Clear();
                         }
 
@@ -277,7 +261,7 @@ public static class ResultPipelineChannels
                             buffer.Add(pending);
                             if (buffer.Count >= batchSize)
                             {
-                                await output.Writer.WriteAsync([.. buffer], token).ConfigureAwait(false);
+                                await output.Writer.WriteAsync(MaterializeBatch(buffer), token).ConfigureAwait(false);
                                 buffer.Clear();
                             }
                         }
@@ -290,8 +274,7 @@ public static class ResultPipelineChannels
                         continue;
                     }
 
-                    var hasData = await source.WaitToReadAsync(token).ConfigureAwait(false);
-                    if (!hasData)
+                    if (!outcome.HasData)
                     {
                         break;
                     }
@@ -301,7 +284,7 @@ public static class ResultPipelineChannels
                         buffer.Add(item);
                         if (buffer.Count >= batchSize)
                         {
-                            await output.Writer.WriteAsync([.. buffer], token).ConfigureAwait(false);
+                            await output.Writer.WriteAsync(MaterializeBatch(buffer), token).ConfigureAwait(false);
                             buffer.Clear();
                         }
                     }
@@ -309,7 +292,7 @@ public static class ResultPipelineChannels
 
                 if (buffer.Count > 0)
                 {
-                    await output.Writer.WriteAsync([.. buffer], token).ConfigureAwait(false);
+                    await output.Writer.WriteAsync(MaterializeBatch(buffer), token).ConfigureAwait(false);
                 }
 
                 output.Writer.TryComplete();
@@ -376,15 +359,16 @@ public static class ResultPipelineChannels
         return new ResultPipelineSelectBuilder<TResult>(context, duration, provider ?? context.TimeProvider, cancellationToken);
     }
 
-    private static ValueTask<bool> CreateDelayTask(TimeProvider provider, TimeSpan flushInterval, CancellationToken token)
-    {
-        if (flushInterval == Timeout.InfiniteTimeSpan)
-        {
-            return TimeProviderDelay.WaitAsync(provider, Timeout.InfiniteTimeSpan, token);
-        }
+    private static TimeSpan NormalizeFlushInterval(TimeSpan flushInterval) =>
+        flushInterval == Timeout.InfiniteTimeSpan
+            ? Timeout.InfiniteTimeSpan
+            : flushInterval <= TimeSpan.Zero ? TimeSpan.Zero : flushInterval;
 
-        var dueTime = flushInterval <= TimeSpan.Zero ? TimeSpan.Zero : flushInterval;
-        return TimeProviderDelay.WaitAsync(provider, dueTime, token);
+    private static T[] MaterializeBatch<T>(List<T> buffer)
+    {
+        var snapshot = new T[buffer.Count];
+        buffer.CopyTo(snapshot);
+        return snapshot;
     }
 
     private enum WindowRaceWinner
@@ -404,6 +388,56 @@ public static class ResultPipelineChannels
         public WindowRaceWinner Winner { get; }
 
         public bool HasData { get; }
+    }
+
+    private static ValueTask<WindowRaceOutcome> WaitForNextWindowSignalAsync<T>(
+        ChannelReader<T> source,
+        TimeProvider provider,
+        TimeSpan flushInterval,
+        CancellationToken token)
+    {
+        if (flushInterval == Timeout.InfiniteTimeSpan)
+        {
+            return AwaitReaderReadyAsync(source, token);
+        }
+
+        return WaitWithTimerAsync(source, provider, flushInterval, token);
+
+        static async ValueTask<WindowRaceOutcome> AwaitReaderReadyAsync(ChannelReader<T> reader, CancellationToken ct)
+        {
+            var hasData = await reader.WaitToReadAsync(ct).ConfigureAwait(false);
+            return new WindowRaceOutcome(WindowRaceWinner.ReaderReady, hasData);
+        }
+
+        static async ValueTask<WindowRaceOutcome> WaitWithTimerAsync(ChannelReader<T> reader, TimeProvider provider, TimeSpan interval, CancellationToken ct)
+        {
+            var delayTask = TimeProviderDelay.WaitAsync(provider, interval, ct);
+            var readyTask = reader.WaitToReadAsync(ct);
+
+            if (delayTask.IsCompletedSuccessfully)
+            {
+                return new WindowRaceOutcome(WindowRaceWinner.TimerElapsed, hasData: false);
+            }
+
+            if (readyTask.IsCompleted)
+            {
+                var readyFromCache = await readyTask.ConfigureAwait(false);
+                return new WindowRaceOutcome(WindowRaceWinner.ReaderReady, readyFromCache);
+            }
+
+            Task<bool> delayPromise = delayTask.AsTask();
+            Task<bool> readyPromise = readyTask.AsTask();
+
+            Task winner = await Task.WhenAny(delayPromise, readyPromise).ConfigureAwait(false);
+            if (ReferenceEquals(winner, delayPromise))
+            {
+                await delayPromise.ConfigureAwait(false);
+                return new WindowRaceOutcome(WindowRaceWinner.TimerElapsed, hasData: false);
+            }
+
+            var readyAfterRace = await readyPromise.ConfigureAwait(false);
+            return new WindowRaceOutcome(WindowRaceWinner.ReaderReady, readyAfterRace);
+        }
     }
 
     private static ChannelCase<TResult>[] WrapCases<TResult>(ResultPipelineStepContext context, IEnumerable<ChannelCase<TResult>> cases)

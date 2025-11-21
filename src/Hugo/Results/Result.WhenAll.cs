@@ -97,6 +97,7 @@ public static partial class Result
                     completed[i] = true;
                 }
 
+#pragma warning disable CA2012 // Safe: guarded by IsCompletedSuccessfully in fast-path; falls back to GetAwaiter when incomplete.
                 var combinedTask = ProcessCompletedOperationsAsync(
                         results,
                         completed,
@@ -107,6 +108,7 @@ public static partial class Result
                 outcome = combinedTask.IsCompletedSuccessfully
                     ? combinedTask.Result
                     : combinedTask.GetAwaiter().GetResult();
+#pragma warning restore CA2012
             }
             catch (OperationCanceledException oce)
             {
