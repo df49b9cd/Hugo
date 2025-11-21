@@ -2,7 +2,6 @@ using System.Threading.Channels;
 
 using Microsoft.Extensions.Time.Testing;
 
-using Shouldly;
 
 namespace Hugo.Tests.Selecting;
 

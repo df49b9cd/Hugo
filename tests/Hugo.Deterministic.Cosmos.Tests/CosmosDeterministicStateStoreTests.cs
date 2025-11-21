@@ -5,7 +5,6 @@ using Hugo.Deterministic.Cosmos;
 
 using Microsoft.Azure.Cosmos;
 
-using Shouldly;
 
 using Testcontainers.CosmosDb;
 

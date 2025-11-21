@@ -2,7 +2,6 @@ using System.Threading.Channels;
 
 using Hugo;
 
-using Shouldly;
 
 namespace Hugo.IntegrationTests;
 

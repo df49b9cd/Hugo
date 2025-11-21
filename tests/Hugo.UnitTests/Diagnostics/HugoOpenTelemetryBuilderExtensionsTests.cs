@@ -6,7 +6,6 @@ using Microsoft.Extensions.Options;
 
 using OpenTelemetry;
 
-using Shouldly;
 
 namespace Hugo.Tests.Diagnostics;
 

@@ -5,7 +5,6 @@ using Microsoft.Extensions.Options;
 
 using OpenTelemetry.Exporter;
 
-using Shouldly;
 
 namespace Hugo.Tests;
 

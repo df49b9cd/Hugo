@@ -4,7 +4,6 @@ using Hugo.Deterministic.SqlServer;
 
 using Microsoft.Extensions.DependencyInjection;
 
-using Shouldly;
 
 namespace Hugo.Tests;
 

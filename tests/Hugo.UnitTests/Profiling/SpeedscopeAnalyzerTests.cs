@@ -2,7 +2,6 @@ using System.Text;
 
 using Hugo.Profiling;
 
-using Shouldly;
 
 namespace Hugo.Tests.Profiling;
 

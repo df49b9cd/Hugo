@@ -3,7 +3,6 @@ using System.Diagnostics.Metrics;
 
 using Hugo.TaskQueues.Diagnostics;
 
-using Shouldly;
 
 namespace Hugo.Tests.Diagnostics;
 

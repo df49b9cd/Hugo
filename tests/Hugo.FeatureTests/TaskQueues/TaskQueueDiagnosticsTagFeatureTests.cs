@@ -6,7 +6,6 @@ using System.Linq;
 
 using Hugo.TaskQueues.Diagnostics;
 
-using Shouldly;
 
 namespace Hugo.Tests.TaskQueues;
 

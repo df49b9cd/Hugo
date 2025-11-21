@@ -1,6 +1,5 @@
 using System.Threading.Channels;
 
-using Shouldly;
 
 namespace Hugo.Tests.Channels;
 
