@@ -52,6 +52,32 @@ public sealed class PrioritizedChannelTests
     }
 
     [Fact(Timeout = 15_000)]
+    public async ValueTask PrioritizedChannel_SingleReader_PrefetchesWithoutExtraQueues()
+    {
+        var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
+        {
+            PriorityLevels = 1,
+            PrefetchPerPriority = 2,
+            SingleReader = true
+        });
+
+        var writer = channel.Writer;
+        var reader = channel.Reader;
+        var ct = TestContext.Current.CancellationToken;
+
+        await writer.WriteAsync(1, ct);
+        await writer.WriteAsync(2, ct);
+
+        (await reader.WaitToReadAsync(ct)).ShouldBeTrue();
+
+        reader.TryRead(out var first).ShouldBeTrue();
+        first.ShouldBe(1);
+
+        reader.TryRead(out var second).ShouldBeTrue();
+        second.ShouldBe(2);
+    }
+
+    [Fact(Timeout = 15_000)]
     public async ValueTask PrioritizedChannel_ShouldDrainSingleItemPerLane()
     {
         var channel = new PrioritizedChannel<int>(new PrioritizedChannelOptions
@@ -166,7 +192,7 @@ public sealed class PrioritizedChannelTests
     }
 
     private static PrioritizedChannel<int>.PrioritizedChannelReader CreatePrioritizedReader(params ChannelReader<int>[] lanes) =>
-        new(lanes, prefetchPerPriority: 1);
+        new(lanes, prefetchPerPriority: 1, singleReader: true);
 
     private sealed class AsyncLaneReader : ChannelReader<int>
     {

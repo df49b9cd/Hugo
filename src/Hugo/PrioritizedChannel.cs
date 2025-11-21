@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading.Channels;
 
 namespace Hugo;
@@ -157,7 +158,7 @@ public sealed class PrioritizedChannel<T>
         }
 
         var resolvedDefaultPriority = options.DefaultPriority ?? (levels - 1);
-        _reader = new PrioritizedChannelReader(readers, options.PrefetchPerPriority);
+        _reader = new PrioritizedChannelReader(readers, options.PrefetchPerPriority, options.SingleReader);
         _writer = new PrioritizedChannelWriter(writers, resolvedDefaultPriority);
         PriorityLevels = levels;
         DefaultPriority = resolvedDefaultPriority;
@@ -212,26 +213,38 @@ public sealed class PrioritizedChannel<T>
     {
         private readonly ChannelReader<T>[] _readers;
         private readonly ConcurrentQueue<T>[] _buffers;
+        private readonly LaneBuffer[] _laneBuffers;
         private readonly int[] _bufferedPerPriority;
         private readonly ChannelCase<Go.Unit>[] _laneCases;
         private readonly Task _completion;
         private readonly int _prefetchPerPriority;
+        private readonly bool _singleConsumer;
         private readonly bool _singleLane;
         private int _bufferedTotal;
 
-        internal PrioritizedChannelReader(ChannelReader<T>[] readers, int prefetchPerPriority)
+        internal PrioritizedChannelReader(ChannelReader<T>[] readers, int prefetchPerPriority, bool singleReader)
         {
             _readers = readers ?? throw new ArgumentNullException(nameof(readers));
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(prefetchPerPriority);
 
             _prefetchPerPriority = prefetchPerPriority;
             _singleLane = readers.Length == 1;
-            _buffers = new ConcurrentQueue<T>[readers.Length];
+            _singleConsumer = singleReader;
+            _buffers = singleReader ? Array.Empty<ConcurrentQueue<T>>() : new ConcurrentQueue<T>[readers.Length];
+            _laneBuffers = singleReader ? GC.AllocateUninitializedArray<LaneBuffer>(readers.Length) : Array.Empty<LaneBuffer>();
             _bufferedPerPriority = new int[readers.Length];
             var completions = new Task[readers.Length];
             for (var i = 0; i < readers.Length; i++)
             {
-                _buffers[i] = new ConcurrentQueue<T>();
+                if (singleReader)
+                {
+                    _laneBuffers[i] = new LaneBuffer(prefetchPerPriority);
+                }
+                else
+                {
+                    _buffers[i] = new ConcurrentQueue<T>();
+                }
+
                 completions[i] = readers[i].Completion;
             }
 
@@ -396,7 +409,15 @@ public sealed class PrioritizedChannel<T>
 
         private void BufferItem(int priority, T item)
         {
-            _buffers[priority].Enqueue(item);
+            if (_singleConsumer)
+            {
+                _laneBuffers[priority].Enqueue(item);
+            }
+            else
+            {
+                _buffers[priority].Enqueue(item);
+            }
+
             Interlocked.Increment(ref _bufferedPerPriority[priority]);
             Interlocked.Increment(ref _bufferedTotal);
         }
@@ -407,7 +428,16 @@ public sealed class PrioritizedChannel<T>
         {
             if (_singleLane)
             {
-                if (_buffers[0].TryDequeue(out item!))
+                if (_singleConsumer)
+                {
+                    if (_laneBuffers[0].TryDequeue(out item!))
+                    {
+                        Interlocked.Decrement(ref _bufferedPerPriority[0]);
+                        Interlocked.Decrement(ref _bufferedTotal);
+                        return true;
+                    }
+                }
+                else if (_buffers[0].TryDequeue(out item!))
                 {
                     Interlocked.Decrement(ref _bufferedPerPriority[0]);
                     Interlocked.Decrement(ref _bufferedTotal);
@@ -418,9 +448,18 @@ public sealed class PrioritizedChannel<T>
                 return false;
             }
 
-            for (var priority = 0; priority < _buffers.Length; priority++)
+            for (var priority = 0; priority < _bufferedPerPriority.Length; priority++)
             {
-                if (_buffers[priority].TryDequeue(out item!))
+                if (_singleConsumer)
+                {
+                    if (_laneBuffers[priority].TryDequeue(out item!))
+                    {
+                        Interlocked.Decrement(ref _bufferedPerPriority[priority]);
+                        Interlocked.Decrement(ref _bufferedTotal);
+                        return true;
+                    }
+                }
+                else if (_buffers[priority].TryDequeue(out item!))
                 {
                     Interlocked.Decrement(ref _bufferedPerPriority[priority]);
                     Interlocked.Decrement(ref _bufferedTotal);
@@ -461,6 +500,58 @@ public sealed class PrioritizedChannel<T>
 
             return staged;
         }
+    }
+
+    private struct LaneBuffer
+    {
+        private T? _head;
+        private int _count;
+        private readonly int _capacity;
+
+        internal LaneBuffer(int capacity)
+        {
+            _capacity = capacity;
+            _head = default;
+            _count = 0;
+        }
+
+        internal void Enqueue(T value)
+        {
+            if (_count == 0)
+            {
+                _head = value;
+                _count = 1;
+                return;
+            }
+
+            // Fallback to per-lane queue for overflow; allocate lazily.
+            (_queue ??= new Queue<T>(_capacity)).Enqueue(value);
+            _count++;
+        }
+
+        internal bool TryDequeue(out T value)
+        {
+            if (_count == 0)
+            {
+                value = default!;
+                return false;
+            }
+
+            value = _head!;
+            if (_queue is not null && _queue.Count > 0)
+            {
+                _head = _queue.Dequeue();
+            }
+            else
+            {
+                _head = default;
+            }
+
+            _count--;
+            return true;
+        }
+
+        private Queue<T>? _queue;
     }
 
     /// <summary>
